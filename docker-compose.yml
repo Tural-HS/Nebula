@@ -29,6 +29,8 @@ services:
       postgres:
         condition: service_healthy
     restart: "no"
+    healthcheck:
+      disable: true # one-shot; the image HEALTHCHECK probes the API
 
   api:
     image: nebula:dev

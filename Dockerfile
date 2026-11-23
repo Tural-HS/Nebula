@@ -16,5 +16,8 @@ FROM gcr.io/distroless/static-debian13:nonroot@sha256:8ce6dd87e9823c5b48dcfb2c86
 COPY --from=build /out/nebula /nebula
 USER nonroot:nonroot
 EXPOSE 8080 9090
+# No shell or curl in the image: the binary probes its own /readyz. Worker-only containers
+# override it with ["CMD", "/nebula", "healthcheck", "-admin"]; one-shot "migrate" ignores it.
+HEALTHCHECK --interval=10s --timeout=5s --start-period=15s --retries=3 CMD ["/nebula", "healthcheck"]
 ENTRYPOINT ["/nebula"]
 CMD ["serve"]
