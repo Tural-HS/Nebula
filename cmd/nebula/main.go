@@ -2,6 +2,7 @@
 //
 //	nebula serve            run the API and background worker (default)
 //	nebula worker           run only the background worker
+//	nebula rotate-secrets   re-encrypt stored secrets with the current key
 //	nebula migrate up       apply all pending migrations
 //	nebula migrate down     roll back the latest migration
 //	nebula migrate status   show migration state
@@ -63,6 +64,12 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 	logger := observability.NewLogger(stdout, cfg.LogFormat, cfg.LogLevel, version)
 
 	switch cmd {
+	case "rotate-secrets":
+		if verr := cfg.ValidateRuntime(); verr != nil {
+			_, _ = fmt.Fprintf(stderr, "invalid configuration:\n%v\n", verr)
+			return 2
+		}
+		err = rotateSecrets(ctx, cfg, logger)
 	case "serve", "worker":
 		verr := cfg.ValidateRuntime()
 		if cmd == "serve" {
@@ -84,7 +91,7 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 		}
 		err = migrate(ctx, cfg, logger, args[1])
 	default:
-		_, _ = fmt.Fprintf(stderr, "unknown command %q (use serve, worker, migrate, version)\n", cmd)
+		_, _ = fmt.Fprintf(stderr, "unknown command %q (use serve, worker, migrate, rotate-secrets, version)\n", cmd)
 		return 2
 	}
 	if err != nil {
@@ -116,6 +123,9 @@ func newRuntime(ctx context.Context, cfg config.Config) (*runtime, error) {
 	if err != nil {
 		return nil, err
 	}
+	if box, err = box.WithOldKeys(cfg.OldEncryptionKeys...); err != nil {
+		return nil, err
+	}
 	pool, err := database.Connect(ctx, cfg.DatabaseURL, cfg.DBMaxConns)
 	if err != nil {
 		return nil, err
@@ -132,7 +142,7 @@ func newRuntime(ctx context.Context, cfg config.Config) (*runtime, error) {
 	}, nil
 }
 
-func (rt *runtime) newWorker(cfg config.Config, logger *slog.Logger) (*worker.Worker, error) {
+func (rt *runtime) newWorker(ctx context.Context, cfg config.Config, logger *slog.Logger) (*worker.Worker, error) {
 	var sender mail.Sender
 	if cfg.SMTP.Host != "" {
 		s, err := mail.NewSMTPSender(mail.Config{
@@ -153,7 +163,26 @@ func (rt *runtime) newWorker(cfg config.Config, logger *slog.Logger) (*worker.Wo
 	return worker.New(rt.store, eng.Handlers(), logger, rt.metrics, worker.Options{
 		Concurrency:   max(cfg.WorkerConcurrency, 1),
 		ShutdownGrace: cfg.ShutdownTimeout - 5*time.Second,
+		Wake:          worker.Listen(ctx, rt.pool, logger),
 	}), nil
+}
+
+// rotateSecrets re-encrypts secrets sealed with NEBULA_ENCRYPTION_KEYS_OLD.
+// Rotation: 1) set the new key as NEBULA_ENCRYPTION_KEY and the previous one in
+// NEBULA_ENCRYPTION_KEYS_OLD, deploy; 2) run this; 3) remove the old key.
+func rotateSecrets(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
+	rt, err := newRuntime(ctx, cfg)
+	if err != nil {
+		return err
+	}
+	defer rt.pool.Close()
+	n, err := rt.store.ReencryptSecrets(ctx)
+	if err != nil {
+		return err
+	}
+	logger.Info("secrets re-encrypted with the current key", "updated", n,
+		"next_step", "remove NEBULA_ENCRYPTION_KEYS_OLD once every replica runs with the new key")
+	return nil
 }
 
 func runWorkerOnly(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
@@ -162,7 +191,7 @@ func runWorkerOnly(ctx context.Context, cfg config.Config, logger *slog.Logger) 
 		return err
 	}
 	defer rt.pool.Close()
-	w, err := rt.newWorker(cfg, logger)
+	w, err := rt.newWorker(ctx, cfg, logger)
 	if err != nil {
 		return err
 	}
@@ -188,7 +217,7 @@ func serve(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 
 	workerDone := make(chan struct{})
 	if cfg.WorkerConcurrency > 0 {
-		w, err := rt.newWorker(cfg, logger)
+		w, err := rt.newWorker(ctx, cfg, logger)
 		if err != nil {
 			return err
 		}

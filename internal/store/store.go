@@ -114,6 +114,13 @@ func optionalText(field string, v *string, maxLen int) (*string, error) {
 // A zero actorID records a system/automation change (actor_id NULL).
 func appendEvent(ctx context.Context, q querier, workspaceID, actorID uuid.UUID,
 	entityType string, entityID uuid.UUID, action string, payload map[string]any) error {
+	_, err := appendEventID(ctx, q, workspaceID, actorID, entityType, entityID, action, payload)
+	return err
+}
+
+// appendEventID is appendEvent that also returns the new event's ID.
+func appendEventID(ctx context.Context, q querier, workspaceID, actorID uuid.UUID,
+	entityType string, entityID uuid.UUID, action string, payload map[string]any) (int64, error) {
 	if payload == nil {
 		payload = map[string]any{}
 	}
@@ -133,10 +140,10 @@ func appendEvent(ctx context.Context, q querier, workspaceID, actorID uuid.UUID,
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
 		workspaceID, actor, entityType, entityID, action, payload, src.source, rule).Scan(&eventID)
 	if err != nil {
-		return fmt.Errorf("append event %s: %w", action, err)
+		return 0, fmt.Errorf("append event %s: %w", action, err)
 	}
 	if err := enqueueJob(ctx, q, JobDispatchEvent, map[string]any{"event_id": eventID}, 5, ""); err != nil {
-		return fmt.Errorf("enqueue dispatch for %s: %w", action, err)
+		return 0, fmt.Errorf("enqueue dispatch for %s: %w", action, err)
 	}
-	return nil
+	return eventID, nil
 }

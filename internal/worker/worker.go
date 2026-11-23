@@ -52,6 +52,9 @@ type Options struct {
 	// ShutdownGrace is how long in-flight jobs may finish after shutdown starts;
 	// then they are cancelled (and retried later by another worker).
 	ShutdownGrace time.Duration
+	// Wake, when set, triggers an immediate poll (LISTEN/NOTIFY); polling at
+	// PollInterval stays as the fallback.
+	Wake <-chan struct{}
 }
 
 // Worker polls the queue and runs handlers.
@@ -145,6 +148,10 @@ func (w *Worker) Run(ctx context.Context) {
 				w.logger.Error("purge finished jobs", "error", err)
 			} else if n > 0 {
 				w.logger.Info("purged finished jobs and old deliveries", "rows", n)
+			}
+		case _, ok := <-w.opts.Wake: // a nil channel blocks forever: no wake-ups configured
+			if !ok {
+				w.opts.Wake = nil // listener stopped: fall back to polling, never spin
 			}
 		case <-time.After(delay):
 		}

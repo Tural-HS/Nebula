@@ -104,3 +104,42 @@ export const ROLE_RANK: Record<Role, number> = { guest: 0, member: 1, admin: 2, 
 export function roleAtLeast(role: Role | undefined, min: Role): boolean {
   return role !== undefined && ROLE_RANK[role] >= ROLE_RANK[min];
 }
+
+export interface PersonRef {
+  id: string;
+  display_name: string;
+}
+
+export interface Comment {
+  id: string;
+  item_id: string;
+  author: PersonRef | null;
+  body: string | null; // null when deleted
+  mentions: string[];
+  edited: boolean;
+  deleted: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CommentPage {
+  comments: Comment[];
+  next_cursor: string | null;
+}
+
+export interface Activity {
+  id: number;
+  action: string;
+  entity_type: string;
+  entity_id: string;
+  actor: PersonRef | null; // null for automation/system
+  source: "user" | "automation" | "system";
+  automation_rule_id: string | null;
+  data: Record<string, unknown>;
+  occurred_at: string;
+}
+
+export interface ActivityPage {
+  activity: Activity[];
+  next_before: number | null;
+}

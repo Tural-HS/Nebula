@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"regexp"
 	"slices"
 	"strings"
@@ -296,6 +297,76 @@ func (s *Store) WebhookTarget(ctx context.Context, id uuid.UUID) (DeliveryTarget
 	}
 	t.Secret = string(secret)
 	return t, nil
+}
+
+// PingWebhook sends a test delivery to one webhook, regardless of its event
+// filter, and returns the event ID to look for in the delivery log.
+func (s *Store) PingWebhook(ctx context.Context, wsID, actorID, id uuid.UUID) (int64, error) {
+	var eventID int64
+	err := s.inTx(ctx, func(tx pgx.Tx) error {
+		var exists bool
+		if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM webhooks WHERE workspace_id = $1 AND id = $2)`, wsID, id).Scan(&exists); err != nil {
+			return err
+		}
+		if !exists {
+			return ErrNotFound
+		}
+		var err error
+		eventID, err = appendEventID(ctx, tx, wsID, actorID, "webhook", id, WebhookPingAction, map[string]any{"webhook_id": id})
+		if err != nil {
+			return err
+		}
+		return enqueueJob(ctx, tx, JobDeliverWebhook, map[string]any{"webhook_id": id, "event_id": eventID, "force": true}, 1,
+			fmt.Sprintf("whp:%s:%d", id, eventID))
+	})
+	return eventID, err
+}
+
+// WebhookPingAction is delivered only to the pinged webhook, never fanned out.
+const WebhookPingAction = "webhook.ping"
+
+// ReencryptSecrets re-seals every webhook secret still encrypted with a
+// retired key, so the old key can be removed. Safe to run repeatedly.
+func (s *Store) ReencryptSecrets(ctx context.Context) (updated int, err error) {
+	if s.box == nil {
+		return 0, errors.New("NEBULA_ENCRYPTION_KEY is not configured")
+	}
+	err = s.inTx(ctx, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, `SELECT id, secret_encrypted FROM webhooks ORDER BY id FOR UPDATE`)
+		if err != nil {
+			return err
+		}
+		type row struct {
+			id     uuid.UUID
+			sealed []byte
+		}
+		all, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (row, error) {
+			var x row
+			return x, r.Scan(&x.id, &x.sealed)
+		})
+		if err != nil {
+			return err
+		}
+		for _, x := range all {
+			pt, old, err := s.box.OpenWithInfo(x.sealed, x.id[:])
+			if err != nil {
+				return fmt.Errorf("webhook %s: secret cannot be decrypted with the configured keys", x.id)
+			}
+			if !old {
+				continue
+			}
+			sealed, err := s.box.Seal(pt, x.id[:])
+			if err != nil {
+				return err
+			}
+			if _, err := tx.Exec(ctx, `UPDATE webhooks SET secret_encrypted = $1 WHERE id = $2`, sealed, x.id); err != nil {
+				return err
+			}
+			updated++
+		}
+		return nil
+	})
+	return updated, err
 }
 
 // RecordDelivery logs an attempt and updates the webhook's health. After

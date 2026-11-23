@@ -21,6 +21,8 @@ var ErrDecrypt = errors.New("secretbox: decryption failed")
 // Box seals and opens secrets with one 32-byte key.
 type Box struct {
 	aead cipher.AEAD
+	// old keys are used only to decrypt, during key rotation.
+	old []cipher.AEAD
 }
 
 // New builds a Box from a 32-byte key.
@@ -60,15 +62,37 @@ func (b *Box) Seal(plaintext, context []byte) ([]byte, error) {
 	return b.aead.Seal(out, nonce, plaintext, context), nil
 }
 
-// Open decrypts a ciphertext produced by Seal with the same context.
+// WithOldKeys adds retired keys (base64) that may still decrypt existing data.
+// New data is always sealed with the primary key.
+func (b *Box) WithOldKeys(keys ...string) (*Box, error) {
+	for i, k := range keys {
+		old, err := NewFromBase64(k)
+		if err != nil {
+			return nil, fmt.Errorf("old key %d: %w", i+1, err)
+		}
+		b.old = append(b.old, old.aead)
+	}
+	return b, nil
+}
+
+// Open decrypts a ciphertext produced by Seal with the same context, trying
+// the primary key first and then any old keys.
 func (b *Box) Open(ciphertext, context []byte) ([]byte, error) {
+	pt, _, err := b.OpenWithInfo(ciphertext, context)
+	return pt, err
+}
+
+// OpenWithInfo is Open that also reports whether a retired key was needed,
+// i.e. whether the value should be re-encrypted.
+func (b *Box) OpenWithInfo(ciphertext, context []byte) (plaintext []byte, usedOldKey bool, err error) {
 	ns := b.aead.NonceSize()
 	if len(ciphertext) < 1+ns+b.aead.Overhead() || ciphertext[0] != version {
-		return nil, ErrDecrypt
+		return nil, false, ErrDecrypt
 	}
-	pt, err := b.aead.Open(nil, ciphertext[1:1+ns], ciphertext[1+ns:], context)
-	if err != nil {
-		return nil, ErrDecrypt
+	for i, a := range append([]cipher.AEAD{b.aead}, b.old...) {
+		if pt, err := a.Open(nil, ciphertext[1:1+ns], ciphertext[1+ns:], context); err == nil {
+			return pt, i > 0, nil
+		}
 	}
-	return pt, nil
+	return nil, false, ErrDecrypt
 }

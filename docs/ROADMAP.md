@@ -29,9 +29,15 @@ Hər mərhələ yalnız testlər, miqrasiyalar (up və down) və CI yaşıl oldu
 - [x] Virtual cədvəl (sonsuz sürüşdürmə, axtarış, filtrlər), kanban lövhəsi (sürüklə-burax, workflow qaydalarına hörmət)
 - [x] Tapşırıq paneli: başlıq, təsvir, status, icraçı, fərdi sahələr; optimistic locking konfliktlərinin idarəsi
 
-## Phase 1.5: Əməkdaşlıq (növbəti)
-- Şərhlər API-si və @mention bildirişləri, item tarixçəsi (activity feed) endpoint-i
-- Webhook "test ping", şifrələmə açarının rotasiyası, LISTEN/NOTIFY ilə daha az gecikmə
+## Phase 1.5: Əməkdaşlıq (tamamlandı, ADR-0007)
+- [x] Şərhlər (tombstone silmə, yalnız müəllif redaktəsi) və @mention email bildirişləri
+- [x] Tapşırıq aktivlik lenti və workspace audit log
+- [x] Webhook "test ping", fasiləsiz şifrələmə açarı rotasiyası (`nebula rotate-secrets`)
+- [x] LISTEN/NOTIFY: fon işləri ~23 ms-də emal olunur
+- [x] UI: tapşırıq panelində "Şərhlər" və "Aktivlik" bölmələri, @ ilə avtomatik tamamlama
+
+## Phase 2: Növbəti
+- Admin ekranları (sahələr, workflow-lar, webhook-lar, avtomatlaşdırma), Playwright E2E testləri, bildiriş mərkəzi (in-app)
 
 ## Phase 2: Şablonlar və görünüşlər
 - Proqram təminatı / HR / Satış / Marketinq şablonları; cədvəl, kanban, təqvim, forma görünüşləri

@@ -50,6 +50,7 @@ func (a *api) routes(r chi.Router) {
 		a.configRoutes(r)
 		a.fieldRoutes(r)
 		a.automationRoutes(r)
+		a.workspaceCollabRoutes(r)
 		r.Get("/members", a.listMembers)
 		r.With(requireRole(store.RoleAdmin)).Post("/members", a.addMember)
 		r.Get("/projects", a.listProjects)
@@ -64,6 +65,7 @@ func (a *api) routes(r chi.Router) {
 			r.Get("/items/{number}/transitions", a.allowedStatuses)
 			r.With(requireRole(store.RoleMember)).Patch("/items/{number}", a.updateItem)
 			r.With(requireRole(store.RoleMember)).Delete("/items/{number}", a.deleteItem)
+			a.itemCollabRoutes(r)
 		})
 	})
 }

@@ -74,3 +74,30 @@ func TestKeyValidation(t *testing.T) {
 		t.Errorf("valid key rejected: %v", err)
 	}
 }
+
+func TestKeyRotation(t *testing.T) {
+	keyA := base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{1}, 32))
+	keyB := base64.StdEncoding.EncodeToString(bytes.Repeat([]byte{2}, 32))
+	a, _ := NewFromBase64(keyA)
+	ct, _ := a.Seal([]byte("whsec_old"), []byte("row"))
+
+	b, _ := NewFromBase64(keyB)
+	if _, err := b.Open(ct, []byte("row")); !errors.Is(err, ErrDecrypt) {
+		t.Fatal("new key alone must not open old data")
+	}
+	b, err := b.WithOldKeys(keyA)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pt, old, err := b.OpenWithInfo(ct, []byte("row"))
+	if err != nil || string(pt) != "whsec_old" || !old {
+		t.Fatalf("open with old key: %q old=%v err=%v", pt, old, err)
+	}
+	re, _ := b.Seal(pt, []byte("row"))
+	if _, old, err := b.OpenWithInfo(re, []byte("row")); err != nil || old {
+		t.Fatalf("re-encrypted value must use the primary key: old=%v err=%v", old, err)
+	}
+	if _, err := b.WithOldKeys("not-base64"); err == nil {
+		t.Fatal("invalid old key accepted")
+	}
+}

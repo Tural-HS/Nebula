@@ -44,6 +44,9 @@ func (s *Store) GetEvent(ctx context.Context, id int64) (Event, error) {
 // Events caused by automation never trigger automation (loop prevention),
 // but they are still delivered to webhooks.
 func (s *Store) FanOut(ctx context.Context, e Event) (webhooks, rules int, err error) {
+	if e.Action == WebhookPingAction {
+		return 0, 0, nil // delivered directly to the pinged webhook only
+	}
 	err = s.inTx(ctx, func(tx pgx.Tx) error {
 		rows, err := tx.Query(ctx, `SELECT id, events FROM webhooks WHERE workspace_id = $1 AND is_active`, e.WorkspaceID)
 		if err != nil {

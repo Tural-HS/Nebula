@@ -107,6 +107,7 @@ func (e *Engine) deliverWebhook(ctx context.Context, j store.Job) error {
 	p, err := decode[struct {
 		WebhookID uuid.UUID `json:"webhook_id"`
 		EventID   int64     `json:"event_id"`
+		Force     bool      `json:"force"` // test ping: ignore active flag and event filter
 	}](j)
 	if err != nil {
 		return err
@@ -125,7 +126,10 @@ func (e *Engine) deliverWebhook(ctx context.Context, j store.Job) error {
 	if err != nil {
 		return err
 	}
-	if !target.Active || !store.MatchEvent(target.Events, ev.Action) || target.WorkspaceID != ev.WorkspaceID {
+	if target.WorkspaceID != ev.WorkspaceID {
+		return worker.Permanent(errors.New("webhook and event belong to different workspaces"))
+	}
+	if !p.Force && (!target.Active || !store.MatchEvent(target.Events, ev.Action)) {
 		return nil // disabled or unsubscribed since the event happened
 	}
 

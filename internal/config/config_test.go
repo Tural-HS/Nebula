@@ -157,3 +157,23 @@ func TestValidateRuntimeEncryptionKey(t *testing.T) {
 		}
 	}
 }
+
+func TestOldEncryptionKeys(t *testing.T) {
+	cur := "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+	old := "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE="
+	for list, want := range map[string]string{
+		old + " , " + old: "",
+		"short":           "entry 1",
+		old + ",bad":      "entry 2",
+		cur:               "must not contain the current",
+	} {
+		cfg, err := Load(env(map[string]string{"NEBULA_ENCRYPTION_KEY": cur, "NEBULA_ENCRYPTION_KEYS_OLD": list}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = cfg.ValidateRuntime()
+		if want == "" && err != nil || want != "" && (err == nil || !strings.Contains(err.Error(), want)) {
+			t.Errorf("%q: want %q, got %v", list, want, err)
+		}
+	}
+}

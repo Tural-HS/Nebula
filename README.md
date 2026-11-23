@@ -9,6 +9,7 @@ böyük həcmli məlumatlarda sürətli, tam fərdiləşdirilə bilən, öz serv
 - Konfiqurasiya API və rate limiting: [ADR-0004](docs/adr/0004-configuration-api-and-rate-limiting.md)
 - Status keçidləri, avtomatlaşdırma, webhook-lar və email: [ADR-0005](docs/adr/0005-automation-webhooks-email.md)
 - Veb interfeys: [ADR-0006](docs/adr/0006-web-ui.md)
+- Əməkdaşlıq (şərhlər, @mention, aktivlik, audit, açar rotasiyası): [ADR-0007](docs/adr/0007-collaboration.md)
 - Yol xəritəsi: [docs/ROADMAP.md](docs/ROADMAP.md)
 
 ## Tələblər
@@ -63,6 +64,7 @@ Bütün GitHub Action-lar commit SHA-ya, base image-lər digest-ə sabitlənib; 
 ```
 nebula serve            API-ni və fon worker-ini işə salır (default)
 nebula worker           yalnız fon worker-ini işə salır (webhook, avtomatlaşdırma, email)
+nebula rotate-secrets   saxlanılan secret-ləri cari açarla yenidən şifrələyir (ADR-0007)
 nebula migrate up       gözləyən miqrasiyaları tətbiq edir (advisory lock ilə, bir neçə replika üçün təhlükəsiz)
 nebula migrate down     son miqrasiyanı geri qaytarır
 nebula migrate status   miqrasiyaların vəziyyətini göstərir
@@ -78,6 +80,7 @@ Yanlış konfiqurasiya zamanı proqram başlamır və bütün problemləri bir d
 |---|---|---|
 | `NEBULA_DATABASE_URL` | məcburi | `postgres://...` |
 | `NEBULA_ENCRYPTION_KEY` | `serve`/`worker` üçün məcburi | 32 bayt base64 (`openssl rand -base64 32`); secret store-da saxlayın |
+| `NEBULA_ENCRYPTION_KEYS_OLD` | boş | Rotasiya zamanı köhnə açarlar (vergüllə), yalnız oxumaq üçün |
 | `NEBULA_OIDC_ISSUER` | `serve` üçün məcburi | Token-in `iss` dəyəri ilə tam eyni olmalıdır; productionda https |
 | `NEBULA_OIDC_AUDIENCE` | `serve` üçün məcburi | Token-in `aud` dəyərində olmalıdır |
 | `NEBULA_OIDC_JWKS_URL` | discovery | Açarlar üçün daxili ünvan (istəyə bağlı); productionda https |
@@ -127,6 +130,11 @@ Bütün `/api/v1` endpoint-ləri (`/version` istisna olmaqla) `Authorization: Be
 | `POST .../projects/{KEY}/items` | Yaratmaq | member+ |
 | `GET, PATCH, DELETE .../items/{number}` | Oxumaq / `version` ilə qismən yeniləmək / soft delete | guest+ / member+ |
 | `GET .../items/{number}/transitions` | Növbəti mümkün statuslar | guest+ |
+| `GET, POST .../items/{number}/comments` | Şərhlər (`cursor`, `limit`) / yazmaq; `<@user-id>` ilə qeydetmə | guest+ / member+ |
+| `PATCH, DELETE .../items/{number}/comments/{id}` | Redaktə (yalnız müəllif) / silmə (müəllif və ya admin) | member+ |
+| `GET .../items/{number}/activity` | Tapşırığın tarixçəsi (`before`, `limit`) | guest+ |
+| `GET .../{ws}/audit-log` | Workspace audit log (`before`, `limit`, `action`, `actor`) | admin+ |
+| `POST .../{ws}/webhooks/{id}/ping` | Test çatdırılması | admin+ |
 | `GET, POST .../{ws}/webhooks` | Webhook-lar / yaratmaq (secret yalnız bir dəfə qaytarılır) | admin+ |
 | `GET, PATCH, DELETE .../{ws}/webhooks/{id}` | Oxumaq / dəyişmək / silmək | admin+ |
 | `POST .../{ws}/webhooks/{id}/rotate-secret` | Yeni secret | admin+ |

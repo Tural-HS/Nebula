@@ -2,7 +2,6 @@ package server
 
 import (
 	"net/http"
-	"strconv"
 
 	"github.com/go-chi/chi/v5"
 
@@ -131,14 +130,13 @@ func (a *api) listDeliveries(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	limit := 50
-	if v := r.URL.Query().Get("limit"); v != "" {
-		n, err := strconv.Atoi(v)
-		if err != nil || n < 1 || n > 200 {
-			writeError(w, http.StatusBadRequest, "bad_request", "limit must be between 1 and 200")
-			return
-		}
-		limit = n
+	q, ok := strictQuery(w, r)
+	if !ok {
+		return
+	}
+	limit, ok := pageLimit(w, q, 200)
+	if !ok {
+		return
 	}
 	list, err := a.store.ListDeliveries(r.Context(), workspaceFrom(r).ID, id, limit)
 	if err != nil {

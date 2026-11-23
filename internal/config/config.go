@@ -29,7 +29,8 @@ type Config struct {
 	OIDCAudience      string // must appear in the token "aud" claim
 	OIDCJWKSURL       string // optional; skips discovery (internal IdP address)
 	RateLimit         RateLimit
-	EncryptionKey     string // base64 32 bytes; encrypts webhook secrets at rest
+	EncryptionKey     string   // base64 32 bytes; encrypts webhook secrets at rest
+	OldEncryptionKeys []string // retired keys, decrypt-only, during rotation
 	SMTP              SMTP
 	Webhooks          Webhooks
 	WorkerConcurrency int // background jobs in this process; 0 disables
@@ -119,6 +120,11 @@ func Load(getenv func(string) string) (Config, error) {
 	}
 
 	cfg.EncryptionKey = get("NEBULA_ENCRYPTION_KEY", "")
+	for k := range strings.SplitSeq(get("NEBULA_ENCRYPTION_KEYS_OLD", ""), ",") {
+		if k = strings.TrimSpace(k); k != "" {
+			cfg.OldEncryptionKeys = append(cfg.OldEncryptionKeys, k)
+		}
+	}
 	cfg.SMTP = SMTP{
 		Host:     get("NEBULA_SMTP_HOST", ""),
 		Username: get("NEBULA_SMTP_USERNAME", ""),
@@ -173,6 +179,14 @@ func (c Config) ValidateRuntime() error {
 		return errors.New("NEBULA_ENCRYPTION_KEY is required (generate one with: openssl rand -base64 32)")
 	case err != nil || len(key) != 32:
 		return errors.New("NEBULA_ENCRYPTION_KEY must be 32 bytes, base64 encoded (openssl rand -base64 32)")
+	}
+	for i, k := range c.OldEncryptionKeys {
+		if b, err := base64.StdEncoding.DecodeString(k); err != nil || len(b) != 32 {
+			return fmt.Errorf("NEBULA_ENCRYPTION_KEYS_OLD entry %d must be 32 bytes, base64 encoded", i+1)
+		}
+		if k == c.EncryptionKey {
+			return errors.New("NEBULA_ENCRYPTION_KEYS_OLD must not contain the current NEBULA_ENCRYPTION_KEY")
+		}
 	}
 	return nil
 }

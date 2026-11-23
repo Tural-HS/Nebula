@@ -2,15 +2,19 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
 import { ApiError } from "../api/client";
-import { keys, useDeleteItem, useFields, useItem, useItemTypes, useMembers, useTransitions, useUpdateItem, type ItemPatch } from "../api/hooks";
+import { keys, useDeleteItem, useMe, useFields, useItem, useItemTypes, useMembers, useTransitions, useUpdateItem, type ItemPatch } from "../api/hooks";
 import type { FieldValue, Item } from "../api/types";
+import { ActivityFeed } from "../components/ActivityFeed";
+import { Comments } from "../components/Comments";
 import { FieldEditor } from "../components/FieldEditor";
 import { useToast } from "../components/toast-context";
 import { Avatar, Button, ErrorState, Label, Select, Spinner, StatusBadge } from "../components/ui";
 import { t } from "../i18n";
 import { formatDateTime } from "../lib/format";
 
-export function ItemDrawer({ ws, project, n, canEdit, onClose }: { ws: string; project: string; n: number; canEdit: boolean; onClose: () => void }) {
+export function ItemDrawer({ ws, project, n, canEdit, isAdmin, onClose }: {
+  ws: string; project: string; n: number; canEdit: boolean; isAdmin: boolean; onClose: () => void;
+}) {
   const item = useItem(ws, project, n);
 
   useEffect(() => {
@@ -35,14 +39,16 @@ export function ItemDrawer({ ws, project, n, canEdit, onClose }: { ws: string; p
         ) : item.isError ? (
           <ErrorState error={item.error} />
         ) : (
-          <ItemDetails key={item.data.id} ws={ws} project={project} item={item.data} canEdit={canEdit} onClose={onClose} />
+          <ItemDetails key={item.data.id} ws={ws} project={project} item={item.data} canEdit={canEdit} isAdmin={isAdmin} onClose={onClose} />
         )}
       </aside>
     </>
   );
 }
 
-function ItemDetails({ ws, project, item, canEdit, onClose }: { ws: string; project: string; item: Item; canEdit: boolean; onClose: () => void }) {
+function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose }: {
+  ws: string; project: string; item: Item; canEdit: boolean; isAdmin: boolean; onClose: () => void;
+}) {
   const qc = useQueryClient();
   const toast = useToast();
   const update = useUpdateItem(ws, project);
@@ -226,6 +232,8 @@ function ItemDetails({ ws, project, item, canEdit, onClose }: { ws: string; proj
             </div>
           </section>
         )}
+
+        <CollabTabs ws={ws} project={project} n={item.number} canWrite={canEdit} isAdmin={isAdmin} />
       </div>
     </div>
   );
@@ -239,5 +247,37 @@ function FieldRow({ id, label, children }: { id: string; label: string; children
       </label>
       <div>{children}</div>
     </>
+  );
+}
+
+function CollabTabs({ ws, project, n, canWrite, isAdmin }: { ws: string; project: string; n: number; canWrite: boolean; isAdmin: boolean }) {
+  const [tab, setTab] = useState<"comments" | "activity">("comments");
+  const members = useMembers(ws);
+  const me = useMe();
+  return (
+    <section className="border-t border-zinc-200 pt-4 dark:border-zinc-800">
+      <div role="tablist" className="mb-4 flex gap-4 text-sm">
+        {(["comments", "activity"] as const).map((x) => (
+          <button
+            key={x}
+            type="button"
+            role="tab"
+            aria-selected={tab === x}
+            onClick={() => { setTab(x); }}
+            className={
+              "-mb-px border-b-2 pb-1.5 font-medium " +
+              (tab === x ? "border-brand-600 text-zinc-900 dark:text-zinc-100" : "border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200")
+            }
+          >
+            {x === "comments" ? t.comments : t.activity}
+          </button>
+        ))}
+      </div>
+      {tab === "comments" ? (
+        <Comments ws={ws} project={project} n={n} members={members.data ?? []} meId={me.data?.id} canWrite={canWrite} isAdmin={isAdmin} />
+      ) : (
+        <ActivityFeed ws={ws} project={project} n={n} />
+      )}
+    </section>
   );
 }

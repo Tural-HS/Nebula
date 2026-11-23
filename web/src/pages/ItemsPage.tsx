@@ -146,7 +146,7 @@ export function ItemsPage() {
       </div>
 
       {openItem !== null && (
-        <ItemDrawer ws={ws} project={project} n={openItem} canEdit={canEdit} onClose={() => { setParam("item", null); }} />
+        <ItemDrawer ws={ws} project={project} n={openItem} canEdit={canEdit} isAdmin={roleAtLeast(workspace.data?.role, "admin")} onClose={() => { setParam("item", null); }} />
       )}
       <CreateItemDialog
         ws={ws}
