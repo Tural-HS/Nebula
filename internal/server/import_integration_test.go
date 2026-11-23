@@ -398,3 +398,33 @@ func TestCleanFileName(t *testing.T) {
 		}
 	}
 }
+
+func TestImportDueDates(t *testing.T) {
+	e := newEnv(t)
+	e.importSetup()
+	csv := "Müştəri;Ödəniş tarixi;Müqavilə №\nKöhnə borc;10.01.2024;AZ-1\nGələcək;2199-05-01;AZ-2\nPis tarix;31.02.2026;AZ-3\n"
+	preview := e.upload("alice", importsPath+"/preview", "tarixler.csv", []byte(csv), "", nil)
+	if got := suggestedTargets(preview)[1]; got != "due_date" {
+		t.Fatalf("'Ödəniş tarixi' suggested as %q, want due_date", got)
+	}
+	mapping := map[string]any{"columns": []map[string]any{
+		{"column": 0, "target": "title"}, {"column": 1, "target": "due_date"}, {"column": 2, "target": "field.contract_no"}}}
+	r := e.upload("alice", importsPath+"?dry_run=true", "tarixler.csv", []byte(csv), "", mapping)
+	if r.Status != 200 || r.Body["error_count"].(float64) != 1 {
+		t.Fatalf("dry run: %s", r.Raw)
+	}
+	if x := r.Body["errors"].([]any)[0].(map[string]any); x["target"] != "due_date" || x["row"].(float64) != 4 {
+		t.Fatalf("error should point at row 4, due_date: %v", x)
+	}
+	csv = "Müştəri;Ödəniş tarixi;Müqavilə №\nKöhnə borc;10.01.2024;AZ-1\nGələcək;2199-05-01;AZ-2\n"
+	if r = e.upload("alice", importsPath, "tarixler.csv", []byte(csv), "", mapping); r.Status != 201 || r.Body["created"].(float64) != 2 {
+		t.Fatalf("import: %s", r.Raw)
+	}
+	first := e.must(200, "alice", "GET", items+"/1", nil).Body
+	if first["due_date"] != "2024-01-10" || first["overdue"] != true {
+		t.Fatalf("imported due date: %v / overdue %v", first["due_date"], first["overdue"])
+	}
+	if d := e.must(200, "alice", "GET", items+"/2", nil).Body["due_date"]; d != "2199-05-01" {
+		t.Fatalf("ISO date: %v", d)
+	}
+}

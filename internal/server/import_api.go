@@ -201,6 +201,7 @@ const (
 	targetType        = "type"
 	targetStatus      = "status"
 	targetAssignee    = "assignee"
+	targetDueDate     = "due_date"
 	fieldTargetPrefix = "field."
 )
 
@@ -232,6 +233,10 @@ var builtinTargets = []importTarget{
 	}},
 	{ID: targetAssignee, Kind: "builtin", hints: importer.Target{
 		Names: []string{"assignee", "icraçı"}, Synonyms: []string{"məsul", "məsul şəxs", "responsible"},
+	}},
+	{ID: targetDueDate, Kind: "builtin", hints: importer.Target{
+		Names:    []string{"due date", "due_date", "son tarix"},
+		Synonyms: []string{"deadline", "son müddət", "ödəniş tarixi", "ödəniş günü", "müddət", "due"},
 	}},
 }
 
@@ -607,6 +612,14 @@ func (c *converter) convert(row importer.Row) (store.CreateItemParams, []importR
 			errs = append(errs, c.rowError(row, col, targetStatus, fmt.Sprintf("status %q does not exist in the workflow of %q", v, typ.Name)))
 		}
 	}
+	if v, col := cell(targetDueDate); v != "" {
+		// Same parser as date fields: ISO, dd.mm.yyyy and (xlsx) serial dates.
+		if d, err := importer.ParseDate(v, c.table.Format == importer.FormatXLSX, c.table.Date1904); err != nil {
+			errs = append(errs, c.rowError(row, col, targetDueDate, err.Error()))
+		} else {
+			p.DueDate = &d
+		}
+	}
 	if v, col := cell(targetAssignee); v != "" {
 		if id, ok := c.ic.members[importer.Fold(v)]; ok {
 			p.AssigneeID = &id
@@ -710,6 +723,8 @@ func (c *converter) storeError(e store.ImportRowError) importRowError {
 		target = targetStatus
 	case e.Field == "assignee_id":
 		target = targetAssignee
+	case e.Field == "due_date":
+		target = targetDueDate
 	case strings.HasPrefix(e.Field, "fields."):
 		target = fieldTargetPrefix + strings.TrimPrefix(e.Field, "fields.")
 	}

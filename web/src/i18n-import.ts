@@ -62,6 +62,7 @@ export const ti = {
     type: "Tip",
     status: "Status",
     assignee: "İcraçı (e-poçt)",
+    due_date: "Son tarix",
   } as Record<string, string>,
 
   fieldType: {
