@@ -38,6 +38,24 @@ psql_prod() { # psql_prod DB SQL
 	compose exec -T postgres psql -X -v ON_ERROR_STOP=1 -At -d "$1" -c "$2"
 }
 
+# Applies postgres/initdb/20-nebula-runtime-role.sql (idempotent): runtime role nebula_app, its
+# password from the secret file, CONNECT; removes the old monitoring function. Table privileges
+# follow from `nebula migrate up` (NEBULA_DB_RUNTIME_ROLE).
+ensure_db_roles() {
+	compose exec -T postgres psql -X -q -v ON_ERROR_STOP=1 -d postgres -f - \
+		<"$DEPLOY_DIR/postgres/initdb/20-nebula-runtime-role.sql"
+}
+
+# The deploy/production layout from ADR-0018 on needs a Nebula image that reads *_FILE secrets
+# and has `nebula healthcheck`. Probe (image must be pulled): without network the healthcheck of
+# a new binary fails to connect (exit 1); an older binary rejects the command (exit 2).
+image_supports_file_secrets() { # image_supports_file_secrets IMAGE
+	local rc=0
+	docker run --rm --network none --read-only --cap-drop ALL --security-opt no-new-privileges \
+		--entrypoint /nebula "$1" healthcheck -timeout 1ms >/dev/null 2>&1 || rc=$?
+	[[ $rc == 1 ]]
+}
+
 schema_version() { psql_prod nebula "SELECT coalesce(max(version_id), 0) FROM goose_db_version WHERE is_applied" 2>/dev/null || echo 0; }
 
 # Exclusive lock: deploy, rollback, backup and restore never overlap.

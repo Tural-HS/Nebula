@@ -103,7 +103,6 @@ prometheus.exporter.postgres "db" {
   data_source_names = [
     string.format("postgresql://nebula_monitor:%s@postgres:5432/nebula?sslmode=disable", convert.nonsensitive(local.file.monitoring_db_password.content)),
   ]
-  custom_queries_config_path = "/etc/alloy/postgres-queries.yaml"
   // pg_stat_archiver (WAL archiving alerts) is part of the default metrics.
   enabled_collectors = ["database", "locks", "replication", "stat_bgwriter", "stat_database", "stat_statements", "wal"]
 

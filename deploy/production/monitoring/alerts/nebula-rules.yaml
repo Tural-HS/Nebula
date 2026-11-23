@@ -71,7 +71,8 @@ groups:
   - name: nebula-jobs
     rules:
       - alert: NebulaJobQueueBacklog
-        expr: max by (instance) (nebula_job_queue_oldest_age_seconds{state="pending_due"}) > 600
+        # Exported by Nebula itself (ADR-0018); every replica reports the same value, hence max.
+        expr: max by (instance) (nebula_job_queue_oldest_due_age_seconds) > 600
         for: 5m
         labels: { severity: warning }
         annotations:
@@ -79,11 +80,20 @@ groups:
           description: "Webhooks/emails/automations are delayed: worker stuck, overloaded or disabled (NEBULA_WORKER_CONCURRENCY)."
 
       - alert: NebulaJobQueueLarge
-        expr: max by (instance) (nebula_job_queue_jobs{state="pending_due"}) > 1000
+        expr: max by (instance) (nebula_job_queue_pending_jobs{state="due"}) > 1000
         for: 10m
         labels: { severity: warning }
         annotations:
           summary: "{{ $value }} runnable jobs queued"
+
+      - alert: NebulaJobQueueStatsStale
+        # The gauges above keep their last value when the stats query fails: catch that here.
+        expr: time() - max by (instance) (nebula_job_queue_stats_last_success_timestamp_seconds) > 300
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "Job-queue metrics are {{ $value | humanizeDuration }} old"
+          description: "Nebula cannot query the job queue (database slow or unreachable): queue alerts are blind. See nebula logs (\"job queue statistics\")."
 
       - alert: NebulaJobsFailing
         expr: sum by (instance, kind) (increase(nebula_jobs_total{result="failed"}[30m])) > 5
