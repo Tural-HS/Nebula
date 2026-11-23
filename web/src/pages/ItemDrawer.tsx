@@ -7,6 +7,7 @@ import type { FieldValue, Item } from "../api/types";
 import { ActivityFeed } from "../components/ActivityFeed";
 import { Comments } from "../components/Comments";
 import { FieldEditor } from "../components/FieldEditor";
+import { ParentCrumb, SubtaskSection } from "../components/Subtasks";
 import { useToast } from "../components/toast-context";
 import { Avatar, Button, DueChip, ErrorState, Label, Select, Spinner, StatusBadge, touchField } from "../components/ui";
 import { t } from "../i18n";
@@ -149,6 +150,7 @@ function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose }: {
       </div>
 
       <div className="space-y-5 p-4 md:p-5">
+        {item.parent && <ParentCrumb parent={item.parent} canEdit={canEdit} onDetach={() => { save({ parent: null }); }} />}
         <textarea
           aria-label={t.title}
           value={title}
@@ -274,6 +276,9 @@ function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose }: {
             className="w-full rounded-md bg-white px-3 py-2 text-sm whitespace-pre-wrap ring-1 pointer-coarse:text-base ring-zinc-300 focus:ring-2 focus:ring-brand-500 dark:bg-zinc-900 dark:ring-zinc-700"
           />
         </div>
+
+        {/* One level only: a subtask has no subtasks of its own (ADR-0021). */}
+        {!item.parent && <SubtaskSection ws={ws} project={project} item={item} canEdit={canEdit} />}
 
         {boundFields.length > 0 && (
           <section>

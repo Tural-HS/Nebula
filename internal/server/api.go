@@ -421,6 +421,9 @@ func parseItemFilters(w http.ResponseWriter, r *http.Request) (store.ListItemsPa
 		p.FieldFilters[name] = vals[0]
 	}
 	p.Due = q.Get("due") // validated by the store
+	if !parseParentFilters(w, q, projectFrom(r).Key, &p) {
+		return store.ListItemsParams{}, false
+	}
 	switch v := q.Get("assignee"); v {
 	case "":
 	case "me":
@@ -449,15 +452,22 @@ func (a *api) createItem(w http.ResponseWriter, r *http.Request) {
 		AssigneeID  *uuid.UUID                 `json:"assignee_id"`
 		DueDate     *string                    `json:"due_date"`
 		Fields      map[string]json.RawMessage `json:"fields"`
+		Parent      *itemRef                   `json:"parent"`
 	}
 	if !a.decode(w, r, &body) {
 		return
 	}
 	ws, proj := workspaceFrom(r), projectFrom(r)
+	parent, err := body.Parent.number(proj.Key)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
 	item, err := a.store.CreateItem(r.Context(), store.CreateItemParams{
 		WorkspaceID: ws.ID, ProjectID: proj.ID, ActorID: principal(r).UserID,
 		Title: body.Title, Description: body.Description, TypeKey: body.Type,
 		StatusID: body.StatusID, AssigneeID: body.AssigneeID, DueDate: body.DueDate, Fields: body.Fields,
+		ParentNumber: parent,
 	})
 	if err != nil {
 		a.fail(w, r, err)
@@ -500,6 +510,7 @@ func (a *api) updateItem(w http.ResponseWriter, r *http.Request) {
 		AssigneeID  opt.Field[uuid.UUID]                  `json:"assignee_id"`
 		DueDate     opt.Field[string]                     `json:"due_date"`
 		Fields      opt.Field[map[string]json.RawMessage] `json:"fields"`
+		Parent      opt.Field[itemRef]                    `json:"parent"`
 	}
 	if !a.decode(w, r, &body) {
 		return
@@ -508,11 +519,16 @@ func (a *api) updateItem(w http.ResponseWriter, r *http.Request) {
 		a.fail(w, r, &store.ValidationError{Field: "version", Message: "is required (the version you last read)"})
 		return
 	}
+	parent, err := parentField(body.Parent, projectFrom(r).Key)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
 	item, err := a.store.UpdateItem(r.Context(), store.UpdateItemParams{
 		WorkspaceID: workspaceFrom(r).ID, ProjectID: projectFrom(r).ID, Number: n,
 		ActorID: principal(r).UserID, Version: *body.Version,
 		Title: body.Title, Description: body.Description, StatusID: body.StatusID, AssigneeID: body.AssigneeID, DueDate: body.DueDate,
-		Fields: body.Fields,
+		Fields: body.Fields, Parent: parent,
 	})
 	if err != nil {
 		a.fail(w, r, err)

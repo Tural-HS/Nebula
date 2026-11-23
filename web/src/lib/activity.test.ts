@@ -17,6 +17,12 @@ function act(action: string, data: Record<string, unknown> = {}, extra: Partial<
 }
 
 suite("describe", () => {
+  it("renders a parent change with item keys (ADR-0021)", () => {
+    expect(describe(act("item.updated", { changes: { parent: { from: "OPS-1", to: null } } }), lookup)).toEqual([
+      { text: "əsas tapşırığı dəyişdi", from: "OPS-1", to: "—" },
+    ]);
+  });
+
   it("renders each change of an update", () => {
     const lines = describe(
       act("item.updated", {

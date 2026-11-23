@@ -1,5 +1,6 @@
 import type { Activity } from "../api/types";
 import { t } from "../i18n";
+import { ts } from "../i18n-subtasks";
 import { formatDate } from "./format";
 
 export interface Lookup {
@@ -65,6 +66,9 @@ export function describe(a: Activity, lookup: Lookup): Line[] {
               from: typeof c.from === "string" ? formatDate(c.from) : "—",
               to: typeof c.to === "string" ? formatDate(c.to) : "—",
             });
+            break;
+          case "parent":
+            lines.push({ text: ts.changedParent, from: str(c.from), to: str(c.to) });
             break;
           case "assignee_id":
             lines.push({

@@ -13,6 +13,8 @@ export const keys = {
   fields: (ws: string) => ["ws", ws, "fields"] as const,
   items: (ws: string, project: string) => ["ws", ws, "p", project, "items"] as const,
   item: (ws: string, project: string, n: number) => ["ws", ws, "p", project, "item", n] as const,
+  /** Every single-item query of a project (keys.item and what lives under it). */
+  itemPrefix: (ws: string, project: string) => ["ws", ws, "p", project, "item"] as const,
   transitions: (ws: string, project: string, n: number) => ["ws", ws, "p", project, "item", n, "transitions"] as const,
 };
 
@@ -88,6 +90,8 @@ export interface ItemFilters {
   status?: readonly string[];
   fields?: Readonly<Record<string, string>>;
   sort?: ItemSort;
+  /** Only subtasks of this item number (ADR-0021). */
+  parent?: number;
 }
 
 const PAGE_SIZE = 100;
@@ -100,6 +104,7 @@ export function itemsQueryString(f: ItemFilters, cursor: string | null): string 
   if (f.status && f.status.length > 0) p.set("status", f.status.join(","));
   for (const [k, v] of Object.entries(f.fields ?? {}).sort(([a], [b]) => a.localeCompare(b))) p.set("field." + k, v);
   if (f.sort && f.sort !== "number") p.set("sort", f.sort);
+  if (f.parent) p.set("parent", String(f.parent));
   if (cursor) p.set("cursor", cursor);
   return p.toString();
 }
@@ -181,6 +186,8 @@ export interface ItemPatch {
   assignee_id?: string | null;
   due_date?: string | null;
   fields?: Record<string, FieldValue>;
+  /** Parent item number or key; null makes the item top-level. */
+  parent?: number | string | null;
 }
 
 export function useUpdateItem(ws: string, project: string) {
@@ -191,9 +198,11 @@ export function useUpdateItem(ws: string, project: string) {
     onSuccess: (item) => {
       qc.setQueryData(keys.item(ws, project, item.number), item);
     },
-    onSettled: (_d, _e, vars) => {
+    onSettled: (item, _e, vars) => {
       void qc.invalidateQueries({ queryKey: keys.items(ws, project) });
       void qc.invalidateQueries({ queryKey: keys.item(ws, project, vars.n) });
+      // A subtask's status or parent changes its parents' progress (ADR-0021).
+      if (item?.parent || vars.patch.parent !== undefined) void qc.invalidateQueries({ queryKey: keys.itemPrefix(ws, project) });
     },
   });
 }
@@ -205,13 +214,17 @@ export interface NewItem {
   due_date?: string | null;
   description?: string | null;
   fields?: Record<string, FieldValue>;
+  parent?: number | string;
 }
 
 export function useCreateItem(ws: string, project: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: NewItem) => api<Item>("POST", path`/workspaces/${ws}/projects/${project}/items`, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.items(ws, project) }),
+    onSuccess: async (item) => {
+      if (item.parent) await qc.invalidateQueries({ queryKey: keys.item(ws, project, item.parent.number) });
+      await qc.invalidateQueries({ queryKey: keys.items(ws, project) });
+    },
   });
 }
 
@@ -219,7 +232,11 @@ export function useDeleteItem(ws: string, project: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (n: number) => api<undefined>("DELETE", path`/workspaces/${ws}/projects/${project}/items/${n}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.items(ws, project) }),
+    onSuccess: async () => {
+      // Its parent's progress and its subtasks' parent links change too.
+      await qc.invalidateQueries({ queryKey: keys.itemPrefix(ws, project) });
+      await qc.invalidateQueries({ queryKey: keys.items(ws, project) });
+    },
   });
 }
 

@@ -9,6 +9,7 @@ import { api, ApiError, path } from "../api/client";
 import { keys, useColumnItems, useItemCounts, useItemTypes, useUpdateItem, type ItemFilters } from "../api/hooks";
 import type { Item, Member, Status, StatusCategory } from "../api/types";
 import { useToast } from "../components/toast-context";
+import { SubtaskBadge } from "../components/Subtasks";
 import { Avatar, DueChip, EmptyState, ErrorState, Spinner, StatusBadge } from "../components/ui";
 import { cn } from "../lib/cn";
 import { t } from "../i18n";
@@ -259,11 +260,12 @@ function CardBody({ item, members, className, ref, ...rest }: HTMLAttributes<HTM
       )}
     >
       <p className="line-clamp-3 [overflow-wrap:anywhere]">{item.title}</p>
-      {item.due_date && (
-        <div className="mt-1.5">
-          <DueChip date={item.due_date} overdue={item.overdue} />
+      {(item.due_date ?? item.subtasks?.count) ? (
+        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+          {item.due_date && <DueChip date={item.due_date} overdue={item.overdue} />}
+          <SubtaskBadge summary={item.subtasks} />
         </div>
-      )}
+      ) : null}
       <div className="mt-2 flex items-center justify-between gap-2">
         <span className="font-mono text-xs text-zinc-500">{item.key}</span>
         <span className="flex min-w-0 items-center gap-1.5">
