@@ -141,6 +141,8 @@ Bütün `/api/v1` endpoint-ləri (`/version` istisna olmaqla) `Authorization: Be
 | `PATCH, DELETE .../{ws}/workflows/{id}/statuses/{statusID}` | Status dəyişmək / silmək | admin+ |
 | `GET .../projects/{KEY}/items` | Siyahı: `limit`, `cursor`, `q`, `status`, `assignee=me\|none\|{id}`, `field.<açar>=<dəyər>` | guest+ |
 | `POST .../projects/{KEY}/items` | Yaratmaq | member+ |
+| `POST .../projects/{KEY}/imports/preview` | CSV/xlsx önbaxışı (multipart `file`, `sheet`): vərəqlər, başlıqlar, ilk 20 sətir, təklif olunan uyğunlaşdırma | admin+ |
+| `POST .../projects/{KEY}/imports[?dry_run=true]` | İdxal (multipart `file`, `sheet`, `mapping`): hamısı və ya heç nə; `dry_run` yalnız yoxlayır | admin+ |
 | `GET, PATCH, DELETE .../items/{number}` | Oxumaq / `version` ilə qismən yeniləmək / soft delete | guest+ / member+ |
 | `GET .../items/{number}/transitions` | Növbəti mümkün statuslar | guest+ |
 | `GET, POST .../items/{number}/comments` | Şərhlər (`cursor`, `limit`) / yazmaq; `<@user-id>` ilə qeydetmə | guest+ / member+ |
@@ -155,6 +157,29 @@ Bütün `/api/v1` endpoint-ləri (`/version` istisna olmaqla) `Authorization: Be
 | `GET, POST .../{ws}/automations` | Avtomatlaşdırma qaydaları / yaratmaq | admin+ |
 | `GET, PATCH, DELETE .../{ws}/automations/{id}` | Oxumaq / dəyişmək / silmək | admin+ |
 | `GET :9090/metrics` | Prometheus metrikləri, route şablonuna görə etiketlənir | daxili |
+
+## Cədvəldən idxal (CSV / Excel)
+
+Layihə səhifəsində **İdxal et** (yalnız admin): fayl → vərəq və sütun uyğunlaşdırması → yoxlama (dry run) →
+idxal. Qısa qaydalar (ətraflı: [ADR-0011](docs/adr/0011-spreadsheet-import.md)):
+
+- Formatlar: `.xlsx` və CSV (UTF-8, ayırıcı `,` `;` və ya tab). Köhnə `.xls` üçün Excel-də "Save As → .xlsx"
+  və ya "CSV UTF-8" seçin. Limitlər: 10 MB, 20 000 sətir, 200 sütun.
+- Birinci boş olmayan sətir başlıqdır. Başlıq üçün bir sütun mütləqdir; status workflow-dakı adı ilə,
+  icraçı workspace üzvünün e-poçtu ilə, seçim sahələri etiketlə yazılır.
+- Məbləğlər: `1 250,50 ₼`, `1.250,50`, `1250.5` qəbul edilir; `1.250` kimi qeyri-müəyyən yazılış xəta verir.
+  Tarixlər: `15.03.2026`, `2026-03-15` və Excel tarix xanaları.
+- Hər hansı sətirdə xəta varsa heç nə idxal olunmur; yoxlama hesabatı sətir nömrəsi və sütunla xətaları göstərir.
+- Fayl serverdə yalnız yaddaşda oxunur, heç yerdə saxlanılmır; idxal audit log-a `project.imported` kimi düşür.
+
+API nümunəsi:
+
+```bash
+curl -fsS -H "Authorization: Bearer $(make -s token)" \
+  -F file=@musteriler.csv \
+  -F 'mapping={"columns":[{"column":0,"target":"title"},{"column":4,"target":"field.monthly"}],"default_type":"task"}' \
+  'http://localhost:8080/api/v1/workspaces/acme/projects/ACME/imports?dry_run=true'
+```
 
 ## Production qeydləri
 

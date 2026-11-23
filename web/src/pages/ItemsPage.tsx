@@ -2,7 +2,7 @@ import { DndContext, KeyboardSensor, PointerSensor, useDraggable, useDroppable, 
 import { useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useParams, useSearchParams } from "react-router";
+import { Link, useParams, useSearchParams } from "react-router";
 
 import { api, ApiError, path } from "../api/client";
 import { keys, useColumnItems, useItemCounts, useItems, useItemTypes, useMembers, useProjects, useUpdateItem, useWorkspace, type DueFilter, type ItemFilters } from "../api/hooks";
@@ -12,6 +12,7 @@ import { useToast } from "../components/toast-context";
 import { Avatar, Button, DueChip, EmptyState, ErrorState, Input, Select, Spinner, StatusBadge } from "../components/ui";
 import { cn } from "../lib/cn";
 import { t } from "../i18n";
+import { ti } from "../i18n-import";
 import { buildColumns, columnCount, dropTargets, flattenPages, otherColumn, pickTargetStatus, type BoardColumn, type GroupBy } from "../lib/board";
 import { formatDateTime, formatRelative } from "../lib/format";
 import { CreateItemDialog } from "./CreateItemDialog";
@@ -48,6 +49,7 @@ export function ItemsPage() {
   const filters = useMemo<ItemFilters>(() => ({ q, assignee, due }), [q, assignee, due]);
   const items = useItems(ws, project, filters, view === "table");
   const canEdit = roleAtLeast(workspace.data?.role, "member");
+  const canImport = roleAtLeast(workspace.data?.role, "admin");
   const projectName = projects.data?.find((p) => p.key === project)?.name ?? project;
 
   const setParam = (k: string, v: string | null) => {
@@ -78,11 +80,21 @@ export function ItemsPage() {
         { label: projectName },
       ]}
       actions={
-        canEdit && (
-          <Button variant="primary" onClick={() => { setCreating(true); }}>
-            {t.newItem}
-          </Button>
-        )
+        <>
+          {canImport && (
+            <Link
+              to={`/w/${encodeURIComponent(ws)}/p/${encodeURIComponent(project)}/import`}
+              className="rounded-md px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            >
+              {ti.importAction}
+            </Link>
+          )}
+          {canEdit && (
+            <Button variant="primary" onClick={() => { setCreating(true); }}>
+              {t.newItem}
+            </Button>
+          )}
+        </>
       }
     >
       <div className="flex h-full flex-col">

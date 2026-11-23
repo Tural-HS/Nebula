@@ -1,0 +1,95 @@
+// Azerbaijani strings for the spreadsheet import wizard.
+import type { FieldType } from "./api/types";
+
+export const ti = {
+  importAction: "İdxal et",
+  title: "Cədvəldən idxal",
+  intro: "CSV (UTF-8) və ya Excel (.xlsx) faylından tapşırıqları bu layihəyə əlavə edin. Fayl serverdə yalnız oxunur, saxlanılmır.",
+  steps: ["Fayl", "Sütunlar", "Yoxlama", "Nəticə"] as const,
+  stepLabel: (n: number, of: number) => `Addım ${String(n)} / ${String(of)}`,
+
+  file: "Fayl",
+  chooseFile: "Fayl seçin",
+  fileHint: (maxMb: number, maxRows: number) =>
+    `.csv, .tsv və ya .xlsx; ən çox ${String(maxMb)} MB və ${maxRows.toLocaleString("az")} sətir. Birinci sətir başlıqdır.`,
+  readFile: "Faylı oxu",
+  reading: "Oxunur…",
+  fileProblem: {
+    extension: "Bu fayl növü dəstəklənmir. .xlsx və ya CSV (UTF-8) seçin.",
+    size: "Fayl 10 MB-dan böyükdür. Cədvəli bir neçə fayla bölün.",
+    empty: "Fayl boşdur.",
+  },
+
+  sheet: "Vərəq",
+  summary: (rows: number, file: string) => `${file}: ${rows.toLocaleString("az")} sətir`,
+  delimiter: (d: string) => `Ayırıcı: ${d === "\t" ? "tab" : d}`,
+  defaultType: "Tip (sütunda göstərilməyibsə)",
+  mappingTitle: "Sütunları sahələrə uyğunlaşdırın",
+  mappingHint: "Təkliflər sütun adlarına görə doldurulub. Uyğunlaşdırılmayan sütunlar nəzərə alınmır.",
+  column: "Sütun",
+  sample: "Nümunə",
+  target: "Nebula sahəsi",
+  ignore: "— nəzərə alma —",
+  builtinGroup: "Əsas",
+  fieldsGroup: "Xüsusi sahələr",
+  missingTitle: "Başlıq üçün bir sütun seçin.",
+  previewTitle: "İlk sətirlər",
+  row: "Sətir",
+  back: "Geri",
+  validate: "Yoxla",
+  validating: "Yoxlanılır…",
+
+  reportOk: (n: number) => `Bütün ${n.toLocaleString("az")} sətir düzgündür. İdxal etməyə hazırdır.`,
+  reportErrors: (rows: number, errors: number) =>
+    `${rows.toLocaleString("az")} sətirdə ${errors.toLocaleString("az")} xəta var. Faylı düzəldin və ya uyğunlaşdırmanı dəyişin; xəta olduqda heç nə idxal edilmir.`,
+  truncated: (shown: number) => `İlk ${String(shown)} xəta göstərilir.`,
+  errorsTable: "Sətir xətaları",
+  message: "Xəta",
+  importNow: (n: number) => `${n.toLocaleString("az")} tapşırığı idxal et`,
+  importing: "İdxal edilir…",
+  fixMapping: "Uyğunlaşdırmaya qayıt",
+
+  done: (n: number) => `${n.toLocaleString("az")} tapşırıq yaradıldı`,
+  doneRange: (first: string, last: string) => `${first} – ${last}`,
+  openProject: "Layihəyə keç",
+  importAnother: "Başqa fayl idxal et",
+  rejected: "İdxal rədd edildi: bəzi sətirlərdə xəta var, heç nə yazılmadı.",
+  adminOnly: "İdxal yalnız adminlər üçündür.",
+
+  builtin: {
+    title: "Başlıq",
+    description: "Təsvir",
+    type: "Tip",
+    status: "Status",
+    assignee: "İcraçı (e-poçt)",
+  } as Record<string, string>,
+
+  fieldType: {
+    text: "mətn",
+    long_text: "uzun mətn",
+    number: "rəqəm",
+    date: "tarix",
+    datetime: "tarix və saat",
+    boolean: "bəli/xeyr",
+    select: "seçim",
+    multi_select: "çoxlu seçim",
+    user: "istifadəçi (e-poçt)",
+    url: "URL",
+    email: "e-poçt",
+  } satisfies Record<FieldType, string>,
+
+  // Server error codes (ADR-0011) → messages.
+  errors: {
+    file_too_large: "Fayl çox böyükdür (10 MB, açılmış .xlsx üçün 64 MB limit).",
+    too_many_rows: "Cədvəldə 20 000-dən çox sətir var. Faylı bölün.",
+    too_many_columns: "Cədvəldə 200-dən çox sütun var.",
+    cell_too_long: "Bir xana 32 767 simvoldan uzundur.",
+    invalid_encoding: "Fayl UTF-8 deyil. Excel-də «CSV UTF-8» kimi saxlayın.",
+    unsupported_format: "Bu format dəstəklənmir. .xlsx və ya CSV (UTF-8) istifadə edin. Köhnə .xls və şifrəli fayllar oxunmur.",
+    malformed_file: "Fayl oxuna bilmədi (zədələnmiş və ya səhv format).",
+    empty_file: "Faylda məlumat sətri yoxdur.",
+    sheet_not_found: "Seçilmiş vərəq tapılmadı.",
+    timeout: "Faylın oxunması çox uzun çəkdi.",
+    import_busy: "Hazırda başqa idxallar gedir. Bir az sonra yenidən cəhd edin.",
+  } as Record<string, string>,
+} as const;
