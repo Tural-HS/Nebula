@@ -13,6 +13,7 @@ böyük həcmli məlumatlarda sürətli, tam fərdiləşdirilə bilən, öz serv
 - Veb interfeys: [ADR-0006](docs/adr/0006-web-ui.md)
 - Əməkdaşlıq (şərhlər, @mention, aktivlik, audit, açar rotasiyası): [ADR-0007](docs/adr/0007-collaboration.md)
 - Mattermost/Slack bildirişləri və etibarlı proxy-lər: [ADR-0010](docs/adr/0010-chat-notifications-and-trusted-proxies.md)
+- Production (tək VPS, Docker Compose): [ADR-0015](docs/adr/0015-production-compose-on-vps.md), runbook [deploy/production/README.md](deploy/production/README.md)
 - Yol xəritəsi: [docs/ROADMAP.md](docs/ROADMAP.md)
 
 ## Tələblər
@@ -184,7 +185,7 @@ curl -fsS -H "Authorization: Bearer $(make -s token)" \
 ## Production qeydləri
 
 - Image: distroless Debian 13, root olmayan istifadəçi (UID 65532), ~25 MB. Read-only root FS ilə və bütün capability-lər söndürülmüş halda işlədin.
-- `nebula migrate up`-ı API yenilənməsindən əvvəl ayrıca job kimi işlədin (K8s Job / Argo CD PreSync hook).
+- `nebula migrate up`-ı API yenilənməsindən əvvəl ayrıca job kimi işlədin (Compose: `migrate` servisi, `deploy/production`; K8s Job / Argo CD PreSync hook).
 - Hər miqrasiyanın işləyən `Down` hissəsi olmalı və əvvəlki relizin işləməsinə mane olmamalıdır (expand/contract).
 - Rate limit hər replikada ayrıca saxlanılır: N replika ilə faktiki limit N dəfə çoxdur.
 - Webhook, avtomatlaşdırma və email işləri PostgreSQL növbəsindədir (transactional outbox). Böyük yükdə `nebula worker`-i ayrıca deployment kimi miqyaslayın.
