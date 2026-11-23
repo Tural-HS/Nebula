@@ -35,7 +35,29 @@ export default defineConfig({
       name: "chromium",
       use: { ...devices["Desktop Chrome"], viewport: { width: 1280, height: 860 } },
       dependencies: ["setup"],
-      testIgnore: /auth\.setup\.ts/,
+      testIgnore: [/auth\.setup\.ts/, /mobile\.spec\.ts/],
+    },
+    // Phones and tablets (ADR-0019): device emulation with touch input. All
+    // run on Chromium, the only browser CI installs, so the iPhone and iPad
+    // profiles check layout and touch handling at their sizes, not WebKit
+    // itself; Safari still needs a look on a real device.
+    {
+      name: "mobile-android",
+      use: { ...devices["Pixel 7"] },
+      dependencies: ["setup"],
+      testMatch: /mobile\.spec\.ts/,
+    },
+    {
+      name: "mobile-iphone",
+      use: { ...devices["iPhone 13 Mini"], browserName: "chromium" }, // 375 px wide
+      dependencies: ["setup"],
+      testMatch: /mobile\.spec\.ts/,
+    },
+    {
+      name: "tablet",
+      use: { ...devices["iPad Mini landscape"], browserName: "chromium" },
+      dependencies: ["setup"],
+      testMatch: /mobile\.spec\.ts/,
     },
   ],
   webServer: {

@@ -142,7 +142,7 @@ function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose }: {
               {t.delete}
             </Button>
           )}
-          <Button variant="ghost" onClick={onClose} aria-label={t.close} className="min-w-11 text-lg md:min-w-0 md:text-sm">
+          <Button variant="ghost" onClick={onClose} aria-label={t.close} className="min-h-11 min-w-11 text-lg md:text-sm">
             ✕
           </Button>
         </div>

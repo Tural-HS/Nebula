@@ -1,4 +1,7 @@
-import { DndContext, DragOverlay, KeyboardSensor, MouseSensor, TouchSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
+import {
+  DndContext, DragOverlay, KeyboardSensor, MouseSensor, pointerWithin, rectIntersection, TouchSensor, useDraggable, useDroppable, useSensor, useSensors,
+  type CollisionDetection, type DragEndEvent, type DragStartEvent,
+} from "@dnd-kit/core";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type HTMLAttributes, type Ref } from "react";
 
@@ -17,6 +20,14 @@ import { buildColumns, columnCount, dropTargets, flattenPages, otherColumn, pick
 // with thousands of items stays fast and nothing is cut off. Drag a card to
 // change its status; columns the workflow does not allow are dimmed.
 // ---------------------------------------------------------------------------
+
+/** Drops land in the column under the finger or pointer, which matters on a
+ *  narrow screen where the lifted card overlaps two columns; keyboard drags
+ *  have no pointer and fall back to the card's overlap. */
+const collision: CollisionDetection = (args) => {
+  const under = pointerWithin(args);
+  return under.length > 0 ? under : rectIntersection(args);
+};
 
 /** An item being moved: shown in its target column until the server answers. */
 interface Move {
@@ -103,7 +114,7 @@ export function Board({ ws, project, filters, groupBy, members, canEdit, onOpen 
 
   const pending = Object.values(moves);
   return (
-    <DndContext sensors={sensors} onDragStart={onDragStart} onDragCancel={() => { setDrag(null); }} onDragEnd={(e) => void onDragEnd(e)}>
+    <DndContext sensors={sensors} collisionDetection={collision} onDragStart={onDragStart} onDragCancel={() => { setDrag(null); }} onDragEnd={(e) => void onDragEnd(e)}>
       {/* Phones: a column is most of the screen wide and the board snaps to
           columns while swiping; snapping is off during a drag so it does not
           fight dnd-kit's auto-scroll. */}
