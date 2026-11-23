@@ -47,7 +47,8 @@ Hər mərhələ yalnız testlər, miqrasiyalar (up və down) və CI yaşıl oldu
 - [x] 429-un düzgün idarəsi: `Retry-After` ilə təkrar; yazmalarda yalnız 429 (dəyişiklik itkisi aradan qaldırıldı)
 - Bildiriş mərkəzi (in-app)
 - FinTez köçürülməsi üçün: son tarix + vaxta görə avtomatlaşdırma ("Gecikmə", səhər xülasəsi), təkrarlanan tapşırıqlar, Mattermost/Slack bildiriş hədəfi, saxlanılan görünüşlər + cəm sətri, layihə səviyyəsində məxfilik, CSV/Excel importu
-- Etibarlı proxy-lər üçün rate limit (`X-Forwarded-For` yalnız etibarlı CIDR-lərdən)
+- [x] Mattermost/Slack bildiriş hədəfi: webhook `format: slack`, azərbaycanca qısa mesajlar, tapşırıq keçidi, URL şifrələnmiş və maskalanmış (ADR-0010)
+- [x] Etibarlı proxy-lər üçün rate limit: `NEBULA_TRUSTED_PROXIES`, `X-Forwarded-For` yalnız etibarlı CIDR-lərdən, sağdan sola (ADR-0010)
 
 ## Phase 2: Şablonlar və görünüşlər
 - Proqram təminatı / HR / Satış / Marketinq şablonları; cədvəl, kanban, təqvim, forma görünüşləri
