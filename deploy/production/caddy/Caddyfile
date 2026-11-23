@@ -1,0 +1,124 @@
+# Nebula edge. Placeholders {$VAR} are substituted from the container environment at load time.
+# Validate: docker compose run --rm --no-deps caddy caddy validate --config /etc/caddy/Caddyfile
+{
+	email {$ACME_EMAIL}
+	acme_ca {$ACME_CA}
+	# Admin API on loopback only (needed for `caddy reload`); never on a network.
+	admin localhost:2019
+	metrics
+	servers {
+		# Clients connect directly: no upstream proxy is trusted, X-Forwarded-For is set from the TCP peer.
+		timeouts {
+			read_header 10s
+			idle 2m
+		}
+	}
+	log {
+		output stdout
+		format json
+	}
+}
+
+(common_headers) {
+	header {
+		# 2 years. Add "; includeSubDomains; preload" only when every subdomain is HTTPS-only.
+		Strict-Transport-Security "max-age=63072000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		Permissions-Policy "accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=(), interest-cohort=()"
+		Cross-Origin-Opener-Policy "same-origin"
+		-Server
+	}
+}
+
+# ------------------------------------------------------------------------------------------------
+# Web UI + API (same origin: the SPA calls /api without CORS).
+# ------------------------------------------------------------------------------------------------
+{$NEBULA_HOST} {
+	import common_headers
+	encode zstd gzip
+	log
+
+	header {
+		# The build emits only same-origin module scripts and stylesheets. React style props use the
+		# CSSOM, which CSP does not block, so no 'unsafe-inline'. connect-src allows the IdP's token
+		# endpoint (PKCE code exchange and refresh). Logout/login are top-level navigations.
+		Content-Security-Policy "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://{$NEBULA_AUTH_HOST}; manifest-src 'self'; frame-src 'none'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'; object-src 'none'; upgrade-insecure-requests"
+		X-Frame-Options "DENY"
+		Cross-Origin-Resource-Policy "same-origin"
+	}
+
+	handle /api/* {
+		request_body {
+			max_size 25MB # spreadsheet imports
+		}
+		reverse_proxy nebula:8080 {
+			# During a container restart (deploy), hold requests up to 15 s instead of failing.
+			lb_try_duration 15s
+			lb_try_interval 250ms
+			transport http {
+				dial_timeout 2s
+				response_header_timeout 60s
+			}
+		}
+	}
+
+	# Runtime config for the SPA: one build runs in every environment.
+	handle /config.json {
+		header Content-Type "application/json"
+		header Cache-Control "no-store"
+		respond `{"oidcAuthority":"https://{$NEBULA_AUTH_HOST}/realms/{$KEYCLOAK_REALM}","oidcClientId":"nebula-web"}` 200
+	}
+
+	# Hashed file names: cache forever.
+	handle /assets/* {
+		root * /srv
+		header Cache-Control "public, max-age=31536000, immutable"
+		file_server
+	}
+
+	handle {
+		root * /srv
+		# Source maps are built "hidden" and never served.
+		@maps path *.map
+		respond @maps 404
+		# SPA routes fall back to index.html, which must always be revalidated.
+		try_files {path} /index.html
+		header Cache-Control "no-cache"
+		file_server
+	}
+}
+
+# ------------------------------------------------------------------------------------------------
+# Identity provider (Keycloak). Separate origin: IdP cookies never share the app origin.
+# ------------------------------------------------------------------------------------------------
+{$NEBULA_AUTH_HOST} {
+	import common_headers
+	encode zstd gzip
+	log
+
+	# Admin console, admin REST API and the master realm are not public: SSH tunnel only (README).
+	@private path /admin /admin/* /realms/master /realms/master/* /metrics /metrics/* /health /health/*
+	respond @private 404
+
+	redir / https://{$NEBULA_HOST}/ 302
+
+	reverse_proxy keycloak:8080 {
+		lb_try_duration 10s
+		# Keycloak trusts X-Forwarded-* only from Caddy's fixed address (KC_PROXY_TRUSTED_ADDRESSES).
+		header_up X-Forwarded-Port 443
+	}
+}
+
+# ------------------------------------------------------------------------------------------------
+# Internal listener (metrics network only, never published): healthcheck + Prometheus metrics.
+# ------------------------------------------------------------------------------------------------
+http://:2020 {
+	handle /healthz {
+		respond "ok" 200
+	}
+	handle /metrics {
+		metrics
+	}
+	respond 404
+}

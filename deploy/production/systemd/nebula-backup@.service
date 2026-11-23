@@ -1,0 +1,15 @@
+# pgBackRest backup of the Nebula cluster. Instance = type: full, diff (incr is used by deploy.sh).
+[Unit]
+Description=Nebula PostgreSQL backup (%i)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/nebula/deploy/production
+ExecStart=/opt/nebula/deploy/production/scripts/backup.sh %i
+TimeoutStartSec=4h
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+# Failure shows up as nebula_pgbackrest_backup_last_run_success == 0 and in the journal.

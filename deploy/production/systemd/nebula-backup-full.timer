@@ -1,0 +1,11 @@
+[Unit]
+Description=Weekly full backup of the Nebula cluster
+
+[Timer]
+OnCalendar=Sun *-*-* 02:15:00 UTC
+RandomizedDelaySec=10m
+Persistent=true
+Unit=nebula-backup@full.service
+
+[Install]
+WantedBy=timers.target

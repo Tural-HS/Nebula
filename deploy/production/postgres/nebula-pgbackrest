@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# pgBackRest with repository credentials loaded from Docker secret files for this invocation only.
+# Used by archive_command, scripts/backup.sh, restore.sh and restore-test.sh. The credentials are
+# never in the image, a config file, the command line, or the postmaster's environment.
+set -euo pipefail
+
+load_secret() { # load_secret VAR secret-name
+	local file=/run/secrets/$2
+	[[ -r $file ]] || { echo "nebula-pgbackrest: missing secret $file" >&2; exit 1; }
+	printf -v "$1" '%s' "$(tr -d '\r\n' <"$file")"
+	export "${1?}"
+}
+
+load_secret PGBACKREST_REPO1_S3_KEY pgbackrest_s3_key
+load_secret PGBACKREST_REPO1_S3_KEY_SECRET pgbackrest_s3_key_secret
+load_secret PGBACKREST_REPO1_CIPHER_PASS pgbackrest_cipher_pass
+
+exec pgbackrest "$@"

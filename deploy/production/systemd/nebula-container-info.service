@@ -1,0 +1,8 @@
+[Unit]
+Description=Nebula container id -> service name metric
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/nebula/deploy/production/scripts/container-info.sh
