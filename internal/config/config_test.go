@@ -54,6 +54,13 @@ func TestLoadInvalid(t *testing.T) {
 		{"negative rps", map[string]string{"NEBULA_RATE_LIMIT_USER_RPS": "-1"}, "NEBULA_RATE_LIMIT_USER_RPS"},
 		{"nan rps", map[string]string{"NEBULA_RATE_LIMIT_IP_RPS": "NaN"}, "NEBULA_RATE_LIMIT_IP_RPS"},
 		{"zero burst", map[string]string{"NEBULA_RATE_LIMIT_USER_BURST": "0"}, "NEBULA_RATE_LIMIT_USER_BURST"},
+		{"bad proxy cidr", map[string]string{"NEBULA_TRUSTED_PROXIES": "10.0.0.0/8,10.0.0.0/40"}, "NEBULA_TRUSTED_PROXIES"},
+		{"proxy host bits", map[string]string{"NEBULA_TRUSTED_PROXIES": "10.1.2.3/8"}, "host bits"},
+		{"relative public url", map[string]string{"NEBULA_PUBLIC_URL": "nebula.example.com"}, "NEBULA_PUBLIC_URL"},
+		{"http public url in prod", map[string]string{"NEBULA_PUBLIC_URL": "http://nebula.example.com"}, "must use https"},
+		{"public url with query", map[string]string{"NEBULA_PUBLIC_URL": "https://nebula.example.com/?a=1"}, "query"},
+		{"public url with credentials", map[string]string{"NEBULA_PUBLIC_URL": "https://u:p@nebula.example.com"}, "credentials"},
+		{"javascript public url", map[string]string{"NEBULA_PUBLIC_URL": "javascript:alert(1)"}, "absolute http(s)"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -175,5 +182,29 @@ func TestOldEncryptionKeys(t *testing.T) {
 		if want == "" && err != nil || want != "" && (err == nil || !strings.Contains(err.Error(), want)) {
 			t.Errorf("%q: want %q, got %v", list, want, err)
 		}
+	}
+}
+
+func TestLoadTrustedProxiesAndPublicURL(t *testing.T) {
+	cfg, err := Load(env(nil))
+	if err != nil || len(cfg.TrustedProxies) != 0 || cfg.PublicURL != "" {
+		t.Fatalf("defaults: %v %v %q", err, cfg.TrustedProxies, cfg.PublicURL)
+	}
+	cfg, err = Load(env(map[string]string{
+		"NEBULA_TRUSTED_PROXIES": " 10.0.0.0/8, fd00::/8 ,192.0.2.1",
+		"NEBULA_PUBLIC_URL":      "https://nebula.example.com/app/",
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.TrustedProxies) != 3 || cfg.TrustedProxies[2].String() != "192.0.2.1/32" {
+		t.Errorf("proxies: %v", cfg.TrustedProxies)
+	}
+	if cfg.PublicURL != "https://nebula.example.com/app" {
+		t.Errorf("public url: %q", cfg.PublicURL)
+	}
+	cfg, err = Load(env(map[string]string{"NEBULA_ENV": "development", "NEBULA_PUBLIC_URL": "http://localhost:5173"}))
+	if err != nil || cfg.PublicURL != "http://localhost:5173" {
+		t.Fatalf("dev http: %v %q", err, cfg.PublicURL)
 	}
 }

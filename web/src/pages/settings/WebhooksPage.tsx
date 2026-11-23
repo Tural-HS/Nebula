@@ -1,11 +1,12 @@
 import { useState } from "react";
 
 import { useAdminApi, useDeliveries, useWebhooks, type Webhook } from "../../api/admin";
-import { Button, ErrorState, Input, Spinner } from "../../components/ui";
+import { Button, ErrorState, Input, Select, Spinner } from "../../components/ui";
 import { t } from "../../i18n";
 import { ta } from "../../i18n-admin";
 import { cn } from "../../lib/cn";
 import { formatRelative } from "../../lib/format";
+import { defaultEvents, looksLikeChatWebhook, WEBHOOK_FORMATS, type WebhookFormat } from "../../lib/webhooks";
 import { Card, SettingsLayout } from "./SettingsLayout";
 import { useFeedback } from "./useErrorToast";
 
@@ -54,7 +55,14 @@ function NewWebhook({ ws, onSecret }: { ws: string; onSecret: (s: string) => voi
   const adm = useAdminApi(ws);
   const fb = useFeedback();
   const [url, setUrl] = useState("");
-  const [events, setEvents] = useState("item.*");
+  const [format, setFormat] = useState<WebhookFormat>("nebula");
+  const [events, setEvents] = useState(defaultEvents("nebula"));
+  const chooseFormat = (f: WebhookFormat) => {
+    // Swap the events only while they are still the previous default.
+    if (events === defaultEvents(format)) setEvents(defaultEvents(f));
+    setFormat(f);
+  };
+  const suggestChat = format === "nebula" && looksLikeChatWebhook(url);
   return (
     <Card>
       <h2 className="mb-3 text-sm font-semibold">{ta.newWebhook}</h2>
@@ -62,15 +70,33 @@ function NewWebhook({ ws, onSecret }: { ws: string; onSecret: (s: string) => voi
         className="flex flex-wrap items-end gap-2"
         onSubmit={(e) => {
           e.preventDefault();
-          adm.createWebhook.mutate({ url: url.trim(), events: parseEvents(events) }, {
-            onSuccess: (r) => { setUrl(""); onSecret(r.secret); },
+          adm.createWebhook.mutate({ url: url.trim(), format, events: parseEvents(events) }, {
+            onSuccess: (r) => {
+              setUrl("");
+              if (r.secret) onSecret(r.secret);
+              else fb.ok()();
+            },
             onError: fb.fail,
           });
         }}
       >
+        <label className="text-xs text-zinc-500">
+          {ta.format}
+          <Select value={format} onChange={(e) => { chooseFormat(e.target.value as WebhookFormat); }} className="w-52">
+            {WEBHOOK_FORMATS.map((f) => <option key={f} value={f}>{ta.formats[f]}</option>)}
+          </Select>
+        </label>
         <label className="min-w-64 flex-1 text-xs text-zinc-500">
           {ta.url}
-          <Input required type="url" placeholder="https://" value={url} onChange={(e) => { setUrl(e.target.value); }} />
+          <Input
+            required
+            type="url"
+            placeholder="https://"
+            autoComplete="off"
+            spellCheck={false}
+            value={url}
+            onChange={(e) => { setUrl(e.target.value); }}
+          />
         </label>
         <label className="text-xs text-zinc-500">
           {ta.events} <span className="text-zinc-400">({ta.eventsHint})</span>
@@ -78,6 +104,13 @@ function NewWebhook({ ws, onSecret }: { ws: string; onSecret: (s: string) => voi
         </label>
         <Button type="submit" variant="primary" disabled={adm.createWebhook.isPending}>{t.create}</Button>
       </form>
+      {format === "slack" && <p className="mt-2 text-xs text-zinc-500">{ta.slackHint}</p>}
+      {suggestChat && (
+        <p role="status" className="mt-2 flex flex-wrap items-center gap-2 text-xs text-amber-700 dark:text-amber-400">
+          {ta.chatUrlDetected}
+          <Button variant="ghost" onClick={() => { chooseFormat("slack"); }}>{ta.useChatFormat}</Button>
+        </p>
+      )}
     </Card>
   );
 }
@@ -92,6 +125,9 @@ function WebhookCard({ ws, hook, onSecret }: { ws: string; hook: Webhook; onSecr
       <div className="flex flex-wrap items-center gap-2">
         <span className={cn("size-2 rounded-full", hook.active ? "bg-emerald-500" : "bg-zinc-400")} aria-hidden />
         <code className="min-w-0 flex-1 truncate text-sm">{hook.url}</code>
+        <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+          {ta.formatShort[hook.format] ?? hook.format}
+        </span>
         <label className="flex items-center gap-1.5 text-xs">
           <input
             type="checkbox"
@@ -117,16 +153,18 @@ function WebhookCard({ ws, hook, onSecret }: { ws: string; hook: Webhook; onSecr
             if (events !== hook.events.join(", ")) adm.updateWebhook.mutate({ id: hook.id, body: { events: parseEvents(events) } }, { onSuccess: fb.ok(), onError: fb.fail });
           }}
         />
-        <Button onClick={() => { adm.pingWebhook.mutate(hook.id, { onSuccess: () => { fb.ok(ta.pinged)(); setShowLog(true); }, onError: fb.fail }); }}>{ta.ping}</Button>
+        <Button onClick={() => { adm.pingWebhook.mutate(hook.id, { onSuccess: () => { fb.ok(hook.format === "slack" ? ta.pingedChat : ta.pinged)(); setShowLog(true); }, onError: fb.fail }); }}>{ta.ping}</Button>
         <Button variant="ghost" onClick={() => { setShowLog((v) => !v); }}>{ta.deliveries}</Button>
-        <Button
-          variant="ghost"
-          onClick={() => {
-            if (window.confirm(ta.confirmRotate)) adm.rotateSecret.mutate(hook.id, { onSuccess: (r) => { onSecret(r.secret); }, onError: fb.fail });
-          }}
-        >
-          {ta.rotate}
-        </Button>
+        {hook.format !== "slack" && (
+          <Button
+            variant="ghost"
+            onClick={() => {
+              if (window.confirm(ta.confirmRotate)) adm.rotateSecret.mutate(hook.id, { onSuccess: (r) => { onSecret(r.secret); }, onError: fb.fail });
+            }}
+          >
+            {ta.rotate}
+          </Button>
+        )}
         <Button
           variant="ghost"
           className="ml-auto text-red-600"

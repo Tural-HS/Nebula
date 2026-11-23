@@ -249,7 +249,12 @@ func TestEncryptionKeyRotation(t *testing.T) {
 	_ = pool.QueryRow(ctx, `INSERT INTO users (id, oidc_issuer, oidc_subject, email, display_name)
 		VALUES (gen_random_uuid(), 'i', 's', 'o@example.com', 'O') RETURNING id`).Scan(&owner)
 	_ = pool.QueryRow(ctx, `INSERT INTO workspaces (id, slug, name) VALUES (gen_random_uuid(), 'rot', 'Rot') RETURNING id`).Scan(&ws)
-	hook, secret, err := old.CreateWebhook(ctx, uuid.MustParse(ws), uuid.MustParse(owner), "https://hooks.example.com/x", []string{"*"}, func(string) error { return nil })
+	hook, secret, err := old.CreateWebhook(ctx, uuid.MustParse(ws), uuid.MustParse(owner), "https://hooks.example.com/x", store.WebhookFormatNebula, []string{"*"}, func(string) error { return nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	const slackURL = "https://chat.example.com/hooks/abcdefghijklmnopqrstuvwxyz"
+	slackHook, _, err := old.CreateWebhook(ctx, uuid.MustParse(ws), uuid.MustParse(owner), slackURL, store.WebhookFormatSlack, []string{"*"}, func(string) error { return nil })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -262,7 +267,7 @@ func TestEncryptionKeyRotation(t *testing.T) {
 	boxB, _ := secretbox.NewFromBase64(keyB)
 	boxB, _ = boxB.WithOldKeys(keyA)
 	rotating := store.New(pool).WithSecrets(boxB)
-	if n, err := rotating.ReencryptSecrets(ctx); err != nil || n != 1 {
+	if n, err := rotating.ReencryptSecrets(ctx); err != nil || n != 2 {
 		t.Fatalf("rotation: n=%d err=%v", n, err)
 	}
 	if n, _ := rotating.ReencryptSecrets(ctx); n != 0 {
@@ -272,6 +277,10 @@ func TestEncryptionKeyRotation(t *testing.T) {
 	got, err := store.New(pool).WithSecrets(boxBOnly2).WebhookTarget(ctx, hook.ID)
 	if err != nil || got.Secret != secret {
 		t.Fatalf("after rotation the new key alone must work: %v", err)
+	}
+	got, err = store.New(pool).WithSecrets(boxBOnly2).WebhookTarget(ctx, slackHook.ID)
+	if err != nil || got.URL != slackURL || got.Format != store.WebhookFormatSlack {
+		t.Fatalf("slack URL after rotation: %v format=%q", err, got.Format)
 	}
 }
 

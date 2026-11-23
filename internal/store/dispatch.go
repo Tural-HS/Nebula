@@ -143,3 +143,60 @@ func (s *Store) IsMemberEmail(ctx context.Context, wsID uuid.UUID, email string)
 		WHERE m.workspace_id = $1 AND u.email = $2 AND u.is_active)`, wsID, email).Scan(&ok)
 	return ok, err
 }
+
+// ItemLabel is how notifications refer to an item.
+type ItemLabel struct {
+	Key        string // e.g. QA-12
+	ProjectKey string
+	Number     int64
+	Title      string
+}
+
+// ItemLabelByID returns an item's key and title, including deleted items
+// (an item.deleted notification still needs to say which item it was).
+func (s *Store) ItemLabelByID(ctx context.Context, wsID, id uuid.UUID) (ItemLabel, error) {
+	var l ItemLabel
+	err := s.pool.QueryRow(ctx, `SELECT p.key, i.number, i.title FROM items i JOIN projects p ON p.id = i.project_id
+		WHERE i.workspace_id = $1 AND i.id = $2`, wsID, id).Scan(&l.ProjectKey, &l.Number, &l.Title)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return l, ErrNotFound
+	}
+	l.Key = fmt.Sprintf("%s-%d", l.ProjectKey, l.Number)
+	return l, err
+}
+
+// DisplayNames returns display names of the given users (former members
+// included: an event's actor may have left since).
+func (s *Store) DisplayNames(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]string, error) {
+	return s.namesByID(ctx, `SELECT id, display_name FROM users WHERE id = ANY($1::uuid[])`, ids)
+}
+
+// StatusNames returns the names of the workspace's statuses with the given IDs.
+func (s *Store) StatusNames(ctx context.Context, wsID uuid.UUID, ids []uuid.UUID) (map[uuid.UUID]string, error) {
+	return s.namesByID(ctx, `SELECT id, name FROM statuses WHERE id = ANY($1::uuid[]) AND workspace_id = $2`, ids, wsID)
+}
+
+func (s *Store) namesByID(ctx context.Context, query string, ids []uuid.UUID, args ...any) (map[uuid.UUID]string, error) {
+	out := map[uuid.UUID]string{}
+	if len(ids) == 0 {
+		return out, nil
+	}
+	strs := make([]string, len(ids))
+	for i, id := range ids {
+		strs[i] = id.String()
+	}
+	rows, err := s.pool.Query(ctx, query, append([]any{strs}, args...)...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id uuid.UUID
+		var name string
+		if err := rows.Scan(&id, &name); err != nil {
+			return nil, err
+		}
+		out[id] = name
+	}
+	return out, rows.Err()
+}

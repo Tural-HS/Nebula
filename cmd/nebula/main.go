@@ -158,7 +158,7 @@ func (rt *runtime) newWorker(ctx context.Context, cfg config.Config, logger *slo
 	}
 	eng := &engine.Engine{
 		Store: rt.store, HTTP: safehttp.NewClient(rt.webhook), HTTPOpts: rt.webhook,
-		Mail: sender, Logger: logger, Version: version,
+		Mail: sender, Logger: logger, Version: version, PublicURL: cfg.PublicURL,
 	}
 	return worker.New(rt.store, eng.Handlers(), logger, rt.metrics, worker.Options{
 		Concurrency:   max(cfg.WorkerConcurrency, 1),
@@ -239,6 +239,7 @@ func serve(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 		Version:        version,
 		RequestTimeout: cfg.RequestTimeout,
 		RateLimit:      cfg.RateLimit,
+		TrustedProxies: cfg.TrustedProxies,
 	}), cfg.RequestTimeout)
 	admin := newHTTPServer(cfg.AdminAddr, server.NewAdminHandler(metrics), 10*time.Second)
 

@@ -12,6 +12,7 @@ böyük həcmli məlumatlarda sürətli, tam fərdiləşdirilə bilən, öz serv
 - Status keçidləri, avtomatlaşdırma, webhook-lar və email: [ADR-0005](docs/adr/0005-automation-webhooks-email.md)
 - Veb interfeys: [ADR-0006](docs/adr/0006-web-ui.md)
 - Əməkdaşlıq (şərhlər, @mention, aktivlik, audit, açar rotasiyası): [ADR-0007](docs/adr/0007-collaboration.md)
+- Mattermost/Slack bildirişləri və etibarlı proxy-lər: [ADR-0010](docs/adr/0010-chat-notifications-and-trusted-proxies.md)
 - Yol xəritəsi: [docs/ROADMAP.md](docs/ROADMAP.md)
 
 ## Tələblər
@@ -101,7 +102,9 @@ Yanlış konfiqurasiya zamanı proqram başlamır və bütün problemləri bir d
 | `NEBULA_SHUTDOWN_TIMEOUT` | `25s` | Orkestratorun grace period-undan az olmalıdır (K8s default 30s) |
 | `NEBULA_REQUEST_TIMEOUT` | `30s` | Hər sorğu üçün son müddət |
 | `NEBULA_RATE_LIMIT_USER_RPS` / `_BURST` | `20` / `40` | İstifadəçi başına, hər replika üçün; `0` söndürür |
-| `NEBULA_RATE_LIMIT_IP_RPS` / `_BURST` | `100` / `200` | IP başına, autentifikasiyadan əvvəl; reverse proxy arxasında limiti ingress-də tətbiq edin |
+| `NEBULA_RATE_LIMIT_IP_RPS` / `_BURST` | `100` / `200` | IP başına, autentifikasiyadan əvvəl; reverse proxy arxasında `NEBULA_TRUSTED_PROXIES`-i təyin edin |
+| `NEBULA_TRUSTED_PROXIES` | boş | Reverse proxy-lərin CIDR-ləri və ya IP-ləri (vergüllə, məs. `10.0.0.0/8,fd00::/8`). Yalnız bu ünvanlardan gələn sorğularda `X-Forwarded-For` nəzərə alınır (ADR-0010). Səhv CIDR → işə düşmür |
+| `NEBULA_PUBLIC_URL` | boş (keçid yoxdur) | Veb interfeysin ünvanı (`https://nebula.example.com`); Mattermost/Slack mesajlarında tapşırıq keçidləri üçün. `http` yalnız development-də |
 | `NEBULA_WORKER_CONCURRENCY` | `4` | Prosesdəki paralel fon işləri; `0` → `serve` daxilində worker yoxdur |
 | `NEBULA_SMTP_HOST` | boş (email söndürülüb) | SMTP serveri |
 | `NEBULA_SMTP_PORT` / `_TLS` | `587` / `starttls` | `starttls`, `tls` və ya `none` (`none` productionda qadağandır) |
@@ -145,7 +148,7 @@ Bütün `/api/v1` endpoint-ləri (`/version` istisna olmaqla) `Authorization: Be
 | `GET .../items/{number}/activity` | Tapşırığın tarixçəsi (`before`, `limit`) | guest+ |
 | `GET .../{ws}/audit-log` | Workspace audit log (`before`, `limit`, `action`, `actor`) | admin+ |
 | `POST .../{ws}/webhooks/{id}/ping` | Test çatdırılması | admin+ |
-| `GET, POST .../{ws}/webhooks` | Webhook-lar / yaratmaq (secret yalnız bir dəfə qaytarılır) | admin+ |
+| `GET, POST .../{ws}/webhooks` | Webhook-lar / yaratmaq (`format`: `nebula` və ya `slack`; secret yalnız bir dəfə qaytarılır, `slack` üçün `null`) | admin+ |
 | `GET, PATCH, DELETE .../{ws}/webhooks/{id}` | Oxumaq / dəyişmək / silmək | admin+ |
 | `POST .../{ws}/webhooks/{id}/rotate-secret` | Yeni secret | admin+ |
 | `GET .../{ws}/webhooks/{id}/deliveries` | Son çatdırılma cəhdləri | admin+ |
@@ -161,3 +164,5 @@ Bütün `/api/v1` endpoint-ləri (`/version` istisna olmaqla) `Authorization: Be
 - Rate limit hər replikada ayrıca saxlanılır: N replika ilə faktiki limit N dəfə çoxdur.
 - Webhook, avtomatlaşdırma və email işləri PostgreSQL növbəsindədir (transactional outbox). Böyük yükdə `nebula worker`-i ayrıca deployment kimi miqyaslayın.
 - Webhook qəbul edənlər `Nebula-Signature`-i yoxlamalı və `Nebula-Event-Id` ilə dublikatları ayırmalıdır (ADR-0005).
+- Mattermost/Slack webhook-u (`format: "slack"`) imzalanmır: URL özü açardır, şifrələnmiş saxlanılır və API-də maskalanır. URL sızıbsa, Mattermost-da yenisini yaradıb webhook-un URL-ini dəyişin (ADR-0010).
+- Reverse proxy (Caddy, ingress) arxasında `NEBULA_TRUSTED_PROXIES`-ə **yalnız** proxy-nin ünvanlarını yazın; API-yə proxy-dən yan keçən birbaşa giriş olmamalıdır (NetworkPolicy).
