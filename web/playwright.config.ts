@@ -3,12 +3,15 @@ import { defineConfig, devices } from "@playwright/test";
 /*
  * End-to-end tests against the real stack: Postgres, Keycloak, Mailpit and the
  * API from `make up`, plus the production web build served by `vite preview`.
- * Every spec creates its own workspace, so runs never touch other data.
+ * Every spec creates its own workspace, so runs never touch other data, and
+ * the teardown deletes this run's workspaces again.
  */
 const CI = Boolean(process.env.CI);
 
 export default defineConfig({
   testDir: "./e2e",
+  globalSetup: "./e2e/global-setup.ts",
+  globalTeardown: "./e2e/global-teardown.ts", // set E2E_KEEP_DATA=1 to inspect the data afterwards
   timeout: 60_000,
   expect: { timeout: 10_000 },
   fullyParallel: false,

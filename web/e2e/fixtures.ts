@@ -47,7 +47,7 @@ export interface Seed {
 export async function seedWorkspace(bobRole: "guest" | "member" = "member"): Promise<Seed> {
   const alice = await apiAs("alice");
   const bob = await apiAs("bob");
-  const ws = `e2e-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+  const ws = `e2e-${process.env.E2E_RUN ?? "manual"}-${Math.random().toString(36).slice(2, 8)}`; // see global-teardown.ts
   const bobId = ((await (await bob.get("me")).json()) as { id: string }).id; // first sign-in creates bob
   const aliceId = ((await (await alice.get("me")).json()) as { id: string }).id;
   expect((await alice.post("workspaces", { data: { slug: ws, name: "E2E " + ws } })).status()).toBe(201);

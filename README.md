@@ -59,7 +59,8 @@ make run                      # Postgres + Keycloak + Mailpit-i başladır, miqr
 | `make check` | Yuxarıdakıların hamısı: CI-nin işlətdiyi yoxlamalar |
 | `make e2e` | Playwright E2E: real stack (`make up`) üzərində Chromium ilə giriş, tapşırıqlar, lövhə, şərhlər, rollar, admin ekranları |
 
-E2E testləri hər spec üçün API ilə öz workspace-ini yaradır, ona görə mövcud dev məlumatlarına toxunmur.
+E2E testləri hər spec üçün API ilə öz workspace-ini yaradır, ona görə mövcud dev məlumatlarına toxunmur;
+test bitəndə həmin çalışmanın workspace-ləri silinir (`E2E_KEEP_DATA=1` saxlayır, `make e2e-clean` qalıqları təmizləyir).
 `make e2e` işləyən dev serverdən istifadə edir; `make e2e-ci` CI kimi production build + `vite preview` ilə işləyir.
 Uğursuz testlər üçün trace, screenshot və video `web/test-results`-də qalır (`npm run e2e:report`).
 
