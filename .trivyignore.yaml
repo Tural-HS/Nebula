@@ -10,12 +10,3 @@ vulnerabilities:
       x/net v0.60.0. Our Caddyfile uses no templates/markdown, so Caddy never parses untrusted HTML.
       Remove when the next Caddy release ships x/net >= 0.62.0.
     expired_at: 2026-12-31
-  - id: CVE-2026-102554
-    purls:
-      - pkg:maven/com.google.guava/guava@33.6.0-jre
-    statement: >-
-      Guava deserialization DoS, bundled in Keycloak 26.8.2 (newest build 26.8.2-3, 2026-11-19, is what
-      we pin); not patchable without modifying the Keycloak distribution. Reachability NOT verified.
-      Mitigations: Keycloak only behind Caddy, admin console not public, memory limit + restart.
-      Short expiry on purpose: re-check for a Keycloak release with guava >= 33.7.2 and remove.
-    expired_at: 2026-12-15

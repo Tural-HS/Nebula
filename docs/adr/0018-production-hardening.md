@@ -86,12 +86,28 @@ Production Postgres image-i (`deploy/production/postgres/Dockerfile`) build zama
 
 ### 8. İlk qəbul edilmiş risklər (`.trivyignore.yaml`)
 
-Lokal sınaq skanı (2026-11-23, release ilə eyni Trivy versiyası və parametrlər): `nebula` təmiz; Postgres §7-dən sonra təmiz; iki istisna — hər biri ən dar əhatə (path/purl), səbəb və bitmə tarixi ilə. Bitmiş istisna gate-i yenidən sındırır və yeni qərar tələb edir.
+Lokal sınaq skanı (2026-11-23, release ilə eyni Trivy versiyası və parametrlər): `nebula` təmiz; Postgres §7-dən sonra təmiz; bir istisna — ən dar əhatə (path/purl), səbəb və bitmə tarixi ilə. Bitmiş istisna gate-i yenidən sındırır və yeni qərar tələb edir.
 
 | CVE | Harada | Niyə qəbul | Bitmə |
 |---|---|---|---|
 | CVE-2026-78661 (`golang.org/x/net/html` DoS) | `usr/bin/caddy` | Caddy 2.11.9 (ən son) düzəlişsiz `x/net`-lə gəlir; Caddyfile-da `templates`/markdown yoxdur — Caddy etibarsız HTML parse etmir | 2026-12-31 |
-| CVE-2026-102554 (Guava deserialization DoS) | Keycloak-un guava jar-ı | Keycloak 26.8.2-nin ən son build-i; distributivi dəyişmədən yamaq mümkün deyil. **Əlçatanlıq yoxlanılmayıb** — qısa müddətli, sahibin təsdiqi tələb olunur | 2026-12-15 |
+
+### 9. Keycloak-da guava yaması (istisna əvəzinə, 2026-11-24)
+
+CVE-2026-102554 (Guava deserialization DoS) üçün əvvəlcə müvəqqəti istisna qoyulmuşdu: Keycloak 26.8.2 (ən son) guava 33.6.0 ilə gəlir, düzəliş isə guava ≥ 33.7.2-dədir. İstisna əvəzinə **öz Keycloak image-imizdə guava-nı 33.8.0-a yüksəldirik**:
+
+| Qərar | Səbəb |
+|---|---|
+| `kc.sh build`-dən əvvəl `lib/lib/main/com.google.guava.guava-*.jar` 33.8.0-jre ilə əvəz olunur | Zəif kod bu gündən işləmir; release gate istisnasız keçir; `failureaccess` versiyası dəyişmir (1.0.3) |
+| Jar Maven Central-dan `ADD --checksum=sha256:…` ilə yüklənir; pin qoyularkən SHA-1 Central ilə və PGP imzası Guava-nın release açarı ilə (`BDB5FA4F…F6D4A1D411E9D1AE`) yoxlanılıb | Təchizat zənciri: build yalnız təsdiqlənmiş fayl ilə keçir |
+| Fayl adı dəyişmir | Quarkus classpath elementlərini yol ilə saxlayır; Trivy versiyanı jar-ın `pom.properties`-indən oxuyur |
+| **Özü bitən yamaq**: Keycloak düzəlmiş guava (≥ 33.7.2) ilə gələndə build bilərəkdən **sınır** və yamağı silməyi tələb edir | Yamaq unudulub əbədi qalmır |
+| Dependabot production Dockerfile-larını izləyir (Keycloak, Postgres, Caddy/web) | Yeni Keycloak versiyası avtomatik PR kimi gəlir |
+
+Risk: Keycloak-ın paylanmasını dəyişmiş oluruq (uyğunluğu yoxlamaq bizim işimizdir). Yoxlama (2026-11-24, izolə edilmiş konteynerlər, dev stack-ə toxunmadan):
+
+- Trivy 0.76.2, release parametrləri ilə, **istisnasız**: guava `33.8.0-jre` kimi tanınır, düzəlişi olan HIGH/CRITICAL zəiflik **0**.
+- Yamaqlı image `start --optimized` ilə 2,4 s-də açılır; realm importu, OIDC discovery, parol ilə token (`email_verified` daxil), refresh token, userinfo, admin API (istifadəçi siyahısı) işləyir; səhv parol rədd edilir; loglarda heç bir exception yoxdur.
 
 ## Nəticələr
 

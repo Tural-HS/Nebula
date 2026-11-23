@@ -6,11 +6,20 @@ updates:
     schedule: { interval: weekly }
     groups:
       go-deps: { patterns: ["*"] }
+  # Base images of the dev/API image and of the production images (Keycloak, Postgres,
+  # Caddy + web). A new Keycloak release arrives as a PR; if it bundles a fixed guava, the
+  # Keycloak build fails on purpose and asks to remove our guava override (ADR-0018).
   - package-ecosystem: docker
-    directory: /
+    directories:
+      - /
+      - /deploy/production
+      - /deploy/production/keycloak
+      - /deploy/production/postgres
     schedule: { interval: weekly }
   - package-ecosystem: docker-compose
-    directory: /
+    directories:
+      - /
+      - /deploy/production
     schedule: { interval: weekly }
   - package-ecosystem: npm
     directory: /web
