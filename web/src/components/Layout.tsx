@@ -4,6 +4,7 @@ import { Link } from "react-router";
 import { useAuth } from "../auth/context";
 import { useMe } from "../api/hooks";
 import { t } from "../i18n";
+import { NotificationBell } from "./NotificationBell";
 import { Avatar, Button } from "./ui";
 
 export interface Crumb {
@@ -39,6 +40,7 @@ export function Layout({ crumbs, actions, children }: { crumbs: Crumb[]; actions
         </nav>
         <div className="ml-auto flex items-center gap-2">
           {actions}
+          <NotificationBell />
           {me.data && (
             <span className="flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400">
               <Avatar name={me.data.display_name} />
