@@ -13,6 +13,7 @@ import { ProjectsPage } from "./pages/ProjectsPage";
 import { AuditLogPage } from "./pages/settings/AuditLogPage";
 import { AutomationsPage } from "./pages/settings/AutomationsPage";
 import { FieldsPage } from "./pages/settings/FieldsPage";
+import { GeneralPage } from "./pages/settings/GeneralPage";
 import { ItemTypesPage } from "./pages/settings/ItemTypesPage";
 import { MembersPage } from "./pages/settings/MembersPage";
 import { WebhooksPage } from "./pages/settings/WebhooksPage";
@@ -63,6 +64,7 @@ export function App() {
             <Route path="/w/:ws" element={<ProjectsPage />} />
             <Route path="/w/:ws/p/:project" element={<ItemsPage />} />
             <Route path="/w/:ws/settings" element={<MembersPage />} />
+            <Route path="/w/:ws/settings/general" element={<GeneralPage />} />
             <Route path="/w/:ws/settings/members" element={<MembersPage />} />
             <Route path="/w/:ws/settings/fields" element={<FieldsPage />} />
             <Route path="/w/:ws/settings/item-types" element={<ItemTypesPage />} />

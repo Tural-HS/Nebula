@@ -19,6 +19,7 @@ import (
 const (
 	TriggerItemCreated = "item.created"
 	TriggerItemUpdated = "item.updated"
+	TriggerItemOverdue = "item.overdue" // emitted by the scheduler (ADR-0009)
 )
 
 // Action types.
@@ -38,7 +39,7 @@ const (
 )
 
 var (
-	conditionFieldRe = regexp.MustCompile(`^(type|project|status|status_category|assignee|reporter|title|changed|fields\.[a-z][a-z0-9_]{0,62})$`)
+	conditionFieldRe = regexp.MustCompile(`^(type|project|status|status_category|assignee|reporter|title|due_date|changed|fields\.[a-z][a-z0-9_]{0,62})$`)
 	conditionOps     = map[string]bool{"eq": true, "neq": true, "in": true, "not_in": true, "is_empty": true, "is_not_empty": true, "contains": true}
 )
 
@@ -97,8 +98,8 @@ func (s *Store) validateRule(ctx context.Context, q querier, wsID uuid.UUID, in 
 		return err
 	}
 	in.Name = name
-	if in.Trigger != TriggerItemCreated && in.Trigger != TriggerItemUpdated {
-		return invalid("trigger", "must be item.created or item.updated")
+	if in.Trigger != TriggerItemCreated && in.Trigger != TriggerItemUpdated && in.Trigger != TriggerItemOverdue {
+		return invalid("trigger", "must be item.created, item.updated or item.overdue")
 	}
 	if in.Conditions == nil {
 		in.Conditions = []Condition{}

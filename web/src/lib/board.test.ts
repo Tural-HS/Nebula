@@ -16,7 +16,7 @@ const bugType: ItemType = {
 function item(id: string, status: Status): Item {
   return {
     id, key: `OPS-${id}`, number: Number(id), project_id: "p", type: { id: "t-bug", key: "bug", name: "Bug" },
-    status, title: "x", description: null, assignee_id: null, reporter_id: null, fields: {}, version: 1,
+    status, title: "x", description: null, assignee_id: null, reporter_id: null, fields: {}, due_date: null, overdue: false, version: 1,
     created_at: "", updated_at: "",
   };
 }

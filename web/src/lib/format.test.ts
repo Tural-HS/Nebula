@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatDateTime, formatRelative } from "./format";
+import { formatDate, formatDateTime, formatRelative } from "./format";
 
 describe("formatRelative", () => {
   const now = Date.parse("2026-11-23T12:00:00Z");
@@ -25,5 +25,16 @@ describe("formatDateTime", () => {
   });
   it("handles invalid input", () => {
     expect(formatDateTime("x")).toBe("—");
+  });
+});
+
+describe("formatDate", () => {
+  it("formats a calendar date without time zone shifts", () => {
+    expect(formatDate("2026-11-20")).toBe("20 noy 2026");
+    expect(formatDate("2027-01-01")).toBe("1 yan 2027");
+  });
+  it("rejects anything else", () => {
+    expect(formatDate("2026-13-01")).toBe("—");
+    expect(formatDate("20.11.2026")).toBe("—");
   });
 });

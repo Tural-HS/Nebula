@@ -74,7 +74,7 @@ func (s *Store) FanOut(ctx context.Context, e Event) (webhooks, rules int, err e
 			webhooks++
 		}
 
-		if e.Source == "automation" || (e.Action != TriggerItemCreated && e.Action != TriggerItemUpdated) {
+		if e.Source == "automation" || (e.Action != TriggerItemCreated && e.Action != TriggerItemUpdated && e.Action != TriggerItemOverdue) {
 			return nil
 		}
 		rows, err = tx.Query(ctx, `SELECT id FROM automation_rules WHERE workspace_id = $1 AND trigger = $2 AND is_enabled

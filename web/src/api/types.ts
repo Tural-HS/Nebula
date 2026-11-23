@@ -15,6 +15,10 @@ export interface Workspace {
   name: string;
   role: Role;
   created_at: string;
+  /** IANA zone that defines "today" for due dates and digests. */
+  timezone: string;
+  /** Local hour of the daily overdue digest; null = off. */
+  overdue_digest_hour: number | null;
 }
 
 export interface Member {
@@ -89,6 +93,10 @@ export interface Item {
   assignee_id: string | null;
   reporter_id: string | null;
   fields: Record<string, FieldValue>;
+  /** YYYY-MM-DD in the workspace's time zone. */
+  due_date: string | null;
+  /** Past due and not done/canceled, computed by the server. */
+  overdue: boolean;
   version: number;
   created_at: string;
   updated_at: string;

@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/Tural-HS/Nebula/internal/opt"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -34,6 +36,10 @@ type Workspace struct {
 	Name      string    `json:"name"`
 	Role      string    `json:"role"`
 	CreatedAt time.Time `json:"created_at"`
+	// Timezone (IANA) defines "today" for due dates and digests (ADR-0009).
+	Timezone string `json:"timezone"`
+	// OverdueDigestHour is the local hour of the daily overdue digest; nil = off.
+	OverdueDigestHour *int `json:"overdue_digest_hour"`
 }
 
 // Member is a user's membership in a workspace.
@@ -75,7 +81,7 @@ func (s *Store) CreateWorkspace(ctx context.Context, owner uuid.UUID, slug, name
 		return Workspace{}, err
 	}
 
-	ws := Workspace{ID: newID(), Slug: slug, Name: name, Role: RoleOwner}
+	ws := Workspace{ID: newID(), Slug: slug, Name: name, Role: RoleOwner, Timezone: "UTC"}
 	err = s.inTx(ctx, func(tx pgx.Tx) error {
 		err := tx.QueryRow(ctx, `INSERT INTO workspaces (id, slug, name) VALUES ($1, $2, $3) RETURNING created_at`,
 			ws.ID, slug, name).Scan(&ws.CreatedAt)
@@ -133,7 +139,7 @@ func installDefaultTemplate(ctx context.Context, tx pgx.Tx, wsID uuid.UUID) erro
 	return nil
 }
 
-const workspaceSelect = `SELECT w.id, w.slug, w.name, m.role, w.created_at
+const workspaceSelect = `SELECT w.id, w.slug, w.name, m.role, w.created_at, w.timezone, w.overdue_digest_hour
 	FROM workspaces w JOIN workspace_members m ON m.workspace_id = w.id`
 
 // ListWorkspaces returns the workspaces userID belongs to.
@@ -364,4 +370,83 @@ func isMember(ctx context.Context, q querier, wsID, userID uuid.UUID) (bool, err
 	err := q.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM workspace_members WHERE workspace_id = $1 AND user_id = $2)`,
 		wsID, userID).Scan(&ok)
 	return ok, err
+}
+
+// UpdateWorkspaceParams is a partial update of workspace settings.
+type UpdateWorkspaceParams struct {
+	Name              opt.Field[string]
+	Timezone          opt.Field[string]
+	OverdueDigestHour opt.Field[int] // null turns the digest off
+}
+
+// UpdateWorkspace changes name, time zone or digest hour (admin+, checked by
+// the caller) and records a workspace.updated event.
+func (s *Store) UpdateWorkspace(ctx context.Context, wsID, actorID uuid.UUID, p UpdateWorkspaceParams) error {
+	if (p.Name.Set && p.Name.Null) || (p.Timezone.Set && p.Timezone.Null) {
+		return invalid("body", "name and timezone cannot be null")
+	}
+	var name string
+	if p.Name.Set {
+		var err error
+		if name, err = text("name", p.Name.Value, 1, 200); err != nil {
+			return err
+		}
+	}
+	tz := strings.TrimSpace(p.Timezone.Value)
+	if p.Timezone.Set {
+		// Both Go and PostgreSQL must know the zone: Go for the scheduler,
+		// PostgreSQL for "today" in queries.
+		if _, err := time.LoadLocation(tz); err != nil || tz == "" || tz == "Local" || len(tz) > 64 {
+			return invalid("timezone", "must be an IANA time zone such as Asia/Baku")
+		}
+	}
+	if p.OverdueDigestHour.Set && !p.OverdueDigestHour.Null && (p.OverdueDigestHour.Value < 0 || p.OverdueDigestHour.Value > 23) {
+		return invalid("overdue_digest_hour", "must be 0 to 23 or null")
+	}
+	return s.inTx(ctx, func(tx pgx.Tx) error {
+		if p.Timezone.Set {
+			var known bool
+			if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM pg_timezone_names WHERE name = $1)`, tz).Scan(&known); err != nil {
+				return err
+			}
+			if !known {
+				return invalid("timezone", "must be an IANA time zone such as Asia/Baku")
+			}
+		}
+		var curName, curTZ string
+		var curHour *int
+		if err := tx.QueryRow(ctx, `SELECT name, timezone, overdue_digest_hour FROM workspaces WHERE id = $1 FOR UPDATE`, wsID).
+			Scan(&curName, &curTZ, &curHour); err != nil {
+			return err
+		}
+		changes := map[string]any{}
+		newName, newTZ, newHour := curName, curTZ, curHour
+		if p.Name.Set && name != curName {
+			changes["name"] = diff(curName, name)
+			newName = name
+		}
+		if p.Timezone.Set && tz != curTZ {
+			changes["timezone"] = diff(curTZ, tz)
+			newTZ = tz
+		}
+		if p.OverdueDigestHour.Set {
+			var h *int
+			if !p.OverdueDigestHour.Null {
+				v := p.OverdueDigestHour.Value // range checked above
+				h = &v
+			}
+			if !equalPtr(curHour, h) {
+				changes["overdue_digest_hour"] = diff(curHour, h)
+				newHour = h
+			}
+		}
+		if len(changes) == 0 {
+			return nil
+		}
+		if _, err := tx.Exec(ctx, `UPDATE workspaces SET name = $1, timezone = $2, overdue_digest_hour = $3 WHERE id = $4`,
+			newName, newTZ, newHour, wsID); err != nil {
+			return err
+		}
+		return appendEvent(ctx, tx, wsID, actorID, "workspace", wsID, "workspace.updated", map[string]any{"changes": changes})
+	})
 }

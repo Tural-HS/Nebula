@@ -26,6 +26,7 @@ function CreateItemForm({ ws, project, onClose, onCreated }: { ws: string; proje
   const [title, setTitle] = useState("");
   const [typeKey, setTypeKey] = useState("task");
   const [assignee, setAssignee] = useState("");
+  const [due, setDue] = useState("");
   const [values, setValues] = useState<Record<string, FieldValue>>({});
 
   const type = types.data?.find((x) => x.key === typeKey) ?? types.data?.[0];
@@ -36,7 +37,7 @@ function CreateItemForm({ ws, project, onClose, onCreated }: { ws: string; proje
     e.preventDefault();
     const fieldValues = Object.fromEntries(Object.entries(values).filter(([k, v]) => v !== null && required.some((r) => r.key === k)));
     create.mutate(
-      { title, type: type?.key, assignee_id: assignee || null, fields: fieldValues },
+      { title, type: type?.key, assignee_id: assignee || null, due_date: due || null, fields: fieldValues },
       {
         onSuccess: (item) => {
           toast("success", t.created(item.key));
@@ -74,6 +75,10 @@ function CreateItemForm({ ws, project, onClose, onCreated }: { ws: string; proje
               </option>
             ))}
           </Select>
+        </div>
+        <div>
+          <Label htmlFor="new-due">{t.dueDate}</Label>
+          <Input id="new-due" type="date" min="1900-01-01" max="2200-12-31" value={due} onChange={(e) => { setDue(e.target.value); }} />
         </div>
       </div>
       {required.map((r) => {

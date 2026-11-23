@@ -11,7 +11,7 @@ import { conditionText, conditionValue, fieldValue, NO_VALUE_OPS, recipients } f
 import { Card, SettingsLayout } from "./SettingsLayout";
 import { useFeedback } from "./useErrorToast";
 
-const BASE_FIELDS = ["type", "project", "status", "status_category", "assignee", "reporter", "title"];
+const BASE_FIELDS = ["type", "project", "status", "status_category", "assignee", "reporter", "title", "due_date"];
 const OPS: ConditionOp[] = ["eq", "neq", "in", "not_in", "contains", "is_empty", "is_not_empty"];
 const CHANGEABLE = ["title", "description", "status_id", "assignee_id"];
 

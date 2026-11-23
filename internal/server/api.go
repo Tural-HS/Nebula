@@ -46,6 +46,7 @@ func (a *api) routes(r chi.Router) {
 	r.Route("/workspaces/{workspace}", func(r chi.Router) {
 		r.Use(a.loadWorkspace)
 		r.Get("/", a.getWorkspace)
+		r.With(requireRole(store.RoleAdmin)).Patch("/", a.updateWorkspace)
 		r.Get("/item-types", a.listItemTypes)
 		a.configRoutes(r)
 		a.fieldRoutes(r)
@@ -163,6 +164,31 @@ func (a *api) createWorkspace(w http.ResponseWriter, r *http.Request) {
 
 func (a *api) getWorkspace(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, workspaceFrom(r))
+}
+
+// updateWorkspace changes workspace settings: name, time zone, digest hour.
+func (a *api) updateWorkspace(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Name              opt.Field[string] `json:"name"`
+		Timezone          opt.Field[string] `json:"timezone"`
+		OverdueDigestHour opt.Field[int]    `json:"overdue_digest_hour"`
+	}
+	if !a.decode(w, r, &body) {
+		return
+	}
+	ws := workspaceFrom(r)
+	if err := a.store.UpdateWorkspace(r.Context(), ws.ID, principal(r).UserID, store.UpdateWorkspaceParams{
+		Name: body.Name, Timezone: body.Timezone, OverdueDigestHour: body.OverdueDigestHour,
+	}); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	updated, err := a.store.WorkspaceForMember(r.Context(), ws.Slug, principal(r).UserID)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, updated)
 }
 
 func (a *api) listItemTypes(w http.ResponseWriter, r *http.Request) {
@@ -371,6 +397,7 @@ func parseItemFilters(w http.ResponseWriter, r *http.Request) (store.ListItemsPa
 		}
 		p.FieldFilters[name] = vals[0]
 	}
+	p.Due = q.Get("due") // validated by the store
 	switch v := q.Get("assignee"); v {
 	case "":
 	case "me":
@@ -397,6 +424,7 @@ func (a *api) createItem(w http.ResponseWriter, r *http.Request) {
 		Type        string                     `json:"type"`
 		StatusID    *uuid.UUID                 `json:"status_id"`
 		AssigneeID  *uuid.UUID                 `json:"assignee_id"`
+		DueDate     *string                    `json:"due_date"`
 		Fields      map[string]json.RawMessage `json:"fields"`
 	}
 	if !a.decode(w, r, &body) {
@@ -406,7 +434,7 @@ func (a *api) createItem(w http.ResponseWriter, r *http.Request) {
 	item, err := a.store.CreateItem(r.Context(), store.CreateItemParams{
 		WorkspaceID: ws.ID, ProjectID: proj.ID, ActorID: principal(r).UserID,
 		Title: body.Title, Description: body.Description, TypeKey: body.Type,
-		StatusID: body.StatusID, AssigneeID: body.AssigneeID, Fields: body.Fields,
+		StatusID: body.StatusID, AssigneeID: body.AssigneeID, DueDate: body.DueDate, Fields: body.Fields,
 	})
 	if err != nil {
 		a.fail(w, r, err)
@@ -447,6 +475,7 @@ func (a *api) updateItem(w http.ResponseWriter, r *http.Request) {
 		Description opt.Field[string]                     `json:"description"`
 		StatusID    opt.Field[uuid.UUID]                  `json:"status_id"`
 		AssigneeID  opt.Field[uuid.UUID]                  `json:"assignee_id"`
+		DueDate     opt.Field[string]                     `json:"due_date"`
 		Fields      opt.Field[map[string]json.RawMessage] `json:"fields"`
 	}
 	if !a.decode(w, r, &body) {
@@ -459,7 +488,7 @@ func (a *api) updateItem(w http.ResponseWriter, r *http.Request) {
 	item, err := a.store.UpdateItem(r.Context(), store.UpdateItemParams{
 		WorkspaceID: workspaceFrom(r).ID, ProjectID: projectFrom(r).ID, Number: n,
 		ActorID: principal(r).UserID, Version: *body.Version,
-		Title: body.Title, Description: body.Description, StatusID: body.StatusID, AssigneeID: body.AssigneeID,
+		Title: body.Title, Description: body.Description, StatusID: body.StatusID, AssigneeID: body.AssigneeID, DueDate: body.DueDate,
 		Fields: body.Fields,
 	})
 	if err != nil {

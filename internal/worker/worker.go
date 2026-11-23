@@ -55,6 +55,11 @@ type Options struct {
 	// Wake, when set, triggers an immediate poll (LISTEN/NOTIFY); polling at
 	// PollInterval stays as the fallback.
 	Wake <-chan struct{}
+	// Tick, when set, runs every TickInterval (default one minute) on the
+	// worker's loop: periodic work such as the due-date scheduler. It must be
+	// safe to run on several replicas at once.
+	Tick         func(ctx context.Context)
+	TickInterval time.Duration
 }
 
 // Worker polls the queue and runs handlers.
@@ -79,6 +84,9 @@ func New(q Queue, handlers map[string]Handler, logger *slog.Logger, metrics *obs
 	}
 	if opts.ShutdownGrace <= 0 {
 		opts.ShutdownGrace = 20 * time.Second
+	}
+	if opts.TickInterval <= 0 {
+		opts.TickInterval = time.Minute
 	}
 	return &Worker{q: q, handlers: handlers, logger: logger, metrics: metrics, opts: opts}
 }
@@ -106,6 +114,13 @@ func (w *Worker) Run(ctx context.Context) {
 
 	housekeeping := time.NewTicker(time.Hour)
 	defer housekeeping.Stop()
+	var tickC <-chan time.Time // nil blocks forever: no periodic work configured
+	if w.opts.Tick != nil {
+		tick := time.NewTicker(w.opts.TickInterval)
+		defer tick.Stop()
+		tickC = tick.C
+		w.opts.Tick(ctx) // once at start-up, so nothing waits a full interval
+	}
 	w.logger.Info("worker started", "concurrency", w.opts.Concurrency)
 
 	for {
@@ -149,6 +164,8 @@ func (w *Worker) Run(ctx context.Context) {
 			} else if n > 0 {
 				w.logger.Info("purged finished jobs and old deliveries", "rows", n)
 			}
+		case <-tickC:
+			w.opts.Tick(ctx)
 		case _, ok := <-w.opts.Wake: // a nil channel blocks forever: no wake-ups configured
 			if !ok {
 				w.opts.Wake = nil // listener stopped: fall back to polling, never spin

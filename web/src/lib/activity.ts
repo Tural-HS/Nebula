@@ -1,5 +1,6 @@
 import type { Activity } from "../api/types";
 import { t } from "../i18n";
+import { formatDate } from "./format";
 
 export interface Lookup {
   status: (id: string) => string | undefined;
@@ -32,6 +33,8 @@ export function describe(a: Activity, lookup: Lookup): Line[] {
       return [{ text: t.act.created }];
     case "item.deleted":
       return [{ text: t.act.deleted }];
+    case "item.overdue":
+      return [{ text: t.act.overdue(typeof a.data.days_overdue === "number" ? a.data.days_overdue : 0) }];
     case "comment.created":
       return [{ text: t.act.commented }];
     case "comment.updated":
@@ -54,6 +57,13 @@ export function describe(a: Activity, lookup: Lookup): Line[] {
               text: t.act.changedStatus,
               from: lookup.status(str(c.from)) ?? "?",
               to: lookup.status(str(c.to)) ?? "?",
+            });
+            break;
+          case "due_date":
+            lines.push({
+              text: t.act.changedDue,
+              from: typeof c.from === "string" ? formatDate(c.from) : "—",
+              to: typeof c.to === "string" ? formatDate(c.to) : "—",
             });
             break;
           case "assignee_id":
@@ -81,5 +91,6 @@ export function describe(a: Activity, lookup: Lookup): Line[] {
 
 export function actorName(a: Activity): string {
   if (a.actor) return a.actor.display_name;
-  return a.source === "automation" ? t.automation : t.someone;
+  if (a.source === "automation") return t.automation;
+  return a.source === "system" ? t.system : t.someone;
 }

@@ -4,6 +4,7 @@ import { ApiError } from "../api/client";
 import type { StatusCategory } from "../api/types";
 import { initials } from "../lib/board";
 import { cn } from "../lib/cn";
+import { formatDate } from "../lib/format";
 import { t } from "../i18n";
 
 
@@ -92,6 +93,23 @@ export function StatusBadge({ name, category }: { name: string; category: Status
   return (
     <span className={cn("inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset", categoryStyle[category])}>
       {name}
+    </span>
+  );
+}
+
+/** A due date; red with a clock when the item is overdue. */
+export function DueChip({ date, overdue }: { date: string; overdue: boolean }) {
+  const label = formatDate(date);
+  return (
+    <span
+      aria-label={`${t.dueDate}: ${label}${overdue ? ` (${t.overdue})` : ""}`}
+      className={cn(
+        "inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[11px] whitespace-nowrap tabular-nums",
+        overdue ? "bg-red-50 font-medium text-red-700 ring-1 ring-red-200 dark:bg-red-950 dark:text-red-300 dark:ring-red-900" : "text-zinc-500 dark:text-zinc-400",
+      )}
+    >
+      <span aria-hidden>{overdue ? "⏰" : "📅"}</span>
+      {label}
     </span>
   );
 }

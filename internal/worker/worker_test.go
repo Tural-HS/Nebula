@@ -126,6 +126,30 @@ func TestShutdownWaitsForInFlightJobs(t *testing.T) {
 	}
 }
 
+func TestTickRunsAtStartAndPeriodically(t *testing.T) {
+	q := &fakeQueue{failed: map[int64]struct {
+		permanent bool
+		err       string
+	}{}}
+	var ticks atomic.Int32
+	w := New(q, nil, slog.New(slog.NewTextHandler(io.Discard, nil)), nil, Options{
+		PollInterval: time.Hour, TickInterval: 20 * time.Millisecond,
+		Tick: func(context.Context) { ticks.Add(1) },
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { w.Run(ctx); close(done) }()
+	deadline := time.Now().Add(2 * time.Second)
+	for ticks.Load() < 3 && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
+	cancel()
+	<-done
+	if n := ticks.Load(); n < 3 {
+		t.Fatalf("tick ran %d times, want at least 3 (start-up + periodic)", n)
+	}
+}
+
 func TestBackoff(t *testing.T) {
 	prev := time.Duration(0)
 	for a := 1; a <= 20; a++ {

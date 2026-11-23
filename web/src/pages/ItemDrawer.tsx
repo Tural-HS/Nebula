@@ -8,8 +8,9 @@ import { ActivityFeed } from "../components/ActivityFeed";
 import { Comments } from "../components/Comments";
 import { FieldEditor } from "../components/FieldEditor";
 import { useToast } from "../components/toast-context";
-import { Avatar, Button, ErrorState, Label, Select, Spinner, StatusBadge } from "../components/ui";
+import { Avatar, Button, DueChip, ErrorState, Label, Select, Spinner, StatusBadge } from "../components/ui";
 import { t } from "../i18n";
+import { cn } from "../lib/cn";
 import { formatDateTime } from "../lib/format";
 
 export function ItemDrawer({ ws, project, n, canEdit, isAdmin, onClose }: {
@@ -59,6 +60,7 @@ function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose }: {
   const transitions = useTransitions(ws, project, item.number);
   const [title, setTitle] = useState(item.title);
   const [desc, setDesc] = useState(item.description ?? "");
+  const [due, setDue] = useState(item.due_date ?? "");
 
   const memberName = (id: string | null) => (id ? (members.data?.find((m) => m.user_id === id)?.display_name ?? "…") : null);
 
@@ -191,6 +193,43 @@ function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose }: {
               </Select>
             ) : (
               <span>{memberName(item.assignee_id) ?? t.unassigned}</span>
+            )}
+          </dd>
+
+          <dt className="text-zinc-500">
+            <label htmlFor="item-due">{t.dueDate}</label>
+          </dt>
+          <dd className="flex items-center gap-2">
+            {canEdit ? (
+              <>
+                <input
+                  id="item-due"
+                  type="date"
+                  min="1900-01-01"
+                  max="2200-12-31"
+                  value={due}
+                  onChange={(e) => { setDue(e.target.value); }}
+                  // Saved on blur: typing a date fires change events for
+                  // half-typed values (year 0002) that must not be stored.
+                  onBlur={() => {
+                    if (due !== (item.due_date ?? "")) save({ due_date: due || null });
+                  }}
+                  className={cn(
+                    "rounded-md bg-white px-2 py-1 text-sm ring-1 ring-zinc-300 focus:ring-2 focus:ring-brand-500 dark:bg-zinc-900 dark:ring-zinc-700",
+                    item.overdue && "text-red-700 ring-red-300 dark:text-red-300",
+                  )}
+                />
+                {item.due_date && (
+                  <Button variant="ghost" onClick={() => { setDue(""); save({ due_date: null }); }}>
+                    {t.clearDate}
+                  </Button>
+                )}
+                {item.overdue && <span className="text-xs font-medium text-red-700 dark:text-red-300">⏰ {t.overdue}</span>}
+              </>
+            ) : item.due_date ? (
+              <DueChip date={item.due_date} overdue={item.overdue} />
+            ) : (
+              "—"
             )}
           </dd>
 

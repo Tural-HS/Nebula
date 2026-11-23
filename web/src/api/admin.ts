@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient, type QueryKey } from "@tanstack/
 
 import { api, path } from "./client";
 import { keys } from "./hooks";
-import type { ActivityPage, FieldDefinition, ItemType, Member, Role, StatusCategory } from "./types";
+import type { ActivityPage, FieldDefinition, ItemType, Member, Role, StatusCategory, Workspace } from "./types";
 
 export interface WorkflowStatus {
   id: string;
@@ -70,7 +70,7 @@ export interface RuleAction {
 export interface Rule {
   id: string;
   name: string;
-  trigger: "item.created" | "item.updated";
+  trigger: "item.created" | "item.updated" | "item.overdue";
   conditions: Condition[];
   actions: RuleAction[];
   enabled: boolean;
@@ -136,6 +136,10 @@ export function useAdminApi(ws: string) {
   const hooks = adminKeys.webhooks(ws);
   const rules = adminKeys.rules(ws);
   return {
+    updateWorkspace: useAdminMutation(
+      (b: { name?: string; timezone?: string; overdue_digest_hour?: number | null }) => api<Workspace>("PATCH", base, b),
+      [keys.workspace(ws), keys.workspaces],
+    ),
     addMember: useAdminMutation((b: { email: string; role: Role }) => api<Member>("POST", base + "/members", b), [members]),
     setRole: useAdminMutation((v: { id: string; role: Role }) => api<Member>("PATCH", base + path`/members/${v.id}`, { role: v.role }), [members]),
     removeMember: useAdminMutation((id: string) => api<undefined>("DELETE", base + path`/members/${id}`), [members]),

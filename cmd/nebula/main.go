@@ -164,6 +164,7 @@ func (rt *runtime) newWorker(ctx context.Context, cfg config.Config, logger *slo
 		Concurrency:   max(cfg.WorkerConcurrency, 1),
 		ShutdownGrace: cfg.ShutdownTimeout - 5*time.Second,
 		Wake:          worker.Listen(ctx, rt.pool, logger),
+		Tick:          eng.Tick,
 	}), nil
 }
 

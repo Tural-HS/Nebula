@@ -18,6 +18,7 @@ export const ta = {
   copied: "Kopyalandı",
 
   nav: {
+    general: "Ümumi",
     members: "Üzvlər",
     fields: "Sahələr",
     itemTypes: "Tapşırıq tipləri",
@@ -28,6 +29,15 @@ export const ta = {
   },
 
   roles: { guest: "Qonaq", member: "Üzv", admin: "Admin", owner: "Sahib" } satisfies Record<Role, string>,
+
+  general: {
+    name: "Workspace adı",
+    timezone: "Saat qurşağı",
+    timezoneHint: "Son tarixlər və \"bu gün\" bu qurşağa görə hesablanır.",
+    digestHour: "Gündəlik gecikmə xülasəsi",
+    digestOff: "Söndürülüb",
+    digestHint: "Hər gün bu saatda gecikmiş tapşırıqların siyahısı webhook-lara (məs. Mattermost kanalına) göndərilir. Gecikən yoxdursa, heç nə göndərilmir.",
+  },
   roleHelp: "Qonaq: yalnız oxuyur · Üzv: tapşırıqlarla işləyir · Admin: ayarları idarə edir · Sahib: hər şey, sahib təyin etmək daxil",
   email: "Email",
   addMember: "Üzv əlavə et",
@@ -88,7 +98,7 @@ export const ta = {
   newRule: "Yeni qayda",
   editRule: "Qaydanı redaktə et",
   trigger: "Nə vaxt",
-  triggers: { "item.created": "Tapşırıq yaradılanda", "item.updated": "Tapşırıq dəyişəndə" } as Record<string, string>,
+  triggers: { "item.created": "Tapşırıq yaradılanda", "item.updated": "Tapşırıq dəyişəndə", "item.overdue": "Son tarix keçəndə" } as Record<string, string>,
   conditions: "Şərtlər (hamısı ödənməlidir)",
   noConditions: "Şərt yoxdur: hər hadisədə işləyir.",
   addCondition: "Şərt əlavə et",
@@ -98,7 +108,7 @@ export const ta = {
   disabled: "Söndürülüb",
   condFields: {
     type: "Tip", project: "Layihə", status: "Status", status_category: "Status kateqoriyası", assignee: "İcraçı",
-    reporter: "Müəllif", title: "Başlıq", changed: "Dəyişən sahə",
+    reporter: "Müəllif", title: "Başlıq", due_date: "Son tarix", changed: "Dəyişən sahə",
   } as Record<string, string>,
   ops: {
     eq: "bərabərdir", neq: "bərabər deyil", in: "bunlardan biridir", not_in: "bunlardan deyil", contains: "ehtiva edir",

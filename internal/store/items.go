@@ -36,6 +36,8 @@ type Item struct {
 	AssigneeID  *uuid.UUID     `json:"assignee_id"`
 	ReporterID  *uuid.UUID     `json:"reporter_id"`
 	Fields      map[string]any `json:"fields"`
+	DueDate     *string        `json:"due_date"` // YYYY-MM-DD, in the workspace's time zone
+	Overdue     bool           `json:"overdue"`  // past due and not done/canceled (ADR-0009)
 	Version     int            `json:"version"`
 	CreatedAt   time.Time      `json:"created_at"`
 	UpdatedAt   time.Time      `json:"updated_at"`
@@ -48,8 +50,10 @@ const (
 
 const itemSelect = `SELECT i.id, i.number, p.key, i.project_id, i.title, i.description, i.assignee_id,
 	i.reporter_id, i.fields, i.version, i.created_at, i.updated_at,
-	t.id, t.key, t.name, s.id, s.name, s.category
+	t.id, t.key, t.name, s.id, s.name, s.category, i.due_date::text,
+	COALESCE(i.due_date < (now() AT TIME ZONE w.timezone)::date AND s.category IN ('todo', 'in_progress'), false)
 	FROM items i
+	JOIN workspaces w ON w.id = i.workspace_id
 	JOIN projects   p ON p.id = i.project_id
 	JOIN item_types t ON t.id = i.item_type_id
 	JOIN statuses   s ON s.id = i.status_id`
@@ -59,7 +63,7 @@ func scanItem(row pgx.Row) (Item, error) {
 	var projectKey string
 	err := row.Scan(&it.ID, &it.Number, &projectKey, &it.ProjectID, &it.Title, &it.Description, &it.AssigneeID,
 		&it.ReporterID, &it.Fields, &it.Version, &it.CreatedAt, &it.UpdatedAt,
-		&it.Type.ID, &it.Type.Key, &it.Type.Name, &it.Status.ID, &it.Status.Name, &it.Status.Category)
+		&it.Type.ID, &it.Type.Key, &it.Type.Name, &it.Status.ID, &it.Status.Name, &it.Status.Category, &it.DueDate, &it.Overdue)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Item{}, ErrNotFound
 	}
@@ -77,12 +81,17 @@ type CreateItemParams struct {
 	TypeKey     string // empty: "task", else the first type
 	StatusID    *uuid.UUID
 	AssigneeID  *uuid.UUID
+	DueDate     *string // YYYY-MM-DD
 	Fields      map[string]json.RawMessage
 }
 
 // CreateItem allocates the next project number and inserts the item atomically.
 func (s *Store) CreateItem(ctx context.Context, p CreateItemParams) (Item, error) {
 	title, err := text("title", p.Title, 1, maxTitleLen)
+	if err != nil {
+		return Item{}, err
+	}
+	due, err := dueDate(p.DueDate)
 	if err != nil {
 		return Item{}, err
 	}
@@ -137,9 +146,9 @@ func (s *Store) CreateItem(ctx context.Context, p CreateItemParams) (Item, error
 
 		id := newID()
 		if _, err := tx.Exec(ctx, `INSERT INTO items
-			(id, workspace_id, project_id, item_type_id, status_id, number, title, description, assignee_id, reporter_id, fields)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-			id, p.WorkspaceID, p.ProjectID, typeID, statusID, number, title, desc, p.AssigneeID, p.ActorID, fields); err != nil {
+			(id, workspace_id, project_id, item_type_id, status_id, number, title, description, assignee_id, reporter_id, fields, due_date)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::date)`,
+			id, p.WorkspaceID, p.ProjectID, typeID, statusID, number, title, desc, p.AssigneeID, p.ActorID, fields, due); err != nil {
 			return err
 		}
 		item, err = scanItem(tx.QueryRow(ctx, itemSelect+` WHERE i.id = $1`, id))
@@ -200,6 +209,7 @@ type ListItemsParams struct {
 	Unassigned   bool
 	Query        string
 	FieldFilters map[string]string // ?field.<key>=<value>, exact match
+	Due          string            // "", "overdue", "today", "week" (next 7 days) or "none"
 	Limit        int
 	BeforeNumber int64 // cursor: return items with number < BeforeNumber (0 = from newest)
 }
@@ -300,6 +310,22 @@ func (s *Store) itemFilter(ctx context.Context, p ListItemsParams, withStatus bo
 	if q := strings.TrimSpace(p.Query); q != "" {
 		add("i.search @@ websearch_to_tsquery('simple', ?)", q)
 	}
+	// "Today" is the workspace's local date ($1 is the workspace id).
+	const today = "(now() AT TIME ZONE (SELECT timezone FROM workspaces WHERE id = $1))::date"
+	switch p.Due {
+	case "":
+	case "overdue":
+		where = append(where, "i.due_date < "+today,
+			"i.status_id IN (SELECT id FROM statuses WHERE workspace_id = $1 AND category IN ('todo', 'in_progress'))")
+	case "today":
+		where = append(where, "i.due_date = "+today)
+	case "week":
+		where = append(where, "i.due_date BETWEEN "+today+" AND "+today+" + 6")
+	case "none":
+		where = append(where, "i.due_date IS NULL")
+	default:
+		return nil, nil, invalid("due", "must be overdue, today, week or none")
+	}
 	return where, args, nil
 }
 
@@ -314,6 +340,7 @@ type UpdateItemParams struct {
 	Description opt.Field[string]
 	StatusID    opt.Field[uuid.UUID]
 	AssigneeID  opt.Field[uuid.UUID]
+	DueDate     opt.Field[string] // YYYY-MM-DD; null clears it
 	// Fields is merged: listed keys are set (or cleared with null), others kept.
 	Fields opt.Field[map[string]json.RawMessage]
 }
@@ -336,6 +363,12 @@ func (s *Store) UpdateItem(ctx context.Context, p UpdateItemParams) (Item, error
 			return Item{}, err
 		}
 	}
+	var due *string
+	if p.DueDate.Set {
+		if due, err = dueDate(p.DueDate.Ptr()); err != nil {
+			return Item{}, err
+		}
+	}
 	if p.StatusID.Set && p.StatusID.Null {
 		return Item{}, invalid("status_id", "cannot be null")
 	}
@@ -353,15 +386,16 @@ func (s *Store) UpdateItem(ctx context.Context, p UpdateItemParams) (Item, error
 			curStatus, workflowID uuid.UUID
 			curAssignee           *uuid.UUID
 			curFields             map[string]any
+			curDue                *string
 			typeID                uuid.UUID
 			typeKey               string
 		)
 		err := tx.QueryRow(ctx, `SELECT i.id, i.version, i.title, i.description, i.status_id, i.assignee_id, i.fields,
-				t.workflow_id, t.id, t.key
+				i.due_date::text, t.workflow_id, t.id, t.key
 			FROM items i JOIN item_types t ON t.id = i.item_type_id
 			WHERE i.workspace_id = $1 AND i.project_id = $2 AND i.number = $3 AND i.deleted_at IS NULL
 			FOR UPDATE OF i`, p.WorkspaceID, p.ProjectID, p.Number).
-			Scan(&id, &version, &curTitle, &curDesc, &curStatus, &curAssignee, &curFields, &workflowID, &typeID, &typeKey)
+			Scan(&id, &version, &curTitle, &curDesc, &curStatus, &curAssignee, &curFields, &curDue, &workflowID, &typeID, &typeKey)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrNotFound
 		}
@@ -374,7 +408,11 @@ func (s *Store) UpdateItem(ctx context.Context, p UpdateItemParams) (Item, error
 		}
 
 		changes := map[string]any{}
-		newTitle, newDesc, newStatus, newAssignee := curTitle, curDesc, curStatus, curAssignee
+		newTitle, newDesc, newStatus, newAssignee, newDue := curTitle, curDesc, curStatus, curAssignee, curDue
+		if p.DueDate.Set && !equalPtr(curDue, due) {
+			changes["due_date"] = diff(curDue, due)
+			newDue = due
+		}
 		if p.Title.Set && title != curTitle {
 			changes["title"] = diff(curTitle, title)
 			newTitle = title
@@ -425,8 +463,8 @@ func (s *Store) UpdateItem(ctx context.Context, p UpdateItemParams) (Item, error
 
 		if len(changes) > 0 {
 			if _, err := tx.Exec(ctx, `UPDATE items SET title = $1, description = $2, status_id = $3,
-				assignee_id = $4, fields = $5, version = version + 1 WHERE id = $6`,
-				newTitle, newDesc, newStatus, newAssignee, newFields, id); err != nil {
+				assignee_id = $4, fields = $5, due_date = $6::date, version = version + 1 WHERE id = $7`,
+				newTitle, newDesc, newStatus, newAssignee, newFields, newDue, id); err != nil {
 				return err
 			}
 		}
@@ -453,6 +491,10 @@ func Snapshot(it Item) map[string]any {
 		"title":           it.Title,
 		"assignee":        nil,
 		"reporter":        nil,
+		"due_date":        nil,
+	}
+	if it.DueDate != nil {
+		v["due_date"] = *it.DueDate
 	}
 	if it.AssigneeID != nil {
 		v["assignee"] = it.AssigneeID.String()
@@ -490,4 +532,17 @@ func equalPtr[T comparable](a, b *T) bool {
 		return a == b
 	}
 	return *a == *b
+}
+
+// dueDate validates an optional YYYY-MM-DD date (a calendar date, no time).
+func dueDate(v *string) (*string, error) {
+	if v == nil {
+		return nil, nil
+	}
+	d, err := time.Parse(time.DateOnly, strings.TrimSpace(*v))
+	if err != nil || d.Year() < 1900 || d.Year() > 2200 {
+		return nil, invalid("due_date", "must be a date YYYY-MM-DD between 1900 and 2200")
+	}
+	out := d.Format(time.DateOnly)
+	return &out, nil
 }

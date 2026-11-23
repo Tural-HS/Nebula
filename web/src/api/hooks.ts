@@ -51,9 +51,12 @@ export const useFields = (ws: string) =>
     staleTime: 60_000,
   });
 
+export type DueFilter = "" | "overdue" | "today" | "week" | "none";
+
 export interface ItemFilters {
   q: string;
   assignee: "" | "me" | "none";
+  due?: DueFilter;
 }
 
 const PAGE_SIZE = 100;
@@ -62,6 +65,7 @@ export function itemsQueryString(f: ItemFilters, cursor: string | null): string 
   const p = new URLSearchParams({ limit: String(PAGE_SIZE) });
   if (f.q.trim()) p.set("q", f.q.trim());
   if (f.assignee) p.set("assignee", f.assignee);
+  if (f.due) p.set("due", f.due);
   if (cursor) p.set("cursor", cursor);
   return p.toString();
 }
@@ -127,6 +131,7 @@ export interface ItemPatch {
   description?: string | null;
   status_id?: string;
   assignee_id?: string | null;
+  due_date?: string | null;
   fields?: Record<string, FieldValue>;
 }
 
@@ -149,6 +154,7 @@ export interface NewItem {
   title: string;
   type?: string;
   assignee_id?: string | null;
+  due_date?: string | null;
   description?: string | null;
   fields?: Record<string, FieldValue>;
 }

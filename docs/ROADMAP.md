@@ -46,7 +46,8 @@ Hər mərhələ yalnız testlər, miqrasiyalar (up və down) və CI yaşıl oldu
 - [x] Lövhədə status sütunları (fərqli workflow-ların eyni statusları birləşir), sütun-sütun sonsuz yükləmə, həqiqi sütun sayları, icazəsiz keçidlərin solğunlaşması (ADR-0008)
 - [x] 429-un düzgün idarəsi: `Retry-After` ilə təkrar; yazmalarda yalnız 429 (dəyişiklik itkisi aradan qaldırıldı)
 - Bildiriş mərkəzi (in-app)
-- FinTez köçürülməsi üçün: son tarix + vaxta görə avtomatlaşdırma ("Gecikmə", səhər xülasəsi), təkrarlanan tapşırıqlar, Mattermost/Slack bildiriş hədəfi, saxlanılan görünüşlər + cəm sətri, layihə səviyyəsində məxfilik, CSV/Excel importu
+- [x] Son tarix (`due_date`), workspace saat qurşağı, avtomatik "gecikir" nişanı və filtr; `item.overdue` qayda trigger-i, gündəlik gecikmə xülasəsi (`workspace.overdue_digest`), "Ümumi" ayarlar bölməsi (ADR-0009)
+- FinTez köçürülməsi üçün: təkrarlanan tapşırıqlar, Mattermost/Slack bildiriş hədəfi, saxlanılan görünüşlər + cəm sətri, layihə səviyyəsində məxfilik, CSV/Excel importu
 - Etibarlı proxy-lər üçün rate limit (`X-Forwarded-For` yalnız etibarlı CIDR-lərdən)
 
 ## Phase 2: Şablonlar və görünüşlər

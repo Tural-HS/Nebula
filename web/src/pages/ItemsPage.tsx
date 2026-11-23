@@ -5,17 +5,19 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "react-router";
 
 import { api, ApiError, path } from "../api/client";
-import { keys, useColumnItems, useItemCounts, useItems, useItemTypes, useMembers, useProjects, useUpdateItem, useWorkspace, type ItemFilters } from "../api/hooks";
+import { keys, useColumnItems, useItemCounts, useItems, useItemTypes, useMembers, useProjects, useUpdateItem, useWorkspace, type DueFilter, type ItemFilters } from "../api/hooks";
 import { roleAtLeast, type Item, type Member, type Status, type StatusCategory } from "../api/types";
 import { Layout } from "../components/Layout";
 import { useToast } from "../components/toast-context";
-import { Avatar, Button, EmptyState, ErrorState, Input, Select, Spinner, StatusBadge } from "../components/ui";
+import { Avatar, Button, DueChip, EmptyState, ErrorState, Input, Select, Spinner, StatusBadge } from "../components/ui";
 import { cn } from "../lib/cn";
 import { t } from "../i18n";
 import { buildColumns, columnCount, dropTargets, flattenPages, otherColumn, pickTargetStatus, type BoardColumn, type GroupBy } from "../lib/board";
 import { formatDateTime, formatRelative } from "../lib/format";
 import { CreateItemDialog } from "./CreateItemDialog";
 import { ItemDrawer } from "./ItemDrawer";
+
+const DUE_FILTERS: readonly DueFilter[] = ["overdue", "today", "week", "none"];
 
 function useDebounced<T>(value: T, ms: number): T {
   const [v, setV] = useState(value);
@@ -34,6 +36,8 @@ export function ItemsPage() {
   const openItem = Number(params.get("item")) || null;
   const assigneeParam = params.get("assignee");
   const assignee: ItemFilters["assignee"] = assigneeParam === "me" || assigneeParam === "none" ? assigneeParam : "";
+  const dueParam = params.get("due");
+  const due: DueFilter = DUE_FILTERS.find((d) => d === dueParam) ?? "";
   const [search, setSearch] = useState(params.get("q") ?? "");
   const q = useDebounced(search, 300);
   const [creating, setCreating] = useState(false);
@@ -41,7 +45,7 @@ export function ItemsPage() {
   const workspace = useWorkspace(ws);
   const projects = useProjects(ws);
   const members = useMembers(ws);
-  const filters = useMemo<ItemFilters>(() => ({ q, assignee }), [q, assignee]);
+  const filters = useMemo<ItemFilters>(() => ({ q, assignee, due }), [q, assignee, due]);
   const items = useItems(ws, project, filters, view === "table");
   const canEdit = roleAtLeast(workspace.data?.role, "member");
   const projectName = projects.data?.find((p) => p.key === project)?.name ?? project;
@@ -96,6 +100,13 @@ export function ItemsPage() {
             <option value="">{t.filterAll}</option>
             <option value="me">{t.filterMine}</option>
             <option value="none">{t.filterNone}</option>
+          </Select>
+          <Select aria-label={t.dueFilter} value={due} onChange={(e) => { setParam("due", e.target.value || null); }} className="max-w-48">
+            <option value="">{t.dueAll}</option>
+            <option value="overdue">{t.dueOverdue}</option>
+            <option value="today">{t.dueToday}</option>
+            <option value="week">{t.dueWeek}</option>
+            <option value="none">{t.dueNone}</option>
           </Select>
           {view === "board" && (
             <Select aria-label={t.groupBy} value={groupBy} onChange={(e) => { setParam("group", e.target.value === "category" ? "category" : null); }} className="max-w-48">
@@ -218,7 +229,10 @@ function ItemTable({ items, members, hasMore, loadingMore, loadMore, onOpen }: {
                     className={cn(GRID, "h-full w-full border-b border-zinc-100 text-left text-sm hover:bg-zinc-100/70 dark:border-zinc-800/60 dark:hover:bg-zinc-800/60")}
                   >
                     <span role="cell" className="font-mono text-xs text-zinc-500">{it.key}</span>
-                    <span role="cell" className="truncate">{it.title}</span>
+                    <span role="cell" className="flex min-w-0 items-center gap-2">
+                      <span className="truncate">{it.title}</span>
+                      {it.due_date && <DueChip date={it.due_date} overdue={it.overdue} />}
+                    </span>
                     <span role="cell" className="hidden truncate text-zinc-600 md:block dark:text-zinc-400">{it.type.name}</span>
                     <span role="cell"><StatusBadge name={it.status.name} category={it.status.category} /></span>
                     <span role="cell" className="hidden min-w-0 items-center gap-2 md:flex">
@@ -446,6 +460,11 @@ function Card({ item, column, members, draggable, onOpen }: {
       )}
     >
       <p className="line-clamp-3">{item.title}</p>
+      {item.due_date && (
+        <div className="mt-1.5">
+          <DueChip date={item.due_date} overdue={item.overdue} />
+        </div>
+      )}
       <div className="mt-2 flex items-center justify-between gap-2">
         <span className="font-mono text-xs text-zinc-500">{item.key}</span>
         <span className="flex items-center gap-1.5">

@@ -10,6 +10,7 @@ import { ta } from "../../i18n-admin";
 import { cn } from "../../lib/cn";
 
 const sections = [
+  ["general", ta.nav.general],
   ["members", ta.nav.members],
   ["fields", ta.nav.fields],
   ["item-types", ta.nav.itemTypes],

@@ -11,6 +11,17 @@ export function formatDateTime(iso: string): string {
   return `${String(d.getDate())} ${MONTHS[d.getMonth()] ?? ""} ${String(d.getFullYear())}, ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+/**
+ * A calendar date ("2026-11-20" → "20 noy 2026"). Parsed by hand: new Date()
+ * would read it as UTC midnight and show the previous day west of Greenwich.
+ */
+export function formatDate(date: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  const month = m ? MONTHS[Number(m[2]) - 1] : undefined;
+  if (!m || !month) return "—";
+  return `${String(Number(m[3]))} ${month} ${m[1] ?? ""}`;
+}
+
 const UNITS: [label: string, seconds: number][] = [
   ["il", 365 * 24 * 3600],
   ["ay", 30 * 24 * 3600],

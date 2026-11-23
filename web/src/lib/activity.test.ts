@@ -55,6 +55,19 @@ suite("actorName", () => {
   it("names automation and unknown actors", () => {
     expect(actorName(act("x"))).toBe("Carol");
     expect(actorName(act("x", {}, { actor: null, source: "automation" }))).toBe("Avtomatlaşdırma");
-    expect(actorName(act("x", {}, { actor: null, source: "system" }))).toBe("Kimsə");
+    expect(actorName(act("x", {}, { actor: null, source: "system" }))).toBe("Sistem");
+    expect(actorName(act("x", {}, { actor: null, source: "user" }))).toBe("Kimsə"); // deleted user
+  });
+});
+
+suite("due dates and overdue events", () => {
+  it("shows due date changes as calendar dates", () => {
+    const lines = describe(act("item.updated", { changes: { due_date: { from: null, to: "2026-11-20" } } }), lookup);
+    expect(lines).toEqual([{ text: "son tarixi dəyişdi", from: "—", to: "20 noy 2026" }]);
+  });
+  it("describes the scheduler's overdue event, attributed to the system", () => {
+    const a = act("item.overdue", { days_overdue: 3 }, { source: "system", actor: null });
+    expect(describe(a, lookup)).toEqual([{ text: "son tarixi keçdi (3 gün gecikir)" }]);
+    expect(actorName(a)).toBe("Sistem");
   });
 });
