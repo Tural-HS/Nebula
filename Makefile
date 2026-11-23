@@ -86,4 +86,24 @@ down: ## Stop the stack (keeps data)
 	docker compose down
 
 .PHONY: check
-check: lint test-integration vuln ## Everything CI runs
+check: lint test-integration vuln web-check ## Everything CI runs
+
+# --- Web UI (Node version from web/.nvmrc; uses fnm when it is installed) ------
+NODE_VERSION := $(shell cat web/.nvmrc)
+NODE_RUN := $(if $(shell command -v fnm),fnm exec --using=$(NODE_VERSION),)
+
+.PHONY: web-install
+web-install: ## Install web dependencies exactly as locked
+	cd web && $(NODE_RUN) npm ci --ignore-scripts
+
+.PHONY: web-dev
+web-dev: ## Run the web UI on http://localhost:5173 (API must be running: make up)
+	cd web && $(NODE_RUN) npm run dev
+
+.PHONY: web-check
+web-check: ## Web: npm audit, lint, typecheck, tests, build
+	cd web && $(NODE_RUN) npm audit --audit-level=high
+	cd web && $(NODE_RUN) npm run lint
+	cd web && $(NODE_RUN) npm run typecheck
+	cd web && $(NODE_RUN) npm test
+	cd web && $(NODE_RUN) npm run build

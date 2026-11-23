@@ -24,6 +24,11 @@ Hər mərhələ yalnız testlər, miqrasiyalar (up və down) və CI yaşıl oldu
 - [x] Avtomatlaşdırma qaydaları (trigger, şərt, əməliyyat), dövrə qoruması, hadisə anındakı snapshot
 - [x] SMTP bildirişləri (məcburi TLS, header injection qoruması), dev mühitində Mailpit
 
+## Veb interfeys v1 (tamamlandı, ADR-0006)
+- [x] OIDC + PKCE ilə giriş (token yalnız yaddaşda), workspace və layihə siyahıları, yaratma formaları
+- [x] Virtual cədvəl (sonsuz sürüşdürmə, axtarış, filtrlər), kanban lövhəsi (sürüklə-burax, workflow qaydalarına hörmət)
+- [x] Tapşırıq paneli: başlıq, təsvir, status, icraçı, fərdi sahələr; optimistic locking konfliktlərinin idarəsi
+
 ## Phase 1.5: Əməkdaşlıq (növbəti)
 - Şərhlər API-si və @mention bildirişləri, item tarixçəsi (activity feed) endpoint-i
 - Webhook "test ping", şifrələmə açarının rotasiyası, LISTEN/NOTIFY ilə daha az gecikmə

@@ -1,0 +1,243 @@
+import { useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+
+import { ApiError } from "../api/client";
+import { keys, useDeleteItem, useFields, useItem, useItemTypes, useMembers, useTransitions, useUpdateItem, type ItemPatch } from "../api/hooks";
+import type { FieldValue, Item } from "../api/types";
+import { FieldEditor } from "../components/FieldEditor";
+import { useToast } from "../components/toast-context";
+import { Avatar, Button, ErrorState, Label, Select, Spinner, StatusBadge } from "../components/ui";
+import { t } from "../i18n";
+import { formatDateTime } from "../lib/format";
+
+export function ItemDrawer({ ws, project, n, canEdit, onClose }: { ws: string; project: string; n: number; canEdit: boolean; onClose: () => void }) {
+  const item = useItem(ws, project, n);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => { window.removeEventListener("keydown", onKey); };
+  }, [onClose]);
+
+  return (
+    <>
+      <div className="fixed inset-0 z-30 bg-zinc-950/20" onClick={onClose} aria-hidden />
+      <aside
+        role="dialog"
+        aria-modal="true"
+        aria-label={item.data?.key ?? t.loading}
+        className="fixed inset-y-0 right-0 z-40 flex w-full max-w-xl flex-col overflow-y-auto bg-white shadow-2xl dark:bg-zinc-900"
+      >
+        {item.isPending ? (
+          <Spinner />
+        ) : item.isError ? (
+          <ErrorState error={item.error} />
+        ) : (
+          <ItemDetails key={item.data.id} ws={ws} project={project} item={item.data} canEdit={canEdit} onClose={onClose} />
+        )}
+      </aside>
+    </>
+  );
+}
+
+function ItemDetails({ ws, project, item, canEdit, onClose }: { ws: string; project: string; item: Item; canEdit: boolean; onClose: () => void }) {
+  const qc = useQueryClient();
+  const toast = useToast();
+  const update = useUpdateItem(ws, project);
+  const del = useDeleteItem(ws, project);
+  const members = useMembers(ws);
+  const types = useItemTypes(ws);
+  const fields = useFields(ws);
+  const transitions = useTransitions(ws, project, item.number);
+  const [title, setTitle] = useState(item.title);
+  const [desc, setDesc] = useState(item.description ?? "");
+
+  const memberName = (id: string | null) => (id ? (members.data?.find((m) => m.user_id === id)?.display_name ?? "…") : null);
+
+  const save = (patch: Omit<ItemPatch, "version">) => {
+    update.mutate(
+      { n: item.number, patch: { ...patch, version: item.version } },
+      {
+        onSuccess: () => {
+          void qc.invalidateQueries({ queryKey: keys.transitions(ws, project, item.number) });
+        },
+        onError: (err) => {
+          if (err instanceof ApiError && err.isConflict) {
+            toast("error", t.conflict);
+            void qc.invalidateQueries({ queryKey: keys.item(ws, project, item.number) });
+          } else if (err instanceof ApiError && err.field === "status_id") {
+            toast("error", t.transitionNotAllowed);
+          } else {
+            toast("error", err instanceof ApiError ? err.message : t.errorGeneric);
+          }
+        },
+      },
+    );
+  };
+
+  const type = types.data?.find((x) => x.id === item.type.id);
+  const boundFields = [...(type?.fields ?? [])].sort((a, b) => a.position - b.position);
+  const defs = new Map((fields.data ?? []).map((f) => [f.key, f]));
+  const statusOptions = [item.status, ...(transitions.data ?? [])];
+
+  return (
+    <div className="flex flex-col">
+      <div className="flex items-center justify-between border-b border-zinc-200 px-5 py-3 dark:border-zinc-800">
+        <span className="font-mono text-sm text-zinc-500">
+          {item.key} · {item.type.name}
+        </span>
+        <div className="flex gap-2">
+          {canEdit && (
+            <Button
+              variant="ghost"
+              className="text-red-600"
+              onClick={() => {
+                if (!window.confirm(t.confirmDelete)) return;
+                del.mutate(item.number, {
+                  onSuccess: () => {
+                    toast("success", t.deleted);
+                    onClose();
+                  },
+                  onError: () => { toast("error", t.errorGeneric); },
+                });
+              }}
+            >
+              {t.delete}
+            </Button>
+          )}
+          <Button variant="ghost" onClick={onClose} aria-label={t.close}>
+            ✕
+          </Button>
+        </div>
+      </div>
+
+      <div className="space-y-5 p-5">
+        <textarea
+          aria-label={t.title}
+          value={title}
+          disabled={!canEdit}
+          rows={1}
+          maxLength={500}
+          onChange={(e) => { setTitle(e.target.value); }}
+          onBlur={() => {
+            if (title.trim() && title !== item.title) save({ title });
+            else setTitle(item.title);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              e.currentTarget.blur();
+            }
+          }}
+          className="w-full resize-none rounded-md bg-transparent text-xl font-semibold outline-none hover:bg-zinc-50 focus:bg-zinc-50 dark:hover:bg-zinc-800 dark:focus:bg-zinc-800"
+        />
+
+        <dl className="grid grid-cols-[8rem_1fr] items-center gap-x-4 gap-y-3 text-sm">
+          <dt className="text-zinc-500">{t.status}</dt>
+          <dd>
+            {canEdit ? (
+              <Select
+                aria-label={t.status}
+                value={item.status.id}
+                onChange={(e) => { if (e.target.value !== item.status.id) save({ status_id: e.target.value }); }}
+                className="max-w-56"
+              >
+                {statusOptions.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </Select>
+            ) : (
+              <StatusBadge name={item.status.name} category={item.status.category} />
+            )}
+          </dd>
+
+          <dt className="text-zinc-500">{t.assignee}</dt>
+          <dd>
+            {canEdit ? (
+              <Select
+                aria-label={t.assignee}
+                value={item.assignee_id ?? ""}
+                onChange={(e) => { save({ assignee_id: e.target.value || null }); }}
+                className="max-w-56"
+              >
+                <option value="">{t.unassigned}</option>
+                {members.data?.map((m) => (
+                  <option key={m.user_id} value={m.user_id}>
+                    {m.display_name}
+                  </option>
+                ))}
+              </Select>
+            ) : (
+              <span>{memberName(item.assignee_id) ?? t.unassigned}</span>
+            )}
+          </dd>
+
+          <dt className="text-zinc-500">{t.reporter}</dt>
+          <dd className="flex items-center gap-2">
+            {item.reporter_id && <Avatar name={memberName(item.reporter_id) ?? "?"} />}
+            {memberName(item.reporter_id) ?? "—"}
+          </dd>
+
+          <dt className="text-zinc-500">{t.updated}</dt>
+          <dd className="text-zinc-600 dark:text-zinc-400">{formatDateTime(item.updated_at)}</dd>
+        </dl>
+
+        <div>
+          <Label htmlFor="item-desc">{t.description}</Label>
+          <textarea
+            id="item-desc"
+            rows={6}
+            value={desc}
+            disabled={!canEdit}
+            maxLength={100_000}
+            onChange={(e) => { setDesc(e.target.value); }}
+            onBlur={() => {
+              if (desc !== (item.description ?? "")) save({ description: desc.trim() ? desc : null });
+            }}
+            className="w-full rounded-md bg-white px-3 py-2 text-sm whitespace-pre-wrap ring-1 ring-zinc-300 focus:ring-2 focus:ring-brand-500 dark:bg-zinc-900 dark:ring-zinc-700"
+          />
+        </div>
+
+        {boundFields.length > 0 && (
+          <section>
+            <h3 className="mb-3 text-sm font-semibold">{t.customFields}</h3>
+            <div className="grid grid-cols-[8rem_1fr] items-center gap-x-4 gap-y-3 text-sm">
+              {boundFields.map((b) => {
+                const def = defs.get(b.key);
+                if (!def) return null;
+                const id = `field-${b.key}`;
+                return (
+                  <FieldRow key={b.key} id={id} label={def.name + (b.required ? " *" : "")}>
+                    <FieldEditor
+                      id={id}
+                      def={def}
+                      value={item.fields[b.key]}
+                      members={members.data ?? []}
+                      disabled={!canEdit || def.archived}
+                      onCommit={(v: FieldValue) => { save({ fields: { [b.key]: v } }); }}
+                    />
+                  </FieldRow>
+                );
+              })}
+            </div>
+          </section>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function FieldRow({ id, label, children }: { id: string; label: string; children: React.ReactNode }) {
+  return (
+    <>
+      <label htmlFor={id} className="text-zinc-500">
+        {label}
+      </label>
+      <div>{children}</div>
+    </>
+  );
+}

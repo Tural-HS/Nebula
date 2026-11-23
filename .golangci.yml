@@ -14,6 +14,9 @@ linters:
     - unconvert
     - unparam
   exclusions:
+    # The web UI is a separate (npm) project; never lint vendored third-party code.
+    paths:
+      - web
     rules:
       - path: _test\.go
         linters: [gosec, unparam]
@@ -22,3 +25,6 @@ formatters:
   enable:
     - gofmt
     - goimports
+  exclusions:
+    paths:
+      - web

@@ -1,0 +1,67 @@
+// UI strings (Azerbaijani). Kept in one object so other languages can be added
+// as sibling dictionaries without touching components.
+import type { StatusCategory } from "./api/types";
+
+export const t = {
+  appName: "Nebula",
+  loading: "Yüklənir…",
+  signingIn: "Giriş səhifəsinə yönləndirilir…",
+  signOut: "Çıxış",
+  retry: "Yenidən cəhd et",
+  cancel: "Ləğv et",
+  save: "Yadda saxla",
+  create: "Yarat",
+  delete: "Sil",
+  close: "Bağla",
+  errorGeneric: "Xəta baş verdi",
+  notFound: "Tapılmadı",
+
+  workspaces: "Workspace-lər",
+  noWorkspaces: "Hələ workspace yoxdur. İlk workspace-i yaradın.",
+  newWorkspace: "Yeni workspace",
+  slug: "Qısa ad (URL)",
+  slugHint: "Kiçik hərflər, rəqəmlər və tire, məs. kredagro",
+  name: "Ad",
+
+  projects: "Layihələr",
+  noProjects: "Hələ layihə yoxdur.",
+  newProject: "Yeni layihə",
+  projectKey: "Açar",
+  projectKeyHint: "2-10 böyük hərf/rəqəm, məs. OPS",
+  description: "Təsvir",
+
+  items: "Tapşırıqlar",
+  newItem: "Yeni tapşırıq",
+  title: "Başlıq",
+  type: "Tip",
+  status: "Status",
+  assignee: "İcraçı",
+  reporter: "Müəllif",
+  updated: "Yenilənib",
+  unassigned: "Təyin edilməyib",
+  search: "Axtar…",
+  filterAll: "Hamısı",
+  filterMine: "Mənə təyin edilənlər",
+  filterNone: "Təyin edilməyənlər",
+  viewTable: "Cədvəl",
+  viewBoard: "Lövhə",
+  noItems: "Heç nə tapılmadı.",
+  loadingMore: "Daha çox yüklənir…",
+  boardLimit: (n: number) => `Lövhədə ilk ${n} tapşırıq göstərilir. Daralt üçün axtarış və filtrlərdən istifadə edin.`,
+  customFields: "Sahələr",
+  confirmDelete: "Bu tapşırığı silmək istədiyinizə əminsiniz?",
+
+  conflict: "Bu tapşırığı başqası dəyişdi. Ən son versiya yükləndi, yenidən cəhd edin.",
+  transitionNotAllowed: "Workflow bu status keçidinə icazə vermir.",
+  saved: "Yadda saxlanıldı",
+  created: (key: string) => `${key} yaradıldı`,
+  deleted: "Silindi",
+  readOnly: "Bu workspace-də yalnız oxuma hüququnuz var.",
+
+  category: {
+    todo: "Görüləcək",
+    in_progress: "İcrada",
+    done: "Hazır",
+    canceled: "Ləğv edilib",
+  } satisfies Record<StatusCategory, string>,
+} as const;

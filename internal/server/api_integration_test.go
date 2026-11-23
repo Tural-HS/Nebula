@@ -167,6 +167,14 @@ func TestWorkspacesAndTenantIsolation(t *testing.T) {
 		}
 	}
 
+	members := e.must(200, "bob", "GET", "/api/v1/workspaces/acme/members", nil).Body["members"].([]any)
+	if len(members) != 3 {
+		t.Fatalf("members: %v", members)
+	}
+	if r := e.call("dave", "GET", "/api/v1/workspaces/acme/members", nil); r.Status != 404 {
+		t.Fatalf("non-member lists members: %d", r.Status)
+	}
+
 	list := e.must(200, "alice", "GET", "/api/v1/workspaces", nil)
 	ws := list.Body["workspaces"].([]any)
 	if len(ws) != 1 || ws[0].(map[string]any)["role"] != "owner" {

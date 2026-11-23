@@ -33,3 +33,6 @@ require (
 	golang.org/x/text v0.44.0 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
 )
+
+// The web UI (npm project) can contain stray .go files under node_modules.
+ignore ./web

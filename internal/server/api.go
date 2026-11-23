@@ -50,6 +50,7 @@ func (a *api) routes(r chi.Router) {
 		a.configRoutes(r)
 		a.fieldRoutes(r)
 		a.automationRoutes(r)
+		r.Get("/members", a.listMembers)
 		r.With(requireRole(store.RoleAdmin)).Post("/members", a.addMember)
 		r.Get("/projects", a.listProjects)
 		r.With(requireRole(store.RoleAdmin)).Post("/projects", a.createProject)
@@ -166,6 +167,15 @@ func (a *api) listItemTypes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"item_types": nonNil(types)})
+}
+
+func (a *api) listMembers(w http.ResponseWriter, r *http.Request) {
+	list, err := a.store.ListMembers(r.Context(), workspaceFrom(r).ID)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"members": nonNil(list)})
 }
 
 func (a *api) addMember(w http.ResponseWriter, r *http.Request) {

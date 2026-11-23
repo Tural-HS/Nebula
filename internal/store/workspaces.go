@@ -159,6 +159,17 @@ func (s *Store) WorkspaceForMember(ctx context.Context, slug string, userID uuid
 	return ws, err
 }
 
+// ListMembers returns active members of a workspace ordered by name.
+func (s *Store) ListMembers(ctx context.Context, wsID uuid.UUID) ([]Member, error) {
+	rows, err := s.pool.Query(ctx, `SELECT u.id, u.email, u.display_name, m.role
+		FROM workspace_members m JOIN users u ON u.id = m.user_id
+		WHERE m.workspace_id = $1 AND u.is_active ORDER BY u.display_name, u.id`, wsID)
+	if err != nil {
+		return nil, err
+	}
+	return pgx.CollectRows(rows, pgx.RowToStructByPos[Member])
+}
+
 // AddMember adds an existing user (one who has signed in at least once) by email.
 func (s *Store) AddMember(ctx context.Context, wsID, actorID uuid.UUID, actorRole, email, role string) (Member, error) {
 	if _, ok := roleRank[role]; !ok {

@@ -8,12 +8,14 @@ böyük həcmli məlumatlarda sürətli, tam fərdiləşdirilə bilən, öz serv
 - Fərdi sahələr: [ADR-0003](docs/adr/0003-custom-fields.md)
 - Konfiqurasiya API və rate limiting: [ADR-0004](docs/adr/0004-configuration-api-and-rate-limiting.md)
 - Status keçidləri, avtomatlaşdırma, webhook-lar və email: [ADR-0005](docs/adr/0005-automation-webhooks-email.md)
+- Veb interfeys: [ADR-0006](docs/adr/0006-web-ui.md)
 - Yol xəritəsi: [docs/ROADMAP.md](docs/ROADMAP.md)
 
 ## Tələblər
 
 - Go 1.27.4+ (`go.mod`-da sabitlənib)
 - Docker və Compose v2
+- Node.js 26 LTS (`web/.nvmrc`); [fnm](https://github.com/Schniz/fnm) quraşdırılıbsa Makefile onu avtomatik istifadə edir
 
 ## Sürətli başlanğıc
 
@@ -29,6 +31,13 @@ Dev istifadəçiləri (`deploy/keycloak/nebula-realm.json`, yalnız lokal mühit
 Keycloak admin paneli: http://localhost:8081. Göndərilən bütün email-lər: http://localhost:8025 (Mailpit).
 Ardıcıl 5 səhv şifrə dev istifadəçini 60 saniyəlik bloklayır (brute-force qoruması productiondakı kimi aktivdir).
 
+Veb interfeys (API işləyərkən):
+
+```bash
+make web-install              # asılılıqları lock faylına uyğun quraşdırır
+make web-dev                  # http://localhost:5173 → Keycloak ilə giriş (alice / bob)
+```
+
 API konteyneri olmadan lokal inkişaf:
 
 ```bash
@@ -43,6 +52,7 @@ make run                      # Postgres + Keycloak + Mailpit-i başladır, miqr
 | `make test-integration` | Unit + inteqrasiya testləri; hər test öz müvəqqəti Postgres bazasını alır |
 | `make lint` | `go vet` + golangci-lint |
 | `make vuln` | govulncheck (standart kitabxana + asılılıqlar) |
+| `make web-check` | Veb: npm audit, ESLint, TypeScript, vitest, build |
 | `make check` | Yuxarıdakıların hamısı: CI-nin işlətdiyi yoxlamalar |
 
 CI əlavə olaraq Docker image-i Trivy ilə skan edir: düzəldilə bilən HIGH/CRITICAL zəiflik build-i dayandırır.
