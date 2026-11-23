@@ -224,7 +224,7 @@ test("phone toolbar: one row, filters in a sheet", async ({ page }) => {
   await expect(page.getByRole("row").filter({ hasText: "Başqasının tapşırığı" })).toBeVisible();
 
   // Everything but search, the filter button and the view switch is in the sheet.
-  await expect(page.getByLabel("İcraçı", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("combobox", { name: "İcraçı", exact: true })).toHaveCount(0);
   const toolbar = page.getByRole("searchbox", { name: "Axtar…" }).locator("..");
   const bar = await toolbar.boundingBox();
   expect(bar?.height ?? 999).toBeLessThan(64); // a single row
@@ -232,7 +232,7 @@ test("phone toolbar: one row, filters in a sheet", async ({ page }) => {
   await page.getByRole("button", { name: "Filtrlər" }).tap();
   const sheet = page.getByRole("dialog", { name: "Filtrlər və görünüş" });
   await expect(sheet).toBeVisible();
-  await sheet.getByLabel("İcraçı", { exact: true }).selectOption("me");
+  await sheet.getByRole("combobox", { name: "İcraçı", exact: true }).selectOption("me"); // not the column checkbox
   await expect(page).toHaveURL(/assignee=me/);
   await sheet.getByRole("button", { name: "Bağla" }).tap();
   await expect(sheet).toBeHidden();

@@ -14,6 +14,10 @@ export const t = {
   delete: "Sil",
   close: "Bağla",
   errorGeneric: "Xəta baş verdi",
+  newVersion: "Nebula-nın yeni versiyası var",
+  newVersionHint: "Səhifəni yeniləyin: açıq qalmış köhnə versiya yeni hissələri yükləyə bilmir.",
+  unexpectedErrorHint: "Gözlənilməz xəta. Səhifəni yeniləyin; təkrarlanarsa adminə bildirin.",
+  reload: "Yenilə",
   notFound: "Tapılmadı",
 
   workspaces: "Workspace-lər",

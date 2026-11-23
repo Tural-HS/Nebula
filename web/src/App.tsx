@@ -4,6 +4,7 @@ import { BrowserRouter, Route, Routes } from "react-router";
 
 import { setUnauthorizedHandler } from "./api/client";
 import { useAuth } from "./auth/context";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { ToastProvider } from "./components/toast";
 import { retryDelay, shouldRetry, shouldRetryMutation } from "./lib/retry";
 import { EmptyState, Spinner } from "./components/ui";
@@ -68,6 +69,7 @@ export function App() {
     <QueryClientProvider client={queryClient}>
       <ToastProvider>
         <BrowserRouter>
+          <ErrorBoundary>
           <Suspense fallback={<Spinner />}>
           <Routes>
             <Route path="/" element={<WorkspacesPage />} />
@@ -89,6 +91,7 @@ export function App() {
             <Route path="*" element={<EmptyState>{t.notFound}</EmptyState>} />
           </Routes>
           </Suspense>
+          </ErrorBoundary>
         </BrowserRouter>
       </ToastProvider>
     </QueryClientProvider>
