@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState, type ComponentType } from "react";
 import { BrowserRouter, Route, Routes } from "react-router";
 
 import { setUnauthorizedHandler } from "./api/client";
@@ -8,19 +8,24 @@ import { ToastProvider } from "./components/toast";
 import { retryDelay, shouldRetry, shouldRetryMutation } from "./lib/retry";
 import { EmptyState, Spinner } from "./components/ui";
 import { t } from "./i18n";
-import { ImportPage } from "./pages/ImportPage";
-import { RecurringPage } from "./pages/RecurringPage";
 import { ItemsPage } from "./pages/ItemsPage";
 import { ProjectsPage } from "./pages/ProjectsPage";
-import { AuditLogPage } from "./pages/settings/AuditLogPage";
-import { AutomationsPage } from "./pages/settings/AutomationsPage";
-import { FieldsPage } from "./pages/settings/FieldsPage";
-import { GeneralPage } from "./pages/settings/GeneralPage";
-import { ItemTypesPage } from "./pages/settings/ItemTypesPage";
-import { MembersPage } from "./pages/settings/MembersPage";
-import { WebhooksPage } from "./pages/settings/WebhooksPage";
-import { WorkflowsPage } from "./pages/settings/WorkflowsPage";
 import { WorkspacesPage } from "./pages/WorkspacesPage";
+
+// Pages that are not needed for the first paint load on demand, each as its
+// own chunk; the workspace, project and item pages stay in the main bundle.
+const named = <K extends string>(load: () => Promise<Record<K, ComponentType>>, name: K) =>
+  lazy(async () => ({ default: (await load())[name] }));
+const ImportPage = named(() => import("./pages/ImportPage"), "ImportPage");
+const RecurringPage = named(() => import("./pages/RecurringPage"), "RecurringPage");
+const AuditLogPage = named(() => import("./pages/settings/AuditLogPage"), "AuditLogPage");
+const AutomationsPage = named(() => import("./pages/settings/AutomationsPage"), "AutomationsPage");
+const FieldsPage = named(() => import("./pages/settings/FieldsPage"), "FieldsPage");
+const GeneralPage = named(() => import("./pages/settings/GeneralPage"), "GeneralPage");
+const ItemTypesPage = named(() => import("./pages/settings/ItemTypesPage"), "ItemTypesPage");
+const MembersPage = named(() => import("./pages/settings/MembersPage"), "MembersPage");
+const WebhooksPage = named(() => import("./pages/settings/WebhooksPage"), "WebhooksPage");
+const WorkflowsPage = named(() => import("./pages/settings/WorkflowsPage"), "WorkflowsPage");
 
 function makeQueryClient() {
   return new QueryClient({
@@ -61,6 +66,7 @@ export function App() {
     <QueryClientProvider client={queryClient}>
       <ToastProvider>
         <BrowserRouter>
+          <Suspense fallback={<Spinner />}>
           <Routes>
             <Route path="/" element={<WorkspacesPage />} />
             <Route path="/w/:ws" element={<ProjectsPage />} />
@@ -78,6 +84,7 @@ export function App() {
             <Route path="/w/:ws/settings/audit" element={<AuditLogPage />} />
             <Route path="*" element={<EmptyState>{t.notFound}</EmptyState>} />
           </Routes>
+          </Suspense>
         </BrowserRouter>
       </ToastProvider>
     </QueryClientProvider>
