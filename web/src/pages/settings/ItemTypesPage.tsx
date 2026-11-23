@@ -80,7 +80,7 @@ function TypeCard({ ws, type, workflowName, fields }: { ws: string; type: ItemTy
   const available = fields.filter((f) => !f.archived && !bound.some((b) => b.key === f.key));
 
   return (
-    <Card>
+    <Card label={type.name}>
       <div className="flex flex-wrap items-center gap-3">
         <Input
           aria-label={t.name}

@@ -71,7 +71,9 @@ export function SettingsLayout({ title, adminOnly = true, children }: { title: s
   );
 }
 
-/** A bordered card used by every settings screen. */
-export function Card({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cn("rounded-xl bg-white p-4 ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-800", className)}>{children}</div>;
+/** A bordered card used by every settings screen. With a label it becomes a
+ *  named region, so assistive tech (and tests) can address it directly. */
+export function Card({ children, className, label }: { children: ReactNode; className?: string; label?: string }) {
+  const cls = cn("rounded-xl bg-white p-4 ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-800", className);
+  return label ? <section aria-label={label} className={cls}>{children}</section> : <div className={cls}>{children}</div>;
 }

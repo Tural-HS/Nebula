@@ -32,16 +32,18 @@ function makeQueryClient() {
 }
 
 export function App() {
-  const { user, login } = useAuth();
+  const { user, login, signingOut } = useAuth();
   const [queryClient] = useState(makeQueryClient);
 
   useEffect(() => {
-    setUnauthorizedHandler(() => void login());
-  }, [login]);
+    setUnauthorizedHandler(() => {
+      if (!signingOut) void login();
+    });
+  }, [login, signingOut]);
 
   useEffect(() => {
-    if (!user) void login();
-  }, [user, login]);
+    if (!user && !signingOut) void login();
+  }, [user, login, signingOut]);
 
   if (!user) return <Spinner label={t.signingIn} />;
 

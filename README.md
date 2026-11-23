@@ -55,6 +55,11 @@ make run                      # Postgres + Keycloak + Mailpit-i başladır, miqr
 | `make vuln` | govulncheck (standart kitabxana + asılılıqlar) |
 | `make web-check` | Veb: npm audit, ESLint, TypeScript, vitest, build |
 | `make check` | Yuxarıdakıların hamısı: CI-nin işlətdiyi yoxlamalar |
+| `make e2e` | Playwright E2E: real stack (`make up`) üzərində Chromium ilə giriş, tapşırıqlar, lövhə, şərhlər, rollar, admin ekranları |
+
+E2E testləri hər spec üçün API ilə öz workspace-ini yaradır, ona görə mövcud dev məlumatlarına toxunmur.
+`make e2e` işləyən dev serverdən istifadə edir; `make e2e-ci` CI kimi production build + `vite preview` ilə işləyir.
+Uğursuz testlər üçün trace, screenshot və video `web/test-results`-də qalır (`npm run e2e:report`).
 
 CI əlavə olaraq Docker image-i Trivy ilə skan edir: düzəldilə bilən HIGH/CRITICAL zəiflik build-i dayandırır.
 Bütün GitHub Action-lar commit SHA-ya, base image-lər digest-ə sabitlənib; Dependabot onları həftəlik yeniləyir.

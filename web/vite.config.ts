@@ -14,6 +14,15 @@ export default defineConfig({
       "/api": { target: "http://localhost:8080", changeOrigin: false },
     },
   },
+  // `vite preview` serves the production build for E2E tests, same-origin like prod.
+  preview: {
+    host: "localhost",
+    port: 5173,
+    strictPort: true,
+    proxy: {
+      "/api": { target: "http://localhost:8080", changeOrigin: false },
+    },
+  },
   build: {
     sourcemap: "hidden",
     target: "es2023",

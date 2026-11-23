@@ -3,6 +3,8 @@ import { createContext, use } from "react";
 
 export interface AuthState {
   user: User | null;
+  /** True while redirecting to the IdP's logout: nothing may start a new login. */
+  signingOut: boolean;
   login: (returnTo?: string) => Promise<void>;
   logout: () => Promise<void>;
 }

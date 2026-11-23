@@ -22,6 +22,7 @@ function onCallbackPage(): boolean {
 export function AuthProvider({ manager, children }: { manager: UserManager; children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [ready, setReady] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
 
   useEffect(() => {
     const run = { cancelled: false };
@@ -66,9 +67,19 @@ export function AuthProvider({ manager, children }: { manager: UserManager; chil
 
   const state: AuthState = {
     user,
+    signingOut,
     login: (returnTo) => manager.signinRedirect({ state: safeReturnPath(returnTo ?? window.location.pathname + window.location.search) }),
     logout: async () => {
-      await manager.signoutRedirect();
+      // signoutRedirect clears the in-memory user before the browser leaves the
+      // page. Without this flag, "no user" would trigger an automatic login
+      // redirect that cancels the IdP logout and silently signs the user back in.
+      setSigningOut(true);
+      try {
+        await manager.signoutRedirect();
+      } catch (err) {
+        setSigningOut(false);
+        throw err;
+      }
     },
   };
 

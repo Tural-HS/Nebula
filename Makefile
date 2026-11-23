@@ -107,3 +107,14 @@ web-check: ## Web: npm audit, lint, typecheck, tests, build
 	cd web && $(NODE_RUN) npm run typecheck
 	cd web && $(NODE_RUN) npm test
 	cd web && $(NODE_RUN) npm run build
+
+.PHONY: e2e
+e2e: ## Web: Playwright E2E against the running stack (make up; uses the dev server if it runs)
+	cd web && $(NODE_RUN) npx playwright install chromium
+	cd web && $(NODE_RUN) npm run e2e
+
+.PHONY: e2e-ci
+e2e-ci: ## Web: Playwright E2E as CI runs it (production build + vite preview, no reuse)
+	@if lsof -iTCP:5173 -sTCP:LISTEN >/dev/null 2>&1; then echo 'port 5173 is busy: stop the dev server first (Keycloak only allows http://localhost:5173 as redirect URI)' >&2; exit 1; fi
+	cd web && $(NODE_RUN) npx playwright install chromium
+	cd web && CI=1 $(NODE_RUN) npm run e2e

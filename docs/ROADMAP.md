@@ -42,7 +42,8 @@ Hər mərhələ yalnız testlər, miqrasiyalar (up və down) və CI yaşıl oldu
 - [x] Webhook-lar (secret bir dəfə göstərilir, test, çatdırılma logu, secret rotasiyası), vizual avtomatlaşdırma qayda qurucusu, audit log
 
 ## Phase 2b: Növbəti
-- Playwright E2E testləri, bildiriş mərkəzi (in-app), kanbanda status sütunları (kateqoriya əvəzinə)
+- [x] Playwright E2E testləri (real Keycloak girişi, PKCE, rollar, admin ekranları, @mention email-i); CI-də hər PR-da işləyir
+- Bildiriş mərkəzi (in-app), kanbanda status sütunları (kateqoriya əvəzinə)
 
 ## Phase 2: Şablonlar və görünüşlər
 - Proqram təminatı / HR / Satış / Marketinq şablonları; cədvəl, kanban, təqvim, forma görünüşləri

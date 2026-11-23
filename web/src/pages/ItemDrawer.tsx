@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { ApiError } from "../api/client";
 import { keys, useDeleteItem, useMe, useFields, useItem, useItemTypes, useMembers, useTransitions, useUpdateItem, type ItemPatch } from "../api/hooks";
@@ -62,25 +62,37 @@ function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose }: {
 
   const memberName = (id: string | null) => (id ? (members.data?.find((m) => m.user_id === id)?.display_name ?? "…") : null);
 
+  // Edits are applied one after another, each with the version returned by the
+  // previous one. Without this, two quick edits (status, then title) both send
+  // the same old version and the second is rejected as a conflict with
+  // yourself. Real conflicts with other people are still detected.
+  const version = useRef(item.version);
+  const queue = useRef<Promise<unknown>>(Promise.resolve());
+  useEffect(() => {
+    version.current = Math.max(version.current, item.version);
+  }, [item.version]);
+
+  const onSaveError = (err: unknown) => {
+    if (err instanceof ApiError && err.isConflict) {
+      toast("error", t.conflict);
+      void qc.invalidateQueries({ queryKey: keys.item(ws, project, item.number) });
+    } else if (err instanceof ApiError && err.field === "status_id") {
+      toast("error", t.transitionNotAllowed);
+    } else {
+      toast("error", err instanceof ApiError ? err.message : t.errorGeneric);
+    }
+  };
+
   const save = (patch: Omit<ItemPatch, "version">) => {
-    update.mutate(
-      { n: item.number, patch: { ...patch, version: item.version } },
-      {
-        onSuccess: () => {
-          void qc.invalidateQueries({ queryKey: keys.transitions(ws, project, item.number) });
-        },
-        onError: (err) => {
-          if (err instanceof ApiError && err.isConflict) {
-            toast("error", t.conflict);
-            void qc.invalidateQueries({ queryKey: keys.item(ws, project, item.number) });
-          } else if (err instanceof ApiError && err.field === "status_id") {
-            toast("error", t.transitionNotAllowed);
-          } else {
-            toast("error", err instanceof ApiError ? err.message : t.errorGeneric);
-          }
-        },
-      },
-    );
+    queue.current = queue.current.then(async () => {
+      try {
+        const saved = await update.mutateAsync({ n: item.number, patch: { ...patch, version: version.current } });
+        version.current = saved.version;
+        void qc.invalidateQueries({ queryKey: keys.transitions(ws, project, item.number) });
+      } catch (err) {
+        onSaveError(err);
+      }
+    });
   };
 
   const type = types.data?.find((x) => x.id === item.type.id);
