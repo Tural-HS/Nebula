@@ -25,7 +25,10 @@ test.describe("as admin", () => {
   test("custom field columns, server totals and a shared view", async ({ page }) => {
     await page.goto(seed.url);
     await page.getByText("Sütunlar").click();
-    await page.getByRole("checkbox", { name: "Aylıq ödəniş" }).check();
+    // A ticked column moves into the ordered list (a new element), so click and
+    // assert instead of check(), which watches the original node.
+    await page.getByRole("checkbox", { name: "Aylıq ödəniş" }).click();
+    await expect(page.getByRole("checkbox", { name: "Aylıq ödəniş" })).toBeChecked();
     await page.keyboard.press("Escape");
     await expect(page).toHaveURL(/cols=/);
     await expect(page.getByRole("columnheader", { name: "Aylıq ödəniş" })).toBeVisible();
@@ -49,15 +52,15 @@ test.describe("as admin", () => {
     await dialog.getByLabel(/Hamı ilə paylaş/).check();
     await dialog.getByRole("button", { name: "Yadda saxla" }).click();
     await expect(page).toHaveURL(/saved=/);
-    await expect(page.getByLabel("Görünüş")).toHaveValue(/.+/);
+    await expect(page.getByLabel("Görünüş", { exact: true })).toHaveValue(/.+/);
 
     // Back to all items: default columns, no totals row.
-    await page.getByLabel("Görünüş").selectOption({ label: "Hamısı" });
+    await page.getByLabel("Görünüş", { exact: true }).selectOption({ label: "Hamısı" });
     await expect(page.getByRole("columnheader", { name: "Aylıq ödəniş" })).toHaveCount(0);
     await expect(page).not.toHaveURL(/sort=due/);
 
     // Selecting the view restores its columns and sort; a change marks it modified.
-    await page.getByLabel("Görünüş").selectOption({ label: "Plan 2027" });
+    await page.getByLabel("Görünüş", { exact: true }).selectOption({ label: "Plan 2027" });
     await expect(page.getByRole("columnheader", { name: "Aylıq ödəniş" })).toBeVisible();
     await expect(page).toHaveURL(/sort=due/);
     await page.getByLabel("Son tarix", { exact: true }).selectOption("none");
@@ -86,7 +89,7 @@ test.describe("as member", () => {
     await alice.dispose();
 
     await page.goto(seed.url);
-    const picker = page.getByLabel("Görünüş");
+    const picker = page.getByLabel("Görünüş", { exact: true });
     await expect(picker.locator("option", { hasText: "Gecikənlər" })).toHaveCount(1);
     await expect(picker.locator("option", { hasText: "Alice-in şəxsi görünüşü" })).toHaveCount(0);
     await picker.selectOption({ label: "Gecikənlər" });

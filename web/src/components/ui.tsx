@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from "react";
+import { useEffect, useId, useRef, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from "react";
 
 import { ApiError } from "../api/client";
 import type { StatusCategory } from "../api/types";
@@ -132,6 +132,9 @@ export function Avatar({ name, size = "sm" }: { name: string; size?: "sm" | "md"
 /** Accessible modal built on the native <dialog> element (focus trap, Esc). */
 export function Dialog({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: string; children: ReactNode }) {
   const ref = useRef<HTMLDialogElement>(null);
+  // Unique per instance: dialogs stay mounted while closed, so a fixed id
+  // made every dialog on a page take the first one's title as its name.
+  const titleId = useId();
   useEffect(() => {
     const d = ref.current;
     if (!d) return;
@@ -142,11 +145,11 @@ export function Dialog({ open, onClose, title, children }: { open: boolean; onCl
     <dialog
       ref={ref}
       onClose={onClose}
-      aria-labelledby="dialog-title"
+      aria-labelledby={titleId}
       className="m-auto w-full max-w-md rounded-xl bg-white p-0 text-zinc-900 shadow-2xl backdrop:bg-zinc-950/40 dark:bg-zinc-900 dark:text-zinc-100"
     >
       <div className="p-5">
-        <h2 id="dialog-title" className="mb-4 text-base font-semibold">
+        <h2 id={titleId} className="mb-4 text-base font-semibold">
           {title}
         </h2>
         {open && children}
