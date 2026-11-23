@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/brand/logo-mark.png" alt="Nebula" width="120"></p>
+
 # Nebula
 
 Ümumi təyinatlı iş idarəetmə platforması (proqram təminatı, HR, satış, marketinq):

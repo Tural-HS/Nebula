@@ -17,8 +17,8 @@ export function Layout({ crumbs, actions, children }: { crumbs: Crumb[]; actions
   return (
     <div className="flex h-full flex-col">
       <header className="flex h-12 shrink-0 items-center gap-3 border-b border-zinc-200 bg-white px-4 dark:border-zinc-800 dark:bg-zinc-900">
-        <Link to="/" className="flex items-center gap-2 font-semibold text-zinc-900 dark:text-zinc-50">
-          <img src="/favicon.svg" alt="" className="size-6" />
+        <Link to="/" className="flex items-center gap-2 font-semibold text-brand-900 dark:text-zinc-50">
+          <img src="/logo-mark.png" alt="" className="size-7" />
           {t.appName}
         </Link>
         <nav aria-label="breadcrumb" className="flex min-w-0 items-center gap-1.5 text-sm text-zinc-500">
