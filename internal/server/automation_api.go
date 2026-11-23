@@ -49,18 +49,24 @@ func (a *api) listWebhooks(w http.ResponseWriter, r *http.Request) {
 func (a *api) createWebhook(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		URL    string   `json:"url"`
+		Format string   `json:"format"` // nebula (default) | slack; fixed after creation
 		Events []string `json:"events"`
 	}
 	if !a.decode(w, r, &body) {
 		return
 	}
-	hook, secret, err := a.store.CreateWebhook(r.Context(), workspaceFrom(r).ID, principal(r).UserID, body.URL, body.Events, a.checkWebhookURL)
+	hook, secret, err := a.store.CreateWebhook(r.Context(), workspaceFrom(r).ID, principal(r).UserID, body.URL, body.Format, body.Events, a.checkWebhookURL)
 	if err != nil {
 		a.fail(w, r, err)
 		return
 	}
 	// The secret is returned exactly once; it cannot be read back later.
-	writeJSON(w, http.StatusCreated, map[string]any{"webhook": hook, "secret": secret})
+	// Slack-format webhooks are not signed and have none.
+	var shown *string
+	if secret != "" {
+		shown = &secret
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{"webhook": hook, "secret": shown})
 }
 
 func (a *api) getWebhook(w http.ResponseWriter, r *http.Request) {

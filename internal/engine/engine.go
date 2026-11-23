@@ -1,5 +1,6 @@
 // Package engine implements the background job handlers: event fan-out,
-// signed webhook delivery, automation rules and email.
+// webhook delivery (signed Nebula JSON or Slack/Mattermost chat messages),
+// automation rules and email.
 package engine
 
 import (
@@ -14,6 +15,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -36,6 +38,8 @@ type Engine struct {
 	Mail     mail.Sender // nil: email disabled, email jobs are skipped
 	Logger   *slog.Logger
 	Version  string
+	// PublicURL is the web UI base URL for links in chat messages ("" = no links).
+	PublicURL string
 }
 
 // Handlers maps job kinds to handlers.
@@ -133,32 +137,25 @@ func (e *Engine) deliverWebhook(ctx context.Context, j store.Job) error {
 		return nil // disabled or unsubscribed since the event happened
 	}
 
-	payload := WebhookPayload{
-		EventID: ev.ID, Type: ev.Action, OccurredAt: ev.OccurredAt, ActorID: ev.ActorID, Source: ev.Source,
-		Workspace: map[string]any{"id": ev.WorkspaceID, "slug": ev.WorkspaceSlug},
-		Entity:    map[string]any{"type": ev.EntityType, "id": ev.EntityID},
-		Data:      ev.Payload,
-	}
-	if ev.EntityType == "item" {
-		if it, err := e.Store.ItemByID(ctx, ev.WorkspaceID, ev.EntityID); err == nil {
-			payload.Item = &it
-		}
-	}
-	body, err := json.Marshal(payload)
+	body, err := e.webhookBody(ctx, target, ev)
 	if err != nil {
-		return worker.Permanent(err)
+		return err
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, target.URL, bytes.NewReader(body))
 	if err != nil {
-		return worker.Permanent(err)
+		return worker.Permanent(errors.New("invalid webhook URL")) // never echo it: it may be a credential
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", "Nebula-Webhooks/"+e.Version)
-	req.Header.Set("Nebula-Event-Id", strconv.FormatInt(ev.ID, 10))
-	req.Header.Set("Nebula-Event-Type", ev.Action)
-	req.Header.Set("Nebula-Delivery-Attempt", strconv.Itoa(j.Attempts))
-	req.Header.Set("Nebula-Signature", Sign(target.Secret, time.Now(), body))
+	if target.Format != store.WebhookFormatSlack {
+		// Chat servers authenticate by the URL and ignore these; only Nebula
+		// receivers verify the signature and dedupe on the event ID.
+		req.Header.Set("Nebula-Event-Id", strconv.FormatInt(ev.ID, 10))
+		req.Header.Set("Nebula-Event-Type", ev.Action)
+		req.Header.Set("Nebula-Delivery-Attempt", strconv.Itoa(j.Attempts))
+		req.Header.Set("Nebula-Signature", Sign(target.Secret, time.Now(), body))
+	}
 
 	start := time.Now()
 	resp, err := safehttp.Do(ctx, e.HTTP, e.HTTPOpts, req)
@@ -166,6 +163,7 @@ func (e *Engine) deliverWebhook(ctx context.Context, j store.Job) error {
 	var result error
 	switch {
 	case err != nil:
+		err = redactURL(err)
 		msg := truncate(err.Error(), 500)
 		d.Error = &msg
 		result = fmt.Errorf("deliver: %w", err)
@@ -189,6 +187,61 @@ func (e *Engine) deliverWebhook(ctx context.Context, j store.Job) error {
 		e.Logger.Error("record webhook delivery", "error", rerr)
 	}
 	return result
+}
+
+// redactURL drops the request URL from net/http errors ("Post \"https://…\": …"):
+// they end up in the delivery log, job errors and logs, and a chat webhook
+// URL is a credential. Only the operation and the cause remain.
+func redactURL(err error) error {
+	var ue *url.Error
+	if errors.As(err, &ue) {
+		return &redactedError{msg: ue.Op + ": " + ue.Err.Error(), err: ue.Err}
+	}
+	return err
+}
+
+type redactedError struct {
+	msg string
+	err error
+}
+
+func (r *redactedError) Error() string { return r.msg }
+func (r *redactedError) Unwrap() error { return r.err }
+
+// webhookBody renders the request body for the webhook's format.
+func (e *Engine) webhookBody(ctx context.Context, target store.DeliveryTarget, ev store.Event) ([]byte, error) {
+	if target.Format == store.WebhookFormatSlack {
+		c, err := e.chatContext(ctx, ev)
+		if err != nil {
+			return nil, err
+		}
+		msg := ChatMessage{Text: RenderChat(ev, c), Username: "Nebula"}
+		if e.PublicURL != "" {
+			msg.IconURL = e.PublicURL + "/logo-mark.png"
+		}
+		body, err := json.Marshal(msg)
+		if err != nil {
+			return nil, worker.Permanent(err)
+		}
+		return body, nil
+	}
+
+	payload := WebhookPayload{
+		EventID: ev.ID, Type: ev.Action, OccurredAt: ev.OccurredAt, ActorID: ev.ActorID, Source: ev.Source,
+		Workspace: map[string]any{"id": ev.WorkspaceID, "slug": ev.WorkspaceSlug},
+		Entity:    map[string]any{"type": ev.EntityType, "id": ev.EntityID},
+		Data:      ev.Payload,
+	}
+	if ev.EntityType == "item" {
+		if it, err := e.Store.ItemByID(ctx, ev.WorkspaceID, ev.EntityID); err == nil {
+			payload.Item = &it
+		}
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return nil, worker.Permanent(err)
+	}
+	return body, nil
 }
 
 // ---------------------------------------------------------------------------

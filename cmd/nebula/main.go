@@ -158,7 +158,7 @@ func (rt *runtime) newWorker(ctx context.Context, cfg config.Config, logger *slo
 	}
 	eng := &engine.Engine{
 		Store: rt.store, HTTP: safehttp.NewClient(rt.webhook), HTTPOpts: rt.webhook,
-		Mail: sender, Logger: logger, Version: version,
+		Mail: sender, Logger: logger, Version: version, PublicURL: cfg.PublicURL,
 	}
 	return worker.New(rt.store, eng.Handlers(), logger, rt.metrics, worker.Options{
 		Concurrency:   max(cfg.WorkerConcurrency, 1),
