@@ -364,6 +364,7 @@ func (s *Store) UpdateComment(ctx context.Context, wsID, projectID uuid.UUID, nu
 				return err
 			}
 			var added []mentioned
+			addedIDs := []uuid.UUID{}
 			if _, err := tx.Exec(ctx, `DELETE FROM comment_mentions WHERE comment_id = $1`, commentID); err != nil {
 				return err
 			}
@@ -373,13 +374,14 @@ func (s *Store) UpdateComment(ctx context.Context, wsID, projectID uuid.UUID, nu
 				}
 				if !slices.Contains(before, p.id) {
 					added = append(added, p)
+					addedIDs = append(addedIDs, p.id)
 				}
 			}
 			if _, err := tx.Exec(ctx, `UPDATE comments SET body = $1 WHERE id = $2`, body, commentID); err != nil {
 				return err
 			}
 			if err := appendEvent(ctx, tx, wsID, actorID, "item", item.id, "comment.updated",
-				map[string]any{"comment_id": commentID, "excerpt": excerpt(body, 200)}); err != nil {
+				map[string]any{"comment_id": commentID, "excerpt": excerpt(body, 200), "mentions_added": addedIDs}); err != nil {
 				return err
 			}
 			name, err := authorName(ctx, tx, actorID)
