@@ -45,8 +45,9 @@ Hər mərhələ yalnız testlər, miqrasiyalar (up və down) və CI yaşıl oldu
 - [x] Playwright E2E testləri (real Keycloak girişi, PKCE, rollar, admin ekranları, @mention email-i); CI-də hər PR-da işləyir
 - [x] Lövhədə status sütunları (fərqli workflow-ların eyni statusları birləşir), sütun-sütun sonsuz yükləmə, həqiqi sütun sayları, icazəsiz keçidlərin solğunlaşması (ADR-0008)
 - [x] 429-un düzgün idarəsi: `Retry-After` ilə təkrar; yazmalarda yalnız 429 (dəyişiklik itkisi aradan qaldırıldı)
+- [x] CSV və Excel (.xlsx) importu: önbaxış, sütun uyğunlaşdırması (başlıq adına görə təklif), dry run ilə sətir xətaları, hamısı-və-ya-heç-nə idxal, audit qeydi (ADR-0011)
 - Bildiriş mərkəzi (in-app)
-- FinTez köçürülməsi üçün: son tarix + vaxta görə avtomatlaşdırma ("Gecikmə", səhər xülasəsi), təkrarlanan tapşırıqlar, Mattermost/Slack bildiriş hədəfi, saxlanılan görünüşlər + cəm sətri, layihə səviyyəsində məxfilik, CSV/Excel importu
+- FinTez köçürülməsi üçün: son tarix + vaxta görə avtomatlaşdırma ("Gecikmə", səhər xülasəsi), təkrarlanan tapşırıqlar, Mattermost/Slack bildiriş hədəfi, saxlanılan görünüşlər + cəm sətri, layihə səviyyəsində məxfilik
 - Etibarlı proxy-lər üçün rate limit (`X-Forwarded-For` yalnız etibarlı CIDR-lərdən)
 
 ## Phase 2: Şablonlar və görünüşlər
