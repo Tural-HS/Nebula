@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -142,5 +143,94 @@ func TestRedactURL(t *testing.T) {
 	plain := errors.New("x")
 	if !errors.Is(redactURL(plain), plain) {
 		t.Fatal("non-URL errors pass through")
+	}
+}
+
+// payload decodes JSON exactly as events come out of the database.
+func payload(t *testing.T, raw string) map[string]any {
+	t.Helper()
+	var m map[string]any
+	if err := json.Unmarshal([]byte(raw), &m); err != nil {
+		t.Fatal(err)
+	}
+	return m
+}
+
+func TestRenderChatOverdue(t *testing.T) {
+	bob := uuid.New()
+	ev := store.Event{Action: "item.overdue", EntityType: "item", Source: "system", WorkspaceSlug: "acme", Payload: payload(t, fmt.Sprintf(`{
+		"snapshot": {"title": "Başlıq", "status_category": "todo"},
+		"key": "QA-12", "title": "Başlıq", "due_date": "2026-11-20", "days_overdue": 3,
+		"assignee_id": %q, "assignee_name": "Bob Developer"}`, bob))}
+	c := ChatContext{Item: &store.ItemLabel{Key: "QA-12", ProjectKey: "QA", Number: 12, Title: "Başlıq (indi)"},
+		ItemURL: "https://n.example.com/w/acme/p/QA?item=12"}
+	want := "⏰ <https://n.example.com/w/acme/p/QA?item=12|QA-12> “Başlıq” — 3 gün gecikir (20.11.2026) — Bob Developer"
+	if got := RenderChat(ev, c); got != want {
+		t.Errorf("\n got %q\nwant %q", got, want)
+	}
+
+	// Unassigned, item no longer found, hostile title.
+	ev.Payload = payload(t, `{"snapshot": {}, "key": "QA-13", "title": "@all [x](http://evil)", "due_date": "2026-11-22",
+		"days_overdue": 1, "assignee_id": null, "assignee_name": null}`)
+	want = "⏰ QA-13 “@" + wordJoiner + "all \\[x\\]\\(http://evil\\)” — 1 gün gecikir (22.11.2026) — icraçı yoxdur"
+	if got := RenderChat(ev, ChatContext{}); got != want {
+		t.Errorf("\n got %q\nwant %q", got, want)
+	}
+}
+
+func TestRenderChatOverdueDigest(t *testing.T) {
+	ev := store.Event{Action: "workspace.overdue_digest", EntityType: "workspace", Source: "system", WorkspaceSlug: "acme",
+		Payload: payload(t, `{"date": "2026-11-23", "timezone": "Asia/Baku", "total": 7, "truncated": true, "items": [
+			{"key": "QA-12", "title": "Başlıq", "project": "QA", "due_date": "2026-11-20", "days_overdue": 3,
+			 "assignee_id": null, "assignee_name": "Bob Developer"},
+			{"key": "OPS-4", "title": "<!channel> *təcili*", "project": "OPS", "due_date": "2026-11-22", "days_overdue": 1,
+			 "assignee_id": null, "assignee_name": null}]}`)}
+	want := "⚠️ Gecikmədə olanlar (7):\n" +
+		"• <https://n.example.com/w/acme/p/QA?item=12|QA-12> Başlıq — 3 gün gecikir (20.11.2026) — Bob Developer\n" +
+		"• <https://n.example.com/w/acme/p/OPS?item=4|OPS-4> &lt;" + wordJoiner + "!channel&gt; \\*təcili\\* — 1 gün gecikir (22.11.2026) — icraçı yoxdur\n" +
+		"…və daha 5"
+	if got := RenderChat(ev, ChatContext{PublicURL: "https://n.example.com"}); got != want {
+		t.Errorf("\n got %q\nwant %q", got, want)
+	}
+
+	// Not truncated, no public URL: plain keys, no "…və daha".
+	ev.Payload = payload(t, `{"date": "2026-11-23", "timezone": "Asia/Baku", "total": 1, "truncated": false, "items": [
+		{"key": "QA-12", "title": "Başlıq", "project": "QA", "due_date": "2026-11-20", "days_overdue": 3,
+		 "assignee_id": null, "assignee_name": "Bob Developer"}]}`)
+	want = "⚠️ Gecikmədə olanlar (1):\n• QA-12 Başlıq — 3 gün gecikir (20.11.2026) — Bob Developer"
+	if got := RenderChat(ev, ChatContext{}); got != want {
+		t.Errorf("\n got %q\nwant %q", got, want)
+	}
+}
+
+// 100 long entries must stay under the message limit and count what was cut.
+func TestRenderChatOverdueDigestLimit(t *testing.T) {
+	items := make([]any, 100)
+	for i := range items {
+		items[i] = map[string]any{"key": fmt.Sprintf("QA-%d", i+1), "title": strings.Repeat("ə", 200), "project": "QA",
+			"due_date": "2026-11-20", "days_overdue": 3.0, "assignee_name": "Bob"}
+	}
+	got := RenderChat(store.Event{Action: "workspace.overdue_digest", EntityType: "workspace",
+		Payload: map[string]any{"total": 250.0, "truncated": true, "items": items}}, ChatContext{})
+	lines := strings.Split(got, "\n")
+	shown := len(lines) - 2 // header and "…və daha"
+	if len(got) > maxChatText || shown < 1 || lines[len(lines)-1] != fmt.Sprintf("…və daha %d", 250-shown) {
+		t.Fatalf("len %d, %d entries, last line %q", len(got), shown, lines[len(lines)-1])
+	}
+}
+
+func TestRenderChatUnknownEventFallback(t *testing.T) {
+	got := RenderChat(store.Event{Action: "item.archived", EntityType: "item", Source: "system"},
+		ChatContext{Item: &store.ItemLabel{Key: "QA-1", Title: "X"}})
+	if got != "ℹ️ item.archived: QA-1 “X” — Sistem" {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestAzDate(t *testing.T) {
+	for in, want := range map[string]string{"2026-11-20": "20.11.2026", "": "", "2026-1-20": "", "20xx-11-20": ""} {
+		if got := azDate(in); got != want {
+			t.Errorf("azDate(%q) = %q", in, got)
+		}
 	}
 }

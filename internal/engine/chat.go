@@ -31,6 +31,9 @@ type ChatContext struct {
 	ItemURL  string           // link to the item in the web UI ("" = no link)
 	Users    map[uuid.UUID]string
 	Statuses map[uuid.UUID]string
+	// PublicURL is the web UI base URL, for links to items that are not the
+	// event's own entity (digest entries). "" = no links.
+	PublicURL string
 }
 
 const maxChatText = 3000 // well under Mattermost's 16k and Slack's 40k limits
@@ -64,6 +67,16 @@ func RenderChat(ev store.Event, c ChatContext) string {
 		lines = append(lines, fmt.Sprintf("💬 %s %s%s tapşırığındakı şərhi redaktə etdi", who, ref, title))
 	case "comment.deleted":
 		lines = append(lines, fmt.Sprintf("💬 %s %s%s tapşırığındakı şərhi sildi", who, ref, title))
+	case "item.overdue":
+		if t, _ := ev.Payload["title"].(string); t != "" {
+			title = " " + quote(t)
+		}
+		if ref == "" {
+			ref = escapeChat(str(ev.Payload["key"]))
+		}
+		lines = append(lines, fmt.Sprintf("⏰ %s%s — %s", ref, title, overdueTail(ev.Payload)))
+	case "workspace.overdue_digest":
+		return c.overdueDigest(ev)
 	default:
 		subject := ref + title
 		if subject == "" {
@@ -115,6 +128,84 @@ func (c ChatContext) itemUpdated(ev store.Event, ref, title, who string) []strin
 		lines = append(lines, fmt.Sprintf("✏️ %s%s yeniləndi — %s", ref, title, who))
 	}
 	return lines
+}
+
+// overdueTail renders "3 gün gecikir (20.11.2026) — Bob Developer".
+func overdueTail(p map[string]any) string {
+	days, _ := p["days_overdue"].(float64)
+	out := fmt.Sprintf("%d gün gecikir", int64(days))
+	if d := azDate(str(p["due_date"])); d != "" {
+		out += " (" + d + ")"
+	}
+	if n := str(p["assignee_name"]); n != "" {
+		out += " — " + escapeChat(n)
+	} else {
+		out += " — icraçı yoxdur"
+	}
+	return out
+}
+
+// overdueDigest renders the daily overdue list, stopping before the message
+// limit and saying how many entries were left out.
+func (c ChatContext) overdueDigest(ev store.Event) string {
+	entries, _ := ev.Payload["items"].([]any)
+	total, _ := ev.Payload["total"].(float64)
+	shownTotal := max(int(total), len(entries))
+	var b strings.Builder
+	fmt.Fprintf(&b, "⚠️ Gecikmədə olanlar (%d):", shownTotal)
+	shown := 0
+	for _, x := range entries {
+		it, ok := x.(map[string]any)
+		if !ok {
+			continue
+		}
+		key := escapeChat(str(it["key"]))
+		if u := c.digestURL(ev.WorkspaceSlug, it); u != "" {
+			key = "<" + u + "|" + key + ">"
+		}
+		line := "\n• " + key
+		if t := escapeChat(str(it["title"])); t != "" {
+			line += " " + t
+		}
+		line += " — " + overdueTail(it)
+		// Reserve room for the "…və daha N" line.
+		if b.Len()+len(line) > maxChatText-40 {
+			break
+		}
+		b.WriteString(line)
+		shown++
+	}
+	if rest := shownTotal - shown; rest > 0 {
+		fmt.Fprintf(&b, "\n…və daha %d", rest)
+	}
+	return b.String()
+}
+
+func (c ChatContext) digestURL(wsSlug string, it map[string]any) string {
+	project, key := str(it["project"]), str(it["key"])
+	n, err := strconv.ParseInt(strings.TrimPrefix(key, project+"-"), 10, 64)
+	if project == "" || err != nil {
+		return ""
+	}
+	return ItemURL(c.PublicURL, wsSlug, store.ItemLabel{ProjectKey: project, Number: n})
+}
+
+// azDate turns 2026-11-20 into 20.11.2026; anything else gives "".
+func azDate(iso string) string {
+	if len(iso) != 10 || iso[4] != '-' || iso[7] != '-' {
+		return ""
+	}
+	for i, r := range iso {
+		if i != 4 && i != 7 && (r < '0' || r > '9') {
+			return ""
+		}
+	}
+	return iso[8:10] + "." + iso[5:7] + "." + iso[0:4]
+}
+
+func str(v any) string {
+	s, _ := v.(string)
+	return s
 }
 
 // itemRef returns the (linked) item key and the quoted title, each with a
@@ -261,7 +352,7 @@ func ItemURL(base, wsSlug string, l store.ItemLabel) string {
 // chatContext loads names for ev. Lookup errors are returned so delivery is
 // retried rather than sending a message full of question marks.
 func (e *Engine) chatContext(ctx context.Context, ev store.Event) (ChatContext, error) {
-	c := ChatContext{}
+	c := ChatContext{PublicURL: e.PublicURL}
 	var users, statuses []uuid.UUID
 	if ev.ActorID != nil {
 		users = append(users, *ev.ActorID)
