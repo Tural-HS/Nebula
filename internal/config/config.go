@@ -52,6 +52,7 @@ type Config struct {
 	// JobMetricsInterval is how often the job-queue gauges are refreshed from
 	// the database (one cheap query per process and interval, not per scrape).
 	JobMetricsInterval time.Duration
+	Attachments        Attachments
 }
 
 // SMTP configures outgoing email. Empty Host disables email.
@@ -192,6 +193,11 @@ func Load(rawGetenv func(string) string) (Config, error) {
 		errs = append(errs, errors.New("NEBULA_WORKER_CONCURRENCY must be an integer between 0 and 256"))
 	}
 	cfg.WorkerConcurrency = workers
+
+	cfg.Attachments, err = loadAttachments(get, getenv, cfg.Env)
+	if err != nil {
+		errs = append(errs, err)
+	}
 
 	cfg.ShutdownTimeout = parseDuration(get("NEBULA_SHUTDOWN_TIMEOUT", "25s"), "NEBULA_SHUTDOWN_TIMEOUT", &errs)
 	cfg.RequestTimeout = parseDuration(get("NEBULA_REQUEST_TIMEOUT", "30s"), "NEBULA_REQUEST_TIMEOUT", &errs)

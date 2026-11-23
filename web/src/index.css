@@ -39,3 +39,55 @@
     @apply outline-2 outline-offset-2 outline-brand-500;
   }
 }
+
+/* Rendered Markdown (components/Markdown.tsx, ADR-0022): compact, drawer-sized. */
+@layer components {
+  .nebula-md > * + * {
+    margin-top: 0.5rem;
+  }
+  .nebula-md h1 {
+    @apply text-base font-semibold;
+  }
+  .nebula-md h2 {
+    @apply text-[0.95rem] font-semibold;
+  }
+  .nebula-md :is(h3, h4, h5, h6) {
+    @apply text-sm font-semibold;
+  }
+  .nebula-md ul {
+    @apply list-disc pl-5;
+  }
+  .nebula-md ol {
+    @apply list-decimal pl-5;
+  }
+  .nebula-md li:has(> input[type="checkbox"]) {
+    @apply -ml-5 list-none;
+  }
+  .nebula-md li > :is(ul, ol) {
+    @apply mt-1;
+  }
+  .nebula-md code {
+    @apply rounded bg-zinc-100 px-1 py-0.5 font-mono text-[0.8125rem] dark:bg-zinc-800;
+  }
+  .nebula-md pre {
+    @apply overflow-x-auto rounded-md bg-zinc-100 p-3 dark:bg-zinc-800;
+  }
+  .nebula-md pre code {
+    @apply bg-transparent p-0;
+  }
+  .nebula-md blockquote {
+    @apply border-l-2 border-zinc-300 pl-3 text-zinc-600 dark:border-zinc-700 dark:text-zinc-400;
+  }
+  .nebula-md hr {
+    @apply border-zinc-200 dark:border-zinc-800;
+  }
+  .nebula-md table {
+    @apply border-collapse text-left;
+  }
+  .nebula-md :is(th, td) {
+    @apply border border-zinc-200 px-2 py-1 dark:border-zinc-700;
+  }
+  .nebula-md th {
+    @apply bg-zinc-50 font-semibold dark:bg-zinc-800/60;
+  }
+}

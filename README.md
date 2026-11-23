@@ -15,6 +15,7 @@ böyük həcmli məlumatlarda sürətli, tam fərdiləşdirilə bilən, öz serv
 - Mattermost/Slack bildirişləri və etibarlı proxy-lər: [ADR-0010](docs/adr/0010-chat-notifications-and-trusted-proxies.md)
 - Saxlanılan görünüşlər, cədvəl sütunları və cəm sətri: [ADR-0014](docs/adr/0014-saved-views-and-table-totals.md)
 - Tətbiqdaxili bildirişlər: [ADR-0017](docs/adr/0017-in-app-notifications.md)
+- Fayl əlavələri və Markdown: [ADR-0022](docs/adr/0022-attachments-markdown.md)
 - Production (tək VPS, Docker Compose): [ADR-0015](docs/adr/0015-production-compose-on-vps.md), runbook [deploy/production/README.md](deploy/production/README.md)
 - Production hardening (fayl sirləri, ayrı DB rolları, healthcheck, növbə metrikləri, Trivy): [ADR-0018](docs/adr/0018-production-hardening.md)
 - Yol xəritəsi: [docs/ROADMAP.md](docs/ROADMAP.md)
@@ -89,7 +90,7 @@ nebula version          build versiyasını göstərir
 Bütün konfiqurasiya mühit dəyişənlərindən oxunur; bax: [.env.example](.env.example).
 Yanlış konfiqurasiya zamanı proqram başlamır və bütün problemləri bir dəfədə siyahı şəklində göstərir.
 
-**Sirlər fayldan (`*_FILE`, ADR-0018):** `NEBULA_DATABASE_URL`, `NEBULA_DATABASE_PASSWORD`, `NEBULA_MIGRATE_DATABASE_URL`, `NEBULA_MIGRATE_DATABASE_PASSWORD`, `NEBULA_ENCRYPTION_KEY`, `NEBULA_ENCRYPTION_KEYS_OLD`, `NEBULA_SMTP_PASSWORD` dəyişənlərinin hər biri `..._FILE` kimi də verilə bilər (məs. `NEBULA_ENCRYPTION_KEY_FILE=/run/secrets/nebula_encryption_key`). Faylın sonundakı bir sətir sonu silinir. İkisi birlikdə, oxuna bilməyən və ya 64 KiB-dan böyük fayl → proqram başlamır. Xəta mesajlarında dəyər heç vaxt göstərilmir.
+**Sirlər fayldan (`*_FILE`, ADR-0018):** `NEBULA_DATABASE_URL`, `NEBULA_DATABASE_PASSWORD`, `NEBULA_MIGRATE_DATABASE_URL`, `NEBULA_MIGRATE_DATABASE_PASSWORD`, `NEBULA_ENCRYPTION_KEY`, `NEBULA_ENCRYPTION_KEYS_OLD`, `NEBULA_SMTP_PASSWORD`, `NEBULA_ATTACHMENTS_S3_ACCESS_KEY`, `NEBULA_ATTACHMENTS_S3_SECRET_KEY` dəyişənlərinin hər biri `..._FILE` kimi də verilə bilər (məs. `NEBULA_ENCRYPTION_KEY_FILE=/run/secrets/nebula_encryption_key`). Faylın sonundakı bir sətir sonu silinir. İkisi birlikdə, oxuna bilməyən və ya 64 KiB-dan böyük fayl → proqram başlamır. Xəta mesajlarında dəyər heç vaxt göstərilmir.
 
 | Dəyişən | Default | Qeyd |
 |---|---|---|
@@ -120,6 +121,17 @@ Yanlış konfiqurasiya zamanı proqram başlamır və bütün problemləri bir d
 | `NEBULA_SMTP_PORT` / `_TLS` | `587` / `starttls` | `starttls`, `tls` və ya `none` (`none` productionda qadağandır) |
 | `NEBULA_SMTP_USERNAME` / `_PASSWORD` / `_FROM` | — | `FROM` email aktiv olduqda məcburidir |
 | `NEBULA_WEBHOOK_ALLOW_PRIVATE` | `false` | Daxili ünvanlara webhook; **yalnız development**, productionda qadağandır (SSRF) |
+| `NEBULA_ATTACHMENTS_BACKEND` | `local` | `local`, `s3` və ya `disabled` (ADR-0022) |
+| `NEBULA_ATTACHMENTS_DIR` | `/var/lib/nebula/attachments` | `local`: davamlı volume; startda yazıla bilən olmalıdır. **pgBackRest bunu saxlamır** (runbook §4.1) |
+| `NEBULA_ATTACHMENTS_S3_ENDPOINT` / `_BUCKET` / `_REGION` / `_PREFIX` / `_PATH_STYLE` | — / — / `us-east-1` / boş / `true` | `s3`: istənilən S3-uyğun server; productionda https |
+| `NEBULA_ATTACHMENTS_S3_ACCESS_KEY` / `_SECRET_KEY` | — | `s3`: adətən `_FILE` ilə |
+| `NEBULA_ATTACHMENTS_TMP_DIR` | sistem temp | `s3`: yükləmə yoxlanılarkən staging fayllar |
+| `NEBULA_ATTACHMENTS_MAX_FILE_MB` | `20` | Fayl başına limit (reverse proxy body limitindən kiçik olmalıdır) |
+| `NEBULA_ATTACHMENTS_WORKSPACE_QUOTA_MB` | `5120` | Workspace başına cəmi; `0` limitsiz |
+| `NEBULA_ATTACHMENTS_MAX_PER_ITEM` | `100` | Tapşırıq başına fayl sayı; `0` limitsiz |
+| `NEBULA_ATTACHMENTS_UPLOADS_PER_MINUTE` | `30` | İstifadəçi başına, replika başına; `0` söndürür |
+| `NEBULA_ATTACHMENTS_TRANSFER_TIMEOUT` | `5m` | Bir yükləmə/endirmə üçün son müddət (API timeout-u əvəzinə) |
+| `NEBULA_ATTACHMENTS_PURGE_DELAY` | `168h` | Silinmiş faylın blob-u bu qədər saxlanılır (PITR + fayl backup-ı uyğunluğu) |
 
 ## Endpoint-lər
 
@@ -160,6 +172,9 @@ Bütün `/api/v1` endpoint-ləri (`/version` istisna olmaqla) `Authorization: Be
 | `GET .../items/{number}/transitions` | Növbəti mümkün statuslar | guest+ |
 | `GET, POST .../items/{number}/comments` | Şərhlər (`cursor`, `limit`) / yazmaq; `<@user-id>` ilə qeydetmə | guest+ / member+ |
 | `PATCH, DELETE .../items/{number}/comments/{id}` | Redaktə (yalnız müəllif) / silmə (müəllif və ya admin) | member+ |
+| `GET, POST .../items/{number}/attachments` | Fayllar və limitlər / yükləmə (`multipart/form-data`: `file`, istəyə bağlı `comment_id`) | guest+ / member+ |
+| `GET .../items/{number}/attachments/{id}/content` | Endirmə (həmişə `attachment`; `?inline=1` yalnız PNG/JPEG/GIF/WebP) | guest+ |
+| `DELETE .../items/{number}/attachments/{id}` | Silmə (yükləyən və ya admin) | member+ |
 | `GET .../items/{number}/activity` | Tapşırığın tarixçəsi (`before`, `limit`) | guest+ |
 | `GET .../{ws}/audit-log` | Workspace audit log (`before`, `limit`, `action`, `actor`) | admin+ |
 | `POST .../{ws}/webhooks/{id}/ping` | Test çatdırılması | admin+ |

@@ -43,7 +43,8 @@
 		# The build emits only same-origin module scripts and stylesheets. React style props use the
 		# CSSOM, which CSP does not block, so no 'unsafe-inline'. connect-src allows the IdP's token
 		# endpoint (PKCE code exchange and refresh). Logout/login are top-level navigations.
-		Content-Security-Policy "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://{$NEBULA_AUTH_HOST}; manifest-src 'self'; frame-src 'none'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'; object-src 'none'; upgrade-insecure-requests"
+		# img-src blob: shows attachment thumbnails, which the SPA fetches with its bearer token (ADR-0022).
+		Content-Security-Policy "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://{$NEBULA_AUTH_HOST}; manifest-src 'self'; frame-src 'none'; frame-ancestors 'none'; form-action 'self'; base-uri 'none'; object-src 'none'; upgrade-insecure-requests"
 		X-Frame-Options "DENY"
 		Cross-Origin-Resource-Policy "same-origin"
 	}

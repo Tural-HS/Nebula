@@ -42,6 +42,8 @@ type Deps struct {
 	Webhooks       safehttp.Options // URL policy for webhook targets
 	// PublicURL is the web UI's base URL, for links in emails (invitations).
 	PublicURL string
+	// Attachments configures file uploads; zero value: attachments disabled.
+	Attachments Attachments
 }
 
 // NewAPIHandler returns the public HTTP handler.
@@ -53,7 +55,7 @@ func NewAPIHandler(d Deps) http.Handler {
 	r.Use(recoverer(d.Logger))
 	r.Use(accessLog(d.Logger, d.Metrics, clientIP))
 	r.Use(securityHeaders)
-	r.Use(middleware.Timeout(d.RequestTimeout))
+	r.Use(timeoutUnless(d.RequestTimeout, isTransfer)) // file transfers bound themselves (ADR-0022)
 
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
@@ -81,7 +83,8 @@ func NewAPIHandler(d Deps) http.Handler {
 			r.Use(ratelimit.Middleware(ratelimit.New(d.RateLimit.UserRPS, d.RateLimit.UserBurst), func(r *http.Request) string {
 				return principal(r).UserID.String()
 			}, writeError))
-			(&api{store: d.Store, logger: d.Logger, webhookOpts: d.Webhooks, publicURL: d.PublicURL}).routes(r)
+			(&api{store: d.Store, logger: d.Logger, webhookOpts: d.Webhooks, publicURL: d.PublicURL,
+				attach: d.Attachments, uploadLimiter: newUploadLimiter(d.Attachments.UploadsPerMinute)}).routes(r)
 		})
 	})
 

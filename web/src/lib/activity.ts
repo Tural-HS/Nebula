@@ -1,5 +1,6 @@
 import type { Activity } from "../api/types";
 import { t } from "../i18n";
+import { ta } from "../i18n-attach";
 import { formatDate } from "./format";
 
 export interface Lookup {
@@ -41,6 +42,10 @@ export function describe(a: Activity, lookup: Lookup): Line[] {
       return [{ text: t.act.commentEdited }];
     case "comment.deleted":
       return [{ text: t.act.commentDeleted }];
+    case "attachment.added":
+      return [{ text: ta.act.added(str(a.data.filename)) }];
+    case "attachment.removed":
+      return [{ text: ta.act.removed(str(a.data.filename)) }];
     case "item.updated": {
       const changes = (a.data.changes ?? {}) as Record<string, Change>;
       const lines: Line[] = [];

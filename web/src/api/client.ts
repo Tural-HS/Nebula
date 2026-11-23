@@ -105,3 +105,18 @@ export async function apiUpload(
   if (!res.ok && !bodyOn.includes(res.status)) throw await parseError(res);
   return { status: res.status, body: (await res.json()) as unknown };
 }
+
+/**
+ * Downloads a binary response (attachments) with the bearer token. Files are
+ * never linked directly: there are no public or cookie-authenticated URLs.
+ */
+export async function apiBlob(path: string, fetchImpl: typeof fetch = fetch): Promise<Blob> {
+  if (!path.startsWith("/")) throw new Error("api path must start with /");
+  const headers: Record<string, string> = {};
+  const token = await tokenProvider();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetchImpl("/api/v1" + path, { headers, credentials: "omit" });
+  if (res.status === 401) onUnauthorized();
+  if (!res.ok) throw await parseError(res);
+  return res.blob();
+}
