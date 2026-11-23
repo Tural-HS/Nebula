@@ -225,6 +225,8 @@ Sxemi də geri qaytarmaq lazımdırsa `--migrate-down-to N` Down hissələrini *
 | 00007 webhook format | var | `slack` webhook-ları söndürülür (URL bərpa olunmur) |
 | 00008 import source | var | `import` mənbəyi `user`-ə çevrilir (metadata itir) |
 | 00009 recurrences | var | təkrarlanan qaydalar silinir |
+| 00010 project privacy | var | ⚠️ **təhlükəsizlik**: `visibility` və layihə üzvləri silinir, **gizli layihələr bütün workspace üzvlərinə görünən olur**. Gizli layihə varsa Down əvəzinə PITR istifadə edin |
+| 00011 saved views | var | saxlanılan görünüşlər silinir; indeks `CONCURRENTLY` silinir (yazmaları bloklamır) |
 
 Down-u olan amma data silən miqrasiyadan sonra, və ya Down-u olmayan (gələcək) miqrasiyadan sonra, **məlumatı qaytarmağın yeganə yolu PITR-dir**: `restore.sh --target '<deploy-dan əvvəlki an>'` (deploy-dan əvvəlki incremental backup bu nöqtəni təmin edir) — həmin andan sonrakı yazılar itir.
 
