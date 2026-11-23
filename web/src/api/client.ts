@@ -84,3 +84,24 @@ export async function api<T>(method: string, path: string, body?: unknown, fetch
 export function path(strings: TemplateStringsArray, ...values: (string | number)[]): string {
   return strings.reduce((acc, s, i) => acc + s + (i < values.length ? encodeURIComponent(String(values[i])) : ""), "");
 }
+
+/**
+ * Posts a multipart form (file uploads). The browser sets the multipart
+ * boundary; we only add the bearer token. Statuses in `bodyOn` resolve with
+ * the parsed body instead of throwing (e.g. 422 import reports).
+ */
+export async function apiUpload(
+  path: string,
+  form: FormData,
+  bodyOn: readonly number[] = [],
+  fetchImpl: typeof fetch = fetch,
+): Promise<{ status: number; body: unknown }> {
+  if (!path.startsWith("/")) throw new Error("api path must start with /");
+  const headers: Record<string, string> = { Accept: "application/json" };
+  const token = await tokenProvider();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetchImpl("/api/v1" + path, { method: "POST", headers, body: form, credentials: "omit" });
+  if (res.status === 401) onUnauthorized();
+  if (!res.ok && !bodyOn.includes(res.status)) throw await parseError(res);
+  return { status: res.status, body: (await res.json()) as unknown };
+}
