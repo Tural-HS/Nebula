@@ -1,0 +1,37 @@
+# Alertmanager routing to Mattermost (incoming webhook, Slack-compatible payload).
+# Merge into the central Alertmanager config. The webhook URL is a secret: it is read from a file
+# (OpenBao agent / External Secrets / 0400 file), never written into this config.
+# Validate: amtool check-config mattermost.yaml
+route:
+  receiver: mattermost-nebula
+  group_by: [alertname, instance]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    - matchers: ['severity="critical"', 'instance=~"nebula-.*"']
+      receiver: mattermost-nebula
+      repeat_interval: 1h
+    - matchers: ['instance=~"nebula-.*"']
+      receiver: mattermost-nebula
+
+inhibit_rules:
+  # When the API is down, do not also page for every symptom of it.
+  - source_matchers: ['alertname="NebulaAPIDown"']
+    target_matchers: ['alertname=~"NebulaHigh5xxRate|NebulaHighLatency|NebulaJobQueueBacklog"']
+    equal: [instance]
+  - source_matchers: ['alertname="NebulaDiskFull"']
+    target_matchers: ['alertname="NebulaDiskAlmostFull"']
+    equal: [instance, mountpoint]
+
+receivers:
+  - name: mattermost-nebula
+    slack_configs:
+      - api_url_file: /etc/alertmanager/secrets/mattermost_webhook_url
+        send_resolved: true
+        username: Alertmanager
+        title: '{{ if eq .Status "firing" }}🔥{{ else }}✅{{ end }} [{{ .Status | toUpper }}] {{ .CommonLabels.alertname }} ({{ .CommonLabels.instance }})'
+        text: |-
+          {{ range .Alerts }}**{{ .Labels.severity }}** — {{ .Annotations.summary }}
+          {{ with .Annotations.description }}{{ . }}{{ end }}
+          {{ end }}

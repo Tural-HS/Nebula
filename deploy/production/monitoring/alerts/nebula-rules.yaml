@@ -1,0 +1,191 @@
+# Prometheus alerting rules for Nebula production. Load into the central Prometheus
+# (rule_files), Mimir ruler (mimirtool rules load) or import as Grafana data-source-managed rules.
+# Evaluated centrally on purpose: if the host dies, "absent" alerts still fire.
+# Labels: instance = NEBULA_INSTANCE (Alloy relabel). Validate: promtool check rules nebula-rules.yaml
+groups:
+  - name: nebula-availability
+    rules:
+      - alert: NebulaAPIDown
+        expr: up{job="nebula"} == 0 or absent(up{job="nebula"})
+        for: 2m
+        labels: { severity: critical }
+        annotations:
+          summary: "Nebula API is not scrapeable ({{ $labels.instance }})"
+          description: "The Nebula container is down, unhealthy, or the host/Alloy is gone. Runbook: deploy/production/README.md#insident"
+
+      - alert: NebulaPublicEndpointDown
+        expr: probe_success{job=~"nebula_web|nebula_auth"} == 0
+        for: 3m
+        labels: { severity: critical }
+        annotations:
+          summary: "{{ $labels.job }} is failing end-to-end through Caddy"
+          description: "HTTPS probe {{ $labels.instance }} fails (TLS, Caddy, Nebula or Keycloak)."
+
+      - alert: NebulaHostMetricsAbsent
+        expr: absent(up{job="node"})
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: "No host metrics from Nebula production"
+          description: "Alloy or the whole host stopped reporting. Check the VPS and the Alloy container."
+
+  - name: nebula-http
+    rules:
+      - alert: NebulaHigh5xxRate
+        expr: |
+          (
+            sum by (instance) (rate(nebula_http_requests_total{code=~"5.."}[5m]))
+          /
+            sum by (instance) (rate(nebula_http_requests_total[5m]))
+          ) > 0.02
+          and sum by (instance) (rate(nebula_http_requests_total[5m])) > 0.1
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: "Nebula 5xx ratio {{ $value | humanizePercentage }}"
+          description: "More than 2% of API requests fail with 5xx for 5 minutes."
+
+      - alert: NebulaEdge5xxRate
+        expr: |
+          (
+            sum by (instance) (rate(caddy_http_requests_total{code=~"5.."}[5m]))
+          /
+            sum by (instance) (rate(caddy_http_requests_total[5m]))
+          ) > 0.05
+          and sum by (instance) (rate(caddy_http_requests_total[5m])) > 0.1
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "Caddy 5xx ratio {{ $value | humanizePercentage }}"
+          description: "5xx at the edge (502/504 = upstream down or slow)."
+
+      - alert: NebulaHighLatency
+        expr: |
+          histogram_quantile(0.95, sum by (instance, le) (rate(nebula_http_request_duration_seconds_bucket[5m]))) > 1
+          and sum by (instance) (rate(nebula_http_requests_total[5m])) > 0.1
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "Nebula p95 latency {{ $value | humanizeDuration }}"
+
+  - name: nebula-jobs
+    rules:
+      - alert: NebulaJobQueueBacklog
+        expr: max by (instance) (nebula_job_queue_oldest_age_seconds{state="pending_due"}) > 600
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "Oldest runnable job waits {{ $value | humanizeDuration }}"
+          description: "Webhooks/emails/automations are delayed: worker stuck, overloaded or disabled (NEBULA_WORKER_CONCURRENCY)."
+
+      - alert: NebulaJobQueueLarge
+        expr: max by (instance) (nebula_job_queue_jobs{state="pending_due"}) > 1000
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $value }} runnable jobs queued"
+
+      - alert: NebulaJobsFailing
+        expr: sum by (instance, kind) (increase(nebula_jobs_total{result="failed"}[30m])) > 5
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $value | humanize }} {{ $labels.kind }} jobs failed permanently in 30m"
+          description: "Jobs exhausted their retries (webhook receiver down, SMTP rejecting, ...). See the delivery log / logs."
+
+  - name: nebula-host
+    rules:
+      - alert: NebulaDiskAlmostFull
+        expr: |
+          (1 - node_filesystem_avail_bytes{job="node", fstype!~"tmpfs|overlay|squashfs|erofs|iso9660"} / node_filesystem_size_bytes{job="node", fstype!~"tmpfs|overlay|squashfs|erofs|iso9660"}) > 0.85
+          and node_filesystem_readonly{job="node"} == 0
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "Disk {{ $labels.mountpoint }} is {{ $value | humanizePercentage }} full"
+          description: "Postgres stops (and WAL piles up) when the disk fills. Check pgbackrest-spool and Docker images (docker system df)."
+
+      - alert: NebulaDiskFull
+        expr: |
+          (1 - node_filesystem_avail_bytes{job="node", fstype!~"tmpfs|overlay|squashfs|erofs|iso9660"} / node_filesystem_size_bytes{job="node", fstype!~"tmpfs|overlay|squashfs|erofs|iso9660"}) > 0.95
+          and node_filesystem_readonly{job="node"} == 0
+        for: 2m
+        labels: { severity: critical }
+        annotations:
+          summary: "Disk {{ $labels.mountpoint }} is {{ $value | humanizePercentage }} full"
+
+      - alert: NebulaMemoryPressure
+        expr: rate(node_pressure_memory_stalled_seconds_total{job="node"}[5m]) > 0.1
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "Host memory pressure (stalled {{ $value | humanizePercentage }})"
+
+      - alert: NebulaContainerOOMKilled
+        expr: |
+          increase(container_oom_events_total{job="cadvisor"}[15m])
+            * on (instance, container_id) group_left (service) max by (instance, container_id, service) (nebula_container_info) > 0
+        labels: { severity: warning }
+        annotations:
+          summary: "OOM kill in {{ $labels.service }}"
+          description: "Raise the memory limit in compose.yaml or find the leak."
+
+      - alert: NebulaClockSkew
+        expr: abs(node_timex_offset_seconds{job="node"}) > 0.5 or node_timex_sync_status{job="node"} == 0
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "Host clock is not synchronised (tokens and TLS depend on it)"
+
+  - name: nebula-backups
+    rules:
+      - alert: NebulaBackupTooOld
+        expr: time() - max by (instance) (nebula_pgbackrest_last_backup_timestamp_seconds) > 26 * 3600
+        labels: { severity: critical }
+        annotations:
+          summary: "Newest PostgreSQL backup is {{ $value | humanizeDuration }} old"
+          description: "No full/diff backup completed in 26h. journalctl -u 'nebula-backup@*'"
+
+      - alert: NebulaBackupMetricsMissing
+        expr: absent(nebula_pgbackrest_last_backup_timestamp_seconds)
+        for: 1h
+        labels: { severity: critical }
+        annotations:
+          summary: "No backup metrics (backup never ran, or the textfile collector is broken)"
+
+      - alert: NebulaBackupFailed
+        expr: nebula_pgbackrest_backup_last_run_success == 0
+        labels: { severity: critical }
+        annotations:
+          summary: "Last {{ $labels.type }} backup failed"
+
+      - alert: NebulaWALArchivingFailing
+        expr: |
+          increase(pg_stat_archiver_failed_count[15m]) > 0
+          and (pg_stat_archiver_last_archive_age > 900 or absent(pg_stat_archiver_last_archive_age))
+        for: 5m
+        labels: { severity: critical }
+        annotations:
+          summary: "WAL archiving to S3 is failing: RPO is growing and pg_wal fills the disk"
+          description: "docker compose exec postgres pgbackrest --stanza=nebula check"
+
+      - alert: NebulaRestoreTestStale
+        expr: time() - nebula_restore_test_last_success_timestamp_seconds > 35 * 86400 or nebula_restore_test_last_run_success == 0
+        labels: { severity: warning }
+        annotations:
+          summary: "No successful restore test in 35 days (or the last one failed)"
+
+  - name: nebula-tls
+    rules:
+      - alert: NebulaCertificateExpiringSoon
+        expr: (probe_ssl_earliest_cert_expiry{job=~"nebula_web|nebula_auth"} - time()) < 14 * 86400
+        for: 1h
+        labels: { severity: warning }
+        annotations:
+          summary: "TLS certificate for {{ $labels.instance }} expires in {{ $value | humanizeDuration }}"
+          description: "Caddy renews 30 days ahead: renewal is failing. docker compose logs caddy | grep -i acme"
+
+      - alert: NebulaCertificateExpiryCritical
+        expr: (probe_ssl_earliest_cert_expiry{job=~"nebula_web|nebula_auth"} - time()) < 3 * 86400
+        labels: { severity: critical }
+        annotations:
+          summary: "TLS certificate for {{ $labels.instance }} expires in {{ $value | humanizeDuration }}"

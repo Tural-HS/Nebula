@@ -1,0 +1,216 @@
+// Grafana Alloy: the only telemetry agent on the host. Scrapes everything locally and
+// remote-writes to the existing Prometheus/Mimir. Alert rules are evaluated THERE (not on this
+// host), so "host down" is still detected when this machine is gone (absent()/up == 0).
+
+// ---------------------------------------------------------------- secrets (Docker secret files)
+local.file "remote_write_password" {
+  filename  = "/run/secrets/remote_write_password"
+  is_secret = true
+}
+
+local.file "monitoring_db_password" {
+  filename  = "/run/secrets/monitoring_db_password"
+  is_secret = true
+}
+
+// ---------------------------------------------------------------- remote write
+prometheus.remote_write "default" {
+  external_labels = {
+    instance_group = sys.env("NEBULA_INSTANCE"),
+    env            = "production",
+  }
+
+  endpoint {
+    url = sys.env("REMOTE_WRITE_URL")
+
+    basic_auth {
+      username = sys.env("REMOTE_WRITE_USERNAME")
+      password = local.file.remote_write_password.content
+    }
+
+    queue_config {
+      max_samples_per_send = 2000
+    }
+  }
+
+  // On-disk WAL (alloy-data volume): samples survive short remote outages and restarts.
+  wal {
+    truncate_frequency = "2h"
+  }
+}
+
+// Every scrape gets a stable "instance" label: the deployment name, not a container IP.
+prometheus.relabel "common" {
+  forward_to = [prometheus.remote_write.default.receiver]
+
+  rule {
+    target_label = "instance"
+    replacement  = sys.env("NEBULA_INSTANCE")
+  }
+
+  // Built-in exporters label their series job="integrations/<name>": use the conventional names
+  // the alert rules and dashboard expect (node, postgres, cadvisor, nebula_web, nebula_auth).
+  rule {
+    source_labels = ["job"]
+    regex         = "integrations/unix"
+    target_label  = "job"
+    replacement   = "node"
+  }
+
+  rule {
+    source_labels = ["job"]
+    regex         = "integrations/(postgres|cadvisor)"
+    target_label  = "job"
+    replacement   = "$1"
+  }
+
+  rule {
+    source_labels = ["job"]
+    regex         = "integrations/blackbox/(.+)"
+    target_label  = "job"
+    replacement   = "$1"
+  }
+}
+
+// ---------------------------------------------------------------- Nebula API + worker
+prometheus.scrape "nebula" {
+  job_name        = "nebula"
+  targets         = [{"__address__" = "nebula:9090"}]
+  metrics_path    = "/metrics"
+  scrape_interval = "15s"
+  forward_to      = [prometheus.relabel.common.receiver]
+}
+
+// ---------------------------------------------------------------- Caddy (edge, TLS, 5xx at the door)
+prometheus.scrape "caddy" {
+  job_name        = "caddy"
+  targets         = [{"__address__" = "caddy:2020"}]
+  scrape_interval = "15s"
+  forward_to      = [prometheus.relabel.common.receiver]
+}
+
+// ---------------------------------------------------------------- Keycloak (management port)
+prometheus.scrape "keycloak" {
+  job_name        = "keycloak"
+  targets         = [{"__address__" = "keycloak:9000"}]
+  metrics_path    = "/metrics"
+  scrape_interval = "30s"
+  forward_to      = [prometheus.relabel.common.receiver]
+}
+
+// ---------------------------------------------------------------- PostgreSQL (pg_monitor role only)
+prometheus.exporter.postgres "db" {
+  data_source_names = [
+    string.format("postgresql://nebula_monitor:%s@postgres:5432/nebula?sslmode=disable", convert.nonsensitive(local.file.monitoring_db_password.content)),
+  ]
+  custom_queries_config_path = "/etc/alloy/postgres-queries.yaml"
+  // pg_stat_archiver (WAL archiving alerts) is part of the default metrics.
+  enabled_collectors = ["database", "locks", "replication", "stat_bgwriter", "stat_database", "stat_statements", "wal"]
+
+  stat_statements {
+    limit        = 50
+    query_length = 0 // never ship query text (may contain data)
+  }
+}
+
+prometheus.scrape "postgres" {
+  job_name        = "postgres"
+  targets         = prometheus.exporter.postgres.db.targets
+  scrape_interval = "30s"
+  forward_to      = [prometheus.relabel.common.receiver]
+}
+
+// ---------------------------------------------------------------- host (node_exporter equivalent)
+prometheus.exporter.unix "host" {
+  procfs_path = "/host/proc"
+  sysfs_path  = "/host/sys"
+  rootfs_path = "/host/root"
+
+  set_collectors = [
+    "cpu", "diskstats", "filesystem", "loadavg", "meminfo", "netdev", "netstat", "pressure",
+    "stat", "time", "timex", "uname", "vmstat", "conntrack", "filefd", "sockstat", "textfile",
+  ]
+
+  filesystem {
+    mount_points_exclude = "^/(dev|proc|run/credentials/.+|sys|var/lib/docker/.+)($|/)"
+    fs_types_exclude     = "^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|iso9660|mqueue|nsfs|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|sysfs|tracefs|tmpfs)$"
+  }
+
+  // Backup and restore-test results written by scripts/backup.sh and scripts/restore-test.sh.
+  textfile {
+    directory = "/textfile"
+  }
+}
+
+prometheus.scrape "host" {
+  job_name        = "node"
+  targets         = prometheus.exporter.unix.host.targets
+  scrape_interval = "30s"
+  forward_to      = [prometheus.relabel.common.receiver]
+}
+
+// ---------------------------------------------------------------- containers (cAdvisor, raw cgroups)
+// No Docker/containerd socket: cgroups are read directly (compose: cgroup: host + /sys/fs/cgroup:ro).
+// Series carry the cgroup path in "id"; container_id is extracted from it and joined with
+// nebula_container_info{container_id, service, project} written by scripts/container-info.sh.
+prometheus.exporter.cadvisor "containers" {
+  docker_only      = false
+  storage_duration = "2m"
+  disabled_metrics = ["advtcp", "cpu_topology", "cpuset", "hugetlb", "memory_numa", "process", "referenced_memory", "resctrl", "sched", "tcp", "udp", "percpu", "disk", "diskIO"]
+}
+
+prometheus.scrape "containers" {
+  job_name        = "cadvisor"
+  targets         = prometheus.exporter.cadvisor.containers.targets
+  scrape_interval = "30s"
+  forward_to      = [prometheus.relabel.containers.receiver]
+}
+
+prometheus.relabel "containers" {
+  forward_to = [prometheus.relabel.common.receiver]
+
+  // Keep Docker containers only (systemd driver: docker-<id>.scope, cgroupfs driver: /docker/<id>).
+  rule {
+    source_labels = ["id"]
+    regex         = ".*(?:docker-|/docker/)([0-9a-f]{64})(?:\\.scope)?"
+    action        = "keep"
+  }
+
+  rule {
+    source_labels = ["id"]
+    regex         = ".*(?:docker-|/docker/)([0-9a-f]{64})(?:\\.scope)?"
+    target_label  = "container_id"
+    replacement   = "$1"
+  }
+
+  rule {
+    regex  = "id"
+    action = "labeldrop"
+  }
+}
+
+// ---------------------------------------------------------------- synthetic checks (TLS expiry, end-to-end)
+// Probes the public URLs from this host. Complement with an external probe from the central
+// stack: a self-probe cannot see DNS or upstream network failures.
+prometheus.exporter.blackbox "public" {
+  config = "{ modules: { https_2xx: { prober: http, timeout: 10s, http: { method: GET, fail_if_not_ssl: true, valid_status_codes: [200], preferred_ip_protocol: ip4 } } } }"
+
+  target {
+    name    = "nebula_web"
+    address = string.format("https://%s/config.json", sys.env("NEBULA_HOST"))
+    module  = "https_2xx"
+  }
+
+  target {
+    name    = "nebula_auth"
+    address = string.format("https://%s/realms/%s/.well-known/openid-configuration", sys.env("NEBULA_AUTH_HOST"), sys.env("KEYCLOAK_REALM"))
+    module  = "https_2xx"
+  }
+}
+
+prometheus.scrape "blackbox" {
+  job_name        = "blackbox"
+  targets         = prometheus.exporter.blackbox.public.targets
+  scrape_interval = "60s"
+  forward_to      = [prometheus.relabel.common.receiver]
+}

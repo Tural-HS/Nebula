@@ -1,0 +1,16 @@
+# Custom postgres_exporter queries (prometheus.exporter.postgres custom_queries_config_path).
+# The monitoring role has no table privileges; it calls a SECURITY DEFINER function created by
+# postgres/initdb/10-nebula-roles.sh that returns only aggregates.
+nebula_job_queue:
+  query: "SELECT state, jobs, oldest_age_seconds FROM monitoring.job_queue_stats()"
+  master: true
+  metrics:
+    - state:
+        usage: "LABEL"
+        description: "pending_due = runnable now; failed_last_hour = gave up within the last hour"
+    - jobs:
+        usage: "GAUGE"
+        description: "Number of jobs"
+    - oldest_age_seconds:
+        usage: "GAUGE"
+        description: "Age of the oldest runnable pending job"
