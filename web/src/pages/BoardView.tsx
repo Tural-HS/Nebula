@@ -1,6 +1,6 @@
-import { DndContext, KeyboardSensor, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
+import { DndContext, DragOverlay, KeyboardSensor, MouseSensor, TouchSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type HTMLAttributes, type Ref } from "react";
 
 import { api, ApiError, path } from "../api/client";
 import { keys, useColumnItems, useItemCounts, useItemTypes, useUpdateItem, type ItemFilters } from "../api/hooks";
@@ -37,9 +37,17 @@ export function Board({ ws, project, filters, groupBy, members, canEdit, onOpen 
   const [moves, setMoves] = useState<Record<string, Move>>({});
   const [drag, setDrag] = useState<{ item: Item; targets: Set<string> | null } | null>(null);
 
+  // Separate mouse and touch sensors (ADR-0019): a mouse drag starts after
+  // 6 px, so a click stays a click; a finger has to rest on the card for
+  // 250 ms first, so swiping across cards scrolls the board and the columns
+  // instead of picking a card up. Moving more than 8 px during the wait is a
+  // scroll and cancels the drag. Keyboard: Space lifts a card, arrows move
+  // it, Space or Enter drops it, Escape cancels; Enter on a resting card
+  // opens it.
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }), // small moves stay clicks
-    useSensor(KeyboardSensor),
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
+    useSensor(KeyboardSensor, { keyboardCodes: { start: ["Space"], cancel: ["Escape"], end: ["Space", "Enter"] } }),
   );
 
   const columns = useMemo(() => {
@@ -96,7 +104,16 @@ export function Board({ ws, project, filters, groupBy, members, canEdit, onOpen 
   const pending = Object.values(moves);
   return (
     <DndContext sensors={sensors} onDragStart={onDragStart} onDragCancel={() => { setDrag(null); }} onDragEnd={(e) => void onDragEnd(e)}>
-      <div className="flex h-full min-h-0 gap-3 overflow-x-auto p-4">
+      {/* Phones: a column is most of the screen wide and the board snaps to
+          columns while swiping; snapping is off during a drag so it does not
+          fight dnd-kit's auto-scroll. */}
+      <div
+        data-testid="board-scroller"
+        className={cn(
+          "flex h-full min-h-0 gap-3 overflow-x-auto overscroll-x-contain p-3 sm:p-4",
+          drag === null && "snap-x snap-mandatory scroll-px-3 sm:snap-none",
+        )}
+      >
         {columns.map((c) => {
           // A status filter narrows every column to the chosen statuses.
           const shown = filters.status && filters.status.length > 0 ? { ...c, statusIds: c.statusIds.filter((id) => filters.status?.includes(id)) } : c;
@@ -119,6 +136,11 @@ export function Board({ ws, project, filters, groupBy, members, canEdit, onOpen 
           );
         })}
       </div>
+      {/* The lifted card follows the pointer above everything, so it is not
+          clipped by its scrolling column and stays visible under a finger. */}
+      <DragOverlay dropAnimation={null}>
+        {drag ? <CardBody item={drag.item} members={members} className="rotate-1 shadow-xl ring-brand-500" /> : null}
+      </DragOverlay>
     </DndContext>
   );
 }
@@ -152,7 +174,7 @@ function BoardColumnView({ ws, project, filters, column, count, moves, members, 
       ref={setNodeRef}
       aria-label={column.name}
       className={cn(
-        "flex min-h-0 w-72 min-w-64 shrink-0 flex-col rounded-xl bg-zinc-100 transition-opacity dark:bg-zinc-900",
+        "flex min-h-0 w-[min(85vw,18rem)] shrink-0 snap-start flex-col rounded-xl bg-zinc-100 transition-opacity sm:w-72 dark:bg-zinc-900",
         isOver && !dimmed && "ring-2 ring-brand-500",
         dimmed && "opacity-40",
       )}
@@ -191,25 +213,41 @@ const CATEGORY_DOT: Record<StatusCategory, string> = {
 function Card({ item, column, members, draggable, onOpen }: {
   item: Item; column: string; members: Map<string, Member>; draggable: boolean; onOpen: (n: number) => void;
 }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: item.id, disabled: !draggable, data: { item, column } });
-  const style = transform ? { transform: `translate3d(${String(transform.x)}px, ${String(transform.y)}px, 0)` } : undefined;
+  // No transform here: the DragOverlay shows the moving copy, the original
+  // stays in place, faded, as a placeholder.
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: item.id, disabled: !draggable, data: { item, column } });
+  return (
+    <CardBody
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
+      item={item}
+      members={members}
+      onClick={() => { onOpen(item.number); }}
+      onKeyDown={(e) => {
+        // Space and Enter are taken by the keyboard sensor while dragging.
+        if (e.key === "Enter" && !isDragging) onOpen(item.number);
+        listeners?.onKeyDown?.(e);
+      }}
+      className={cn(draggable && "select-none [-webkit-touch-callout:none]", isDragging && "opacity-40")}
+    />
+  );
+}
+
+function CardBody({ item, members, className, ref, ...rest }: HTMLAttributes<HTMLDivElement> & {
+  item: Item; members: Map<string, Member>; ref?: Ref<HTMLDivElement>;
+}) {
   const assignee = item.assignee_id ? members.get(item.assignee_id)?.display_name : undefined;
   return (
     <div
-      ref={setNodeRef}
-      style={style}
-      {...listeners}
-      {...attributes}
-      onClick={() => { onOpen(item.number); }}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") onOpen(item.number);
-      }}
+      ref={ref}
+      {...rest}
       className={cn(
         "cursor-pointer rounded-lg bg-white p-3 text-sm shadow-sm ring-1 ring-zinc-200 dark:bg-zinc-800 dark:ring-zinc-700",
-        isDragging && "relative z-10 opacity-80 shadow-lg",
+        className,
       )}
     >
-      <p className="line-clamp-3">{item.title}</p>
+      <p className="line-clamp-3 [overflow-wrap:anywhere]">{item.title}</p>
       {item.due_date && (
         <div className="mt-1.5">
           <DueChip date={item.due_date} overdue={item.overdue} />
@@ -217,7 +255,7 @@ function Card({ item, column, members, draggable, onOpen }: {
       )}
       <div className="mt-2 flex items-center justify-between gap-2">
         <span className="font-mono text-xs text-zinc-500">{item.key}</span>
-        <span className="flex items-center gap-1.5">
+        <span className="flex min-w-0 items-center gap-1.5">
           <StatusBadge name={item.status.name} category={item.status.category} />
           {assignee && <Avatar name={assignee} />}
         </span>
