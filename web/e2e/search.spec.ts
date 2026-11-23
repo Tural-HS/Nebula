@@ -26,6 +26,8 @@ test.beforeAll(async () => {
 
 test("Ctrl/Cmd+K finds folded Azerbaijani text, groups it and opens the item from the keyboard", async ({ page }) => {
   await page.goto(`/w/${seed.ws}`);
+  // The shortcut works once the app has loaded (after the sign-in redirect).
+  await expect(page.getByRole("button", { name: "Axtar" })).toBeVisible();
   await page.keyboard.press("ControlOrMeta+k");
   const dialog = page.getByRole("dialog", { name: "Workspace-də axtarış" });
   const input = dialog.getByRole("combobox", { name: "Axtarış sorğusu" });
@@ -71,7 +73,7 @@ test("an exact key comes first and Escape closes the dialog", async ({ page }) =
   // Bob cannot reach the private item by its key either.
   await button.click();
   await dialog.getByRole("combobox").fill("SEC-1");
-  await expect(dialog.getByText("Heç nə tapılmadı.")).toBeVisible();
+  await expect(dialog.getByRole("status")).toHaveText("Heç nə tapılmadı."); // the live region; the same text is also shown
 });
 
 test("private items never come back from the API", async () => {

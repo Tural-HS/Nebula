@@ -130,6 +130,14 @@ function SearchDialog({ ws, open, onClose }: { ws: string; open: boolean; onClos
   };
 
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    // A type="search" field clears itself on the first Escape and swallows
+    // the key (Chrome), so the dialog would need two presses. Escape closes
+    // at once, as the footer hint says; the query is kept for reopening.
+    if (e.key === "Escape") {
+      e.preventDefault();
+      onClose();
+      return;
+    }
     if (e.key === "Enter") {
       if (activeHit) {
         e.preventDefault();

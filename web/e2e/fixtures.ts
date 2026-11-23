@@ -30,7 +30,30 @@ export async function apiAs(user: User): Promise<APIRequestContext> {
   expect(res.ok(), `token for ${user}`).toBeTruthy();
   const { access_token } = (await res.json()) as { access_token: string };
   await kc.dispose();
-  return request.newContext({ baseURL: API + "/", extraHTTPHeaders: { Authorization: `Bearer ${access_token}` } });
+  return withRateLimitRetry(await request.newContext({ baseURL: API + "/", extraHTTPHeaders: { Authorization: `Bearer ${access_token}` } }));
+}
+
+const RETRIED = ["get", "post", "put", "patch", "delete", "fetch", "head"] as const;
+
+/**
+ * Test setup runs many requests as one user in a few seconds, so it can hit
+ * the per-user rate limit (ADR-0004). Like the web client (lib/retry), retry
+ * 429 after Retry-After: the limiter rejects before any handler runs, so a
+ * retry never applies a change twice.
+ */
+function withRateLimitRetry(ctx: APIRequestContext): APIRequestContext {
+  for (const m of RETRIED) {
+    const send = ctx[m].bind(ctx) as (...args: unknown[]) => ReturnType<APIRequestContext["get"]>;
+    (ctx as unknown as Record<string, unknown>)[m] = async (...args: unknown[]) => {
+      for (let attempt = 0; ; attempt++) {
+        const res = await send(...args);
+        if (res.status() !== 429 || attempt === 5) return res;
+        const wait = Math.min(Number(res.headers()["retry-after"] ?? "1") || 1, 5);
+        await new Promise((r) => setTimeout(r, wait * 1000));
+      }
+    };
+  }
+  return ctx;
 }
 
 export interface Seed {

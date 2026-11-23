@@ -172,6 +172,14 @@ func TestSearchRankingKeyAndPaging(t *testing.T) {
 	if len(got.Hits) == 0 || got.Hits[0].Match != "fuzzy" || !strings.HasPrefix(got.Hits[0].Title, "Planlama") {
 		t.Fatalf("fuzzy: %+v", got.Hits)
 	}
+	// Every word must match, also in the fallback: a word that appears in no
+	// title is not outweighed by another word that does.
+	if got = e.search("carol", "gizli merhelesi"); len(got.Hits) != 0 {
+		t.Fatalf("fuzzy with an unmatched word: %+v", got.Hits)
+	}
+	if got = e.search("carol", "plenlama"); len(got.Hits) == 0 {
+		t.Fatal("single-word typo stopped matching")
+	}
 }
 
 func TestSearchFollowsEditsAndDeletes(t *testing.T) {

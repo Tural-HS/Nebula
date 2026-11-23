@@ -37,7 +37,7 @@ test("upload, preview, download and delete attachments", async ({ page }) => {
 
   // Downloads go through the API with the bearer token, under the original name.
   const download = page.waitForEvent("download");
-  await fake.getByRole("button", { name: "saxta.png" }).click();
+  await fake.getByRole("button", { name: "saxta.png", exact: true }).click();
   expect((await download).suggestedFilename()).toBe("saxta.png");
 
   // Expanding the thumbnail shows the image itself.

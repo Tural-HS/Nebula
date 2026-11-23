@@ -224,7 +224,7 @@ func (s *Store) Search(ctx context.Context, p SearchParams) (SearchResult, error
 			}
 			if p.Cursor == nil && len(cands) == 0 && exact == nil {
 				match = "fuzzy"
-				if cands, err = fuzzyPage(ctx, tx, p, visible, strings.Join(terms, " ")); err != nil {
+				if cands, err = fuzzyPage(ctx, tx, p, visible, terms); err != nil {
 					return err
 				}
 				res.Counts = &SearchCounts{Items: int64(len(cands))}
@@ -347,14 +347,18 @@ func ftsPage(ctx context.Context, q querier, p SearchParams, visible []uuid.UUID
 }
 
 // fuzzyPage is the typo fallback: titles whose words are similar to the
-// query (pg_trgm word similarity), when full-text search found nothing. One
-// page only: the trigram index serves it, but it is not worth paging.
-func fuzzyPage(ctx context.Context, q querier, p SearchParams, visible []uuid.UUID, text string) ([]searchCandidate, error) {
+// query (pg_trgm word similarity), when full-text search found nothing. Like
+// the full-text query, every word must match (here: be similar to a word of
+// the title); otherwise one shared word would carry a whole query ("gizli
+// abc" finding "Ödəniş abc"). The whole-query test is kept as the indexed
+// prefilter. One page only: not worth paging.
+func fuzzyPage(ctx context.Context, q querier, p SearchParams, visible []uuid.UUID, terms []string) ([]searchCandidate, error) {
 	rows, err := q.Query(ctx, `SELECT d.id, word_similarity(search_fold($3), d.title_fold) AS rank
 		FROM search_docs d
 		WHERE d.kind = 'item' AND d.workspace_id = $1 AND d.project_id = ANY($2) AND search_fold($3) <% d.title_fold
+			AND NOT EXISTS (SELECT 1 FROM unnest($5::text[]) t WHERE NOT (t <% d.title_fold))
 		ORDER BY rank DESC, d.id
-		LIMIT $4`, p.WorkspaceID, visible, text, p.Limit)
+		LIMIT $4`, p.WorkspaceID, visible, strings.Join(terms, " "), p.Limit, terms)
 	if err != nil {
 		return nil, err
 	}
