@@ -55,6 +55,7 @@ Hər mərhələ yalnız testlər, miqrasiyalar (up və down) və CI yaşıl oldu
 - [x] Saxlanılan görünüşlər (şəxsi/ümumi, filtrlər, sütunlar, sıralama, qruplaşdırma), fərdi sahə sütunları, bütün filtrlənmiş nəticə üzrə cəm sətri, son tarixə görə sıralama, kod bölünməsi (ADR-0014)
 - [x] Production: tək VPS-də Docker Compose (Caddy + TLS/CSP, Keycloak production rejimi, PG 19 + pgBackRest → S3, PITR və aylıq avtomatik restore testi, Alloy + alertlər → Mattermost, digest ilə deploy/rollback skriptləri) (ADR-0015, `deploy/production/README.md`)
 - [x] Webhook-lara layihə filtri: boş = açıq layihələr, gizli layihə yalnız açıq seçiləndə; çatdırılmada təkrar yoxlama; gündəlik xülasə hər webhook üçün süzülür (ADR-0013, migrasiya 00012)
+- [x] Telefon və planşet: lövhədə toxunma ilə sürükləmə (basılı saxla, scroll ilə vuruşmur), sütunlarda snap, telefonda bir sətirlik alətlər paneli + "Filtrlər" vərəqi, sabit başlıqlı cədvəl, tam ekran tapşırıq paneli (klaviatura və safe-area), 44 px toxunma hədəfləri, heç bir səhifədə yana sürüşmə yoxdur; Playwright cihaz emulyasiyası ilə E2E (ADR-0019)
 
 ## Phase 2: Şablonlar və görünüşlər
 - Proqram təminatı / HR / Satış / Marketinq şablonları; cədvəl, kanban, təqvim, forma görünüşləri
