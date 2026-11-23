@@ -21,6 +21,12 @@
   }
   body {
     @apply bg-zinc-50 text-zinc-900 antialiased dark:bg-zinc-950 dark:text-zinc-100;
+    /* No double-tap zoom delay, no grey flash on tap; pinch zoom still works. */
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    /* Rotating an iPhone must not enlarge the text on its own. */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
   :focus-visible {
     @apply outline-2 outline-offset-2 outline-brand-500;
