@@ -6,6 +6,7 @@ import { roleAtLeast } from "../api/types";
 import { Layout } from "../components/Layout";
 import { Button, Dialog, EmptyState, ErrorState, FieldError, Input, Label, Spinner } from "../components/ui";
 import { t } from "../i18n";
+import { ta } from "../i18n-admin";
 
 export function ProjectsPage() {
   const { ws = "" } = useParams();
@@ -26,11 +27,16 @@ export function ProjectsPage() {
     <Layout
       crumbs={[{ label: t.workspaces, to: "/" }, { label: workspace.data?.name ?? ws }]}
       actions={
-        canCreate && (
-          <Button variant="primary" onClick={() => { setOpen(true); }}>
-            {t.newProject}
-          </Button>
-        )
+        <>
+          <Link to={`/w/${encodeURIComponent(ws)}/settings/members`} className="rounded-md px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800">
+            {ta.settings}
+          </Link>
+          {canCreate && (
+            <Button variant="primary" onClick={() => { setOpen(true); }}>
+              {t.newProject}
+            </Button>
+          )}
+        </>
       }
     >
       <div className="mx-auto max-w-3xl p-6">

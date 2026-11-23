@@ -53,6 +53,8 @@ func (a *api) routes(r chi.Router) {
 		a.workspaceCollabRoutes(r)
 		r.Get("/members", a.listMembers)
 		r.With(requireRole(store.RoleAdmin)).Post("/members", a.addMember)
+		r.With(requireRole(store.RoleAdmin)).Patch("/members/{userID}", a.updateMemberRole)
+		r.Delete("/members/{userID}", a.removeMember) // admins remove others; anyone may leave
 		r.Get("/projects", a.listProjects)
 		r.With(requireRole(store.RoleAdmin)).Post("/projects", a.createProject)
 
@@ -178,6 +180,39 @@ func (a *api) listMembers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"members": nonNil(list)})
+}
+
+func (a *api) updateMemberRole(w http.ResponseWriter, r *http.Request) {
+	id, ok := a.uuidParam(w, r, "userID")
+	if !ok {
+		return
+	}
+	var body struct {
+		Role string `json:"role"`
+	}
+	if !a.decode(w, r, &body) {
+		return
+	}
+	ws := workspaceFrom(r)
+	m, err := a.store.UpdateMemberRole(r.Context(), ws.ID, principal(r).UserID, ws.Role, id, body.Role)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, m)
+}
+
+func (a *api) removeMember(w http.ResponseWriter, r *http.Request) {
+	id, ok := a.uuidParam(w, r, "userID")
+	if !ok {
+		return
+	}
+	ws := workspaceFrom(r)
+	if err := a.store.RemoveMember(r.Context(), ws.ID, principal(r).UserID, ws.Role, id); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (a *api) addMember(w http.ResponseWriter, r *http.Request) {

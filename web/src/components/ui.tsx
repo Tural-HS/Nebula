@@ -32,14 +32,18 @@ export function Button({ variant = "secondary", className, ...props }: ButtonHTM
 }
 
 const fieldBase =
-  "w-full rounded-md border-0 bg-white px-2.5 py-1.5 text-sm text-zinc-900 ring-1 ring-zinc-300 placeholder:text-zinc-400 focus:ring-2 focus:ring-brand-500 dark:bg-zinc-900 dark:text-zinc-100 dark:ring-zinc-700";
+  "rounded-md border-0 bg-white px-2.5 py-1.5 text-sm text-zinc-900 ring-1 ring-zinc-300 placeholder:text-zinc-400 focus:ring-2 focus:ring-brand-500 dark:bg-zinc-900 dark:text-zinc-100 dark:ring-zinc-700";
+
+// Full width unless the caller sets an explicit width (w-*), which would
+// otherwise lose to w-full depending on stylesheet order.
+const width = (className?: string) => (className && /(^|\s)(sm:|md:|lg:)?w-/.test(className) ? "" : "w-full");
 
 export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {
-  return <input className={cn(fieldBase, className)} {...props} />;
+  return <input className={cn(fieldBase, width(className), className)} {...props} />;
 }
 
 export function Select({ className, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
-  return <select className={cn(fieldBase, "pr-8", className)} {...props} />;
+  return <select className={cn(fieldBase, width(className), "pr-8", className)} {...props} />;
 }
 
 export function Label({ children, htmlFor }: { children: ReactNode; htmlFor: string }) {

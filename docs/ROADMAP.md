@@ -36,8 +36,13 @@ Hər mərhələ yalnız testlər, miqrasiyalar (up və down) və CI yaşıl oldu
 - [x] LISTEN/NOTIFY: fon işləri ~23 ms-də emal olunur
 - [x] UI: tapşırıq panelində "Şərhlər" və "Aktivlik" bölmələri, @ ilə avtomatik tamamlama
 
-## Phase 2: Növbəti
-- Admin ekranları (sahələr, workflow-lar, webhook-lar, avtomatlaşdırma), Playwright E2E testləri, bildiriş mərkəzi (in-app)
+## Phase 2a: Admin ekranları (tamamlandı)
+- [x] Workspace ayarları: üzvlər (rol dəyişmə, çıxarma, "son sahib" qoruması), sahələr və seçimlər, tapşırıq tipləri və sahə bağlamaları
+- [x] Workflow redaktoru: statuslar, sıralama, başlanğıc status, keçidlər, keçid məcburiliyi
+- [x] Webhook-lar (secret bir dəfə göstərilir, test, çatdırılma logu, secret rotasiyası), vizual avtomatlaşdırma qayda qurucusu, audit log
+
+## Phase 2b: Növbəti
+- Playwright E2E testləri, bildiriş mərkəzi (in-app), kanbanda status sütunları (kateqoriya əvəzinə)
 
 ## Phase 2: Şablonlar və görünüşlər
 - Proqram təminatı / HR / Satış / Marketinq şablonları; cədvəl, kanban, təqvim, forma görünüşləri

@@ -9,6 +9,13 @@ import { EmptyState, Spinner } from "./components/ui";
 import { t } from "./i18n";
 import { ItemsPage } from "./pages/ItemsPage";
 import { ProjectsPage } from "./pages/ProjectsPage";
+import { AuditLogPage } from "./pages/settings/AuditLogPage";
+import { AutomationsPage } from "./pages/settings/AutomationsPage";
+import { FieldsPage } from "./pages/settings/FieldsPage";
+import { ItemTypesPage } from "./pages/settings/ItemTypesPage";
+import { MembersPage } from "./pages/settings/MembersPage";
+import { WebhooksPage } from "./pages/settings/WebhooksPage";
+import { WorkflowsPage } from "./pages/settings/WorkflowsPage";
 import { WorkspacesPage } from "./pages/WorkspacesPage";
 
 function makeQueryClient() {
@@ -46,6 +53,14 @@ export function App() {
             <Route path="/" element={<WorkspacesPage />} />
             <Route path="/w/:ws" element={<ProjectsPage />} />
             <Route path="/w/:ws/p/:project" element={<ItemsPage />} />
+            <Route path="/w/:ws/settings" element={<MembersPage />} />
+            <Route path="/w/:ws/settings/members" element={<MembersPage />} />
+            <Route path="/w/:ws/settings/fields" element={<FieldsPage />} />
+            <Route path="/w/:ws/settings/item-types" element={<ItemTypesPage />} />
+            <Route path="/w/:ws/settings/workflows" element={<WorkflowsPage />} />
+            <Route path="/w/:ws/settings/webhooks" element={<WebhooksPage />} />
+            <Route path="/w/:ws/settings/automations" element={<AutomationsPage />} />
+            <Route path="/w/:ws/settings/audit" element={<AuditLogPage />} />
             <Route path="*" element={<EmptyState>{t.notFound}</EmptyState>} />
           </Routes>
         </BrowserRouter>

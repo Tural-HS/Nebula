@@ -204,6 +204,105 @@ func (s *Store) AddMember(ctx context.Context, wsID, actorID uuid.UUID, actorRol
 	return m, err
 }
 
+// lockMembers locks all memberships of a workspace so owner counts can't race.
+func lockMembers(ctx context.Context, tx pgx.Tx, wsID uuid.UUID) (map[uuid.UUID]string, error) {
+	rows, err := tx.Query(ctx, `SELECT user_id, role FROM workspace_members WHERE workspace_id = $1 FOR UPDATE`, wsID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	roles := map[uuid.UUID]string{}
+	for rows.Next() {
+		var id uuid.UUID
+		var role string
+		if err := rows.Scan(&id, &role); err != nil {
+			return nil, err
+		}
+		roles[id] = role
+	}
+	return roles, rows.Err()
+}
+
+func ownerCount(roles map[uuid.UUID]string) int {
+	n := 0
+	for _, r := range roles {
+		if r == RoleOwner {
+			n++
+		}
+	}
+	return n
+}
+
+var errLastOwner = &ConflictError{Code: "last_owner", Message: "a workspace must keep at least one owner"}
+
+// UpdateMemberRole changes a member's role. Only owners may grant the owner
+// role or change another owner; the last owner cannot be demoted.
+func (s *Store) UpdateMemberRole(ctx context.Context, wsID, actorID uuid.UUID, actorRole string, userID uuid.UUID, role string) (Member, error) {
+	if _, ok := roleRank[role]; !ok {
+		return Member{}, invalid("role", "must be one of guest, member, admin, owner")
+	}
+	var m Member
+	err := s.inTx(ctx, func(tx pgx.Tx) error {
+		roles, err := lockMembers(ctx, tx, wsID)
+		if err != nil {
+			return err
+		}
+		cur, ok := roles[userID]
+		if !ok {
+			return ErrNotFound
+		}
+		if (role == RoleOwner || cur == RoleOwner) && actorRole != RoleOwner {
+			return ErrForbidden
+		}
+		if cur == RoleOwner && role != RoleOwner && ownerCount(roles) <= 1 {
+			return errLastOwner
+		}
+		if cur != role {
+			if _, err := tx.Exec(ctx, `UPDATE workspace_members SET role = $1 WHERE workspace_id = $2 AND user_id = $3`, role, wsID, userID); err != nil {
+				return err
+			}
+			if err := appendEvent(ctx, tx, wsID, actorID, "member", userID, "member.role_changed",
+				map[string]any{"changes": map[string]any{"role": diff(cur, role)}}); err != nil {
+				return err
+			}
+		}
+		return tx.QueryRow(ctx, `SELECT u.id, u.email, u.display_name, m.role FROM workspace_members m
+			JOIN users u ON u.id = m.user_id WHERE m.workspace_id = $1 AND m.user_id = $2`, wsID, userID).
+			Scan(&m.UserID, &m.Email, &m.DisplayName, &m.Role)
+	})
+	return m, err
+}
+
+// RemoveMember removes someone from a workspace (or lets a member leave).
+// Admins may remove non-owners; only owners may remove owners; the last
+// owner cannot leave. Items stay assigned for history; reassign as needed.
+func (s *Store) RemoveMember(ctx context.Context, wsID, actorID uuid.UUID, actorRole string, userID uuid.UUID) error {
+	return s.inTx(ctx, func(tx pgx.Tx) error {
+		roles, err := lockMembers(ctx, tx, wsID)
+		if err != nil {
+			return err
+		}
+		cur, ok := roles[userID]
+		if !ok {
+			return ErrNotFound
+		}
+		self := actorID == userID
+		if !self && !RoleAtLeast(actorRole, RoleAdmin) {
+			return ErrForbidden
+		}
+		if cur == RoleOwner && !self && actorRole != RoleOwner {
+			return ErrForbidden
+		}
+		if cur == RoleOwner && ownerCount(roles) <= 1 {
+			return errLastOwner
+		}
+		if _, err := tx.Exec(ctx, `DELETE FROM workspace_members WHERE workspace_id = $1 AND user_id = $2`, wsID, userID); err != nil {
+			return err
+		}
+		return appendEvent(ctx, tx, wsID, actorID, "member", userID, "member.removed", map[string]any{"role": cur})
+	})
+}
+
 // ListItemTypes returns active item types with their workflow statuses in order.
 func (s *Store) ListItemTypes(ctx context.Context, wsID uuid.UUID) ([]ItemType, error) {
 	return listItemTypes(ctx, s.pool, wsID, "")

@@ -58,4 +58,4 @@ Production-da bu fayl hər mühit üçün mount edilir (ConfigMap).
 
 - Lövhə (kanban) ilk 500 tapşırığı göstərir; daha çoxu üçün filtrlərdən istifadə edilməlidir.
 - Komponent testləri hələ yoxdur: məntiq vitest ilə, UI isə real brauzerdə yoxlanılır. Playwright E2E testləri növbəti addımdır.
-- Şərhlər, aktivlik lenti və admin ekranları (sahələr, workflow-lar, webhook-lar, avtomatlaşdırma) hələ UI-da yoxdur; API-də mövcuddur.
+- Admin ekranları (`/w/{ws}/settings/...`) yalnız admin+ üçün açıqdır; üzv siyahısı hamıya görünür. UI yalnız rahatlıq üçün gizlədir, icazəni həmişə API yoxlayır.

@@ -113,7 +113,9 @@ Bütün `/api/v1` endpoint-ləri (`/version` istisna olmaqla) `Authorization: Be
 | `GET /api/v1/me` | Cari istifadəçi | — |
 | `GET, POST /api/v1/workspaces` | Mənim workspace-lərim / yaratmaq (yaradan owner olur) | — |
 | `GET /api/v1/workspaces/{ws}` | Workspace və mənim rolum | guest+ |
-| `POST /api/v1/workspaces/{ws}/members` | Üzv əlavə etmək | admin+ |
+| `GET, POST /api/v1/workspaces/{ws}/members` | Üzvlər / əlavə etmək | guest+ / admin+ |
+| `PATCH /api/v1/workspaces/{ws}/members/{userID}` | Rolu dəyişmək (sahib rolu yalnız sahib tərəfindən; son sahib qorunur) | admin+ |
+| `DELETE /api/v1/workspaces/{ws}/members/{userID}` | Üzvü çıxarmaq / özü tərk etmək | admin+ / özü |
 | `GET, POST .../{ws}/projects` | Siyahı / yaratmaq | guest+ / admin+ |
 | `GET .../{ws}/item-types` | Item tipləri, statusları və bağlı sahələri ilə | guest+ |
 | `POST .../{ws}/item-types` | Item tipi yaratmaq | admin+ |
