@@ -1,8 +1,8 @@
 package server
 
 import (
+	"cmp"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -72,6 +72,7 @@ func (a *api) routes(r chi.Router) {
 			a.itemCollabRoutes(r)
 			a.importRoutes(r)
 			a.recurrenceRoutes(r)
+			a.viewRoutes(r)
 		})
 	})
 }
@@ -309,8 +310,8 @@ func (a *api) listItems(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	resp := map[string]any{"items": items, "next_cursor": nil}
-	if next > 0 {
-		resp["next_cursor"] = encodeCursor(next)
+	if next != nil {
+		resp["next_cursor"] = encodeItemCursor(*next)
 	}
 	writeJSON(w, http.StatusOK, resp)
 }
@@ -363,13 +364,22 @@ func parseItemFilters(w http.ResponseWriter, r *http.Request) (store.ListItemsPa
 		}
 		p.Limit = n
 	}
+	p.Sort = q.Get("sort")
+	if !store.ValidSort(p.Sort) {
+		writeError(w, http.StatusBadRequest, "bad_request", "sort must be number or due")
+		return store.ListItemsParams{}, false
+	}
 	if v := q.Get("cursor"); v != "" {
-		n, err := decodeCursor(v)
+		c, err := decodeItemCursor(v)
 		if err != nil {
 			writeError(w, http.StatusBadRequest, "bad_request", "invalid cursor")
 			return store.ListItemsParams{}, false
 		}
-		p.BeforeNumber = n
+		if c.Sort != cmp.Or(p.Sort, store.SortNumber) {
+			writeError(w, http.StatusBadRequest, "bad_request", "cursor belongs to another sort")
+			return store.ListItemsParams{}, false
+		}
+		p.Cursor = &c
 	}
 	for _, raw := range q["status"] {
 		for part := range strings.SplitSeq(raw, ",") {
@@ -561,22 +571,6 @@ func (a *api) fail(w http.ResponseWriter, r *http.Request, err error) {
 			"request_id", middleware.GetReqID(r.Context()))
 		writeError(w, http.StatusInternalServerError, "internal", "internal server error")
 	}
-}
-
-func encodeCursor(before int64) string {
-	return base64.RawURLEncoding.EncodeToString([]byte("v1:" + strconv.FormatInt(before, 10)))
-}
-
-func decodeCursor(s string) (int64, error) {
-	b, err := base64.RawURLEncoding.DecodeString(s)
-	if err != nil {
-		return 0, err
-	}
-	n, err := strconv.ParseInt(strings.TrimPrefix(string(b), "v1:"), 10, 64)
-	if err != nil || n < 1 || !strings.HasPrefix(string(b), "v1:") {
-		return 0, errors.New("invalid cursor")
-	}
-	return n, nil
 }
 
 func nonNil[T any](s []T) []T {
