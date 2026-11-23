@@ -57,7 +57,7 @@ func TestSearchLargeDataset(t *testing.T) {
 		if i > 18 {
 			vis = "private"
 		}
-		if _, err := f.st.CreateProject(ctx, f.wsID, f.userID, fmt.Sprintf("P%d", i), fmt.Sprintf("Layihə %d", i), nil, vis); err != nil {
+		if _, err := f.st.CreateProject(ctx, f.wsID, f.userID, fmt.Sprintf("P%d", i), fmt.Sprintf("Layihə %d", i), nil, vis, store.ProjectTemplate{}); err != nil {
 			t.Fatal(err)
 		}
 	}

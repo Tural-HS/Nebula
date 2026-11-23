@@ -33,11 +33,11 @@ func newSearchFixture(t testing.TB) searchFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ws, err := st.CreateWorkspace(ctx, u.UserID, "acme", "Acme")
+	ws, err := st.CreateWorkspace(ctx, u.UserID, "acme", "Acme", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	p, err := st.CreateProject(ctx, ws.ID, u.UserID, "QA", "QA", nil, "workspace")
+	p, err := st.CreateProject(ctx, ws.ID, u.UserID, "QA", "QA", nil, "workspace", store.ProjectTemplate{})
 	if err != nil {
 		t.Fatal(err)
 	}
