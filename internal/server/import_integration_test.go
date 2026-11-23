@@ -248,13 +248,19 @@ func TestImportDryRunAndImport(t *testing.T) {
 		t.Fatalf("item 2 defaults: %v", second)
 	}
 
-	// Events: one item.created (with dispatch job) per item, one audit entry for the import.
-	if n := e.count(`SELECT count(*) FROM events WHERE action = 'item.created'`); n != 3 {
-		t.Fatalf("item.created events: %d", n)
+	// Events: one item.created per item for history, marked source 'import' and
+	// NOT dispatched (no per-row webhooks or automations); the single
+	// project.imported event is dispatched instead.
+	if n := e.count(`SELECT count(*) FROM events WHERE action = 'item.created' AND source = 'import'`); n != 3 {
+		t.Fatalf("imported item.created events: %d", n)
 	}
 	if n := e.count(`SELECT count(*) FROM jobs j JOIN events ev ON ev.id = (j.payload->>'event_id')::bigint
-		WHERE j.kind = 'event.dispatch' AND ev.action = 'item.created'`); n != 3 {
-		t.Fatalf("dispatch jobs: %d", n)
+		WHERE j.kind = 'event.dispatch' AND ev.action = 'item.created'`); n != 0 {
+		t.Fatalf("imported rows were dispatched: %d jobs", n)
+	}
+	if n := e.count(`SELECT count(*) FROM jobs j JOIN events ev ON ev.id = (j.payload->>'event_id')::bigint
+		WHERE j.kind = 'event.dispatch' AND ev.action = 'project.imported'`); n != 1 {
+		t.Fatalf("project.imported dispatch jobs: %d", n)
 	}
 	activity := e.must(200, "bob", "GET", items+"/1/activity", nil)
 	if !strings.Contains(activity.Raw, "item.created") {

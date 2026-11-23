@@ -31,7 +31,8 @@ log bu yolda yan keçilirdi. Lazım olan: admin faylı yükləyir, sütunları s
 | Hər sətir `CreateItem` ilə **eyni** yoxlamadan keçir (`prepareItem`: başlıq/təsvir uzunluğu, tip, sahə tipləri, məcburi sahələr, workflow statusu, üzvlük). `CreateItem` da indi eyni funksiyanı çağırır | Qaydalar iki yerdə ayrılıb "uzaqlaşa" bilməz |
 | **Hamısı və ya heç nə — bir tranzaksiya.** Əvvəl bütün sətirlər yoxlanılır (bütün xətalar toplanır), xəta varsa heç nə yazılmır. Daxiletmələr 500 sətirlik pgx batch-ləri ilə göndərilir | Yarımçıq idxal (məs. 3200-cü sətirdə kəsilmiş) əl ilə təmizlənməli olardı. Ölçülüb: 20 000 sətir ≈ 3 s, dry run ≈ 0,1 s (lokal Postgres) — bir tranzaksiya kifayətdir, partiyalara bölmək lazım deyil |
 | Layihə sətri idxal boyu `FOR UPDATE` ilə kilidlənir; nömrə aralığı (məs. ACME-1…ACME-60) birdən ayrılır | Paralel yaradılan tapşırıqlarla nömrə toqquşması/boşluğu olmur |
-| Hər tapşırıq adi `item.created` hadisəsini (və dispatch işini, outbox) yazır; idxalın özü üçün bir `project.imported` audit qeydi: fayl adı, format, vərəq, sətir sayı, uyğunlaşdırma, yaradılan say, ilk/son açar, icraçı | Audit log, webhook-lar və avtomatlaşdırma tək yaratmadakı kimi işləyir |
+| Hər tapşırıq `item.created` hadisəsini **tarixçə üçün** yazır (`source = 'import'`, dispatch işi **yoxdur**); idxalın özü üçün bir `project.imported` hadisəsi: fayl adı, format, vərəq, sətir sayı, uyğunlaşdırma, yaradılan say, ilk/son açar, icraçı. Yalnız bu hadisə webhook-lara gedir (migrasiya 00008) | Aktivlik və audit tam qalır, amma böyük idxal Mattermost kanalına minlərlə mesaj, icraçılara minlərlə email göndərmir. Webhook-lar "N tapşırıq idxal olundu" xülasəsini alır |
+| Sütun "Son tarix" (`due_date`) hədəfinə uyğunlaşdırıla bilər ("Ödəniş tarixi", "Deadline" kimi başlıqlar avtomatik təklif olunur); tarix sahələri kimi oxunur | Keçmiş tarixli sətirlər idxaldan dərhal sonra "gecikir" olur və ADR-0009-dakı gecikmə qaydaları/xülasəsi onlara tətbiq olunur |
 | `dry_run=true` eyni yolu tranzaksiya daxilində işlədir və geri qaytarır; real idxalda xəta olarsa **422** + eyni hesabat | Dry run ilə real idxalın nəticəsi arasında fərq yoxdur |
 | Bütün idxal rate limit üçün **bir sorğu** sayılır (bir HTTP sorğusu) | |
 
@@ -69,10 +70,9 @@ uyğunlaşdırma xətaları (başlıq yoxdur, eyni hədəf iki dəfə, naməlum 
 
 ## Nəticələr
 
-- 20 000 sətirlik idxal 20 000 `item.created` hadisəsi və dispatch işi yaradır: aktiv webhook-lar və
-  `item.created` avtomatlaşdırmaları (məs. "yaradılanda icraçıya bildiriş") **hər sətir üçün** işləyəcək.
-  Bu, tək yaratma ilə eyni davranışdır, amma böyük idxaldan əvvəl adminin bunu bilməsi lazımdır.
-  Lazım olarsa gələcəkdə "idxal zamanı avtomatlaşdırmanı söndür" seçimi `source = 'system'` ilə əlavə oluna bilər.
+- İdxal olunan sətirlər üçün `item.created` qaydaları **işləmir** (məs. "yaradılanda icraçıya bildiriş").
+  Bu qəsdəndir: idxal toplu köçürmədir, hər sətir yeni iş deyil. Gecikmə qaydaları (`item.overdue`) isə
+  idxal olunmuş tapşırıqlara da normal tətbiq olunur, çünki onlar sonradan, zamanlayıcıdan gəlir.
 - Sətir xəta mesajları API-nin ümumi dili kimi ingiliscədir; UI fayl səviyyəli xəta kodlarını Azərbaycan dilinə çevirir.
 - Yalnız yaratma: mövcud tapşırıqları yeniləmək (upsert, məs. müqavilə nömrəsinə görə) bu mərhələyə daxil deyil.
 - Başlıq sətri həmişə birinci boş olmayan sətirdir; üstündə başlıq/loqo olan vərəqlər əvvəlcə təmizlənməlidir.

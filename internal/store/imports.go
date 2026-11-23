@@ -111,14 +111,6 @@ func (s *Store) ImportItems(ctx context.Context, p ImportParams) (ImportResult, 
 		if p.ActorID != uuid.Nil {
 			actor = p.ActorID
 		}
-		src := eventSource{source: "user"}
-		if v, ok := ctx.Value(sourceKey{}).(eventSource); ok {
-			src = v
-		}
-		var rule any
-		if src.ruleID != uuid.Nil {
-			rule = src.ruleID
-		}
 
 		first := next
 		for start := 0; start < len(prepared); start += importBatchRows {
@@ -132,13 +124,12 @@ func (s *Store) ImportItems(ctx context.Context, p ImportParams) (ImportResult, 
 				item := Item{ID: id, Key: projectKey + "-" + strconv.FormatInt(number, 10), Number: number,
 					ProjectID: p.ProjectID, Type: prep.typ.ItemTypeRef, Status: prep.status, Title: prep.title,
 					Description: prep.desc, AssigneeID: prep.assignee, ReporterID: &reporter, Fields: prep.fields, DueDate: prep.due, Version: 1}
-				// Same rows appendEvent writes: the event plus its dispatch job (outbox).
-				batch.Queue(`WITH e AS (
-						INSERT INTO events (workspace_id, actor_id, entity_type, entity_id, action, payload, source, automation_rule_id)
-						VALUES ($1, $2, 'item', $3, 'item.created', $4, $5, $6) RETURNING id)
-					INSERT INTO jobs (kind, payload, max_attempts)
-					SELECT $7, jsonb_build_object('event_id', e.id), 5 FROM e`,
-					p.WorkspaceID, actor, id, createdPayload(item), src.source, rule, JobDispatchEvent)
+				// History only: source 'import' and no dispatch job, so rows do not
+				// fan out to webhooks or automations one by one. The single
+				// project.imported event below is dispatched instead (ADR-0011).
+				batch.Queue(`INSERT INTO events (workspace_id, actor_id, entity_type, entity_id, action, payload, source)
+					VALUES ($1, $2, 'item', $3, 'item.created', $4, 'import')`,
+					p.WorkspaceID, actor, id, createdPayload(item))
 			}
 			if err := tx.SendBatch(ctx, batch).Close(); err != nil {
 				return fmt.Errorf("import batch at row %d: %w", start, err)

@@ -141,7 +141,7 @@ export interface Activity {
   entity_type: string;
   entity_id: string;
   actor: PersonRef | null; // null for automation/system
-  source: "user" | "automation" | "system";
+  source: "user" | "automation" | "system" | "import";
   automation_rule_id: string | null;
   data: Record<string, unknown>;
   occurred_at: string;
