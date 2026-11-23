@@ -18,7 +18,7 @@ export function WorkspacesPage() {
         </Button>
       }
     >
-      <div className="mx-auto max-w-3xl p-6">
+      <div className="mx-auto max-w-3xl p-4 md:p-6">
         {q.isPending ? (
           <Spinner />
         ) : q.isError ? (
@@ -29,12 +29,12 @@ export function WorkspacesPage() {
           <ul className="divide-y divide-zinc-200 overflow-hidden rounded-xl bg-white ring-1 ring-zinc-200 dark:divide-zinc-800 dark:bg-zinc-900 dark:ring-zinc-800">
             {q.data.map((w) => (
               <li key={w.id}>
-                <Link to={`/w/${encodeURIComponent(w.slug)}`} className="flex items-center justify-between px-4 py-3 hover:bg-zinc-50 dark:hover:bg-zinc-800">
-                  <span>
+                <Link to={`/w/${encodeURIComponent(w.slug)}`} className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-zinc-50 dark:hover:bg-zinc-800">
+                  <span className="min-w-0 [overflow-wrap:anywhere]">
                     <span className="block font-medium">{w.name}</span>
                     <span className="text-xs text-zinc-500">{w.slug}</span>
                   </span>
-                  <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">{w.role}</span>
+                  <span className="shrink-0 rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">{w.role}</span>
                 </Link>
               </li>
             ))}

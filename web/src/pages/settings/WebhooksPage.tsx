@@ -88,7 +88,7 @@ function NewWebhook({ ws, onSecret }: { ws: string; onSecret: (s: string) => voi
             {WEBHOOK_FORMATS.map((f) => <option key={f} value={f}>{ta.formats[f]}</option>)}
           </Select>
         </label>
-        <label className="flex min-w-64 flex-1 flex-col gap-1 text-xs text-zinc-500">
+        <label className="flex min-w-[min(16rem,100%)] flex-1 flex-col gap-1 text-xs text-zinc-500">
           {ta.url}
           <Input
             required
@@ -128,7 +128,7 @@ function ProjectFilter({ ws, value, onChange }: { ws: string; value: string[]; o
       <summary className="cursor-pointer list-none rounded-md px-2.5 py-1.5 ring-1 ring-zinc-300 dark:ring-zinc-700" aria-label={`${ta.webhookProjects.label}: ${summary}`}>
         {ta.webhookProjects.label}: {summary} ▾
       </summary>
-      <div className="absolute z-10 mt-1 w-72 space-y-1 rounded-md bg-white p-2 shadow-lg ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-700">
+      <div className="absolute z-10 mt-1 w-72 max-w-[calc(100vw-2rem)] space-y-1 rounded-md bg-white p-2 shadow-lg ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-700">
         {list.map((p) => (
           <label key={p.id} className="flex items-center gap-2 py-0.5">
             <input
@@ -220,25 +220,27 @@ function DeliveryLog({ ws, id }: { ws: string; id: string }) {
   if (q.isError) return <ErrorState error={q.error} />;
   if (q.data.length === 0) return <p className="mt-3 text-xs text-zinc-500">{ta.noDeliveries}</p>;
   return (
-    <table className="mt-3 w-full text-left text-xs">
-      <thead className="text-zinc-500">
-        <tr><th className="py-1">#</th><th>HTTP</th><th>ms</th><th>try</th><th>error</th><th /></tr>
-      </thead>
-      <tbody>
-        {q.data.map((d) => {
-          const ok = d.status_code !== null && d.status_code >= 200 && d.status_code < 300;
-          return (
-            <tr key={d.id} className="border-t border-zinc-100 dark:border-zinc-800">
-              <td className="py-1 font-mono">{d.event_id}</td>
-              <td className={ok ? "text-emerald-600" : "text-red-600"}>{d.status_code ?? "—"}</td>
-              <td>{d.duration_ms}</td>
-              <td>{d.attempt}</td>
-              <td className="max-w-64 truncate text-zinc-500" title={d.error ?? ""}>{d.error ?? ""}</td>
-              <td className="text-zinc-500">{formatRelative(d.delivered_at)}</td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
+    <div className="mt-3 overflow-x-auto">
+      <table className="w-full text-left text-xs">
+        <thead className="text-zinc-500">
+          <tr><th className="py-1">#</th><th>HTTP</th><th>ms</th><th>try</th><th>error</th><th /></tr>
+        </thead>
+        <tbody>
+          {q.data.map((d) => {
+            const ok = d.status_code !== null && d.status_code >= 200 && d.status_code < 300;
+            return (
+              <tr key={d.id} className="border-t border-zinc-100 dark:border-zinc-800">
+                <td className="py-1 font-mono">{d.event_id}</td>
+                <td className={ok ? "text-emerald-600" : "text-red-600"}>{d.status_code ?? "—"}</td>
+                <td>{d.duration_ms}</td>
+                <td>{d.attempt}</td>
+                <td className="max-w-64 truncate text-zinc-500" title={d.error ?? ""}>{d.error ?? ""}</td>
+                <td className="text-zinc-500">{formatRelative(d.delivered_at)}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }

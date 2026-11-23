@@ -56,7 +56,7 @@ export function ImportPage() {
   return (
     <Layout crumbs={crumbs}>
       <div className="h-full overflow-y-auto">
-        <div className="mx-auto max-w-5xl p-6">
+        <div className="mx-auto max-w-5xl p-4 md:p-6">
           <h1 className="text-lg font-semibold">{ti.title}</h1>
           <p className="mt-1 mb-6 text-sm text-zinc-500">{ti.intro}</p>
           {body}
@@ -290,7 +290,7 @@ function MapStep(props: {
           {delimiter && <span className="ml-2 text-zinc-500">· {delimiter}</span>}
         </p>
         {preview.sheets.length > 1 && (
-          <div className="min-w-48">
+          <div className="min-w-[min(12rem,100%)]">
             <Label htmlFor={`${id}-sheet`}>{ti.sheet}</Label>
             <Select id={`${id}-sheet`} value={preview.sheet} disabled={props.sheetPending} onChange={(e) => { props.onSheet(e.target.value); }}>
               {preview.sheets.map((s) => (
@@ -301,7 +301,7 @@ function MapStep(props: {
             </Select>
           </div>
         )}
-        <div className="min-w-56">
+        <div className="min-w-[min(14rem,100%)]">
           <Label htmlFor={`${id}-type`}>{ti.defaultType}</Label>
           <Select id={`${id}-type`} value={props.defaultType} onChange={(e) => { props.onDefaultType(e.target.value); }}>
             {props.types.map((x) => (
@@ -318,37 +318,39 @@ function MapStep(props: {
           <h2 id={`${id}-map`} className="font-medium">{ti.mappingTitle}</h2>
           <p className="mt-1 text-xs text-zinc-500">{ti.mappingHint}</p>
         </header>
-        <table className="w-full text-sm">
-          <thead className="text-left text-xs text-zinc-500">
-            <tr>
-              <th scope="col" className="px-4 py-2 font-medium">{ti.column}</th>
-              <th scope="col" className="px-4 py-2 font-medium">{ti.sample}</th>
-              <th scope="col" className="w-72 px-4 py-2 font-medium">{ti.target}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {preview.headers.map((h, col) => {
-              const label = columnLabel(col, h);
-              return (
-                <tr key={col} className="border-t border-zinc-100 dark:border-zinc-800">
-                  <th scope="row" className="px-4 py-2 text-left font-medium">{label}</th>
-                  <td className="max-w-xs truncate px-4 py-2 text-zinc-500" title={sampleValues(preview.rows, col).join(" · ")}>
-                    {sampleValues(preview.rows, col).join(" · ") || "—"}
-                  </td>
-                  <td className="px-4 py-2">
-                    <TargetSelect
-                      id={`${id}-col-${String(col)}`}
-                      label={`${ti.target}: ${label}`}
-                      value={mapping[col] ?? ""}
-                      targets={preview.targets}
-                      onChange={(v) => { props.onMapping(setTarget(mapping, col, v)); }}
-                    />
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="text-left text-xs text-zinc-500">
+              <tr>
+                <th scope="col" className="px-4 py-2 font-medium">{ti.column}</th>
+                <th scope="col" className="px-4 py-2 font-medium max-sm:hidden">{ti.sample}</th>
+                <th scope="col" className="w-56 px-4 py-2 font-medium sm:w-72">{ti.target}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {preview.headers.map((h, col) => {
+                const label = columnLabel(col, h);
+                return (
+                  <tr key={col} className="border-t border-zinc-100 dark:border-zinc-800">
+                    <th scope="row" className="px-4 py-2 text-left font-medium">{label}</th>
+                    <td className="max-w-xs truncate px-4 py-2 text-zinc-500 max-sm:hidden" title={sampleValues(preview.rows, col).join(" · ")}>
+                      {sampleValues(preview.rows, col).join(" · ") || "—"}
+                    </td>
+                    <td className="px-4 py-2">
+                      <TargetSelect
+                        id={`${id}-col-${String(col)}`}
+                        label={`${ti.target}: ${label}`}
+                        value={mapping[col] ?? ""}
+                        targets={preview.targets}
+                        onChange={(v) => { props.onMapping(setTarget(mapping, col, v)); }}
+                      />
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </section>
 
       <PreviewTable preview={preview} />
@@ -423,7 +425,7 @@ function ReportStep({ report, preview, pending, error, onBack, onImport }: {
       {!ok && (
         <section aria-labelledby={id} className="rounded-xl bg-white ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-800">
           <h2 id={id} className="border-b border-zinc-200 p-4 font-medium dark:border-zinc-800">{ti.errorsTable}</h2>
-          <div className="max-h-96 overflow-y-auto">
+          <div className="max-h-96 overflow-auto">
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-white text-left text-xs text-zinc-500 dark:bg-zinc-900">
                 <tr>

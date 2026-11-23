@@ -7,27 +7,33 @@ import { t } from "../i18n";
 import { tv } from "../i18n-views";
 import { cn } from "../lib/cn";
 import { formatDateTime, formatRelative } from "../lib/format";
+import { displayColumns, useCompact } from "../lib/responsive";
 import { columnHeader, fieldKey, formatDecimal, formatFieldValue, isFieldColumn } from "../lib/views";
 
 // ---------------------------------------------------------------------------
 // Table: virtualized, so only visible rows are in the DOM (100k rows stay
 // smooth). Columns come from the page state (built-ins and custom fields);
 // one scroll container moves both ways, with a sticky header, key column and
-// totals row, so many columns stay usable on a phone.
+// totals row, so many columns stay usable on a phone. On narrow screens the
+// title is pinned instead, with the key folded into it (lib/responsive).
 // ---------------------------------------------------------------------------
 
 const ROW_HEIGHT = 44;
-const ROW = "grid items-center gap-3 px-4";
+const ROW = "grid items-center gap-3 px-3 md:px-4";
 // Sticky cells need an opaque background: the page's.
 const STICKY_LEFT = "sticky left-0 z-[1] bg-zinc-50 dark:bg-zinc-950";
+// On phones the pinned title gets a hairline so scrolled cells do not
+// seem to run into it.
+const STICKY_EDGE = "max-md:shadow-[1px_0_0_var(--color-zinc-200)] max-md:dark:shadow-[1px_0_0_var(--color-zinc-800)]";
 
 /** Grid track and minimum width (rem) of a column. */
-function track(col: string, def: FieldDefinition | undefined): [string, number] {
+function track(col: string, def: FieldDefinition | undefined, compact: boolean): [string, number] {
   switch (col) {
     case "key":
       return ["6.5rem", 6.5];
     case "title":
-      return ["minmax(14rem,1fr)", 14];
+      // Pinned on phones: leave about half of a 375 px screen for the rest.
+      return compact ? ["minmax(10.5rem,1fr)", 10.5] : ["minmax(14rem,1fr)", 14];
     case "type":
       return ["7rem", 7];
     case "status":
@@ -52,7 +58,7 @@ function track(col: string, def: FieldDefinition | undefined): [string, number] 
   }
 }
 
-export function ItemTable({ items, columns, fields, members, sums, hasMore, loadingMore, loadMore, onOpen }: {
+export function ItemTable({ items, columns: chosen, fields, members, sums, hasMore, loadingMore, loadMore, onOpen }: {
   items: Item[];
   columns: string[];
   fields: ReadonlyMap<string, FieldDefinition>;
@@ -64,6 +70,8 @@ export function ItemTable({ items, columns, fields, members, sums, hasMore, load
   loadMore: () => void;
   onOpen: (n: number) => void;
 }) {
+  const compact = useCompact();
+  const { columns, keyInTitle } = useMemo(() => displayColumns(chosen, compact), [chosen, compact]);
   const scrollRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Virtual is designed for this usage
   const virtualizer = useVirtualizer({
@@ -80,10 +88,10 @@ export function ItemTable({ items, columns, fields, members, sums, hasMore, load
   }, [hasMore, loadingMore, lastIndex, items.length, loadMore]);
 
   const grid = useMemo<CSSProperties>(() => {
-    const tracks = columns.map((c) => track(c, isFieldColumn(c) ? fields.get(fieldKey(c)) : undefined));
+    const tracks = columns.map((c) => track(c, isFieldColumn(c) ? fields.get(fieldKey(c)) : undefined, compact));
     const rem = tracks.reduce((n, [, w]) => n + w, 0) + 0.75 * (tracks.length - 1) + 2; // gaps and padding
     return { gridTemplateColumns: tracks.map(([g]) => g).join(" "), minWidth: `${String(rem)}rem` };
-  }, [columns, fields]);
+  }, [columns, fields, compact]);
   const numeric = (c: string) => isFieldColumn(c) && fields.get(fieldKey(c))?.type === "number";
   const showDueInTitle = !columns.includes("due_date");
   const hasSums = columns.some(numeric);
@@ -93,13 +101,20 @@ export function ItemTable({ items, columns, fields, members, sums, hasMore, load
     switch (col) {
       case "key":
         return <span className="font-mono text-xs text-zinc-500">{it.key}</span>;
-      case "title":
-        return (
+      case "title": {
+        const title = (
           <span className="flex min-w-0 items-center gap-2">
             <span className="truncate">{it.title}</span>
             {showDueInTitle && it.due_date && <DueChip date={it.due_date} overdue={it.overdue} />}
           </span>
         );
+        return keyInTitle ? (
+          <span className="flex min-w-0 flex-col leading-tight">
+            <span className="font-mono text-[11px] text-zinc-500">{it.key}</span>
+            {title}
+          </span>
+        ) : title;
+      }
       case "type":
         return <span className="block truncate text-zinc-600 dark:text-zinc-400">{it.type.name}</span>;
       case "status":
@@ -127,8 +142,8 @@ export function ItemTable({ items, columns, fields, members, sums, hasMore, load
     <div ref={scrollRef} className="h-full overflow-auto" role="table" aria-rowcount={items.length}>
       <div role="row" style={grid} className={cn(ROW, "sticky top-0 z-[2] h-9 border-b border-zinc-200 bg-zinc-50 text-xs font-medium tracking-wide text-zinc-500 uppercase dark:border-zinc-800 dark:bg-zinc-950")}>
         {columns.map((c, i) => (
-          <span key={c} role="columnheader" className={cn("truncate", numeric(c) && "text-right", i === 0 && STICKY_LEFT)}>
-            {columnHeader(c, fields)}
+          <span key={c} role="columnheader" className={cn("truncate", numeric(c) && "text-right", i === 0 && STICKY_LEFT, i === 0 && STICKY_EDGE)}>
+            {c === "title" && keyInTitle ? `${columnHeader("key", fields)} · ${columnHeader(c, fields)}` : columnHeader(c, fields)}
           </span>
         ))}
       </div>
@@ -149,7 +164,7 @@ export function ItemTable({ items, columns, fields, members, sums, hasMore, load
                   className={cn(ROW, "h-full w-full border-b border-zinc-100 text-left text-sm hover:bg-zinc-100/70 dark:border-zinc-800/60 dark:hover:bg-zinc-800/60")}
                 >
                   {columns.map((c, i) => (
-                    <span key={c} role="cell" className={cn("min-w-0", i === 0 && STICKY_LEFT)}>
+                    <span key={c} role="cell" className={cn("min-w-0", i === 0 && STICKY_LEFT, i === 0 && STICKY_EDGE)}>
                       {cell(it, c)}
                     </span>
                   ))}
@@ -174,7 +189,7 @@ export function ItemTable({ items, columns, fields, members, sums, hasMore, load
               <span
                 key={c}
                 role="cell"
-                className={cn("truncate", numeric(c) && "text-right tabular-nums", i === 0 && "sticky left-0 z-[1] bg-zinc-100 dark:bg-zinc-900")}
+                className={cn("truncate", numeric(c) && "text-right tabular-nums", i === 0 && "sticky left-0 z-[1] bg-zinc-100 dark:bg-zinc-900", i === 0 && STICKY_EDGE)}
                 title={s ? tv.totalHint(s.count) : undefined}
               >
                 {numeric(c) ? (s ? formatDecimal(s.sum) : "…") : i === labelAt ? tv.total : ""}

@@ -106,8 +106,8 @@ function TypeCard({ ws, type, workflowName, fields }: { ws: string; type: ItemTy
         {bound.length === 0 && <p className="text-xs text-zinc-400">{ta.noBoundFields}</p>}
         <ul className="space-y-1">
           {bound.map((b, i) => (
-            <li key={b.key} className="flex items-center gap-3 text-sm">
-              <span className="min-w-40">{byKey.get(b.key)?.name ?? b.key}</span>
+            <li key={b.key} className="flex flex-wrap items-center gap-x-3 text-sm">
+              <span className="min-w-40 [overflow-wrap:anywhere]">{byKey.get(b.key)?.name ?? b.key}</span>
               <label className="flex items-center gap-1.5 text-xs text-zinc-600 dark:text-zinc-400">
                 <input
                   type="checkbox"

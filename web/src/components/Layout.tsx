@@ -4,6 +4,7 @@ import { Link } from "react-router";
 import { useAuth } from "../auth/context";
 import { useMe } from "../api/hooks";
 import { t } from "../i18n";
+import { cn } from "../lib/cn";
 import { NotificationBell } from "./NotificationBell";
 import { Avatar, Button } from "./ui";
 
@@ -17,14 +18,16 @@ export function Layout({ crumbs, actions, children }: { crumbs: Crumb[]; actions
   const me = useMe();
   return (
     <div className="flex h-full flex-col">
-      <header className="flex h-12 shrink-0 items-center gap-3 border-b border-zinc-200 bg-white px-4 dark:border-zinc-800 dark:bg-zinc-900">
-        <Link to="/" className="flex items-center gap-2 font-semibold text-brand-900 dark:text-zinc-50">
+      {/* Phones (ADR-0019): no app name, avatar or upper crumbs, so the
+          header fits 375 px; safe-area padding clears notches in landscape. */}
+      <header className="flex min-h-12 shrink-0 items-center gap-2 border-b border-zinc-200 bg-white pt-[env(safe-area-inset-top)] pr-[max(0.75rem,env(safe-area-inset-right))] pl-[max(0.75rem,env(safe-area-inset-left))] sm:gap-3 sm:pr-[max(1rem,env(safe-area-inset-right))] sm:pl-[max(1rem,env(safe-area-inset-left))] dark:border-zinc-800 dark:bg-zinc-900">
+        <Link to="/" aria-label={t.appName} className="flex shrink-0 items-center gap-2 font-semibold text-brand-900 dark:text-zinc-50">
           <img src="/logo-mark.png" alt="" className="size-7" />
-          {t.appName}
+          <span className="hidden sm:inline">{t.appName}</span>
         </Link>
         <nav aria-label="breadcrumb" className="flex min-w-0 items-center gap-1.5 text-sm text-zinc-500">
           {crumbs.map((c, i) => (
-            <span key={`${c.label}-${String(i)}`} className="flex min-w-0 items-center gap-1.5">
+            <span key={`${c.label}-${String(i)}`} className={cn("flex min-w-0 items-center gap-1.5", i < crumbs.length - 2 && "max-sm:hidden")}>
               <span aria-hidden>/</span>
               {c.to ? (
                 <Link to={c.to} className="truncate hover:text-zinc-900 dark:hover:text-zinc-100">
@@ -38,11 +41,11 @@ export function Layout({ crumbs, actions, children }: { crumbs: Crumb[]; actions
             </span>
           ))}
         </nav>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex shrink-0 items-center gap-2">
           {actions}
           <NotificationBell />
           {me.data && (
-            <span className="flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400">
+            <span className="flex items-center gap-2 text-sm text-zinc-600 max-sm:hidden dark:text-zinc-400">
               <Avatar name={me.data.display_name} />
               <span className="hidden whitespace-nowrap lg:inline">{me.data.display_name}</span>
             </span>

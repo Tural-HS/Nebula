@@ -23,7 +23,8 @@ export function Button({ variant = "secondary", className, ...props }: ButtonHTM
     <button
       type="button"
       className={cn(
-        "inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap transition disabled:cursor-not-allowed",
+        // pointer-coarse: 44 px tap targets on touch screens, compact for mice.
+        "inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap transition disabled:cursor-not-allowed pointer-coarse:min-h-11",
         variants[variant],
         className,
       )}
@@ -32,8 +33,13 @@ export function Button({ variant = "secondary", className, ...props }: ButtonHTM
   );
 }
 
+// On touch screens fields are 44 px tall and use 16 px text: iOS Safari
+// zooms the page into any focused field with smaller text.
+export const touchField = "pointer-coarse:min-h-11 pointer-coarse:text-base";
+
 const fieldBase =
-  "rounded-md border-0 bg-white px-2.5 py-1.5 text-sm text-zinc-900 ring-1 ring-zinc-300 placeholder:text-zinc-400 focus:ring-2 focus:ring-brand-500 dark:bg-zinc-900 dark:text-zinc-100 dark:ring-zinc-700";
+  touchField +
+  " rounded-md border-0 bg-white px-2.5 py-1.5 text-sm text-zinc-900 ring-1 ring-zinc-300 placeholder:text-zinc-400 focus:ring-2 focus:ring-brand-500 dark:bg-zinc-900 dark:text-zinc-100 dark:ring-zinc-700";
 
 // Full width unless the caller sets an explicit width (w-*), which would
 // otherwise lose to w-full depending on stylesheet order.
@@ -129,8 +135,15 @@ export function Avatar({ name, size = "sm" }: { name: string; size?: "sm" | "md"
   );
 }
 
-/** Accessible modal built on the native <dialog> element (focus trap, Esc). */
-export function Dialog({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: string; children: ReactNode }) {
+/**
+ * Accessible modal built on the native <dialog> element (focus trap, Esc).
+ * It never grows past the screen: long content scrolls inside it. A "sheet"
+ * slides up from the bottom on phones (filters, options) and has its own
+ * close button; on wider screens it is an ordinary centred dialog.
+ */
+export function Dialog({ open, onClose, title, children, variant = "dialog" }: {
+  open: boolean; onClose: () => void; title: string; children: ReactNode; variant?: "dialog" | "sheet";
+}) {
   const ref = useRef<HTMLDialogElement>(null);
   // Unique per instance: dialogs stay mounted while closed, so a fixed id
   // made every dialog on a page take the first one's title as its name.
@@ -141,17 +154,29 @@ export function Dialog({ open, onClose, title, children }: { open: boolean; onCl
     if (open && !d.open) d.showModal();
     if (!open && d.open) d.close();
   }, [open]);
+  const sheet = variant === "sheet";
   return (
     <dialog
       ref={ref}
       onClose={onClose}
       aria-labelledby={titleId}
-      className="m-auto w-full max-w-md rounded-xl bg-white p-0 text-zinc-900 shadow-2xl backdrop:bg-zinc-950/40 dark:bg-zinc-900 dark:text-zinc-100"
+      className={cn(
+        "m-auto w-[calc(100%-2rem)] max-w-md overflow-y-auto overscroll-contain rounded-xl bg-white p-0 text-zinc-900 shadow-2xl backdrop:bg-zinc-950/40 dark:bg-zinc-900 dark:text-zinc-100",
+        "max-h-[calc(100dvh-2rem)]",
+        sheet && "max-md:mb-0 max-md:w-full max-md:max-w-none max-md:rounded-b-none max-md:max-h-[85dvh]",
+      )}
     >
-      <div className="p-5">
-        <h2 id={titleId} className="mb-4 text-base font-semibold">
-          {title}
-        </h2>
+      <div className={cn("p-5", sheet && "pb-[max(1.25rem,env(safe-area-inset-bottom))]")}>
+        <div className="mb-4 flex items-center justify-between gap-2">
+          <h2 id={titleId} className="text-base font-semibold">
+            {title}
+          </h2>
+          {sheet && (
+            <Button variant="ghost" className="-my-1.5 -mr-2" onClick={onClose}>
+              {t.close}
+            </Button>
+          )}
+        </div>
         {open && children}
       </div>
     </dialog>

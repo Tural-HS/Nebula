@@ -90,7 +90,7 @@ function RuleRow({ rule, assignee, isAdmin, onEdit, ws, project }: {
     <li aria-label={rule.title} className={cn("rounded-xl bg-white p-4 ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-800", !rule.enabled && "opacity-70")}>
       <div className="flex flex-wrap items-start gap-3">
         <div className="min-w-0 flex-1">
-          <p className="font-medium">{rule.title}</p>
+          <p className="font-medium [overflow-wrap:anywhere]">{rule.title}</p>
           {rule.next_due && rule.title.includes("{{") && (
             <p className="text-sm text-zinc-500">→ {renderTitle(rule.title, rule.next_due)}</p>
           )}
@@ -270,7 +270,7 @@ function RuleForm({ ws, project, rule, members, onDone }: { ws: string; project:
             </div>
           </div>
         )}
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           <div>
             <Label htmlFor="rec-start">{tr.start}</Label>
             <Input id="rec-start" type="date" required value={start} onChange={(e) => { setStart(e.target.value); }} />

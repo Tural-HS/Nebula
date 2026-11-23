@@ -114,12 +114,12 @@ function CommentRow({ comment: c, people, suggest, canEdit, canDelete, onSave, o
           {!c.deleted && !editing && (canEdit || canDelete) && (
             <span className="ml-auto flex gap-2">
               {canEdit && (
-                <button type="button" className="hover:text-zinc-900 dark:hover:text-zinc-100" onClick={() => { setEditing(true); }}>
+                <button type="button" className="hover:text-zinc-900 pointer-coarse:-my-2 pointer-coarse:px-2 pointer-coarse:py-3 dark:hover:text-zinc-100" onClick={() => { setEditing(true); }}>
                   {t.edit}
                 </button>
               )}
               {canDelete && (
-                <button type="button" className="text-red-600 hover:text-red-700" onClick={onDelete}>
+                <button type="button" className="text-red-600 hover:text-red-700 pointer-coarse:-my-2 pointer-coarse:px-2 pointer-coarse:py-3" onClick={onDelete}>
                   {t.delete}
                 </button>
               )}
@@ -239,10 +239,10 @@ function Composer({ people, suggest = people, initial = "", initialPicked = [], 
         }}
         onKeyDown={onKeyDown}
         onBlur={() => { setTimeout(() => { setQuery(null); }, 150); }}
-        className="w-full rounded-md bg-white px-3 py-2 text-sm ring-1 ring-zinc-300 focus:ring-2 focus:ring-brand-500 dark:bg-zinc-900 dark:ring-zinc-700"
+        className="w-full rounded-md bg-white px-3 py-2 text-sm ring-1 ring-zinc-300 pointer-coarse:text-base focus:ring-2 focus:ring-brand-500 dark:bg-zinc-900 dark:ring-zinc-700"
       />
       {suggestions.length > 0 && (
-        <ul role="listbox" className="absolute bottom-full left-0 z-10 mb-1 w-64 overflow-hidden rounded-md bg-white shadow-lg ring-1 ring-zinc-200 dark:bg-zinc-800 dark:ring-zinc-700">
+        <ul role="listbox" className="absolute bottom-full left-0 z-10 mb-1 w-64 max-w-full overflow-hidden rounded-md bg-white shadow-lg ring-1 ring-zinc-200 dark:bg-zinc-800 dark:ring-zinc-700">
           {suggestions.map((p, i) => (
             <li
               key={p.id}
