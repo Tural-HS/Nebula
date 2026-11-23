@@ -9,6 +9,7 @@ import { retryDelay, shouldRetry, shouldRetryMutation } from "./lib/retry";
 import { EmptyState, Spinner } from "./components/ui";
 import { t } from "./i18n";
 import { ImportPage } from "./pages/ImportPage";
+import { ProjectSettingsPage } from "./pages/ProjectSettingsPage";
 import { RecurringPage } from "./pages/RecurringPage";
 import { ItemsPage } from "./pages/ItemsPage";
 import { ProjectsPage } from "./pages/ProjectsPage";
@@ -67,6 +68,7 @@ export function App() {
             <Route path="/w/:ws/p/:project" element={<ItemsPage />} />
             <Route path="/w/:ws/p/:project/import" element={<ImportPage />} />
             <Route path="/w/:ws/p/:project/recurring" element={<RecurringPage />} />
+            <Route path="/w/:ws/p/:project/settings" element={<ProjectSettingsPage />} />
             <Route path="/w/:ws/settings" element={<MembersPage />} />
             <Route path="/w/:ws/settings/general" element={<GeneralPage />} />
             <Route path="/w/:ws/settings/members" element={<MembersPage />} />

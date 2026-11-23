@@ -35,6 +35,16 @@ export interface Project {
   description: string | null;
   created_at: string;
   updated_at: string;
+  /** "private": only project members and workspace admins see it (ADR-0013). */
+  visibility: "workspace" | "private";
+}
+
+export interface ProjectMember {
+  user_id: string;
+  display_name: string;
+  email: string;
+  role: Role;
+  added_at: string;
 }
 
 export interface Status {

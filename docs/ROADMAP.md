@@ -51,7 +51,9 @@ Hər mərhələ yalnız testlər, miqrasiyalar (up və down) və CI yaşıl oldu
 - [x] Mattermost/Slack bildiriş hədəfi: webhook `format: slack`, azərbaycanca qısa mesajlar, tapşırıq keçidi, URL şifrələnmiş və maskalanmış (ADR-0010)
 - [x] Etibarlı proxy-lər üçün rate limit: `NEBULA_TRUSTED_PROXIES`, `X-Forwarded-For` yalnız etibarlı CIDR-lərdən, sağdan sola (ADR-0010)
 - [x] Təkrarlanan tapşırıqlar: gündəlik/həftəlik/aylıq (ayın son günü daxil)/illik, yalnız növbəti tapşırıq `lead_days` əvvəl, buraxılmış tarixlərin bərpası, xətalı qaydanın söndürülməsi (ADR-0012)
-- FinTez köçürülməsi üçün: saxlanılan görünüşlər + cəm sətri, layihə səviyyəsində məxfilik
+- [x] Layihə səviyyəsində məxfilik: gizli layihələr (yalnız üzvlər + workspace adminləri), layihə üzvləri, icraçı və @mention yalnız layihəni görə bilənlərə (ADR-0013)
+- Webhook-lara layihə filtri (gizli layihə hadisələri ümumi kanala getməsin; gündəlik xülasə filtrə görə)
+- FinTez köçürülməsi üçün: saxlanılan görünüşlər + cəm sətri
 
 ## Phase 2: Şablonlar və görünüşlər
 - Proqram təminatı / HR / Satış / Marketinq şablonları; cədvəl, kanban, təqvim, forma görünüşləri

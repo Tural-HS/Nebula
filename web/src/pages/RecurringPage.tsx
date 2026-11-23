@@ -2,7 +2,7 @@ import { useMemo, useState, type SyntheticEvent } from "react";
 import { useParams } from "react-router";
 
 import { useRecurrenceApi, useRecurrences, useSchedulePreview, type Freq, type Recurrence, type RecurrenceInput, type ScheduleInput } from "../api/recurrences";
-import { useFields, useItemTypes, useMembers, useProjects, useWorkspace } from "../api/hooks";
+import { useAssignable, useFields, useItemTypes, useMembers, useProjects, useWorkspace } from "../api/hooks";
 import { roleAtLeast, type FieldValue, type Member } from "../api/types";
 import { FieldEditor } from "../components/FieldEditor";
 import { Layout } from "../components/Layout";
@@ -50,6 +50,7 @@ export function RecurringPage() {
 function Rules({ ws, project, isAdmin }: { ws: string; project: string; isAdmin: boolean }) {
   const rules = useRecurrences(ws, project);
   const members = useMembers(ws);
+  const assignable = useAssignable(ws, project);
   const [editing, setEditing] = useState<Recurrence | "new" | null>(null);
   const byId = useMemo(() => new Map((members.data ?? []).map((m) => [m.user_id, m])), [members.data]);
 
@@ -72,7 +73,7 @@ function Rules({ ws, project, isAdmin }: { ws: string; project: string; isAdmin:
       )}
       <Dialog open={editing !== null} onClose={() => { setEditing(null); }} title={editing === "new" ? tr.newRule : tr.editRule}>
         {editing !== null && (
-          <RuleForm ws={ws} project={project} rule={editing === "new" ? null : editing} members={members.data ?? []} onDone={() => { setEditing(null); }} />
+          <RuleForm ws={ws} project={project} rule={editing === "new" ? null : editing} members={assignable} onDone={() => { setEditing(null); }} />
         )}
       </Dialog>
     </div>

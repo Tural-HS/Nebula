@@ -34,7 +34,8 @@ type preparedItem struct {
 // not visible to the transaction anyway.
 type itemCache struct {
 	wsID      uuid.UUID
-	fieldKeys []string // nil: load the field schema per item for its own keys
+	projectID uuid.UUID // set by prepareItem; assignees must be able to see it
+	fieldKeys []string  // nil: load the field schema per item for its own keys
 	types     map[string]itemTypeRow
 	schemas   map[uuid.UUID]map[string]schemaField
 	statuses  map[uuid.UUID][]Status // per workflow; first = initial status
@@ -53,6 +54,9 @@ func newItemCache(wsID uuid.UUID, fieldKeys []string) *itemCache {
 // fields (types, choices, required fields), status within the type's
 // workflow and assignee membership. It only reads.
 func prepareItem(ctx context.Context, q querier, c *itemCache, p CreateItemParams) (preparedItem, error) {
+	if c.projectID != p.ProjectID {
+		c.projectID, c.members = p.ProjectID, map[uuid.UUID]bool{} // access is per project
+	}
 	title, err := text("title", p.Title, 1, maxTitleLen)
 	if err != nil {
 		return preparedItem{}, err
@@ -167,13 +171,13 @@ func (c *itemCache) requireMember(ctx context.Context, q querier, userID uuid.UU
 	ok, cached := c.members[userID]
 	if !cached {
 		var err error
-		if ok, err = isMember(ctx, q, c.wsID, userID); err != nil {
+		if ok, err = canSeeProject(ctx, q, c.wsID, c.projectID, userID); err != nil {
 			return err
 		}
 		c.members[userID] = ok
 	}
 	if !ok {
-		return invalid("assignee_id", "user is not a member of this workspace")
+		return invalid("assignee_id", "user is not a member of this workspace or cannot see this project")
 	}
 	return nil
 }

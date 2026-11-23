@@ -1,6 +1,6 @@
 import { useState, type SyntheticEvent } from "react";
 
-import { useCreateItem, useFields, useItemTypes, useMembers } from "../api/hooks";
+import { useAssignable, useCreateItem, useFields, useItemTypes, useMembers } from "../api/hooks";
 import type { FieldValue, Item } from "../api/types";
 import { FieldEditor } from "../components/FieldEditor";
 import { useToast } from "../components/toast-context";
@@ -20,6 +20,7 @@ export function CreateItemDialog({ ws, project, open, onClose, onCreated }: {
 function CreateItemForm({ ws, project, onClose, onCreated }: { ws: string; project: string; onClose: () => void; onCreated: (item: Item) => void }) {
   const types = useItemTypes(ws);
   const members = useMembers(ws);
+  const assignable = useAssignable(ws, project);
   const fields = useFields(ws);
   const create = useCreateItem(ws, project);
   const toast = useToast();
@@ -69,7 +70,7 @@ function CreateItemForm({ ws, project, onClose, onCreated }: { ws: string; proje
           <Label htmlFor="new-assignee">{t.assignee}</Label>
           <Select id="new-assignee" value={assignee} onChange={(e) => { setAssignee(e.target.value); }}>
             <option value="">{t.unassigned}</option>
-            {members.data?.map((m) => (
+            {assignable.map((m) => (
               <option key={m.user_id} value={m.user_id}>
                 {m.display_name}
               </option>

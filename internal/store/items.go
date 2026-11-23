@@ -160,13 +160,15 @@ func resolveStatus(ctx context.Context, q querier, workflowID uuid.UUID, want *u
 	return id, err
 }
 
-func requireMember(ctx context.Context, q querier, wsID, userID uuid.UUID) error {
-	ok, err := isMember(ctx, q, wsID, userID)
+// requireProjectAccess: an assignee must be able to see the item's project
+// (ADR-0013), otherwise notifications would leak a private project's items.
+func requireProjectAccess(ctx context.Context, q querier, wsID, projectID, userID uuid.UUID) error {
+	ok, err := canSeeProject(ctx, q, wsID, projectID, userID)
 	if err != nil {
 		return err
 	}
 	if !ok {
-		return invalid("assignee_id", "user is not a member of this workspace")
+		return invalid("assignee_id", "user is not a member of this workspace or cannot see this project")
 	}
 	return nil
 }
@@ -412,7 +414,7 @@ func (s *Store) UpdateItem(ctx context.Context, p UpdateItemParams) (Item, error
 		if p.AssigneeID.Set {
 			a := p.AssigneeID.Ptr()
 			if a != nil {
-				if err := requireMember(ctx, tx, p.WorkspaceID, *a); err != nil {
+				if err := requireProjectAccess(ctx, tx, p.WorkspaceID, p.ProjectID, *a); err != nil {
 					return err
 				}
 			}

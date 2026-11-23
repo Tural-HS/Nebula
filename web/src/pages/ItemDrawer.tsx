@@ -2,7 +2,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
 import { ApiError } from "../api/client";
-import { keys, useDeleteItem, useMe, useFields, useItem, useItemTypes, useMembers, useTransitions, useUpdateItem, type ItemPatch } from "../api/hooks";
+import { keys, useAssignable, useDeleteItem, useMe, useFields, useItem, useItemTypes, useMembers, useTransitions, useUpdateItem, type ItemPatch } from "../api/hooks";
 import type { FieldValue, Item } from "../api/types";
 import { ActivityFeed } from "../components/ActivityFeed";
 import { Comments } from "../components/Comments";
@@ -55,6 +55,7 @@ function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose }: {
   const update = useUpdateItem(ws, project);
   const del = useDeleteItem(ws, project);
   const members = useMembers(ws);
+  const assignable = useAssignable(ws, project);
   const types = useItemTypes(ws);
   const fields = useFields(ws);
   const transitions = useTransitions(ws, project, item.number);
@@ -185,7 +186,7 @@ function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose }: {
                 className="max-w-56"
               >
                 <option value="">{t.unassigned}</option>
-                {members.data?.map((m) => (
+                {assignable.map((m) => (
                   <option key={m.user_id} value={m.user_id}>
                     {m.display_name}
                   </option>
@@ -304,6 +305,7 @@ function FieldRow({ id, label, children }: { id: string; label: string; children
 function CollabTabs({ ws, project, n, canWrite, isAdmin }: { ws: string; project: string; n: number; canWrite: boolean; isAdmin: boolean }) {
   const [tab, setTab] = useState<"comments" | "activity">("comments");
   const members = useMembers(ws);
+  const mentionable = useAssignable(ws, project);
   const me = useMe();
   return (
     <section className="border-t border-zinc-200 pt-4 dark:border-zinc-800">
@@ -325,7 +327,7 @@ function CollabTabs({ ws, project, n, canWrite, isAdmin }: { ws: string; project
         ))}
       </div>
       {tab === "comments" ? (
-        <Comments ws={ws} project={project} n={n} members={members.data ?? []} meId={me.data?.id} canWrite={canWrite} isAdmin={isAdmin} />
+        <Comments ws={ws} project={project} n={n} members={members.data ?? []} mentionable={mentionable} meId={me.data?.id} canWrite={canWrite} isAdmin={isAdmin} />
       ) : (
         <ActivityFeed ws={ws} project={project} n={n} />
       )}

@@ -6,6 +6,7 @@ import { roleAtLeast } from "../api/types";
 import { Layout } from "../components/Layout";
 import { Button, Dialog, EmptyState, ErrorState, FieldError, Input, Label, Spinner } from "../components/ui";
 import { t } from "../i18n";
+import { tp } from "../i18n-project";
 import { ta } from "../i18n-admin";
 
 export function ProjectsPage() {
@@ -55,7 +56,14 @@ export function ProjectsPage() {
                   to={`/w/${encodeURIComponent(ws)}/p/${encodeURIComponent(p.key)}`}
                   className="block rounded-xl bg-white p-4 ring-1 ring-zinc-200 transition hover:ring-brand-500 dark:bg-zinc-900 dark:ring-zinc-800"
                 >
-                  <span className="font-mono text-xs text-brand-600 dark:text-brand-100">{p.key}</span>
+                  <span className="flex items-center justify-between gap-2">
+                    <span className="font-mono text-xs text-brand-600 dark:text-brand-100">{p.key}</span>
+                    {p.visibility === "private" && (
+                      <span title={tp.privateHint} className="rounded bg-zinc-100 px-1.5 py-0.5 text-[11px] text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+                        🔒 {tp.private}
+                      </span>
+                    )}
+                  </span>
                   <span className="mt-1 block font-medium">{p.name}</span>
                   {p.description && <span className="mt-1 line-clamp-2 block text-sm text-zinc-500">{p.description}</span>}
                 </Link>
@@ -76,11 +84,12 @@ function CreateProjectForm({ ws, onDone }: { ws: string; onDone: () => void }) {
   const navigate = useNavigate();
   const [name, setName] = useState("");
   const [key, setKey] = useState("");
+  const [isPrivate, setPrivate] = useState(false);
 
   const submit = (e: SyntheticEvent) => {
     e.preventDefault();
     create.mutate(
-      { name, key },
+      { name, key, visibility: isPrivate ? "private" : "workspace" },
       {
         onSuccess: (p) => {
           onDone();
@@ -101,6 +110,13 @@ function CreateProjectForm({ ws, onDone }: { ws: string; onDone: () => void }) {
         <Input id="p-key" value={key} onChange={(e) => { setKey(e.target.value.toUpperCase()); }} required pattern="[A-Z][A-Z0-9]{1,9}" />
         <p className="mt-1 text-xs text-zinc-500">{t.projectKeyHint}</p>
       </div>
+      <label className="flex items-start gap-2 text-sm">
+        <input type="checkbox" className="mt-0.5 accent-brand-600" checked={isPrivate} onChange={(e) => { setPrivate(e.target.checked); }} />
+        <span>
+          🔒 {tp.privateProject}
+          <span className="block text-xs text-zinc-500">{tp.privateHint}</span>
+        </span>
+      </label>
       <FieldError error={create.error} />
       <div className="flex justify-end gap-2">
         <Button onClick={onDone}>{t.cancel}</Button>

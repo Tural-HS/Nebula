@@ -78,9 +78,10 @@ type mentioned struct {
 	email string
 }
 
-// resolveMentions keeps only active workspace members; anyone else is ignored
-// silently, so mentions cannot be used to probe who exists.
-func resolveMentions(ctx context.Context, q querier, wsID uuid.UUID, ids []uuid.UUID) ([]mentioned, error) {
+// resolveMentions keeps only active workspace members who can see the
+// project (ADR-0013); anyone else is ignored silently, so mentions can neither
+// probe who exists nor email a private project's content to outsiders.
+func resolveMentions(ctx context.Context, q querier, wsID, projectID uuid.UUID, ids []uuid.UUID) ([]mentioned, error) {
 	if len(ids) > maxMentionsPerComment {
 		return nil, invalid("body", "at most %d people can be mentioned in one comment", maxMentionsPerComment)
 	}
@@ -93,7 +94,10 @@ func resolveMentions(ctx context.Context, q querier, wsID uuid.UUID, ids []uuid.
 	}
 	rows, err := q.Query(ctx, `SELECT u.id, u.display_name, u.email FROM users u
 		JOIN workspace_members m ON m.user_id = u.id
-		WHERE m.workspace_id = $1 AND u.is_active AND u.id = ANY($2::uuid[])`, wsID, strs)
+		JOIN projects p ON p.workspace_id = m.workspace_id AND p.id = $3
+		WHERE m.workspace_id = $1 AND u.is_active AND u.id = ANY($2::uuid[])
+		  AND (p.visibility = 'workspace' OR m.role IN ('admin', 'owner')
+		       OR EXISTS (SELECT 1 FROM project_members pm WHERE pm.project_id = p.id AND pm.user_id = u.id))`, wsID, strs, projectID)
 	if err != nil {
 		return nil, err
 	}
@@ -283,7 +287,7 @@ func (s *Store) CreateComment(ctx context.Context, wsID, projectID uuid.UUID, nu
 		if err != nil {
 			return err
 		}
-		people, err := resolveMentions(ctx, tx, wsID, parseMentions(body))
+		people, err := resolveMentions(ctx, tx, wsID, projectID, parseMentions(body))
 		if err != nil {
 			return err
 		}
@@ -347,7 +351,7 @@ func (s *Store) UpdateComment(ctx context.Context, wsID, projectID uuid.UUID, nu
 			return ErrForbidden // nobody edits someone else's words, not even admins
 		}
 		if body != old {
-			people, err := resolveMentions(ctx, tx, wsID, parseMentions(body))
+			people, err := resolveMentions(ctx, tx, wsID, projectID, parseMentions(body))
 			if err != nil {
 				return err
 			}

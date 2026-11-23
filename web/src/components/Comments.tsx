@@ -15,16 +15,22 @@ interface Props {
   project: string;
   n: number;
   members: Member[];
+  /** Who may be @mentioned (people who can see the project); defaults to members. */
+  mentionable?: Member[];
   meId: string | undefined;
   canWrite: boolean;
   isAdmin: boolean;
 }
 
-export function Comments({ ws, project, n, members, meId, canWrite, isAdmin }: Props) {
+export function Comments({ ws, project, n, members, mentionable, meId, canWrite, isAdmin }: Props) {
   const q = useComments(ws, project, n);
   const m = useCommentMutations(ws, project, n);
   const toast = useToast();
   const people = useMemo<Person[]>(() => members.map((x) => ({ id: x.user_id, name: x.display_name })), [members]);
+  const suggest = useMemo<Person[]>(
+    () => (mentionable ?? members).map((x) => ({ id: x.user_id, name: x.display_name })),
+    [mentionable, members],
+  );
   const comments = flattenBy(q.data?.pages ?? [], (p) => p.comments, (c) => c.id);
 
   const onError = (err: unknown) => {
@@ -43,6 +49,7 @@ export function Comments({ ws, project, n, members, meId, canWrite, isAdmin }: P
             key={c.id}
             comment={c}
             people={people}
+            suggest={suggest}
             canEdit={canWrite && c.author?.id === meId}
             canDelete={canWrite && (c.author?.id === meId || isAdmin)}
             onSave={(body) => {
@@ -62,6 +69,7 @@ export function Comments({ ws, project, n, members, meId, canWrite, isAdmin }: P
       {canWrite && (
         <Composer
           people={people}
+          suggest={suggest}
           pending={m.create.isPending}
           onSubmit={(body, reset) => {
             m.create.mutate(body, { onSuccess: reset, onError });
@@ -89,8 +97,8 @@ function CommentBody({ body, people }: { body: string; people: Person[] }) {
   );
 }
 
-function CommentRow({ comment: c, people, canEdit, canDelete, onSave, onDelete }: {
-  comment: Comment; people: Person[]; canEdit: boolean; canDelete: boolean;
+function CommentRow({ comment: c, people, suggest, canEdit, canDelete, onSave, onDelete }: {
+  comment: Comment; people: Person[]; suggest: Person[]; canEdit: boolean; canDelete: boolean;
   onSave: (body: string) => void; onDelete: () => void;
 }) {
   const [editing, setEditing] = useState(false);
@@ -123,6 +131,7 @@ function CommentRow({ comment: c, people, canEdit, canDelete, onSave, onDelete }
         ) : editing ? (
           <Composer
             people={people}
+            suggest={suggest}
             initial={toEditable(c.body, people)}
             initialPicked={people.filter((p) => c.mentions.includes(p.id))}
             pending={false}
@@ -140,8 +149,8 @@ function CommentRow({ comment: c, people, canEdit, canDelete, onSave, onDelete }
   );
 }
 
-function Composer({ people, initial = "", initialPicked = [], pending, onSubmit, onCancel }: {
-  people: Person[]; initial?: string; initialPicked?: Person[]; pending: boolean;
+function Composer({ people, suggest = people, initial = "", initialPicked = [], pending, onSubmit, onCancel }: {
+  people: Person[]; suggest?: Person[]; initial?: string; initialPicked?: Person[]; pending: boolean;
   onSubmit: (body: string, reset: () => void) => void; onCancel?: () => void;
 }) {
   const [text, setText] = useState(initial);
@@ -164,7 +173,7 @@ function Composer({ people, initial = "", initialPicked = [], pending, onSubmit,
   }, [text]);
 
   const suggestions =
-    query === null ? [] : people.filter((p) => p.name.toLocaleLowerCase("az").includes(query.toLocaleLowerCase("az"))).slice(0, 6);
+    query === null ? [] : suggest.filter((p) => p.name.toLocaleLowerCase("az").includes(query.toLocaleLowerCase("az"))).slice(0, 6);
 
   const updateQuery = (value: string, caret: number) => {
     setQuery(activeMentionQuery(value, caret));

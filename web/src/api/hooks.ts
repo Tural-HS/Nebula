@@ -1,7 +1,7 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api, path } from "./client";
-import type { ActivityPage, Comment, CommentPage, FieldDefinition, FieldValue, Item, ItemPage, ItemType, Me, Member, Project, Status, Workspace } from "./types";
+import type { ActivityPage, Comment, CommentPage, FieldDefinition, FieldValue, Item, ItemPage, ItemType, Me, Member, Project, ProjectMember, Status, Workspace } from "./types";
 
 export const keys = {
   me: ["me"] as const,
@@ -36,6 +36,32 @@ export const useProjects = (ws: string) =>
     queryKey: keys.projects(ws),
     queryFn: async () => (await api<{ projects: Project[] }>("GET", path`/workspaces/${ws}/projects`)).projects,
   });
+
+export const useProjectMembers = (ws: string, project: string, enabled = true) =>
+  useQuery({
+    enabled,
+    queryKey: ["ws", ws, "p", project, "members"],
+    queryFn: async () => (await api<{ members: ProjectMember[] }>("GET", path`/workspaces/${ws}/projects/${project}/members`)).members,
+  });
+
+/**
+ * Workspace members who can see the project: everyone for a workspace
+ * project; for a private one, its members plus workspace admins. Assignee
+ * pickers and @mentions offer only these people (the server enforces it).
+ */
+export function useAssignable(ws: string, project: string): Member[] {
+  const members = useMembers(ws);
+  const projects = useProjects(ws);
+  const isPrivate = projects.data?.find((p) => p.key === project)?.visibility === "private";
+  const projectMembers = useProjectMembers(ws, project, isPrivate);
+  return assignable(members.data ?? [], isPrivate, projectMembers.data ?? []);
+}
+
+export function assignable(members: readonly Member[], isPrivate: boolean, projectMembers: readonly { user_id: string }[]): Member[] {
+  if (!isPrivate) return [...members];
+  const inProject = new Set(projectMembers.map((m) => m.user_id));
+  return members.filter((m) => m.role === "admin" || m.role === "owner" || inProject.has(m.user_id));
+}
 
 export const useItemTypes = (ws: string) =>
   useQuery({
@@ -186,7 +212,7 @@ export function useCreateWorkspace() {
 export function useCreateProject(ws: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { key: string; name: string; description?: string }) =>
+    mutationFn: (body: { key: string; name: string; description?: string; visibility?: Project["visibility"] }) =>
       api<Project>("POST", path`/workspaces/${ws}/projects`, body),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.projects(ws) }),
   });

@@ -72,6 +72,7 @@ func (a *api) routes(r chi.Router) {
 			a.itemCollabRoutes(r)
 			a.importRoutes(r)
 			a.recurrenceRoutes(r)
+			a.projectSettingsRoutes(r)
 		})
 	})
 }
@@ -109,13 +110,18 @@ func (a *api) loadWorkspace(next http.Handler) http.Handler {
 
 func (a *api) loadProject(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		p, err := a.store.GetProject(r.Context(), workspaceFrom(r).ID, chi.URLParam(r, "project"))
+		p, err := a.store.GetProject(r.Context(), workspaceFrom(r).ID, chi.URLParam(r, "project"), viewer(r))
 		if err != nil {
 			a.fail(w, r, err)
 			return
 		}
 		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), projectKey, p)))
 	})
+}
+
+// viewer is the signed-in user with their workspace role, for access checks.
+func viewer(r *http.Request) store.Viewer {
+	return store.Viewer{UserID: principal(r).UserID, Role: workspaceFrom(r).Role}
 }
 
 func requireRole(minRole string) func(http.Handler) http.Handler {
@@ -262,7 +268,7 @@ func (a *api) addMember(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *api) listProjects(w http.ResponseWriter, r *http.Request) {
-	list, err := a.store.ListProjects(r.Context(), workspaceFrom(r).ID)
+	list, err := a.store.ListProjects(r.Context(), workspaceFrom(r).ID, viewer(r))
 	if err != nil {
 		a.fail(w, r, err)
 		return
@@ -275,12 +281,13 @@ func (a *api) createProject(w http.ResponseWriter, r *http.Request) {
 		Key         string  `json:"key"`
 		Name        string  `json:"name"`
 		Description *string `json:"description"`
+		Visibility  string  `json:"visibility"`
 	}
 	if !a.decode(w, r, &body) {
 		return
 	}
 	ws := workspaceFrom(r)
-	p, err := a.store.CreateProject(r.Context(), ws.ID, principal(r).UserID, body.Key, body.Name, body.Description)
+	p, err := a.store.CreateProject(r.Context(), ws.ID, principal(r).UserID, body.Key, body.Name, body.Description, body.Visibility)
 	if err != nil {
 		a.fail(w, r, err)
 		return

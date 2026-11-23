@@ -17,6 +17,11 @@ updates:
     schedule: { interval: weekly }
     groups:
       web-deps: { patterns: ["*"] }
+    ignore:
+      # typescript-eslint does not support TypeScript 7 yet; remove this once it does.
+      # Minor/patch updates of TypeScript 6 still arrive (security fixes included).
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule: { interval: weekly }
