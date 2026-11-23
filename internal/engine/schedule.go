@@ -6,7 +6,10 @@ import (
 )
 
 // overdueBatch bounds one scan; a backlog is worked off over several ticks.
-const overdueBatch = 500
+const (
+	overdueBatch    = 500
+	recurrenceBatch = 200 // rules per tick; each creates its due items
+)
 
 // Tick runs the time-based scans (ADR-0009). The worker calls it every minute
 // on every replica; the store makes each event idempotent, so concurrent runs
@@ -28,6 +31,14 @@ func (e *Engine) Tick(ctx context.Context) {
 		if n < overdueBatch {
 			break
 		}
+	}
+	// Recurring items first: a new item due today should be in today's digest.
+	if n, err := e.Store.EmitRecurrences(ctx, recurrenceBatch); err != nil {
+		if ctx.Err() == nil {
+			e.Logger.Error("recurring items", "error", err)
+		}
+	} else if n > 0 {
+		e.Logger.Info("recurring items created", "count", n)
 	}
 	n, err := e.Store.EmitOverdueDigests(ctx)
 	if err != nil {

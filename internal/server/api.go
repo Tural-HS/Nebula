@@ -71,6 +71,7 @@ func (a *api) routes(r chi.Router) {
 			r.With(requireRole(store.RoleMember)).Delete("/items/{number}", a.deleteItem)
 			a.itemCollabRoutes(r)
 			a.importRoutes(r)
+			a.recurrenceRoutes(r)
 		})
 	})
 }

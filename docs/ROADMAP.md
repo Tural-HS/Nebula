@@ -50,7 +50,8 @@ Hər mərhələ yalnız testlər, miqrasiyalar (up və down) və CI yaşıl oldu
 - [x] Son tarix (`due_date`), workspace saat qurşağı, avtomatik "gecikir" nişanı və filtr; `item.overdue` qayda trigger-i, gündəlik gecikmə xülasəsi (`workspace.overdue_digest`), "Ümumi" ayarlar bölməsi (ADR-0009)
 - [x] Mattermost/Slack bildiriş hədəfi: webhook `format: slack`, azərbaycanca qısa mesajlar, tapşırıq keçidi, URL şifrələnmiş və maskalanmış (ADR-0010)
 - [x] Etibarlı proxy-lər üçün rate limit: `NEBULA_TRUSTED_PROXIES`, `X-Forwarded-For` yalnız etibarlı CIDR-lərdən, sağdan sola (ADR-0010)
-- FinTez köçürülməsi üçün: təkrarlanan tapşırıqlar, saxlanılan görünüşlər + cəm sətri, layihə səviyyəsində məxfilik
+- [x] Təkrarlanan tapşırıqlar: gündəlik/həftəlik/aylıq (ayın son günü daxil)/illik, yalnız növbəti tapşırıq `lead_days` əvvəl, buraxılmış tarixlərin bərpası, xətalı qaydanın söndürülməsi (ADR-0012)
+- FinTez köçürülməsi üçün: saxlanılan görünüşlər + cəm sətri, layihə səviyyəsində məxfilik
 
 ## Phase 2: Şablonlar və görünüşlər
 - Proqram təminatı / HR / Satış / Marketinq şablonları; cədvəl, kanban, təqvim, forma görünüşləri

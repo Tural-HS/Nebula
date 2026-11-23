@@ -12,6 +12,7 @@ import { useToast } from "../components/toast-context";
 import { Avatar, Button, DueChip, EmptyState, ErrorState, Input, Select, Spinner, StatusBadge } from "../components/ui";
 import { cn } from "../lib/cn";
 import { t } from "../i18n";
+import { tr } from "../i18n-recur";
 import { ti } from "../i18n-import";
 import { buildColumns, columnCount, dropTargets, flattenPages, otherColumn, pickTargetStatus, type BoardColumn, type GroupBy } from "../lib/board";
 import { formatDateTime, formatRelative } from "../lib/format";
@@ -81,6 +82,14 @@ export function ItemsPage() {
       ]}
       actions={
         <>
+          {canEdit && (
+            <Link
+              to={`/w/${encodeURIComponent(ws)}/p/${encodeURIComponent(project)}/recurring`}
+              className="rounded-md px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            >
+              {tr.nav}
+            </Link>
+          )}
           {canImport && (
             <Link
               to={`/w/${encodeURIComponent(ws)}/p/${encodeURIComponent(project)}/import`}

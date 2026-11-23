@@ -89,36 +89,53 @@ type CreateItemParams struct {
 func (s *Store) CreateItem(ctx context.Context, p CreateItemParams) (Item, error) {
 	var item Item
 	err := s.inTx(ctx, func(tx pgx.Tx) error {
-		prep, err := prepareItem(ctx, tx, newItemCache(p.WorkspaceID, nil), p)
-		if err != nil {
-			return err
-		}
-
-		// Row lock on the project serializes numbering: no gaps from races, no duplicates.
-		var number int64
-		err = tx.QueryRow(ctx, `UPDATE projects SET next_item_number = next_item_number + 1
-			WHERE id = $1 AND workspace_id = $2 AND archived_at IS NULL
-			RETURNING next_item_number - 1`, p.ProjectID, p.WorkspaceID).Scan(&number)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrNotFound
-		}
-		if err != nil {
-			return err
-		}
-
-		id := newID()
-		if _, err := tx.Exec(ctx, insertItemSQL,
-			id, p.WorkspaceID, p.ProjectID, prep.typ.ID, prep.status.ID, number, prep.title, prep.desc,
-			prep.assignee, p.ActorID, prep.fields, prep.due); err != nil {
-			return err
-		}
-		item, err = scanItem(tx.QueryRow(ctx, itemSelect+` WHERE i.id = $1`, id))
-		if err != nil {
-			return err
-		}
-		return appendEvent(ctx, tx, p.WorkspaceID, p.ActorID, "item", id, "item.created", createdPayload(item))
+		var err error
+		item, err = createItemTx(ctx, tx, p, nil)
+		return err
 	})
 	return item, err
+}
+
+// createItemTx validates and inserts an item and records item.created, inside
+// the caller's transaction. A zero ActorID creates it as the system (no
+// reporter). extra is merged into the event payload.
+func createItemTx(ctx context.Context, tx pgx.Tx, p CreateItemParams, extra map[string]any) (Item, error) {
+	prep, err := prepareItem(ctx, tx, newItemCache(p.WorkspaceID, nil), p)
+	if err != nil {
+		return Item{}, err
+	}
+
+	// Row lock on the project serializes numbering: no gaps from races, no duplicates.
+	var number int64
+	err = tx.QueryRow(ctx, `UPDATE projects SET next_item_number = next_item_number + 1
+		WHERE id = $1 AND workspace_id = $2 AND archived_at IS NULL
+		RETURNING next_item_number - 1`, p.ProjectID, p.WorkspaceID).Scan(&number)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Item{}, ErrNotFound
+	}
+	if err != nil {
+		return Item{}, err
+	}
+
+	var reporter *uuid.UUID
+	if p.ActorID != uuid.Nil {
+		reporter = &p.ActorID
+	}
+	id := newID()
+	if _, err := tx.Exec(ctx, insertItemSQL,
+		id, p.WorkspaceID, p.ProjectID, prep.typ.ID, prep.status.ID, number, prep.title, prep.desc,
+		prep.assignee, reporter, prep.fields, prep.due); err != nil {
+		return Item{}, err
+	}
+	item, err := scanItem(tx.QueryRow(ctx, itemSelect+` WHERE i.id = $1`, id))
+	if err != nil {
+		return Item{}, err
+	}
+	payload := createdPayload(item)
+	for k, v := range extra {
+		payload[k] = v
+	}
+	return item, appendEvent(ctx, tx, p.WorkspaceID, p.ActorID, "item", id, "item.created", payload)
 }
 
 const insertItemSQL = `INSERT INTO items
