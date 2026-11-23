@@ -5,12 +5,24 @@
 # also re-applies on every deploy (existing installations, drift repair).
 set -euo pipefail
 
-secret() { tr -d '\r\n' <"/run/secrets/$1"; }
+# secret NAME: prints the secret file's content without line breaks. Fails (and so aborts initdb,
+# leaving no half-initialised cluster) when the file is missing or shorter than 16 characters:
+# `set -e` does not apply inside the $(...) arguments below, so a missing file would otherwise
+# create roles with an EMPTY password.
+secret() {
+	local v
+	v="$(tr -d '\r\n' <"/run/secrets/$1")" || { echo "initdb: cannot read secret $1" >&2; exit 1; }
+	((${#v} >= 16)) || { echo "initdb: secret $1 is empty or shorter than 16 characters" >&2; exit 1; }
+	printf '%s' "$v"
+}
+nebula_pw="$(secret nebula_db_password)"
+keycloak_pw="$(secret keycloak_db_password)"
+monitor_pw="$(secret monitoring_db_password)"
 
 psql -v ON_ERROR_STOP=1 --username postgres --dbname postgres \
-	-v nebula_pw="$(secret nebula_db_password)" \
-	-v keycloak_pw="$(secret keycloak_db_password)" \
-	-v monitor_pw="$(secret monitoring_db_password)" <<'SQL'
+	-v nebula_pw="$nebula_pw" \
+	-v keycloak_pw="$keycloak_pw" \
+	-v monitor_pw="$monitor_pw" <<'SQL'
 -- Application roles: no superuser, no role/db creation.
 -- nebula owns the Nebula schema and is used ONLY by `nebula migrate` (ADR-0018).
 CREATE ROLE nebula LOGIN PASSWORD :'nebula_pw' NOSUPERUSER NOCREATEDB NOCREATEROLE CONNECTION LIMIT 10;

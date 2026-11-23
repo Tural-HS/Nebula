@@ -261,7 +261,7 @@ Sxemi də geri qaytarmaq lazımdırsa `--migrate-down-to N` Down hissələrini *
 | 00009 recurrences | var | təkrarlanan qaydalar silinir |
 | 00010 project privacy | var | ⚠️ **təhlükəsizlik**: `visibility` və layihə üzvləri silinir, **gizli layihələr bütün workspace üzvlərinə görünən olur**. Gizli layihə varsa Down əvəzinə PITR istifadə edin |
 | 00011 saved views | var | saxlanılan görünüşlər silinir; indeks `CONCURRENTLY` silinir (yazmaları bloklamır) |
-| 00012 webhook projects | var | ⚠️ **təhlükəsizlik**: layihə filtrləri silinir, filtrsiz webhook-lar yenə **bütün** layihələrin (gizlilər daxil) hadisələrini almağa başlayır. Gizli layihə varsa Down əvəzinə PITR |
+| 00012 webhook projects | var | ⚠️ **təhlükəsizlik**: webhook-ların layihə filtri (`project_ids`) silinir; köhnə image-də **gizli layihələrin hadisələri bütün webhook-lara gedir** (ADR-0013-ün bağlanmış boşluğu). Gizli layihə varsa: rollback-dən əvvəl webhook-ları söndürün, yalnız image-i qaytarın (sxem qalsın) və ya Down əvəzinə PITR |
 | 00013 invitations | var | gözləyən dəvətlər silinir (linklər işləməz); qəbul edilmiş üzvlüklər qalır |
 | 00014 notifications | var | bütün tətbiqdaxili bildirişlər silinir |
 
