@@ -2,6 +2,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { useEffect, useMemo, useRef, type CSSProperties, type ReactNode } from "react";
 
 import type { FieldDefinition, FieldSums, Item, Member } from "../api/types";
+import { SubtaskBadge } from "../components/Subtasks";
 import { tc } from "../i18n-calendar";
 import { inlineKind, type InlineEdit } from "../lib/inline";
 import { InlineCell } from "./InlineCell";
@@ -133,6 +134,7 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
         const title = (
           <span className="flex min-w-0 items-center gap-2">
             <span className="truncate">{it.title}</span>
+            <SubtaskBadge summary={it.subtasks} />
             {showDueInTitle && it.due_date && <DueChip date={it.due_date} overdue={it.overdue} />}
           </span>
         );

@@ -38,6 +38,8 @@ type Item struct {
 	Fields      map[string]any `json:"fields"`
 	DueDate     *string        `json:"due_date"` // YYYY-MM-DD, in the workspace's time zone
 	Overdue     bool           `json:"overdue"`  // past due and not done/canceled (ADR-0009)
+	Parent      *ItemParent    `json:"parent"`   // nil for a top-level item (ADR-0021)
+	Subtasks    SubtaskSummary `json:"subtasks"`
 	Version     int            `json:"version"`
 	CreatedAt   time.Time      `json:"created_at"`
 	UpdatedAt   time.Time      `json:"updated_at"`
@@ -51,23 +53,34 @@ const (
 const itemSelect = `SELECT i.id, i.number, p.key, i.project_id, i.title, i.description, i.assignee_id,
 	i.reporter_id, i.fields, i.version, i.created_at, i.updated_at,
 	t.id, t.key, t.name, s.id, s.name, s.category, i.due_date::text,
-	COALESCE(i.due_date < (now() AT TIME ZONE w.timezone)::date AND s.category IN ('todo', 'in_progress'), false)
+	COALESCE(i.due_date < (now() AT TIME ZONE w.timezone)::date AND s.category IN ('todo', 'in_progress'), false),
+	par.number, par.title, sub.total, sub.closed
 	FROM items i
 	JOIN workspaces w ON w.id = i.workspace_id
 	JOIN projects   p ON p.id = i.project_id
 	JOIN item_types t ON t.id = i.item_type_id
-	JOIN statuses   s ON s.id = i.status_id`
+	JOIN statuses   s ON s.id = i.status_id
+	LEFT JOIN items par ON par.id = i.parent_id AND par.deleted_at IS NULL
+	LEFT JOIN LATERAL (SELECT count(*) AS total, count(*) FILTER (WHERE cs.category IN ('done', 'canceled')) AS closed
+		FROM items c JOIN statuses cs ON cs.id = c.status_id
+		WHERE c.parent_id = i.id AND c.deleted_at IS NULL) sub ON true`
 
 func scanItem(row pgx.Row) (Item, error) {
 	var it Item
 	var projectKey string
+	var parentNumber *int64
+	var parentTitle *string
 	err := row.Scan(&it.ID, &it.Number, &projectKey, &it.ProjectID, &it.Title, &it.Description, &it.AssigneeID,
 		&it.ReporterID, &it.Fields, &it.Version, &it.CreatedAt, &it.UpdatedAt,
-		&it.Type.ID, &it.Type.Key, &it.Type.Name, &it.Status.ID, &it.Status.Name, &it.Status.Category, &it.DueDate, &it.Overdue)
+		&it.Type.ID, &it.Type.Key, &it.Type.Name, &it.Status.ID, &it.Status.Name, &it.Status.Category, &it.DueDate, &it.Overdue,
+		&parentNumber, &parentTitle, &it.Subtasks.Count, &it.Subtasks.Done)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Item{}, ErrNotFound
 	}
-	it.Key = projectKey + "-" + strconv.FormatInt(it.Number, 10)
+	it.Key = itemKey(projectKey, it.Number)
+	if parentNumber != nil && parentTitle != nil {
+		it.Parent = &ItemParent{Key: itemKey(projectKey, *parentNumber), Number: *parentNumber, Title: *parentTitle}
+	}
 	return it, err
 }
 
@@ -83,6 +96,8 @@ type CreateItemParams struct {
 	AssigneeID  *uuid.UUID
 	DueDate     *string // YYYY-MM-DD
 	Fields      map[string]json.RawMessage
+	// ParentNumber makes the new item a subtask of that item in the same project.
+	ParentNumber *int64
 }
 
 // CreateItem allocates the next project number and inserts the item atomically.
@@ -106,6 +121,15 @@ func createItemTx(ctx context.Context, tx pgx.Tx, p CreateItemParams, extra map[
 	}
 
 	// Row lock on the project serializes numbering: no gaps from races, no duplicates.
+	var parentID *uuid.UUID
+	if p.ParentNumber != nil {
+		ref, err := lockParent(ctx, tx, p.WorkspaceID, p.ProjectID, *p.ParentNumber)
+		if err != nil {
+			return Item{}, err
+		}
+		parentID = &ref.id
+	}
+
 	var number int64
 	err = tx.QueryRow(ctx, `UPDATE projects SET next_item_number = next_item_number + 1
 		WHERE id = $1 AND workspace_id = $2 AND archived_at IS NULL
@@ -126,6 +150,13 @@ func createItemTx(ctx context.Context, tx pgx.Tx, p CreateItemParams, extra map[
 		id, p.WorkspaceID, p.ProjectID, prep.typ.ID, prep.status.ID, number, prep.title, prep.desc,
 		prep.assignee, reporter, prep.fields, prep.due); err != nil {
 		return Item{}, err
+	}
+	if parentID != nil {
+		// A separate statement keeps insertItemSQL shared with imports, which
+		// never set a parent.
+		if _, err := tx.Exec(ctx, `UPDATE items SET parent_id = $1 WHERE id = $2`, *parentID, id); err != nil {
+			return Item{}, parentError(err)
+		}
 	}
 	item, err := scanItem(tx.QueryRow(ctx, itemSelect+` WHERE i.id = $1`, id))
 	if err != nil {
@@ -193,6 +224,8 @@ type ListItemsParams struct {
 	DueFrom      *string           // due_date >= this YYYY-MM-DD (calendar range, inclusive)
 	DueTo        *string           // due_date <= this YYYY-MM-DD (inclusive)
 	Sort         string            // SortNumber (default) or SortDue, see itemsort.go
+	ParentNumber *int64            // only subtasks of this item
+	TopLevel     bool              // only items without a parent
 	Limit        int
 	Cursor       *ItemCursor // continue after this position (nil = from the start)
 }
@@ -282,6 +315,13 @@ func (s *Store) itemFilter(ctx context.Context, p ListItemsParams, withStatus bo
 	if p.Unassigned {
 		where = append(where, "i.assignee_id IS NULL")
 	}
+	if p.ParentNumber != nil {
+		add(`i.parent_id = (SELECT id FROM items
+			WHERE workspace_id = $1 AND project_id = $2 AND number = ? AND deleted_at IS NULL)`, *p.ParentNumber)
+	}
+	if p.TopLevel {
+		where = append(where, "i.parent_id IS NULL")
+	}
 	if len(p.FieldFilters) > 0 {
 		conds, err := fieldFilterConditions(ctx, s.pool, p.WorkspaceID, p.FieldFilters)
 		if err != nil {
@@ -335,6 +375,7 @@ type UpdateItemParams struct {
 	StatusID    opt.Field[uuid.UUID]
 	AssigneeID  opt.Field[uuid.UUID]
 	DueDate     opt.Field[string] // YYYY-MM-DD; null clears it
+	Parent      opt.Field[int64]  // parent item number; null makes it top-level
 	// Fields is merged: listed keys are set (or cleared with null), others kept.
 	Fields opt.Field[map[string]json.RawMessage]
 }
@@ -411,13 +452,19 @@ func updateItemTx(ctx context.Context, tx pgx.Tx, p UpdateItemParams, in checked
 			curDue                *string
 			typeID                uuid.UUID
 			typeKey               string
+			curParent             *uuid.UUID
+			curParentNumber       *int64
+			projectKey            string
 		)
 		err := tx.QueryRow(ctx, `SELECT i.id, i.version, i.title, i.description, i.status_id, i.assignee_id, i.fields,
-				i.due_date::text, t.workflow_id, t.id, t.key
+				i.due_date::text, t.workflow_id, t.id, t.key, i.parent_id, par.number, p.key
 			FROM items i JOIN item_types t ON t.id = i.item_type_id
+			JOIN projects p ON p.id = i.project_id
+			LEFT JOIN items par ON par.id = i.parent_id
 			WHERE i.workspace_id = $1 AND i.project_id = $2 AND i.number = $3 AND i.deleted_at IS NULL
 			FOR UPDATE OF i`, p.WorkspaceID, p.ProjectID, p.Number).
-			Scan(&id, &version, &curTitle, &curDesc, &curStatus, &curAssignee, &curFields, &curDue, &workflowID, &typeID, &typeKey)
+			Scan(&id, &version, &curTitle, &curDesc, &curStatus, &curAssignee, &curFields, &curDue, &workflowID, &typeID, &typeKey,
+				&curParent, &curParentNumber, &projectKey)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrNotFound
 		}
@@ -431,6 +478,29 @@ func updateItemTx(ctx context.Context, tx pgx.Tx, p UpdateItemParams, in checked
 
 		changes := map[string]any{}
 		newTitle, newDesc, newStatus, newAssignee, newDue := curTitle, curDesc, curStatus, curAssignee, curDue
+		newParent := curParent
+		if p.Parent.Set {
+			var to *int64
+			newParent = nil
+			if !p.Parent.Null {
+				if p.Parent.Value == p.Number {
+					return invalid("parent", "an item cannot be its own parent")
+				}
+				ref, err := lockParent(ctx, tx, p.WorkspaceID, p.ProjectID, p.Parent.Value)
+				if err != nil {
+					return err
+				}
+				if !equalPtr(curParent, &ref.id) {
+					if err := requireNoSubtasks(ctx, tx, id); err != nil {
+						return err
+					}
+				}
+				newParent, to = &ref.id, &p.Parent.Value
+			}
+			if !equalPtr(curParent, newParent) {
+				changes["parent"] = diff(keyOrNil(projectKey, curParentNumber), keyOrNil(projectKey, to))
+			}
+		}
 		if p.DueDate.Set && !equalPtr(curDue, due) {
 			changes["due_date"] = diff(curDue, due)
 			newDue = due
@@ -485,9 +555,9 @@ func updateItemTx(ctx context.Context, tx pgx.Tx, p UpdateItemParams, in checked
 
 		if len(changes) > 0 {
 			if _, err := tx.Exec(ctx, `UPDATE items SET title = $1, description = $2, status_id = $3,
-				assignee_id = $4, fields = $5, due_date = $6::date, version = version + 1 WHERE id = $7`,
-				newTitle, newDesc, newStatus, newAssignee, newFields, newDue, id); err != nil {
-				return err
+				assignee_id = $4, fields = $5, due_date = $6::date, parent_id = $8, version = version + 1 WHERE id = $7`,
+				newTitle, newDesc, newStatus, newAssignee, newFields, newDue, id, newParent); err != nil {
+				return parentError(err)
 			}
 		}
 		item, err = scanItem(tx.QueryRow(ctx, itemSelect+` WHERE i.id = $1`, id))
@@ -516,6 +586,10 @@ func Snapshot(it Item) map[string]any {
 		"assignee":        nil,
 		"reporter":        nil,
 		"due_date":        nil,
+		"parent":          nil,
+	}
+	if it.Parent != nil {
+		v["parent"] = it.Parent.Key
 	}
 	if it.DueDate != nil {
 		v["due_date"] = *it.DueDate
@@ -561,7 +635,13 @@ func deleteItemTx(ctx context.Context, tx pgx.Tx, wsID, projectID uuid.UUID, num
 	if _, err := tx.Exec(ctx, `UPDATE items SET deleted_at = now(), version = version + 1 WHERE id = $1`, id); err != nil {
 		return err
 	}
-	return appendEvent(ctx, tx, wsID, actorID, "item", id, "item.deleted", extra)
+	if err := appendEvent(ctx, tx, wsID, actorID, "item", id, "item.deleted", extra); err != nil {
+		return err
+	}
+	// Subtasks of a deleted item become top-level (ADR-0021), for single and
+	// bulk deletes alike. The FOR UPDATE above orders this against a
+	// concurrent "add subtask" (items_check_parent locks the parent FOR SHARE).
+	return detachSubtasks(ctx, tx, wsID, actorID, id)
 }
 
 func diff(from, to any) map[string]any { return map[string]any{"from": from, "to": to} }

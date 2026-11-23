@@ -4,6 +4,9 @@ import { defineConfig } from "vitest/config";
 
 // The API is served on the same origin (dev: this proxy, prod: the ingress),
 // so the browser never needs CORS and cookies/tokens stay first-party.
+// NEBULA_API_PROXY points the proxy at another API (e.g. a branch build).
+const apiTarget = process.env.NEBULA_API_PROXY ?? "http://localhost:8080";
+
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
@@ -11,7 +14,7 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     proxy: {
-      "/api": { target: "http://localhost:8080", changeOrigin: false },
+      "/api": { target: apiTarget, changeOrigin: false },
     },
   },
   // `vite preview` serves the production build for E2E tests, same-origin like prod.
@@ -20,7 +23,7 @@ export default defineConfig({
     port: 5173,
     strictPort: true,
     proxy: {
-      "/api": { target: "http://localhost:8080", changeOrigin: false },
+      "/api": { target: apiTarget, changeOrigin: false },
     },
   },
   build: {

@@ -107,6 +107,10 @@ export interface Item {
   due_date: string | null;
   /** Past due and not done/canceled, computed by the server. */
   overdue: boolean;
+  /** The parent item (ADR-0021); null for a top-level item. */
+  parent?: ItemParent | null;
+  /** Live subtasks; done counts done and canceled ones. */
+  subtasks?: SubtaskSummary;
   version: number;
   created_at: string;
   updated_at: string;
@@ -191,4 +195,15 @@ export interface Activity {
 export interface ActivityPage {
   activity: Activity[];
   next_before: number | null;
+}
+
+export interface ItemParent {
+  key: string;
+  number: number;
+  title: string;
+}
+
+export interface SubtaskSummary {
+  count: number;
+  done: number;
 }

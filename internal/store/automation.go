@@ -39,7 +39,7 @@ const (
 )
 
 var (
-	conditionFieldRe = regexp.MustCompile(`^(type|project|status|status_category|assignee|reporter|title|due_date|changed|fields\.[a-z][a-z0-9_]{0,62})$`)
+	conditionFieldRe = regexp.MustCompile(`^(type|project|status|status_category|assignee|reporter|title|due_date|parent|changed|fields\.[a-z][a-z0-9_]{0,62})$`)
 	conditionOps     = map[string]bool{"eq": true, "neq": true, "in": true, "not_in": true, "is_empty": true, "is_not_empty": true, "contains": true}
 )
 

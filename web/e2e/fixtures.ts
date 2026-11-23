@@ -8,7 +8,7 @@ export const USERS = {
 export type User = keyof typeof USERS;
 
 const KEYCLOAK = "http://localhost:8081/realms/nebula/protocol/openid-connect/token";
-// E2E_API_URL: run against an API other than the compose one (e.g. a branch build).
+// E2E_API_URL: run against an API other than the compose one (e.g. a branch build on another port).
 const API = process.env.E2E_API_URL ?? "http://localhost:8080/api/v1";
 export const MAILPIT = "http://localhost:8025/api/v1";
 

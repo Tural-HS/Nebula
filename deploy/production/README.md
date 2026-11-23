@@ -265,6 +265,7 @@ Sxemi də geri qaytarmaq lazımdırsa `--migrate-down-to N` Down hissələrini *
 | 00013 invitations | var | gözləyən dəvətlər silinir (linklər işləməz); qəbul edilmiş üzvlüklər qalır |
 | 00014 notifications | var | bütün tətbiqdaxili bildirişlər silinir |
 | 00015 calendar views | var | data silmir; `calendar` növlü saxlanılan görünüş varsa Down xəta ilə dayanır — əvvəlcə onları `table`/`board`-a dəyişin və ya silin |
+| 00016 subtasks | var | bütün alt tapşırıq əlaqələri silinir (tapşırıqlar qalır, hamısı yuxarı səviyyəli olur); indekslər `CONCURRENTLY` qurulur |
 
 **ADR-0018-dən əvvəlki release-ə rollback:** köhnə image `*_FILE` sirləri oxumur və `nebula healthcheck` bilmir, yeni `compose.yaml` ilə işləmir; `rollback.sh` bunu yoxlayır və `.env`-i qaytarıb dayanır. Belə halda: `git -C /opt/nebula checkout <köhnə tag> -- deploy/production`, `nebula.env`-i bərpa edin (ondan `NEBULA_DATABASE_URL` `nebula` rolu ilə), sonra `rollback.sh`. `nebula_app` rolu və onun hüquqları qala bilər (zərərsizdir).
 
