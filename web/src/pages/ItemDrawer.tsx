@@ -8,15 +8,24 @@ import { ActivityFeed } from "../components/ActivityFeed";
 import { Comments } from "../components/Comments";
 import { FieldEditor } from "../components/FieldEditor";
 import { useToast } from "../components/toast-context";
-import { Avatar, Button, DueChip, ErrorState, Label, Select, Spinner, StatusBadge } from "../components/ui";
+import { Avatar, Button, DueChip, ErrorState, Label, Select, Spinner, StatusBadge, touchField } from "../components/ui";
 import { t } from "../i18n";
 import { cn } from "../lib/cn";
 import { formatDateTime } from "../lib/format";
+import { useKeyboardInset } from "../lib/responsive";
 
 export function ItemDrawer({ ws, project, n, canEdit, isAdmin, onClose }: {
   ws: string; project: string; n: number; canEdit: boolean; isAdmin: boolean; onClose: () => void;
 }) {
   const item = useItem(ws, project, n);
+  const panel = useRef<HTMLElement>(null);
+  // iOS does not shrink the layout for the on-screen keyboard: lift the
+  // panel's bottom edge above it, then keep the focused field in view.
+  const inset = useKeyboardInset();
+  useEffect(() => {
+    const el = document.activeElement;
+    if (inset > 0 && el instanceof HTMLElement && panel.current?.contains(el)) el.scrollIntoView({ block: "nearest" });
+  }, [inset]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -29,11 +38,15 @@ export function ItemDrawer({ ws, project, n, canEdit, isAdmin, onClose }: {
   return (
     <>
       <div className="fixed inset-0 z-30 bg-zinc-950/20" onClick={onClose} aria-hidden />
+      {/* Full screen on phones, a side panel from md up. Safe-area padding
+          keeps content clear of the notch and the home indicator. */}
       <aside
+        ref={panel}
         role="dialog"
         aria-modal="true"
         aria-label={item.data?.key ?? t.loading}
-        className="fixed inset-y-0 right-0 z-40 flex w-full max-w-xl flex-col overflow-y-auto bg-white shadow-2xl dark:bg-zinc-900"
+        style={inset > 0 ? { bottom: inset } : undefined}
+        className="fixed inset-y-0 right-0 z-40 flex w-full max-w-xl flex-col overflow-y-auto overscroll-contain bg-white pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] shadow-2xl md:pr-0 dark:bg-zinc-900"
       >
         {item.isPending ? (
           <Spinner />
@@ -105,11 +118,12 @@ function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose }: {
 
   return (
     <div className="flex flex-col">
-      <div className="flex items-center justify-between border-b border-zinc-200 px-5 py-3 dark:border-zinc-800">
-        <span className="font-mono text-sm text-zinc-500">
+      {/* Sticky, so closing never needs scrolling back up on a phone. */}
+      <div className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-zinc-200 bg-white px-4 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 md:px-5 md:py-3 dark:border-zinc-800 dark:bg-zinc-900">
+        <span className="min-w-0 truncate font-mono text-sm text-zinc-500">
           {item.key} · {item.type.name}
         </span>
-        <div className="flex gap-2">
+        <div className="flex shrink-0 gap-2">
           {canEdit && (
             <Button
               variant="ghost"
@@ -128,13 +142,13 @@ function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose }: {
               {t.delete}
             </Button>
           )}
-          <Button variant="ghost" onClick={onClose} aria-label={t.close}>
+          <Button variant="ghost" onClick={onClose} aria-label={t.close} className="min-w-11 text-lg md:min-w-0 md:text-sm">
             ✕
           </Button>
         </div>
       </div>
 
-      <div className="space-y-5 p-5">
+      <div className="space-y-5 p-4 md:p-5">
         <textarea
           aria-label={t.title}
           value={title}
@@ -152,10 +166,10 @@ function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose }: {
               e.currentTarget.blur();
             }
           }}
-          className="w-full resize-none rounded-md bg-transparent text-xl font-semibold outline-none hover:bg-zinc-50 focus:bg-zinc-50 dark:hover:bg-zinc-800 dark:focus:bg-zinc-800"
+          className="w-full resize-none rounded-md bg-transparent text-xl font-semibold [overflow-wrap:anywhere] outline-none hover:bg-zinc-50 focus:bg-zinc-50 dark:hover:bg-zinc-800 dark:focus:bg-zinc-800"
         />
 
-        <dl className="grid grid-cols-[8rem_1fr] items-center gap-x-4 gap-y-3 text-sm">
+        <dl className="grid grid-cols-[6.5rem_minmax(0,1fr)] items-center gap-x-3 gap-y-3 text-sm sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-x-4">
           <dt className="text-zinc-500">{t.status}</dt>
           <dd>
             {canEdit ? (
@@ -200,7 +214,7 @@ function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose }: {
           <dt className="text-zinc-500">
             <label htmlFor="item-due">{t.dueDate}</label>
           </dt>
-          <dd className="flex items-center gap-2">
+          <dd className="flex flex-wrap items-center gap-2">
             {canEdit ? (
               <>
                 <input
@@ -216,6 +230,7 @@ function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose }: {
                     if (due !== (item.due_date ?? "")) save({ due_date: due || null });
                   }}
                   className={cn(
+                    touchField,
                     "rounded-md bg-white px-2 py-1 text-sm ring-1 ring-zinc-300 focus:ring-2 focus:ring-brand-500 dark:bg-zinc-900 dark:ring-zinc-700",
                     item.overdue && "text-red-700 ring-red-300 dark:text-red-300",
                   )}
@@ -256,14 +271,14 @@ function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose }: {
             onBlur={() => {
               if (desc !== (item.description ?? "")) save({ description: desc.trim() ? desc : null });
             }}
-            className="w-full rounded-md bg-white px-3 py-2 text-sm whitespace-pre-wrap ring-1 ring-zinc-300 focus:ring-2 focus:ring-brand-500 dark:bg-zinc-900 dark:ring-zinc-700"
+            className="w-full rounded-md bg-white px-3 py-2 text-sm whitespace-pre-wrap ring-1 pointer-coarse:text-base ring-zinc-300 focus:ring-2 focus:ring-brand-500 dark:bg-zinc-900 dark:ring-zinc-700"
           />
         </div>
 
         {boundFields.length > 0 && (
           <section>
             <h3 className="mb-3 text-sm font-semibold">{t.customFields}</h3>
-            <div className="grid grid-cols-[8rem_1fr] items-center gap-x-4 gap-y-3 text-sm">
+            <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] items-center gap-x-3 gap-y-3 text-sm sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-x-4">
               {boundFields.map((b) => {
                 const def = defs.get(b.key);
                 if (!def) return null;
@@ -318,7 +333,7 @@ function CollabTabs({ ws, project, n, canWrite, isAdmin }: { ws: string; project
             aria-selected={tab === x}
             onClick={() => { setTab(x); }}
             className={
-              "-mb-px border-b-2 pb-1.5 font-medium " +
+              "-mb-px border-b-2 pb-1.5 font-medium pointer-coarse:min-h-11 " +
               (tab === x ? "border-brand-600 text-zinc-900 dark:text-zinc-100" : "border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200")
             }
           >

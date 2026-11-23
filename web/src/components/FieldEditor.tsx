@@ -140,7 +140,7 @@ function TextLikeEditor({
         disabled={disabled}
         onChange={(e) => { setDraft(e.target.value); }}
         onBlur={commit}
-        className="w-full rounded-md bg-white px-2.5 py-1.5 text-sm ring-1 ring-zinc-300 focus:ring-2 focus:ring-brand-500 dark:bg-zinc-900 dark:ring-zinc-700"
+        className="w-full rounded-md bg-white px-2.5 py-1.5 text-sm ring-1 ring-zinc-300 pointer-coarse:text-base focus:ring-2 focus:ring-brand-500 dark:bg-zinc-900 dark:ring-zinc-700"
       />
     );
   }
