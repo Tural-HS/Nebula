@@ -154,7 +154,7 @@ function WorkflowCard({ ws, wf }: { ws: string; wf: Workflow }) {
           {wf.transitions.length === 0 && <p className="text-xs text-zinc-400">{ta.noTransitions}</p>}
           <ul className="space-y-1">
             {wf.transitions.map((tr) => (
-              <li key={tr.id} className="flex items-center gap-2 text-sm">
+              <li key={tr.id} className="flex flex-wrap items-center gap-2 text-sm">
                 <span>{tr.from_status_id ? statusName.get(tr.from_status_id) : <em className="text-zinc-500">{ta.anyStatus}</em>}</span>
                 <span className="text-zinc-400">→</span>
                 <span className="font-medium">{statusName.get(tr.to_status_id)}</span>

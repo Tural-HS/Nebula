@@ -28,6 +28,13 @@
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
   }
+  /* Fixed-width fields (w-64, w-72) shrink rather than push a 375 px page
+     sideways; utilities still win over this base rule. */
+  input,
+  select,
+  textarea {
+    max-width: 100%;
+  }
   :focus-visible {
     @apply outline-2 outline-offset-2 outline-brand-500;
   }

@@ -226,7 +226,7 @@ function RuleEditor({ ws, ctx, rule, onDone }: { ws: string; ctx: Ctx; rule: Rul
                 </>
               )}
               {a.type === "send_email" && (
-                <div className="grid min-w-72 flex-1 gap-2">
+                <div className="grid min-w-[min(18rem,100%)] flex-1 gap-2">
                   <Input aria-label={ta.emailTo} placeholder={ta.emailToHint} value={a.to} onChange={(e) => { setActs(update(acts, i, { to: e.target.value })); }} />
                   <Input aria-label={ta.subject} placeholder={ta.subject} maxLength={200} value={a.subject} onChange={(e) => { setActs(update(acts, i, { subject: e.target.value })); }} />
                   <textarea

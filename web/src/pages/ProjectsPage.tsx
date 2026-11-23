@@ -29,7 +29,7 @@ export function ProjectsPage() {
       crumbs={[{ label: t.workspaces, to: "/" }, { label: workspace.data?.name ?? ws }]}
       actions={
         <>
-          <Link to={`/w/${encodeURIComponent(ws)}/settings/members`} className="rounded-md px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800">
+          <Link to={`/w/${encodeURIComponent(ws)}/settings/members`} className="rounded-md px-3 py-1.5 text-sm whitespace-nowrap text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800">
             {ta.settings}
           </Link>
           {canCreate && (
@@ -40,7 +40,7 @@ export function ProjectsPage() {
         </>
       }
     >
-      <div className="mx-auto max-w-3xl p-6">
+      <div className="mx-auto max-w-3xl p-4 md:p-6">
         <h1 className="mb-4 text-lg font-semibold">{t.projects}</h1>
         {projects.isPending ? (
           <Spinner />
@@ -64,8 +64,8 @@ export function ProjectsPage() {
                       </span>
                     )}
                   </span>
-                  <span className="mt-1 block font-medium">{p.name}</span>
-                  {p.description && <span className="mt-1 line-clamp-2 block text-sm text-zinc-500">{p.description}</span>}
+                  <span className="mt-1 block font-medium [overflow-wrap:anywhere]">{p.name}</span>
+                  {p.description && <span className="mt-1 line-clamp-2 block text-sm [overflow-wrap:anywhere] text-zinc-500">{p.description}</span>}
                 </Link>
               </li>
             ))}
