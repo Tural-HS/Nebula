@@ -1,0 +1,11 @@
+[Unit]
+Description=Nebula monthly restore test (throwaway container)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/nebula/deploy/production
+ExecStart=/opt/nebula/deploy/production/scripts/restore-test.sh
+TimeoutStartSec=3h
+Nice=10

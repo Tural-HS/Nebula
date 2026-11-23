@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily differential backup of the Nebula cluster (Mon-Sat)
+
+[Timer]
+OnCalendar=Mon..Sat *-*-* 02:15:00 UTC
+RandomizedDelaySec=10m
+Persistent=true
+Unit=nebula-backup@diff.service
+
+[Install]
+WantedBy=timers.target

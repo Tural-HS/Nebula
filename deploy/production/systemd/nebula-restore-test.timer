@@ -1,0 +1,10 @@
+[Unit]
+Description=Monthly restore test of the Nebula backups
+
+[Timer]
+# First Tuesday of the month, after the nightly diff backup, outside business hours.
+OnCalendar=Tue *-*-01..07 04:30:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target

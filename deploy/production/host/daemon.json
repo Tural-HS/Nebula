@@ -1,0 +1,10 @@
+{
+  "log-driver": "json-file",
+  "log-opts": { "max-size": "20m", "max-file": "5" },
+  "live-restore": true,
+  "userland-proxy": false,
+  "no-new-privileges": true,
+  "icc": false,
+  "default-address-pools": [{ "base": "172.31.0.0/16", "size": 24 }],
+  "features": { "buildkit": true }
+}
