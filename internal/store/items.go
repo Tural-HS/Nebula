@@ -82,45 +82,11 @@ type CreateItemParams struct {
 
 // CreateItem allocates the next project number and inserts the item atomically.
 func (s *Store) CreateItem(ctx context.Context, p CreateItemParams) (Item, error) {
-	title, err := text("title", p.Title, 1, maxTitleLen)
-	if err != nil {
-		return Item{}, err
-	}
-	desc, err := optionalText("description", p.Description, maxDescriptionLen)
-	if err != nil {
-		return Item{}, err
-	}
 	var item Item
-	err = s.inTx(ctx, func(tx pgx.Tx) error {
-		var typeID, workflowID uuid.UUID
-		var typeKey string
-		err := tx.QueryRow(ctx, `SELECT id, key, workflow_id FROM item_types
-			WHERE workspace_id = $1 AND archived_at IS NULL AND ($2 = '' OR key = $2)
-			ORDER BY (key = 'task') DESC, created_at LIMIT 1`, p.WorkspaceID, p.TypeKey).Scan(&typeID, &typeKey, &workflowID)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return invalid("type", "unknown item type")
-		}
+	err := s.inTx(ctx, func(tx pgx.Tx) error {
+		prep, err := prepareItem(ctx, tx, newItemCache(p.WorkspaceID, nil), p)
 		if err != nil {
 			return err
-		}
-
-		schema, err := loadFieldSchema(ctx, tx, p.WorkspaceID, typeID, fieldKeys(p.Fields))
-		if err != nil {
-			return err
-		}
-		fields, _, err := applyFields(ctx, tx, p.WorkspaceID, schema, typeKey, map[string]any{}, p.Fields, true)
-		if err != nil {
-			return err
-		}
-
-		statusID, err := resolveStatus(ctx, tx, workflowID, p.StatusID)
-		if err != nil {
-			return err
-		}
-		if p.AssigneeID != nil {
-			if err := requireMember(ctx, tx, p.WorkspaceID, *p.AssigneeID); err != nil {
-				return err
-			}
 		}
 
 		// Row lock on the project serializes numbering: no gaps from races, no duplicates.
@@ -136,24 +102,23 @@ func (s *Store) CreateItem(ctx context.Context, p CreateItemParams) (Item, error
 		}
 
 		id := newID()
-		if _, err := tx.Exec(ctx, `INSERT INTO items
-			(id, workspace_id, project_id, item_type_id, status_id, number, title, description, assignee_id, reporter_id, fields)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-			id, p.WorkspaceID, p.ProjectID, typeID, statusID, number, title, desc, p.AssigneeID, p.ActorID, fields); err != nil {
+		if _, err := tx.Exec(ctx, insertItemSQL,
+			id, p.WorkspaceID, p.ProjectID, prep.typ.ID, prep.status.ID, number, prep.title, prep.desc,
+			prep.assignee, p.ActorID, prep.fields); err != nil {
 			return err
 		}
 		item, err = scanItem(tx.QueryRow(ctx, itemSelect+` WHERE i.id = $1`, id))
 		if err != nil {
 			return err
 		}
-		payload := map[string]any{"key": item.Key, "title": title, "snapshot": Snapshot(item)}
-		if len(fields) > 0 {
-			payload["fields"] = fields
-		}
-		return appendEvent(ctx, tx, p.WorkspaceID, p.ActorID, "item", id, "item.created", payload)
+		return appendEvent(ctx, tx, p.WorkspaceID, p.ActorID, "item", id, "item.created", createdPayload(item))
 	})
 	return item, err
 }
+
+const insertItemSQL = `INSERT INTO items
+	(id, workspace_id, project_id, item_type_id, status_id, number, title, description, assignee_id, reporter_id, fields)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`
 
 func resolveStatus(ctx context.Context, q querier, workflowID uuid.UUID, want *uuid.UUID) (uuid.UUID, error) {
 	var id uuid.UUID
