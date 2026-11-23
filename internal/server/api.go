@@ -40,6 +40,7 @@ const (
 
 func (a *api) routes(r chi.Router) {
 	r.Get("/me", a.me)
+	a.notificationRoutes(r)
 	r.Get("/workspaces", a.listWorkspaces)
 	r.Post("/workspaces", a.createWorkspace)
 
