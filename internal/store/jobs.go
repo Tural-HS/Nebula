@@ -122,3 +122,30 @@ func (s *Store) PendingJobs(ctx context.Context) (int64, error) {
 	err := s.pool.QueryRow(ctx, `SELECT count(*) FROM jobs WHERE state = 'pending'`).Scan(&n)
 	return n, err
 }
+
+// JobQueueStats is a point-in-time summary of the job queue for metrics.
+type JobQueueStats struct {
+	Due            int64   // pending, runnable now and not leased by a worker
+	Running        int64   // pending and leased by a worker right now
+	Scheduled      int64   // pending, run_at in the future (retry backoff, delayed)
+	FailedLastHour int64   // failed permanently within the last hour
+	OldestDueAge   float64 // seconds the oldest due job has been runnable; 0 if none
+}
+
+// JobQueueStats summarises the queue in one statement. The pending part reads
+// the jobs_runnable_idx partial index, the failed part jobs_finished_idx.
+func (s *Store) JobQueueStats(ctx context.Context) (JobQueueStats, error) {
+	var st JobQueueStats
+	err := s.pool.QueryRow(ctx, `
+		WITH p AS (
+			SELECT run_at, locked_until IS NOT NULL AND locked_until >= now() AS leased
+			FROM jobs WHERE state = 'pending')
+		SELECT
+			count(*) FILTER (WHERE NOT leased AND run_at <= now()),
+			count(*) FILTER (WHERE leased),
+			count(*) FILTER (WHERE NOT leased AND run_at > now()),
+			(SELECT count(*) FROM jobs WHERE state = 'failed' AND finished_at > now() - interval '1 hour'),
+			coalesce(extract(epoch FROM now() - min(run_at) FILTER (WHERE NOT leased AND run_at <= now())), 0)::float8
+		FROM p`).Scan(&st.Due, &st.Running, &st.Scheduled, &st.FailedLastHour, &st.OldestDueAge)
+	return st, err
+}
