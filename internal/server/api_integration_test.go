@@ -36,12 +36,17 @@ func (v tokenVerifier) Verify(_ context.Context, raw string) (auth.Claims, error
 }
 
 var testUsers = tokenVerifier{
-	"alice": {Issuer: "https://idp.test", Subject: "sub-alice", Email: "alice@example.com", Name: "Alice"},
-	"bob":   {Issuer: "https://idp.test", Subject: "sub-bob", Email: "bob@example.com", Name: "Bob"},
-	"carol": {Issuer: "https://idp.test", Subject: "sub-carol", Email: "carol@example.com", Name: "Carol"},
-	"dave":  {Issuer: "https://idp.test", Subject: "sub-dave", Email: "dave@example.com", Name: "Dave"},
+	"alice": {Issuer: "https://idp.test", Subject: "sub-alice", Email: "alice@example.com", Name: "Alice", EmailVerified: true},
+	"bob":   {Issuer: "https://idp.test", Subject: "sub-bob", Email: "bob@example.com", Name: "Bob", EmailVerified: true},
+	"carol": {Issuer: "https://idp.test", Subject: "sub-carol", Email: "carol@example.com", Name: "Carol", EmailVerified: true},
+	"dave":  {Issuer: "https://idp.test", Subject: "sub-dave", Email: "dave@example.com", Name: "Dave", EmailVerified: true},
+	// Invitation tests: erin is invited, eve gets a forwarded link, frank's
+	// address is not verified by the IdP.
+	"erin":  {Issuer: "https://idp.test", Subject: "sub-erin", Email: "Erin@Example.com", Name: "Erin", EmailVerified: true},
+	"eve":   {Issuer: "https://idp.test", Subject: "sub-eve", Email: "eve@example.com", Name: "Eve", EmailVerified: true},
+	"frank": {Issuer: "https://idp.test", Subject: "sub-frank", Email: "frank@example.com", Name: "Frank"},
 	// Same email as alice, different identity: must be rejected.
-	"mallory": {Issuer: "https://idp.test", Subject: "sub-mallory", Email: "alice@example.com", Name: "Mallory"},
+	"mallory": {Issuer: "https://idp.test", Subject: "sub-mallory", Email: "alice@example.com", Name: "Mallory", EmailVerified: true},
 }
 
 type env struct {

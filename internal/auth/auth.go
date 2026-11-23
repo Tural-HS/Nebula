@@ -16,6 +16,9 @@ type Claims struct {
 	Subject string
 	Email   string
 	Name    string
+	// EmailVerified is the IdP's email_verified claim. Only a verified
+	// address may accept an invitation sent to it (ADR-0016).
+	EmailVerified bool
 }
 
 // Principal is the authenticated Nebula user attached to a request context.
@@ -23,6 +26,8 @@ type Principal struct {
 	UserID      uuid.UUID `json:"id"`
 	Email       string    `json:"email"`
 	DisplayName string    `json:"display_name"`
+	// EmailVerified comes from the current token, never from storage.
+	EmailVerified bool `json:"email_verified"`
 }
 
 // Verifier validates a raw bearer token and returns its claims.

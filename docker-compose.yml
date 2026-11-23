@@ -35,6 +35,8 @@ services:
     environment:
       NEBULA_ENV: development
       NEBULA_LOG_FORMAT: text
+      # Links in emails (invitations, notifications) point to the dev web UI.
+      NEBULA_PUBLIC_URL: http://localhost:5173
       NEBULA_DATABASE_URL: postgres://nebula:nebula-dev-only@postgres:5432/nebula?sslmode=disable
       # iss must match the browser-facing URL (KC_HOSTNAME); keys are fetched over the compose network.
       NEBULA_OIDC_ISSUER: http://localhost:8081/realms/nebula

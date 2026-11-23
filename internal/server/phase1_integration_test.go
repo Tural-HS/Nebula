@@ -60,7 +60,7 @@ func newP1Env(t *testing.T) *p1env {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	h := NewAPIHandler(Deps{
 		Logger: logger, Metrics: observability.NewMetrics(), DB: pool, Store: st,
-		Verifier: testUsers, RequestTimeout: 10 * time.Second, Webhooks: opts,
+		Verifier: testUsers, RequestTimeout: 10 * time.Second, Webhooks: opts, PublicURL: "https://nebula.test",
 	})
 	fm := &fakeMail{}
 	eng := &engine.Engine{Store: st, HTTP: safehttp.NewClient(opts), HTTPOpts: opts, Mail: fm, Logger: logger, Version: "test"}

@@ -43,6 +43,22 @@ export interface Webhook {
   created_at: string;
 }
 
+export interface Invitation {
+  id: string;
+  email: string;
+  role: Role;
+  invited_by: string | null;
+  expires_at: string;
+  created_at: string;
+}
+
+export const useInvitations = (ws: string, enabled: boolean) =>
+  useQuery({
+    enabled,
+    queryKey: ["ws", ws, "invitations"],
+    queryFn: async () => (await api<{ invitations: Invitation[] }>("GET", ws$(ws) + "/invitations")).invitations,
+  });
+
 export interface Delivery {
   id: number;
   event_id: number;
@@ -148,6 +164,9 @@ export function useAdminApi(ws: string) {
     addMember: useAdminMutation((b: { email: string; role: Role }) => api<Member>("POST", base + "/members", b), [members]),
     setRole: useAdminMutation((v: { id: string; role: Role }) => api<Member>("PATCH", base + path`/members/${v.id}`, { role: v.role }), [members]),
     removeMember: useAdminMutation((id: string) => api<undefined>("DELETE", base + path`/members/${id}`), [members]),
+    invite: useAdminMutation((b: { email: string; role: Role }) => api<Invitation>("POST", base + "/invitations", b), [["ws", ws, "invitations"]]),
+    resendInvite: useAdminMutation((id: string) => api<undefined>("POST", base + path`/invitations/${id}/resend`), [["ws", ws, "invitations"]]),
+    revokeInvite: useAdminMutation((id: string) => api<undefined>("DELETE", base + path`/invitations/${id}`), [["ws", ws, "invitations"]]),
 
     createField: useAdminMutation(
       (b: { key: string; name: string; type: string; options?: { choices: { label: string }[] } }) => api<FieldDefinition>("POST", base + "/fields", b),

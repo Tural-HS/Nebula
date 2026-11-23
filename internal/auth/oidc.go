@@ -133,6 +133,7 @@ func (v *OIDCVerifier) Verify(ctx context.Context, raw string) (Claims, error) {
 	}
 	var c struct {
 		Email             string `json:"email"`
+		EmailVerified     bool   `json:"email_verified"`
 		Name              string `json:"name"`
 		PreferredUsername string `json:"preferred_username"`
 		Typ               string `json:"typ"`
@@ -157,5 +158,5 @@ func (v *OIDCVerifier) Verify(ctx context.Context, raw string) (Claims, error) {
 	if name == "" {
 		name = c.Email
 	}
-	return Claims{Issuer: tok.Issuer, Subject: tok.Subject, Email: c.Email, Name: name}, nil
+	return Claims{Issuer: tok.Issuer, Subject: tok.Subject, Email: c.Email, Name: name, EmailVerified: c.EmailVerified}, nil
 }

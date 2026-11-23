@@ -29,6 +29,7 @@ type api struct {
 	store       *store.Store
 	logger      *slog.Logger
 	webhookOpts safehttp.Options
+	publicURL   string
 }
 
 type ctxKey int
@@ -40,11 +41,13 @@ const (
 
 func (a *api) routes(r chi.Router) {
 	r.Get("/me", a.me)
+	a.invitationPublicRoutes(r)
 	r.Get("/workspaces", a.listWorkspaces)
 	r.Post("/workspaces", a.createWorkspace)
 
 	r.Route("/workspaces/{workspace}", func(r chi.Router) {
 		r.Use(a.loadWorkspace)
+		a.invitationAdminRoutes(r)
 		r.Get("/", a.getWorkspace)
 		r.With(requireRole(store.RoleAdmin)).Patch("/", a.updateWorkspace)
 		r.Get("/item-types", a.listItemTypes)

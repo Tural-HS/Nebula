@@ -19,6 +19,7 @@ const named = <K extends string>(load: () => Promise<Record<K, ComponentType>>, 
 const ImportPage = named(() => import("./pages/ImportPage"), "ImportPage");
 const RecurringPage = named(() => import("./pages/RecurringPage"), "RecurringPage");
 const ProjectSettingsPage = named(() => import("./pages/ProjectSettingsPage"), "ProjectSettingsPage");
+const InvitePage = named(() => import("./pages/InvitePage"), "InvitePage");
 const AuditLogPage = named(() => import("./pages/settings/AuditLogPage"), "AuditLogPage");
 const AutomationsPage = named(() => import("./pages/settings/AutomationsPage"), "AutomationsPage");
 const FieldsPage = named(() => import("./pages/settings/FieldsPage"), "FieldsPage");
@@ -75,6 +76,7 @@ export function App() {
             <Route path="/w/:ws/p/:project/import" element={<ImportPage />} />
             <Route path="/w/:ws/p/:project/recurring" element={<RecurringPage />} />
             <Route path="/w/:ws/p/:project/settings" element={<ProjectSettingsPage />} />
+            <Route path="/invite/:token" element={<InvitePage />} />
             <Route path="/w/:ws/settings" element={<MembersPage />} />
             <Route path="/w/:ws/settings/general" element={<GeneralPage />} />
             <Route path="/w/:ws/settings/members" element={<MembersPage />} />

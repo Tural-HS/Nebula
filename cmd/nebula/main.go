@@ -228,11 +228,12 @@ func serve(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 	}
 
 	api := newHTTPServer(cfg.HTTPAddr, server.NewAPIHandler(server.Deps{
-		Logger:   logger,
-		Metrics:  metrics,
-		DB:       pool,
-		Store:    rt.store,
-		Webhooks: rt.webhook,
+		Logger:    logger,
+		Metrics:   metrics,
+		DB:        pool,
+		Store:     rt.store,
+		Webhooks:  rt.webhook,
+		PublicURL: cfg.PublicURL,
 		Verifier: auth.NewOIDCVerifier(auth.OIDCConfig{
 			Issuer: cfg.OIDCIssuer, Audience: cfg.OIDCAudience, JWKSURL: cfg.OIDCJWKSURL,
 		}),

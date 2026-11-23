@@ -39,6 +39,7 @@ func (s *Store) ResolveUser(ctx context.Context, c auth.Claims) (auth.Principal,
 			}
 			p.Email, p.DisplayName = c.Email, name
 		}
+		p.EmailVerified = c.EmailVerified
 		return p, nil
 
 	case errors.Is(err, pgx.ErrNoRows):
@@ -59,6 +60,7 @@ func (s *Store) ResolveUser(ctx context.Context, c auth.Claims) (auth.Principal,
 			return auth.Principal{}, auth.ErrUserDisabled
 		}
 		p.Email, p.DisplayName = c.Email, name
+		p.EmailVerified = c.EmailVerified
 		return p, nil
 
 	default:

@@ -40,6 +40,8 @@ type Deps struct {
 	RateLimit      config.RateLimit // zero value disables limiting
 	TrustedProxies []netip.Prefix   // reverse proxies whose X-Forwarded-For is believed
 	Webhooks       safehttp.Options // URL policy for webhook targets
+	// PublicURL is the web UI's base URL, for links in emails (invitations).
+	PublicURL string
 }
 
 // NewAPIHandler returns the public HTTP handler.
@@ -79,7 +81,7 @@ func NewAPIHandler(d Deps) http.Handler {
 			r.Use(ratelimit.Middleware(ratelimit.New(d.RateLimit.UserRPS, d.RateLimit.UserBurst), func(r *http.Request) string {
 				return principal(r).UserID.String()
 			}, writeError))
-			(&api{store: d.Store, logger: d.Logger, webhookOpts: d.Webhooks}).routes(r)
+			(&api{store: d.Store, logger: d.Logger, webhookOpts: d.Webhooks, publicURL: d.PublicURL}).routes(r)
 		})
 	})
 

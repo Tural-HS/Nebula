@@ -70,7 +70,7 @@ migrate: db-up ## Apply migrations to the local dev database
 
 .PHONY: run
 run: migrate idp-up ## Run the API locally (Postgres + Keycloak + Mailpit in Docker)
-	NEBULA_ENV=development NEBULA_LOG_FORMAT=text NEBULA_DATABASE_URL='$(DEV_DB)' \
+	NEBULA_ENV=development NEBULA_LOG_FORMAT=text NEBULA_DATABASE_URL='$(DEV_DB)' NEBULA_PUBLIC_URL=http://localhost:5173 \
 	NEBULA_OIDC_ISSUER='$(OIDC_ISSUER)' NEBULA_OIDC_AUDIENCE='$(OIDC_AUDIENCE)' \
 	NEBULA_OIDC_JWKS_URL='$(OIDC_JWKS_URL)' \
 	NEBULA_ENCRYPTION_KEY='$(DEV_ENCRYPTION_KEY)' NEBULA_WEBHOOK_ALLOW_PRIVATE=true \
