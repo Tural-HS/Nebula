@@ -14,6 +14,7 @@ böyük həcmli məlumatlarda sürətli, tam fərdiləşdirilə bilən, öz serv
 - Əməkdaşlıq (şərhlər, @mention, aktivlik, audit, açar rotasiyası): [ADR-0007](docs/adr/0007-collaboration.md)
 - Mattermost/Slack bildirişləri və etibarlı proxy-lər: [ADR-0010](docs/adr/0010-chat-notifications-and-trusted-proxies.md)
 - Saxlanılan görünüşlər, cədvəl sütunları və cəm sətri: [ADR-0014](docs/adr/0014-saved-views-and-table-totals.md)
+- Tətbiqdaxili bildirişlər: [ADR-0017](docs/adr/0017-in-app-notifications.md)
 - Production (tək VPS, Docker Compose): [ADR-0015](docs/adr/0015-production-compose-on-vps.md), runbook [deploy/production/README.md](deploy/production/README.md)
 - Yol xəritəsi: [docs/ROADMAP.md](docs/ROADMAP.md)
 
@@ -74,7 +75,7 @@ Bütün GitHub Action-lar commit SHA-ya, base image-lər digest-ə sabitlənib; 
 
 ```
 nebula serve            API-ni və fon worker-ini işə salır (default)
-nebula worker           yalnız fon worker-ini işə salır (webhook, avtomatlaşdırma, email)
+nebula worker           yalnız fon worker-ini işə salır (webhook, avtomatlaşdırma, email, bildirişlər)
 nebula rotate-secrets   saxlanılan secret-ləri cari açarla yenidən şifrələyir (ADR-0007)
 nebula migrate up       gözləyən miqrasiyaları tətbiq edir (advisory lock ilə, bir neçə replika üçün təhlükəsiz)
 nebula migrate down     son miqrasiyanı geri qaytarır

@@ -39,8 +39,9 @@ func (s *Store) GetEvent(ctx context.Context, id int64) (Event, error) {
 	return e, err
 }
 
-// FanOut enqueues one delivery job per matching webhook and one run job per
-// matching automation rule. Dedupe keys make it safe to run more than once.
+// FanOut enqueues one delivery job per matching webhook, one run job per
+// matching automation rule and, for events that can notify people, one
+// notifications job. Dedupe keys make it safe to run more than once.
 // Events caused by automation never trigger automation (loop prevention),
 // but they are still delivered to webhooks.
 func (s *Store) FanOut(ctx context.Context, e Event) (webhooks, rules int, err error) {
@@ -86,6 +87,14 @@ func (s *Store) FanOut(ctx context.Context, e Event) (webhooks, rules int, err e
 				return err
 			}
 			webhooks++
+		}
+
+		// In-app notifications: one job per event, deduped on the event ID.
+		if notifiable(e) {
+			if err := enqueueJob(ctx, tx, JobCreateNotifications, map[string]any{"event_id": e.ID}, 5,
+				fmt.Sprintf("nt:%d", e.ID)); err != nil {
+				return err
+			}
 		}
 
 		if e.Source == "automation" || (e.Action != TriggerItemCreated && e.Action != TriggerItemUpdated && e.Action != TriggerItemOverdue) {

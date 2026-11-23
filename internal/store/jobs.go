@@ -16,6 +16,8 @@ const (
 	JobDeliverWebhook = "webhook.deliver"
 	JobRunAutomation  = "automation.run"
 	JobSendEmail      = "email.send"
+	// JobCreateNotifications writes the in-app notifications of one event (ADR-0017).
+	JobCreateNotifications = "notifications.create"
 )
 
 // Job is a unit of background work claimed by a worker.
@@ -100,7 +102,8 @@ func (s *Store) FailJob(ctx context.Context, j Job, cause error, permanent bool,
 	return final, err
 }
 
-// PurgeFinished deletes finished jobs and old webhook delivery logs in bounded batches.
+// PurgeFinished deletes finished jobs, old webhook delivery logs and expired
+// notifications (ADR-0017) in bounded batches.
 func (s *Store) PurgeFinished(ctx context.Context, jobsOlderThan, deliveriesOlderThan time.Duration) (int64, error) {
 	tag, err := s.pool.Exec(ctx, `DELETE FROM jobs WHERE id IN (
 		SELECT id FROM jobs WHERE state <> 'pending' AND finished_at < now() - $1::interval LIMIT 10000)`, jobsOlderThan.String())
@@ -113,7 +116,9 @@ func (s *Store) PurgeFinished(ctx context.Context, jobsOlderThan, deliveriesOlde
 	if err != nil {
 		return n, err
 	}
-	return n + tag.RowsAffected(), nil
+	n += tag.RowsAffected()
+	m, err := s.PurgeNotifications(ctx, notificationReadRetention, notificationMaxRetention, notificationPurgeBatch)
+	return n + m, err
 }
 
 // PendingJobs returns the queue depth (for metrics and tests).

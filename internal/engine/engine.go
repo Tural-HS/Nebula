@@ -45,10 +45,11 @@ type Engine struct {
 // Handlers maps job kinds to handlers.
 func (e *Engine) Handlers() map[string]worker.Handler {
 	return map[string]worker.Handler{
-		store.JobDispatchEvent:  e.dispatch,
-		store.JobDeliverWebhook: e.deliverWebhook,
-		store.JobRunAutomation:  e.runAutomation,
-		store.JobSendEmail:      e.sendEmail,
+		store.JobDispatchEvent:       e.dispatch,
+		store.JobDeliverWebhook:      e.deliverWebhook,
+		store.JobRunAutomation:       e.runAutomation,
+		store.JobSendEmail:           e.sendEmail,
+		store.JobCreateNotifications: e.createNotifications,
 	}
 }
 
@@ -75,6 +76,26 @@ func (e *Engine) dispatch(ctx context.Context, j store.Job) error {
 		return err
 	}
 	_, _, err = e.Store.FanOut(ctx, ev)
+	return err
+}
+
+// createNotifications writes the in-app notifications of one event (ADR-0017).
+// The store dedupes per (event, recipient), so retries are safe.
+func (e *Engine) createNotifications(ctx context.Context, j store.Job) error {
+	p, err := decode[struct {
+		EventID int64 `json:"event_id"`
+	}](j)
+	if err != nil {
+		return err
+	}
+	ev, err := e.Store.GetEvent(ctx, p.EventID)
+	if errors.Is(err, store.ErrNotFound) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	_, err = e.Store.CreateNotifications(ctx, ev)
 	return err
 }
 
