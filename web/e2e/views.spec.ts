@@ -65,7 +65,12 @@ test.describe("as admin", () => {
     await expect(page).toHaveURL(/sort=due/);
     await page.getByLabel("Son tarix", { exact: true }).selectOption("none");
     await expect(page.getByText("dəyişdirilib")).toBeVisible();
+    // Wait for the save itself, so a failure names the API status instead of
+    // only the indicator that stayed.
+    const saved = page.waitForResponse((r) => r.request().method() === "PATCH" && /\/views\//.test(r.url()) && r.status() !== 429); // 429 is retried
     await page.getByRole("button", { name: "Dəyişiklikləri saxla" }).click();
+    const res = await saved;
+    expect(res.status(), await res.text()).toBe(200);
     await expect(page.getByText("dəyişdirilib")).toHaveCount(0);
 
     // A bare ?saved= link applies the view.

@@ -32,7 +32,13 @@ export function useViewMutations(ws: string, project: string) {
     }),
     update: useMutation({
       mutationFn: ({ id, body }: { id: string; body: ViewBody }) => api<SavedView>("PATCH", base + path`/${id}`, body),
-      onSuccess: refresh,
+      // The response is the saved view: show it at once instead of waiting for
+      // the refetch (a slow or rate-limited list request would otherwise keep
+      // the page marked "modified" after a successful save).
+      onSuccess: (saved) => {
+        qc.setQueryData<SavedView[]>(viewKeys.list(ws, project), (old) => old?.map((v) => (v.id === saved.id ? saved : v)));
+        return refresh();
+      },
     }),
     remove: useMutation({
       mutationFn: (id: string) => api<undefined>("DELETE", base + path`/${id}`),
