@@ -7,7 +7,8 @@
 # Invariants (do not break them when editing):
 #   - Only Caddy publishes ports (80/tcp, 443/tcp, 443/udp). Everything else is on internal networks.
 #   - Every image is pinned by digest. Application images come from .env (written by scripts/deploy.sh).
-#   - Secrets never live in this directory: they are files under ${NEBULA_SECRETS_DIR} (see scripts/gen-secrets.sh).
+#   - Secrets never live in this directory: they are files under ${NEBULA_SECRETS_DIR} (see scripts/gen-secrets.sh),
+#     and reach containers only as Compose secrets (files), never as environment variables.
 #   - Every service: read-only root FS, cap_drop ALL, no-new-privileges, healthcheck, limits, log rotation.
 
 name: ${COMPOSE_PROJECT_NAME:-nebula-prod}
@@ -83,38 +84,53 @@ services:
   # Nebula: one-shot migrations, then API + background worker in one process.
   # ---------------------------------------------------------------------------------------------
   migrate:
-    <<: *hardening
+    <<: [*hardening, *secrets-group]
     image: ${NEBULA_IMAGE:?set NEBULA_IMAGE (name@sha256:digest)}
     command: ["migrate", "up"]
     restart: "no"
-    env_file:
-      # required: false only so `compose config` works without secrets (CI, review). A missing file
-      # still fails closed: Nebula refuses to start without NEBULA_DATABASE_URL, and preflight.sh checks it.
-      - path: ${NEBULA_SECRETS_DIR:-/etc/nebula/secrets}/nebula.env
-        required: false
+    # Schema owner (role nebula): the only process that may run DDL. After "up" it grants the
+    # runtime role DML on every table/sequence, incl. default privileges for future ones (ADR-0018).
     environment:
       NEBULA_ENV: production
       NEBULA_LOG_FORMAT: json
+      NEBULA_MIGRATE_DATABASE_URL: postgres://nebula@postgres:5432/nebula?sslmode=disable
+      NEBULA_MIGRATE_DATABASE_PASSWORD_FILE: /run/secrets/nebula_db_password
+      NEBULA_DB_RUNTIME_ROLE: nebula_app
+    secrets:
+      - nebula_db_password
     networks: [db]
     depends_on:
       postgres:
         condition: service_healthy
+    healthcheck:
+      disable: true # one-shot; the image HEALTHCHECK probes the API
     deploy:
       resources:
         limits: { cpus: "1.0", memory: 256M }
 
   nebula:
-    <<: *hardening
+    <<: [*hardening, *secrets-group]
     image: ${NEBULA_IMAGE:?set NEBULA_IMAGE (name@sha256:digest)}
     command: ["serve"]
-    # Secrets (database URL, encryption key, SMTP password) arrive as env vars because the binary
-    # reads only env vars (no *_FILE support yet). The file is 0600 root and read by the compose CLI.
-    env_file:
-      # required: false only so `compose config` works without secrets (CI, review). A missing file
-      # still fails closed: Nebula refuses to start without NEBULA_DATABASE_URL, and preflight.sh checks it.
-      - path: ${NEBULA_SECRETS_DIR:-/etc/nebula/secrets}/nebula.env
-        required: false
+    # Secrets are files (*_FILE), never environment variables: they do not show up in
+    # `docker inspect`, /proc/<pid>/environ or crash reports. Runtime role nebula_app: DML only.
+    secrets:
+      - nebula_app_db_password
+      - nebula_encryption_key
+      - nebula_encryption_keys_old
+      - nebula_smtp_password
     environment:
+      NEBULA_DATABASE_URL: postgres://nebula_app@postgres:5432/nebula?sslmode=disable
+      NEBULA_DATABASE_PASSWORD_FILE: /run/secrets/nebula_app_db_password
+      NEBULA_ENCRYPTION_KEY_FILE: /run/secrets/nebula_encryption_key
+      NEBULA_ENCRYPTION_KEYS_OLD_FILE: /run/secrets/nebula_encryption_keys_old # empty unless rotating
+      NEBULA_SMTP_PASSWORD_FILE: /run/secrets/nebula_smtp_password             # empty: no SMTP auth
+      # Outgoing mail (STARTTLS or TLS; "none" is refused in production). Empty host disables email.
+      NEBULA_SMTP_HOST: ${NEBULA_SMTP_HOST:-}
+      NEBULA_SMTP_PORT: ${NEBULA_SMTP_PORT:-587}
+      NEBULA_SMTP_USERNAME: ${NEBULA_SMTP_USERNAME:-}
+      NEBULA_SMTP_FROM: ${NEBULA_SMTP_FROM:-}
+      NEBULA_SMTP_TLS: ${NEBULA_SMTP_TLS:-starttls}
       NEBULA_ENV: production
       NEBULA_LOG_FORMAT: json
       NEBULA_LOG_LEVEL: ${NEBULA_LOG_LEVEL:-info}
@@ -134,13 +150,6 @@ services:
       NEBULA_WEBHOOK_ALLOW_PRIVATE: "false"
       NEBULA_SHUTDOWN_TIMEOUT: 25s
     stop_grace_period: 30s # > NEBULA_SHUTDOWN_TIMEOUT, so in-flight requests and jobs drain
-    volumes:
-      # The image is distroless (no shell, no wget). A static busybox from a pinned image is mounted
-      # read-only only for the healthcheck. Remove once the binary has a `healthcheck` subcommand.
-      - type: image
-        source: ${HEALTHCHECK_IMAGE:-busybox:1.38.0-musl@sha256:80e38f9a1b39188b8bdb28879178edb322a4402b081a9aedda1924609decd6f6}
-        target: /opt/hc
-        read_only: true
     tmpfs:
       - /tmp:size=64m,mode=1777 # CSV/xlsx import scratch space
     networks:
@@ -155,7 +164,8 @@ services:
       keycloak:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "/opt/hc/bin/busybox", "wget", "-q", "-O", "/dev/null", "-T", "3", "http://127.0.0.1:8080/readyz"]
+      # Distroless image, no shell: the binary probes its own /readyz (API + database).
+      test: ["CMD", "/nebula", "healthcheck", "-timeout", "3s"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -251,6 +261,7 @@ services:
     secrets:
       - postgres_superuser_password
       - nebula_db_password
+      - nebula_app_db_password # read by initdb/20-nebula-runtime-role.sql (also run by deploy.sh)
       - keycloak_db_password
       - monitoring_db_password
       # pgBackRest repository credentials: read per invocation by /usr/local/bin/nebula-pgbackrest only.
@@ -374,6 +385,14 @@ secrets:
     file: ${NEBULA_SECRETS_DIR:-/etc/nebula/secrets}/postgres_superuser_password
   nebula_db_password:
     file: ${NEBULA_SECRETS_DIR:-/etc/nebula/secrets}/nebula_db_password
+  nebula_app_db_password:
+    file: ${NEBULA_SECRETS_DIR:-/etc/nebula/secrets}/nebula_app_db_password
+  nebula_encryption_key:
+    file: ${NEBULA_SECRETS_DIR:-/etc/nebula/secrets}/nebula_encryption_key
+  nebula_encryption_keys_old:
+    file: ${NEBULA_SECRETS_DIR:-/etc/nebula/secrets}/nebula_encryption_keys_old
+  nebula_smtp_password:
+    file: ${NEBULA_SECRETS_DIR:-/etc/nebula/secrets}/nebula_smtp_password
   keycloak_db_password:
     file: ${NEBULA_SECRETS_DIR:-/etc/nebula/secrets}/keycloak_db_password
   monitoring_db_password:

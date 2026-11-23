@@ -56,6 +56,7 @@ Hər mərhələ yalnız testlər, miqrasiyalar (up və down) və CI yaşıl oldu
 - [x] Production: tək VPS-də Docker Compose (Caddy + TLS/CSP, Keycloak production rejimi, PG 19 + pgBackRest → S3, PITR və aylıq avtomatik restore testi, Alloy + alertlər → Mattermost, digest ilə deploy/rollback skriptləri) (ADR-0015, `deploy/production/README.md`)
 - [x] Webhook-lara layihə filtri: boş = açıq layihələr, gizli layihə yalnız açıq seçiləndə; çatdırılmada təkrar yoxlama; gündəlik xülasə hər webhook üçün süzülür (ADR-0013, migrasiya 00012)
 - [x] Email dəvətləri: tək istifadəlik link (yalnız heş saxlanılır), IdP-nin təsdiqlədiyi email uyğun gəlməlidir, 7 gün, ləğv/yenidən göndər, limitlər (ADR-0016)
+- [x] Production hardening: `*_FILE` sirləri, ayrı miqrasiya/runtime DB rolları (runtime yalnız DML), `nebula healthcheck`, access log-da `client_ip`, app-dan növbə metrikləri, release-də Trivy gate (ADR-0018)
 
 ## Phase 2: Şablonlar və görünüşlər
 - Proqram təminatı / HR / Satış / Marketinq şablonları; cədvəl, kanban, təqvim, forma görünüşləri

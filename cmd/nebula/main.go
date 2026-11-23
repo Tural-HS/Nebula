@@ -6,6 +6,7 @@
 //	nebula migrate up       apply all pending migrations
 //	nebula migrate down     roll back the latest migration
 //	nebula migrate status   show migration state
+//	nebula healthcheck      probe the local readiness endpoint (Docker HEALTHCHECK)
 //	nebula version          print the build version
 package main
 
@@ -51,9 +52,12 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 	if len(args) > 0 {
 		cmd = args[0]
 	}
-	if cmd == "version" {
+	switch cmd {
+	case "version":
 		_, _ = fmt.Fprintln(stdout, version)
 		return 0
+	case "healthcheck": // needs only the listen address, never secrets
+		return healthcheck(ctx, args[1:], getenv, stderr)
 	}
 
 	cfg, err := config.Load(getenv)
@@ -91,7 +95,7 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 		}
 		err = migrate(ctx, cfg, logger, args[1])
 	default:
-		_, _ = fmt.Fprintf(stderr, "unknown command %q (use serve, worker, migrate, rotate-secrets, version)\n", cmd)
+		_, _ = fmt.Fprintf(stderr, "unknown command %q (use serve, worker, migrate, rotate-secrets, healthcheck, version)\n", cmd)
 		return 2
 	}
 	if err != nil {
@@ -101,13 +105,22 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 	return 0
 }
 
+// migrate runs as the schema owner (NEBULA_MIGRATE_DATABASE_URL, falling back
+// to NEBULA_DATABASE_URL). With NEBULA_DB_RUNTIME_ROLE, "up" then grants that
+// role DML on every table and sequence, including future ones.
 func migrate(ctx context.Context, cfg config.Config, logger *slog.Logger, sub string) error {
-	pool, err := database.Connect(ctx, cfg.DatabaseURL, 2)
+	pool, err := database.Connect(ctx, cfg.MigrateDatabaseURL, 2)
 	if err != nil {
 		return err
 	}
 	defer pool.Close()
-	return database.Migrate(ctx, pool, sub, logger)
+	if err := database.Migrate(ctx, pool, sub, logger); err != nil {
+		return err
+	}
+	if sub == "up" && cfg.DBRuntimeRole != "" {
+		return database.GrantRuntime(ctx, pool, cfg.DBRuntimeRole, logger)
+	}
+	return nil
 }
 
 // runtime holds what serve and worker share.
@@ -118,7 +131,7 @@ type runtime struct {
 	webhook safehttp.Options
 }
 
-func newRuntime(ctx context.Context, cfg config.Config) (*runtime, error) {
+func newRuntime(ctx context.Context, cfg config.Config, logger *slog.Logger) (*runtime, error) {
 	box, err := secretbox.NewFromBase64(cfg.EncryptionKey)
 	if err != nil {
 		return nil, err
@@ -130,6 +143,7 @@ func newRuntime(ctx context.Context, cfg config.Config) (*runtime, error) {
 	if err != nil {
 		return nil, err
 	}
+	warnIfSchemaOwner(ctx, pool, cfg, logger)
 	return &runtime{
 		pool:    pool,
 		store:   store.New(pool).WithSecrets(box),
@@ -172,7 +186,7 @@ func (rt *runtime) newWorker(ctx context.Context, cfg config.Config, logger *slo
 // Rotation: 1) set the new key as NEBULA_ENCRYPTION_KEY and the previous one in
 // NEBULA_ENCRYPTION_KEYS_OLD, deploy; 2) run this; 3) remove the old key.
 func rotateSecrets(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
-	rt, err := newRuntime(ctx, cfg)
+	rt, err := newRuntime(ctx, cfg, logger)
 	if err != nil {
 		return err
 	}
@@ -187,7 +201,7 @@ func rotateSecrets(ctx context.Context, cfg config.Config, logger *slog.Logger) 
 }
 
 func runWorkerOnly(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
-	rt, err := newRuntime(ctx, cfg)
+	rt, err := newRuntime(ctx, cfg, logger)
 	if err != nil {
 		return err
 	}
@@ -196,6 +210,7 @@ func runWorkerOnly(ctx context.Context, cfg config.Config, logger *slog.Logger) 
 	if err != nil {
 		return err
 	}
+	rt.startQueueStats(ctx, cfg, logger)
 	admin := newHTTPServer(cfg.AdminAddr, server.NewAdminHandler(rt.metrics), 10*time.Second)
 	go func() {
 		if err := admin.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
@@ -209,12 +224,13 @@ func runWorkerOnly(ctx context.Context, cfg config.Config, logger *slog.Logger) 
 }
 
 func serve(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
-	rt, err := newRuntime(ctx, cfg)
+	rt, err := newRuntime(ctx, cfg, logger)
 	if err != nil {
 		return err
 	}
 	defer rt.pool.Close()
 	pool, metrics := rt.pool, rt.metrics
+	rt.startQueueStats(ctx, cfg, logger)
 
 	workerDone := make(chan struct{})
 	if cfg.WorkerConcurrency > 0 {

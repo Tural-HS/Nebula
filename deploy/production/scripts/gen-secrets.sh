@@ -4,11 +4,14 @@
 #
 #   sudo ./scripts/gen-secrets.sh            # uses NEBULA_SECRETS_DIR from .env
 #
-# Layout (dir 0750 root:nebula-secrets):
-#   <name>        0440 root:nebula-secrets  mounted into containers as Docker Compose secrets
-#   nebula.env    0600 root:root            read only by the compose CLI (env_file for Nebula)
-# External credentials (S3 keys, remote-write password, SMTP) are created as placeholders that
-# MUST be replaced before the first start; preflight in deploy.sh refuses to run with them.
+# Layout (dir 0750 root:nebula-secrets): every secret is one file, 0440 root:nebula-secrets,
+# mounted into the containers that need it as a Docker Compose secret (Nebula reads *_FILE).
+# External credentials (S3 keys, remote-write password) are created as placeholders that MUST be
+# replaced before the first start; preflight in deploy.sh refuses to run with them.
+#
+# Upgrade from the env_file layout (ADR-0018): an existing nebula.env is read once to carry over
+# NEBULA_ENCRYPTION_KEY, NEBULA_ENCRYPTION_KEYS_OLD and NEBULA_SMTP_PASSWORD (never regenerated:
+# a new encryption key would make stored webhook secrets unreadable).
 # shellcheck source=lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 load_env
@@ -47,10 +50,18 @@ put() { # put name value [mode] [group]
 # URL-safe random passwords (hex, 192 bits): they are embedded in a postgres:// URL.
 pw() { openssl rand -hex 24; }
 
-NEBULA_DB_PW="$(cat "$SECRETS_DIR/nebula_db_password" 2>/dev/null || pw)"
+# legacy KEY: value of KEY in a pre-ADR-0018 nebula.env (empty if absent).
+legacy() {
+	[[ -r $SECRETS_DIR/nebula.env ]] || return 0
+	sed -n "s/^$1=//p" "$SECRETS_DIR/nebula.env" | tail -n 1
+}
+
+ENC_KEY="$(legacy NEBULA_ENCRYPTION_KEY)"
+[[ -n $ENC_KEY ]] || ENC_KEY="$(openssl rand -base64 32)"
 
 put postgres_superuser_password "$(pw)"
-put nebula_db_password "$NEBULA_DB_PW"
+put nebula_db_password "$(pw)"      # schema owner: nebula migrate only
+put nebula_app_db_password "$(pw)"  # runtime role nebula_app: DML only
 put keycloak_db_password "$(pw)"
 put monitoring_db_password "$(pw)"
 # pgBackRest repository encryption passphrase. LOSING IT MAKES EVERY BACKUP UNREADABLE:
@@ -59,25 +70,20 @@ put pgbackrest_cipher_pass "$(openssl rand -base64 48 | tr -d '\n')"
 put pgbackrest_s3_key "REPLACE_ME"
 put pgbackrest_s3_key_secret "REPLACE_ME"
 put remote_write_password "REPLACE_ME"
-
-put nebula.env "$(cat <<ENV
-# Nebula runtime secrets (env_file). 0600 root:root. Never commit, never paste into tickets.
-NEBULA_DATABASE_URL=postgres://nebula:${NEBULA_DB_PW}@postgres:5432/nebula?sslmode=disable
-NEBULA_ENCRYPTION_KEY=$(openssl rand -base64 32)
-# Retired keys during rotation (comma separated), see README / nebula rotate-secrets.
-NEBULA_ENCRYPTION_KEYS_OLD=
-# Outgoing mail (STARTTLS mandatory in production). Empty host disables email.
-NEBULA_SMTP_HOST=
-NEBULA_SMTP_PORT=587
-NEBULA_SMTP_USERNAME=
-NEBULA_SMTP_PASSWORD=
-NEBULA_SMTP_FROM=Nebula <noreply@example.com>
-NEBULA_SMTP_TLS=starttls
-ENV
-)" 0600 0
+# Nebula: webhook-secret encryption key (base64, 32 bytes). LOSING IT makes stored webhook secrets
+# unreadable: keep an offline copy. Retired keys (comma separated) only during rotation.
+put nebula_encryption_key "$ENC_KEY"
+put nebula_encryption_keys_old "$(legacy NEBULA_ENCRYPTION_KEYS_OLD)"
+# SMTP password; empty = no SMTP authentication. Host, user and sender are in .env.
+put nebula_smtp_password "$(legacy NEBULA_SMTP_PASSWORD)"
 
 if ((${#created[@]})); then
 	log "created: ${created[*]}"
 	log "NEXT: replace REPLACE_ME in pgbackrest_s3_key, pgbackrest_s3_key_secret, remote_write_password;"
-	log "      fill SMTP in nebula.env; back up pgbackrest_cipher_pass and NEBULA_ENCRYPTION_KEY offline."
+	log "      set NEBULA_SMTP_* in .env (password: nebula_smtp_password);"
+	log "      back up pgbackrest_cipher_pass and nebula_encryption_key offline."
+fi
+if [[ -e $SECRETS_DIR/nebula.env ]]; then
+	log "NOTE: $SECRETS_DIR/nebula.env is no longer used. Its secrets were carried over (if missing);"
+	log "      copy NEBULA_SMTP_HOST/PORT/USERNAME/FROM/TLS into .env, then delete it (README §2.2)."
 fi

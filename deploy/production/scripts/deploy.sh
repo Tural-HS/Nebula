@@ -59,6 +59,18 @@ fi
 log "pulling images"
 compose pull --quiet --ignore-buildable || { restore_env; die "pull failed; .env restored"; }
 
+# This compose.yaml passes secrets only as files (ADR-0018): refuse images that cannot read them.
+image_supports_file_secrets "$NEBULA_IMAGE" ||
+	{ restore_env; die "$NEBULA_IMAGE does not support *_FILE secrets / nebula healthcheck (needs the ADR-0018 release or newer)"; }
+prev_image="$(sed -n 's/^NEBULA_IMAGE=//p' "$STATE_DIR/releases/env.$ts.bak")"
+if ((auto_rollback)) && [[ -n $prev_image && $prev_image != "$NEBULA_IMAGE" ]]; then
+	docker pull --quiet "$prev_image" >/dev/null 2>&1 || true
+	if ! image_supports_file_secrets "$prev_image"; then
+		log "WARN: the previous image predates *_FILE secrets: automatic rollback is disabled for this deploy (README §9)"
+		auto_rollback=0
+	fi
+fi
+
 # Restore point BEFORE anything changes (including a new Postgres image). On a fresh install there
 # is nothing to back up yet: run `backup.sh init` + `backup.sh full` first (README).
 if ((skip_backup == 0)); then
@@ -71,6 +83,8 @@ if ((skip_backup == 0)); then
 fi
 
 compose up -d --wait postgres
+log "ensuring database roles"
+ensure_db_roles || { restore_env; die "database role setup failed (postgres/initdb/20-nebula-runtime-role.sql); nothing else changed"; }
 old_schema="$(schema_version)"
 
 log "running migrations (schema $old_schema)"

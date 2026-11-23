@@ -1,8 +1,12 @@
 name: release
 
-# Builds and publishes the production images for a version tag (v*), signs them keylessly with
-# cosign (GitHub OIDC) and attaches build provenance. deploy/production/scripts/deploy.sh then
-# deploys them by digest; `deploy.sh --verify` checks the signatures.
+# Builds and publishes the production images for a version tag (v*), scans them with Trivy, signs
+# them keylessly with cosign (GitHub OIDC) and attaches build provenance. deploy/production/scripts/
+# deploy.sh then deploys them by digest; `deploy.sh --verify` checks the signatures.
+#
+# Order per image: push BY DIGEST (no tag) -> scan exactly that digest -> sign -> attest -> tag.
+# A failing scan leaves only an untagged, unsigned manifest behind: nothing deployable is published,
+# and what was scanned is byte-for-byte what is signed and deployed.
 on:
   push:
     tags: ["v*"]
@@ -68,11 +72,29 @@ jobs:
           context: ${{ matrix.context }}
           file: ${{ matrix.file }}
           platforms: linux/amd64
-          push: true
           provenance: mode=max
           sbom: true
-          tags: ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}
+          # Untagged until the scan has passed (tag step below).
+          outputs: type=image,name=${{ steps.meta.outputs.image }},push-by-digest=true,push=true
           build-args: VERSION=${{ github.ref_name }}
+      # Gate: fixable HIGH/CRITICAL vulnerabilities (OS packages and language dependencies) fail the
+      # release. Unfixed ones cannot be acted on and do not block. No SARIF upload: it would need
+      # security-events: write on this already privileged job, and the gate leaves no findings to
+      # triage (the table is in the log). Accepted risks go into .trivyignore with a reason + expiry.
+      - name: Scan (Trivy)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          version: v0.76.2
+          image-ref: ${{ steps.meta.outputs.image }}@${{ steps.build.outputs.digest }}
+          scanners: vuln
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          format: table
+          # Keycloak's jars exceed Trivy's 5m default.
+          timeout: 20m
+          trivyignores: .trivyignore.yaml
       - uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
       - name: Sign
         env:
@@ -83,6 +105,18 @@ jobs:
           subject-name: ${{ steps.meta.outputs.image }}
           subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
+      - name: Tag (only after scan, signature and provenance)
+        env:
+          IMAGE: ${{ steps.meta.outputs.image }}
+          TAG: ${{ steps.meta.outputs.tag }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          docker buildx imagetools create --tag "${IMAGE}:${TAG}" "${IMAGE}@${DIGEST}"
+          got="$(docker buildx imagetools inspect "${IMAGE}:${TAG}" --format '{{json .Manifest.Digest}}' | tr -d '"')"
+          if [[ "$got" != "$DIGEST" ]]; then
+            echo "::error::${IMAGE}:${TAG} resolves to ${got}, expected the scanned and signed ${DIGEST}"
+            exit 1
+          fi
       - name: Summary
         env:
           NAME: ${{ matrix.name }}

@@ -747,7 +747,7 @@
     },
     {
       "type": "timeseries",
-      "title": "Runnable queue",
+      "title": "Job queue",
       "id": 15,
       "datasource": {
         "type": "prometheus",
@@ -763,7 +763,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "max(nebula_job_queue_jobs{instance=~\"$instance\",state=\"pending_due\"})",
+          "expr": "max(nebula_job_queue_pending_jobs{instance=~\"$instance\",state=\"due\"})",
           "legendFormat": "pending (due)",
           "datasource": {
             "type": "prometheus",
@@ -772,8 +772,26 @@
         },
         {
           "refId": "B",
-          "expr": "max(nebula_job_queue_jobs{instance=~\"$instance\",state=\"failed_last_hour\"})",
+          "expr": "max(nebula_job_queue_recently_failed_jobs{instance=~\"$instance\"})",
           "legendFormat": "failed (1h)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        },
+        {
+          "refId": "C",
+          "expr": "max(nebula_job_queue_pending_jobs{instance=~\"$instance\",state=\"running\"})",
+          "legendFormat": "running",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          }
+        },
+        {
+          "refId": "D",
+          "expr": "max(nebula_job_queue_pending_jobs{instance=~\"$instance\",state=\"scheduled\"})",
+          "legendFormat": "scheduled",
           "datasource": {
             "type": "prometheus",
             "uid": "${datasource}"
@@ -829,7 +847,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "max(nebula_job_queue_oldest_age_seconds{instance=~\"$instance\",state=\"pending_due\"})",
+          "expr": "max(nebula_job_queue_oldest_due_age_seconds{instance=~\"$instance\"})",
           "legendFormat": "oldest",
           "datasource": {
             "type": "prometheus",

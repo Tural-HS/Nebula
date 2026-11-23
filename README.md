@@ -16,6 +16,7 @@ böyük həcmli məlumatlarda sürətli, tam fərdiləşdirilə bilən, öz serv
 - Saxlanılan görünüşlər, cədvəl sütunları və cəm sətri: [ADR-0014](docs/adr/0014-saved-views-and-table-totals.md)
 - Tətbiqdaxili bildirişlər: [ADR-0017](docs/adr/0017-in-app-notifications.md)
 - Production (tək VPS, Docker Compose): [ADR-0015](docs/adr/0015-production-compose-on-vps.md), runbook [deploy/production/README.md](deploy/production/README.md)
+- Production hardening (fayl sirləri, ayrı DB rolları, healthcheck, növbə metrikləri, Trivy): [ADR-0018](docs/adr/0018-production-hardening.md)
 - Yol xəritəsi: [docs/ROADMAP.md](docs/ROADMAP.md)
 
 ## Tələblər
@@ -88,9 +89,15 @@ nebula version          build versiyasını göstərir
 Bütün konfiqurasiya mühit dəyişənlərindən oxunur; bax: [.env.example](.env.example).
 Yanlış konfiqurasiya zamanı proqram başlamır və bütün problemləri bir dəfədə siyahı şəklində göstərir.
 
+**Sirlər fayldan (`*_FILE`, ADR-0018):** `NEBULA_DATABASE_URL`, `NEBULA_DATABASE_PASSWORD`, `NEBULA_MIGRATE_DATABASE_URL`, `NEBULA_MIGRATE_DATABASE_PASSWORD`, `NEBULA_ENCRYPTION_KEY`, `NEBULA_ENCRYPTION_KEYS_OLD`, `NEBULA_SMTP_PASSWORD` dəyişənlərinin hər biri `..._FILE` kimi də verilə bilər (məs. `NEBULA_ENCRYPTION_KEY_FILE=/run/secrets/nebula_encryption_key`). Faylın sonundakı bir sətir sonu silinir. İkisi birlikdə, oxuna bilməyən və ya 64 KiB-dan böyük fayl → proqram başlamır. Xəta mesajlarında dəyər heç vaxt göstərilmir.
+
 | Dəyişən | Default | Qeyd |
 |---|---|---|
-| `NEBULA_DATABASE_URL` | məcburi | `postgres://...` |
+| `NEBULA_DATABASE_URL` | `serve`/`worker` üçün məcburi | `postgres://...`; productionda DML-only runtime rolu (ADR-0018) |
+| `NEBULA_DATABASE_PASSWORD` | boş | Parolu ayrıca verir (URL-də parol olmamalıdır); adətən `_FILE` ilə |
+| `NEBULA_MIGRATE_DATABASE_URL` / `_PASSWORD` | `NEBULA_DATABASE_URL` | Yalnız `nebula migrate`: sxemin sahibi rolu (DDL) |
+| `NEBULA_DB_RUNTIME_ROLE` | boş | Verilibsə `migrate up` bu rola bütün cədvəl/sequence-lərdə DML (DDL yox) və gələcək obyektlər üçün default privileges verir |
+| `NEBULA_JOB_METRICS_INTERVAL` | `30s` | Növbə metriklərinin (`nebula_job_queue_*`) bazadan yenilənmə intervalı, 5s–10m |
 | `NEBULA_ENCRYPTION_KEY` | `serve`/`worker` üçün məcburi | 32 bayt base64 (`openssl rand -base64 32`); secret store-da saxlayın |
 | `NEBULA_ENCRYPTION_KEYS_OLD` | boş | Rotasiya zamanı köhnə açarlar (vergüllə), yalnız oxumaq üçün |
 | `NEBULA_OIDC_ISSUER` | `serve` üçün məcburi | Token-in `iss` dəyəri ilə tam eyni olmalıdır; productionda https |

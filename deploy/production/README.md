@@ -11,9 +11,9 @@ Bütün əmrlər host-da `root` (və ya `sudo`) ilə, `/opt/nebula/deploy/produc
 | `web.Dockerfile` | Node 26 ilə UI build + Caddy image |
 | `postgres/` | PG 19 + pgBackRest image, `postgresql.conf`, rollar/bazalar (initdb) |
 | `keycloak/` | Optimized Keycloak image, realm şablonu (istifadəçisiz) |
-| `alloy/` | Alloy konfiqurasiyası və Postgres custom query-ləri |
+| `alloy/` | Alloy konfiqurasiyası |
 | `monitoring/` | Alert qaydaları, Alertmanager → Mattermost, Grafana dashboard |
-| `scripts/` | `gen-secrets`, `preflight`, `deploy`, `rollback`, `backup`, `restore`, `restore-test`, `container-info`, `keycloak-bootstrap-admin` |
+| `scripts/` | `gen-secrets`, `preflight`, `deploy`, `rollback`, `db-roles`, `backup`, `restore`, `restore-test`, `container-info`, `keycloak-bootstrap-admin` |
 | `systemd/` | Backup, restore testi və container-info timer-ləri |
 | `host/` | `daemon.json`, sysctl, sshd, fail2ban nümunələri |
 
@@ -25,7 +25,7 @@ Bütün əmrlər host-da `root` (və ya `sudo`) ilə, `/opt/nebula/deploy/produc
 - [ ] **fail2ban**: `apt install fail2ban`; `host/fail2ban-jail.local` → `/etc/fail2ban/jail.d/nebula.local`.
 - [ ] **unattended-upgrades**: `apt install unattended-upgrades apt-listchanges; dpkg-reconfigure -plow unattended-upgrades` (security mənbəyi; Docker paketlərini avtomatik yeniləməyin — `Unattended-Upgrade::Package-Blacklist { "docker-ce"; "containerd.io"; }`).
 - [ ] **Vaxt sinxronu**: `apt install systemd-timesyncd` (və ya chrony); `timedatectl` → `System clock synchronized: yes`. Token-lər və TLS buna bağlıdır (alert: `NebulaClockSkew`).
-- [ ] **Docker Engine** (rəsmi repo, `docker-ce`, `docker-compose-plugin` ≥ 2.35, Engine ≥ 28.1 — `type: image` mount üçün).
+- [ ] **Docker Engine** (rəsmi repo, `docker-ce`, `docker-compose-plugin` ≥ 2.35, Engine ≥ 28.1).
   `host/daemon.json` → `/etc/docker/daemon.json` (log limitləri, `live-restore`, `no-new-privileges`, `icc: false`, `userland-proxy: false`); `systemctl restart docker`.
 - [ ] **sysctl**: `host/99-nebula-sysctl.conf` → `/etc/sysctl.d/`; `sysctl --system` (HTTP/3 UDP bufferləri, şəbəkə hardening).
 - [ ] Alətlər: `apt install jq curl openssl util-linux git` (skriptlər `jq`, `flock` istifadə edir).
@@ -50,17 +50,46 @@ DNS: `NEBULA_HOST` (məs. `nebula.example.com`) və `NEBULA_AUTH_HOST` (məs. `a
 sudo ./scripts/gen-secrets.sh
 ```
 
-Yaradır (`/etc/nebula/secrets`, qovluq 0750, fayllar `0440 root:nebula-secrets`, `nebula.env` `0600 root:root`):
-DB parolları (superuser, `nebula`, `keycloak`, `nebula_monitor`), pgBackRest şifrələmə parolu, `NEBULA_ENCRYPTION_KEY`.
-Mövcud faylı **heç vaxt** üzərinə yazmır. Sonra əl ilə:
+Yaradır (`/etc/nebula/secrets`, qovluq 0750, hər sir bir fayl, `0440 root:nebula-secrets`). Mövcud faylı **heç vaxt** üzərinə yazmır.
+
+| Fayl | Kim istifadə edir | Qeyd |
+|---|---|---|
+| `postgres_superuser_password` | postgres | yalnız lokal socket/initdb |
+| `nebula_db_password` | postgres, `migrate` | `nebula` rolu — sxemin sahibi, **yalnız** `nebula migrate` (DDL) |
+| `nebula_app_db_password` | postgres, `nebula` | `nebula_app` rolu — `serve`, yalnız DML (ADR-0018) |
+| `keycloak_db_password`, `monitoring_db_password` | postgres, keycloak / alloy | |
+| `nebula_encryption_key` | `nebula` | webhook sirlərinin şifrələmə açarı (base64, 32 bayt) |
+| `nebula_encryption_keys_old` | `nebula` | boş; yalnız açar rotasiyası zamanı köhnə açarlar (vergüllə) |
+| `nebula_smtp_password` | `nebula` | boş = SMTP autentifikasiyası yoxdur |
+| `pgbackrest_*`, `remote_write_password` | postgres / alloy | `REPLACE_ME` placeholder |
+
+Sonra əl ilə:
 
 - `pgbackrest_s3_key`, `pgbackrest_s3_key_secret` — yalnız bir bucket-ə (və prefix-ə) yazma/oxuma/silmə hüququ olan açar;
 - `remote_write_password` — Prometheus/Mimir remote-write parolu;
-- `nebula.env`-də SMTP (`NEBULA_SMTP_*`, STARTTLS məcburidir).
+- SMTP: `.env`-də `NEBULA_SMTP_HOST/PORT/USERNAME/FROM/TLS` (sir deyil; `TLS` `starttls` və ya `tls`), parol `nebula_smtp_password` faylında.
 
-**Offline nüsxə (vacib):** `pgbackrest_cipher_pass` itərsə BÜTÜN backup-lar oxunmaz olur; `NEBULA_ENCRYPTION_KEY` itərsə webhook sirləri açılmaz. Hər ikisini parol menecerinə / OpenBao-ya yazın.
+Nebula sirləri **yalnız fayl** kimi alır (`NEBULA_*_FILE` → `/run/secrets/...`): env-də, `docker inspect`-də və `/proc/<pid>/environ`-da görünmürlər. `NEBULA_DATABASE_URL` sir deyil (parolsuz), parol ayrıca fayldan gəlir.
 
-Niyə 0600 yox, 0440 + qrup: Compose (Swarm olmadan) secret faylını host icazələri ilə bind-mount edir; non-root konteynerlər (postgres 999, keycloak 1000, alloy) faylı oxumaq üçün `group_add` ilə `nebula-secrets` qrupuna qoşulur. Hər servis yalnız özünə verilən sirləri görür. `nebula.env` yalnız compose CLI (root) tərəfindən oxunur.
+**Offline nüsxə (vacib):** `pgbackrest_cipher_pass` itərsə BÜTÜN backup-lar oxunmaz olur; `nebula_encryption_key` itərsə webhook sirləri açılmaz. Hər ikisini parol menecerinə / OpenBao-ya yazın.
+
+Niyə 0600 yox, 0440 + qrup: Compose (Swarm olmadan) secret faylını host icazələri ilə bind-mount edir; non-root konteynerlər (postgres 999, keycloak 1000, nebula 65532, alloy) faylı oxumaq üçün `group_add` ilə `nebula-secrets` qrupuna qoşulur. Hər servis yalnız özünə verilən sirləri görür.
+
+**Faylı dəyişəndə** yerində yazın (eyni inode), məs. `sudo sh -c 'umask 337; printf %s "$NEW" > /etc/nebula/secrets/nebula_smtp_password'`. `mv` ilə əvəz edilən fayl artıq işləyən konteynerlərə görünmür (bind mount köhnə inode-u saxlayır) — onda konteyneri yenidən yaradın (`up -d --force-recreate <servis>`). Nebula sirləri yalnız start zamanı oxuyur.
+
+#### Köhnə quraşdırmanın yenilənməsi (`nebula.env` → sir faylları, ADR-0018)
+
+`nebula.env` (env_file) artıq istifadə olunmur. Bir dəfə, ADR-0018-i ehtiva edən ilk release-in deploy-undan əvvəl:
+
+```bash
+sudo ./scripts/gen-secrets.sh   # yeni faylları yaradır; NEBULA_ENCRYPTION_KEY(_OLD) və SMTP parolu nebula.env-dən köçürülür
+grep -E '^NEBULA_SMTP_(HOST|PORT|USERNAME|FROM|TLS)=' /etc/nebula/secrets/nebula.env   # bunları .env-ə köçürün (FROM-u dırnaqla)
+sudo ./scripts/deploy.sh NEBULA_IMAGE=... NEBULA_WEB_IMAGE=... POSTGRES_IMAGE=... KEYCLOAK_IMAGE=...
+```
+
+`deploy.sh` əvvəlcə Postgres-i yeni secret mount-u ilə yenidən yaradır (qısa DB restartı), `scripts/db-roles.sh` məntiqi ilə `nebula_app` rolunu yaradır, sonra `migrate` ona cədvəl hüquqlarını verir, `nebula` isə artıq `nebula_app` ilə qoşulur. Köhnə `monitoring.job_queue_stats()` funksiyası silinir. Hər şey işlədikdən sonra `nebula.env`-i silin (`shred -u`). `nebula_encryption_key`-in köhnə açarla eyni olduğunu yoxlayın — yeni açar webhook sirlərini oxunmaz edər.
+
+Bu deploy-da avtomatik rollback söndürülür (köhnə image `*_FILE` oxumur, `deploy.sh` bunu yoxlayır və xəbərdarlıq edir); geri qayıtmaq lazımdırsa §9-a baxın.
 
 #### Opsional: OpenBao Agent axını
 
@@ -75,10 +104,12 @@ template {
   # Postgres sirləri yalnız restart ilə oxunur; S3 açarı hər pgbackrest çağırışında oxunur.
 }
 template {
-  source      = "/etc/openbao-agent/nebula.env.ctmpl"
-  destination = "/etc/nebula/secrets/nebula.env"
-  perms       = "0600"
-  command     = "cd /opt/nebula/deploy/production && docker compose up -d nebula"
+  contents    = "{{ with secret \"kv/data/nebula/prod\" }}{{ .Data.data.smtp_password }}{{ end }}"
+  destination = "/etc/nebula/secrets/nebula_smtp_password"
+  perms       = "0440"
+  group       = "nebula-secrets"
+  # Nebula sirləri yalnız start zamanı oxuyur. Agent faylı rename ilə yazır (yeni inode): recreate.
+  command     = "cd /opt/nebula/deploy/production && docker compose up -d --force-recreate nebula"
 }
 ```
 
@@ -182,8 +213,10 @@ Yanlış hədəf seçilibsə yenidən işlədin: köhnə timeline repo-da qalır
 
 ## 7. Monitorinq və alertlər
 
-- **Alloy** (`alloy/config.alloy`) Nebula `:9090`, Caddy `:2020`, Keycloak `:9000`, Postgres (`nebula_monitor`, yalnız `pg_monitor`), host, konteynerlər (cgroup, socket olmadan) və HTTPS probları yığır və `REMOTE_WRITE_URL`-ə göndərir. Bütün seriyalarda `instance=$NEBULA_INSTANCE`.
+- **Alloy** (`alloy/config.alloy`) Nebula `:9090`, Caddy `:2020`, Keycloak `:9000`, Postgres (`nebula_monitor`, yalnız `pg_monitor`, cədvəl hüququ yoxdur), host, konteynerlər (cgroup, socket olmadan) və HTTPS probları yığır və `REMOTE_WRITE_URL`-ə göndərir. Bütün seriyalarda `instance=$NEBULA_INSTANCE`.
 - **Alert qaydaları**: `monitoring/alerts/nebula-rules.yaml` → mərkəzi Prometheus `rule_files` / `mimirtool rules load` (`promtool check rules` ilə yoxlanılıb). Əhatə: API down, ictimai endpoint down, 5xx nisbəti (API və edge), p95 gecikmə, job növbəsi gecikməsi/həcmi, uğursuz job-lar, disk >85% / >95%, yaddaş təzyiqi, OOM, saat sinxronu, backup >26 saat, backup uğursuz, WAL arxivi xətası, restore testi köhnə, sertifikat <14 gün / <3 gün.
+- **Job növbəsi** metrikləri Nebula-nın özündəndir (ADR-0018): `nebula_job_queue_pending_jobs{state="due|running|scheduled"}`, `nebula_job_queue_recently_failed_jobs` (son 1 saat), `nebula_job_queue_oldest_due_age_seconds`, `nebula_job_queue_stats_last_success_timestamp_seconds`. Hər proses `NEBULA_JOB_METRICS_INTERVAL` (default 30s) ilə bir sorğu edir, scrape-lər keşdən cavablanır. Bütün replikalar eyni dəyəri verir — `max()` ilə yığın. Sorğu alınmırsa `NebulaJobQueueStatsStale` alerti.
+- **Access log**: hər sorğuda `client_ip` (rate limiter-in istifadə etdiyi ünvan: `X-Forwarded-For` yalnız Caddy-dən), route pattern (xam path və query yox), status, müddət, `request_id`. Token, cookie və query parametrləri log-a düşmür.
 - **Mattermost**: `monitoring/alertmanager/mattermost.yaml`-ı mərkəzi Alertmanager-ə birləşdirin. Webhook URL sirdir: `/etc/alertmanager/secrets/mattermost_webhook_url` faylında (OpenBao/ESO), konfiqurasiyada yox (`api_url_file`).
 - **Dashboard**: `monitoring/grafana/nebula-dashboard.json` → Grafana → Import (data source seçilir).
 - Self-probe DNS və upstream şəbəkə problemlərini görmür: mərkəzdən də blackbox probu qurun.
@@ -195,12 +228,13 @@ sudo ./scripts/deploy.sh NEBULA_IMAGE=ghcr.io/tural-hs/nebula:v1.4.0@sha256:... 
                          NEBULA_WEB_IMAGE=ghcr.io/tural-hs/nebula-web:v1.4.0@sha256:... --verify
 ```
 
-Addımlar: digest yoxlaması → (`--verify`: cosign imzası) → `.env` yenilənir (köhnəsi `/var/lib/nebula/releases/env.*.bak`) → preflight → pull → **deploy-dan əvvəl incremental backup** → `nebula migrate up` (one-shot) → request path servisləri (`postgres keycloak nebula caddy`) `--wait` ilə → smoke test (TLS, `/`, `/config.json`, `/api/v1/me` = 401, OIDC discovery, `/admin` = 404) → monitorinq servisləri → release qeydi (`/var/lib/nebula/releases`).
+Addımlar: digest yoxlaması → (`--verify`: cosign imzası) → `.env` yenilənir (köhnəsi `/var/lib/nebula/releases/env.*.bak`) → preflight → pull → image yoxlaması (`*_FILE` + `nebula healthcheck` dəstəyi, `image_supports_file_secrets`) → **deploy-dan əvvəl incremental backup** → DB rolları (`20-nebula-runtime-role.sql`, idempotent) → `nebula migrate up` (one-shot, `nebula` rolu ilə; sonra `nebula_app`-a DML hüquqları) → request path servisləri (`postgres keycloak nebula caddy`) `--wait` ilə → smoke test (TLS, `/`, `/config.json`, `/api/v1/me` = 401, OIDC discovery, `/admin` = 404) → monitorinq servisləri → release qeydi (`/var/lib/nebula/releases`).
 Smoke test uğursuzdursa əvvəlki image-lər **avtomatik** qaytarılır (sxem yeni qalır — expand/contract).
 Monitorinq agentinin xətası yalnız xəbərdarlıqdır, release-i geri qaytarmır.
 
 Infra image-ləri (Postgres, Keycloak, Caddy+UI) eyni skriptlə yenilənir. Postgres-in **major** versiyası (19 → 20) bu axınla dəyişmir: `pg_upgrade` və ya dump/restore planı ayrıca hazırlanır.
-Üçüncü tərəf image-ləri (Alloy, busybox) `.env`-də override ilə yenilənir; həmişə `name:tag@sha256`.
+Üçüncü tərəf image-ləri (Alloy) `.env`-də override ilə yenilənir; həmişə `name:tag@sha256`.
+Release image-ləri imzalanmadan əvvəl Trivy ilə skan olunur: düzəlişi olan HIGH/CRITICAL zəiflik release-i dayandırır (`release.yml`, ADR-0018).
 
 ## 9. Rollback
 
@@ -228,12 +262,15 @@ Sxemi də geri qaytarmaq lazımdırsa `--migrate-down-to N` Down hissələrini *
 | 00010 project privacy | var | ⚠️ **təhlükəsizlik**: `visibility` və layihə üzvləri silinir, **gizli layihələr bütün workspace üzvlərinə görünən olur**. Gizli layihə varsa Down əvəzinə PITR istifadə edin |
 | 00011 saved views | var | saxlanılan görünüşlər silinir; indeks `CONCURRENTLY` silinir (yazmaları bloklamır) |
 
+**ADR-0018-dən əvvəlki release-ə rollback:** köhnə image `*_FILE` sirləri oxumur və `nebula healthcheck` bilmir, yeni `compose.yaml` ilə işləmir; `rollback.sh` bunu yoxlayır və `.env`-i qaytarıb dayanır. Belə halda: `git -C /opt/nebula checkout <köhnə tag> -- deploy/production`, `nebula.env`-i bərpa edin (ondan `NEBULA_DATABASE_URL` `nebula` rolu ilə), sonra `rollback.sh`. `nebula_app` rolu və onun hüquqları qala bilər (zərərsizdir).
+
 Down-u olan amma data silən miqrasiyadan sonra, və ya Down-u olmayan (gələcək) miqrasiyadan sonra, **məlumatı qaytarmağın yeganə yolu PITR-dir**: `restore.sh --target '<deploy-dan əvvəlki an>'` (deploy-dan əvvəlki incremental backup bu nöqtəni təmin edir) — həmin andan sonrakı yazılar itir.
 
 ## 10. Rotasiya
 
-- **DB parolu** (məs. `nebula`): yeni dəyəri fayla və `nebula.env`-ə yazın → `docker compose exec postgres psql -U postgres -c "ALTER ROLE nebula PASSWORD '...'"` → `docker compose up -d nebula`. Keycloak/monitorinq eyni qayda ilə (Keycloak, Alloy restart).
-- **NEBULA_ENCRYPTION_KEY**: yeni açar `NEBULA_ENCRYPTION_KEY`-ə, köhnəsi `NEBULA_ENCRYPTION_KEYS_OLD`-a → `up -d nebula` → `docker compose run --rm --no-deps migrate rotate-secrets` → köhnəni silin (ADR-0007).
+- **`nebula_app` parolu** (runtime): yeni dəyəri `nebula_app_db_password`-a yerində yazın → `sudo ./scripts/db-roles.sh` (parolu fayldan götürür, log-a yazmır) → `docker compose up -d --force-recreate nebula`.
+- **`nebula` parolu** (sxem sahibi, yalnız migrate): faylı yerində yazın → `docker compose exec postgres psql -U postgres`, orada `\password nebula` (interaktiv, eyni dəyər; parol log-a düşmür) — növbəti `migrate` faylı oxuyur. Keycloak/monitorinq eyni qayda ilə (Keycloak, Alloy restart).
+- **Şifrələmə açarı**: cari açarı `nebula_encryption_keys_old`-a, yenisini (`openssl rand -base64 32`) `nebula_encryption_key`-ə yerində yazın → `docker compose up -d --force-recreate nebula` → `docker compose run --rm --no-deps nebula rotate-secrets` → `nebula_encryption_keys_old`-u boşaldın → yenidən `--force-recreate nebula` (ADR-0007).
 - **S3 açarı**: yeni açarı fayla yazın — növbəti pgbackrest çağırışı onu oxuyur, restart lazım deyil. `backup.sh check`.
 
 ## 11. İnsident checklist
@@ -254,6 +291,7 @@ Down-u olan amma data silən miqrasiyadan sonra, və ya Down-u olmayan (gələc�
 ```bash
 docker compose -f deploy/production/compose.yaml --env-file deploy/production/.env.example config --quiet
 docker run --rm -v "$PWD/deploy/production:/mnt:ro" -w /mnt koalaman/shellcheck:v0.11.0 -x scripts/*.sh postgres/nebula-pgbackrest postgres/initdb/*.sh keycloak/*.sh
+go test ./internal/database -run RuntimeRole   # NEBULA_TEST_DATABASE_URL ilə: runtime rolu DDL edə bilmir
 ```
 
 Smoke test lazımdırsa: fərqli project adı (`COMPOSE_PROJECT_NAME=nebula-prodtest`), `NEBULA_BIND_ADDR=127.0.0.1`, yüksək portlar, ayrıca edge subnet; dev stack-ə (`nebula` project) toxunmayın və bitəndə `docker compose -p nebula-prodtest down -v` edin.

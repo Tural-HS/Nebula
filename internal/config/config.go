@@ -19,10 +19,16 @@ import (
 
 // Config is the complete runtime configuration of the service.
 type Config struct {
-	Env             string // "development" or "production"
-	HTTPAddr        string // public API listener
-	AdminAddr       string // metrics listener; never expose publicly
-	DatabaseURL     string
+	Env         string // "development" or "production"
+	HTTPAddr    string // public API listener
+	AdminAddr   string // metrics listener; never expose publicly
+	DatabaseURL string // runtime connection (serve, worker, rotate-secrets)
+	// MigrateDatabaseURL is used only by "migrate": the schema owner. Defaults
+	// to DatabaseURL (single-role setups such as the dev stack).
+	MigrateDatabaseURL string
+	// DBRuntimeRole, when set, is granted DML (no DDL) on every table and
+	// sequence by "migrate up", including future ones via default privileges.
+	DBRuntimeRole   string
 	DBMaxConns      int32
 	LogLevel        slog.Level
 	LogFormat       string // "json" or "text"
@@ -43,6 +49,9 @@ type Config struct {
 	SMTP              SMTP
 	Webhooks          Webhooks
 	WorkerConcurrency int // background jobs in this process; 0 disables
+	// JobMetricsInterval is how often the job-queue gauges are refreshed from
+	// the database (one cheap query per process and interval, not per scrape).
+	JobMetricsInterval time.Duration
 }
 
 // SMTP configures outgoing email. Empty Host disables email.
@@ -68,8 +77,11 @@ type RateLimit struct {
 	IPBurst   int
 }
 
-// Load reads configuration through getenv (os.Getenv in production, a map in tests).
-func Load(getenv func(string) string) (Config, error) {
+// Load reads configuration through getenv (os.Getenv in production, a map in
+// tests). Every key in SecretKeys may instead be read from the file named by
+// KEY_FILE.
+func Load(rawGetenv func(string) string) (Config, error) {
+	getenv, errs := withSecretFiles(rawGetenv)
 	get := func(key, def string) string {
 		if v := strings.TrimSpace(getenv(key)); v != "" {
 			return v
@@ -77,12 +89,10 @@ func Load(getenv func(string) string) (Config, error) {
 		return def
 	}
 
-	var errs []error
 	cfg := Config{
 		Env:          get("NEBULA_ENV", "production"),
 		HTTPAddr:     get("NEBULA_HTTP_ADDR", ":8080"),
 		AdminAddr:    get("NEBULA_ADMIN_ADDR", ":9090"),
-		DatabaseURL:  get("NEBULA_DATABASE_URL", ""),
 		LogFormat:    get("NEBULA_LOG_FORMAT", "json"),
 		OIDCIssuer:   get("NEBULA_OIDC_ISSUER", ""),
 		OIDCAudience: get("NEBULA_OIDC_AUDIENCE", ""),
@@ -104,12 +114,7 @@ func Load(getenv func(string) string) (Config, error) {
 		errs = append(errs, errors.New("NEBULA_HTTP_ADDR and NEBULA_ADMIN_ADDR must differ"))
 	}
 
-	if cfg.DatabaseURL == "" {
-		errs = append(errs, errors.New("NEBULA_DATABASE_URL is required"))
-	} else if u, err := url.Parse(cfg.DatabaseURL); err != nil || (u.Scheme != "postgres" && u.Scheme != "postgresql") {
-		// Never echo the URL: it contains the password.
-		errs = append(errs, errors.New("NEBULA_DATABASE_URL must be a postgres:// URL"))
-	}
+	errs = append(errs, cfg.loadDatabase(get, getenv)...)
 
 	if err := cfg.LogLevel.UnmarshalText([]byte(get("NEBULA_LOG_LEVEL", "info"))); err != nil {
 		errs = append(errs, fmt.Errorf("NEBULA_LOG_LEVEL: %w", err))
@@ -190,12 +195,20 @@ func Load(getenv func(string) string) (Config, error) {
 
 	cfg.ShutdownTimeout = parseDuration(get("NEBULA_SHUTDOWN_TIMEOUT", "25s"), "NEBULA_SHUTDOWN_TIMEOUT", &errs)
 	cfg.RequestTimeout = parseDuration(get("NEBULA_REQUEST_TIMEOUT", "30s"), "NEBULA_REQUEST_TIMEOUT", &errs)
+	cfg.JobMetricsInterval = parseDuration(get("NEBULA_JOB_METRICS_INTERVAL", "30s"), "NEBULA_JOB_METRICS_INTERVAL", &errs)
+	if d := cfg.JobMetricsInterval; d > 0 && (d < 5*time.Second || d > 10*time.Minute) {
+		errs = append(errs, errors.New("NEBULA_JOB_METRICS_INTERVAL must be between 5s and 10m"))
+	}
 
 	return cfg, errors.Join(errs...)
 }
 
 // ValidateRuntime checks settings needed by serve and worker (not migrate).
 func (c Config) ValidateRuntime() error {
+	if c.DatabaseURL == "" {
+		// Only NEBULA_MIGRATE_DATABASE_URL is set: enough for migrate, not for the app.
+		return errors.New("NEBULA_DATABASE_URL is required")
+	}
 	key, err := base64.StdEncoding.DecodeString(c.EncryptionKey)
 	switch {
 	case c.EncryptionKey == "":
@@ -261,6 +274,45 @@ func checkPublicURL(raw, env string) (string, error) {
 		return "", errors.New("must not contain credentials, a query or a fragment")
 	}
 	return strings.TrimRight(u.String(), "/"), nil
+}
+
+// loadDatabase reads the runtime and migration connection settings. Passwords
+// are not trimmed: they may legitimately contain spaces.
+func (c *Config) loadDatabase(get func(key, def string) string, getenv func(string) string) []error {
+	var errs []error
+	runtimeURL, migrateURL := get("NEBULA_DATABASE_URL", ""), get("NEBULA_MIGRATE_DATABASE_URL", "")
+	runtimePW, migratePW := getenv("NEBULA_DATABASE_PASSWORD"), getenv("NEBULA_MIGRATE_DATABASE_PASSWORD")
+	if runtimeURL == "" && migrateURL == "" {
+		return []error{errors.New("NEBULA_DATABASE_URL is required")}
+	}
+	if runtimeURL != "" {
+		u, err := databaseURL(runtimeURL, runtimePW, "NEBULA_DATABASE_URL", "NEBULA_DATABASE_PASSWORD")
+		if err != nil {
+			errs = append(errs, err)
+		}
+		c.DatabaseURL = u
+	} else if runtimePW != "" {
+		errs = append(errs, errors.New("NEBULA_DATABASE_PASSWORD is set but NEBULA_DATABASE_URL is not"))
+	}
+	switch {
+	case migrateURL != "":
+		u, err := databaseURL(migrateURL, migratePW, "NEBULA_MIGRATE_DATABASE_URL", "NEBULA_MIGRATE_DATABASE_PASSWORD")
+		if err != nil {
+			errs = append(errs, err)
+		}
+		c.MigrateDatabaseURL = u
+	case migratePW != "":
+		errs = append(errs, errors.New("NEBULA_MIGRATE_DATABASE_PASSWORD is set but NEBULA_MIGRATE_DATABASE_URL is not"))
+	default:
+		c.MigrateDatabaseURL = c.DatabaseURL
+	}
+	if role := get("NEBULA_DB_RUNTIME_ROLE", ""); role != "" {
+		if err := checkRoleName("NEBULA_DB_RUNTIME_ROLE", role); err != nil {
+			errs = append(errs, err)
+		}
+		c.DBRuntimeRole = role
+	}
+	return errs
 }
 
 func parseRate(raw, key string, errs *[]error) float64 {

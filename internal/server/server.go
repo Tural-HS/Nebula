@@ -51,7 +51,7 @@ func NewAPIHandler(d Deps) http.Handler {
 	r.Use(middleware.RequestID)
 	r.Use(middleware.GetHead) // HEAD served by GET handlers (load balancer checks)
 	r.Use(recoverer(d.Logger))
-	r.Use(accessLog(d.Logger, d.Metrics))
+	r.Use(accessLog(d.Logger, d.Metrics, clientIP))
 	r.Use(securityHeaders)
 	r.Use(middleware.Timeout(d.RequestTimeout))
 
@@ -98,6 +98,10 @@ func NewAPIHandler(d Deps) http.Handler {
 func NewAdminHandler(m *observability.Metrics) http.Handler {
 	mux := http.NewServeMux()
 	mux.Handle("GET /metrics", promhttp.HandlerFor(m.Registry, promhttp.HandlerOpts{}))
+	// Liveness of the process (worker-only containers have no API listener).
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	})
 	return mux
 }
 
@@ -143,7 +147,10 @@ func recoverer(logger *slog.Logger) func(http.Handler) http.Handler {
 
 // accessLog logs each request and records metrics by route *pattern*
 // (e.g. /api/v1/items/{id}) to keep Prometheus label cardinality bounded.
-func accessLog(logger *slog.Logger, m *observability.Metrics) func(http.Handler) http.Handler {
+// It logs the route pattern, never the raw path or query string (which may
+// carry tokens or IDs), and no headers. client_ip is the address the IP rate
+// limiter keys on: X-Forwarded-For is honoured only from trusted proxies.
+func accessLog(logger *slog.Logger, m *observability.Metrics, clientIP func(*http.Request) string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
@@ -168,7 +175,7 @@ func accessLog(logger *slog.Logger, m *observability.Metrics) func(http.Handler)
 			logger.InfoContext(r.Context(), "http request",
 				"method", r.Method, "route", route, "status", status,
 				"duration_ms", elapsed.Milliseconds(), "bytes", ww.BytesWritten(),
-				"request_id", middleware.GetReqID(r.Context()))
+				"client_ip", clientIP(r), "request_id", middleware.GetReqID(r.Context()))
 		})
 	}
 }

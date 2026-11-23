@@ -58,13 +58,18 @@ elif ((cur_schema > target_schema)); then
 fi
 
 confirm "Switch to release $target?"
-cp -p "$ENV_FILE" "$rel_dir/env.rollback.$(date -u +%Y%m%dT%H%M%SZ).bak"
+env_bak="$rel_dir/env.rollback.$(date -u +%Y%m%dT%H%M%SZ).bak"
+cp -p "$ENV_FILE" "$env_bak"
 for k in "${IMAGE_KEYS[@]}"; do
 	v="$(sed -n "s/^$k=//p" "$file")"
 	[[ -n $v ]] && set_env "$k" "$v"
 done
 load_env
 compose pull --quiet --ignore-buildable
+if ! image_supports_file_secrets "$NEBULA_IMAGE"; then
+	cp -p "$env_bak" "$ENV_FILE"
+	die "$NEBULA_IMAGE predates *_FILE secrets (ADR-0018) and cannot run with this compose.yaml; .env restored. See README §9"
+fi
 compose up -d --wait --wait-timeout 300 "${APP_SERVICES[@]}"
 compose up -d --remove-orphans
 smoke_test || die "rolled-back release is unhealthy: follow the incident checklist"
