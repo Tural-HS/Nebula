@@ -238,6 +238,7 @@ func serve(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 		Version:        version,
 		RequestTimeout: cfg.RequestTimeout,
 		RateLimit:      cfg.RateLimit,
+		TrustedProxies: cfg.TrustedProxies,
 	}), cfg.RequestTimeout)
 	admin := newHTTPServer(cfg.AdminAddr, server.NewAdminHandler(metrics), 10*time.Second)
 

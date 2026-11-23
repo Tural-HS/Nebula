@@ -7,7 +7,6 @@ package ratelimit
 
 import (
 	"math"
-	"net"
 	"net/http"
 	"strconv"
 	"sync"
@@ -119,15 +118,4 @@ func Middleware(l *Limiter, key func(*http.Request) string, writeErr ErrorWriter
 			next.ServeHTTP(w, r)
 		})
 	}
-}
-
-// ClientIP returns the TCP peer address. Behind a reverse proxy this is the
-// proxy's address, so per-IP limits should then be enforced at the ingress.
-// X-Forwarded-For is deliberately ignored: clients can forge it.
-func ClientIP(r *http.Request) string {
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return r.RemoteAddr
-	}
-	return host
 }

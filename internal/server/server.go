@@ -7,6 +7,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"net/netip"
 	"strconv"
 	"time"
 
@@ -37,11 +38,13 @@ type Deps struct {
 	Version        string
 	RequestTimeout time.Duration
 	RateLimit      config.RateLimit // zero value disables limiting
+	TrustedProxies []netip.Prefix   // reverse proxies whose X-Forwarded-For is believed
 	Webhooks       safehttp.Options // URL policy for webhook targets
 }
 
 // NewAPIHandler returns the public HTTP handler.
 func NewAPIHandler(d Deps) http.Handler {
+	clientIP := ratelimit.NewClientIPResolver(d.TrustedProxies).ClientIP
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.GetHead) // HEAD served by GET handlers (load balancer checks)
@@ -71,7 +74,7 @@ func NewAPIHandler(d Deps) http.Handler {
 		// Everything else requires a valid access token. The IP limit runs first so
 		// floods of bad tokens are cut off before signature checks and DB lookups.
 		r.Group(func(r chi.Router) {
-			r.Use(ratelimit.Middleware(ratelimit.New(d.RateLimit.IPRPS, d.RateLimit.IPBurst), ratelimit.ClientIP, writeError))
+			r.Use(ratelimit.Middleware(ratelimit.New(d.RateLimit.IPRPS, d.RateLimit.IPBurst), clientIP, writeError))
 			r.Use(auth.Middleware(d.Verifier, d.Store, d.Logger, writeError))
 			r.Use(ratelimit.Middleware(ratelimit.New(d.RateLimit.UserRPS, d.RateLimit.UserBurst), func(r *http.Request) string {
 				return principal(r).UserID.String()

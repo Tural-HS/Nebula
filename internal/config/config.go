@@ -8,27 +8,36 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"net/netip"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/Tural-HS/Nebula/internal/ratelimit"
 )
 
 // Config is the complete runtime configuration of the service.
 type Config struct {
-	Env               string // "development" or "production"
-	HTTPAddr          string // public API listener
-	AdminAddr         string // metrics listener; never expose publicly
-	DatabaseURL       string
-	DBMaxConns        int32
-	LogLevel          slog.Level
-	LogFormat         string // "json" or "text"
-	ShutdownTimeout   time.Duration
-	RequestTimeout    time.Duration
-	OIDCIssuer        string // must equal the token "iss" claim exactly
-	OIDCAudience      string // must appear in the token "aud" claim
-	OIDCJWKSURL       string // optional; skips discovery (internal IdP address)
-	RateLimit         RateLimit
+	Env             string // "development" or "production"
+	HTTPAddr        string // public API listener
+	AdminAddr       string // metrics listener; never expose publicly
+	DatabaseURL     string
+	DBMaxConns      int32
+	LogLevel        slog.Level
+	LogFormat       string // "json" or "text"
+	ShutdownTimeout time.Duration
+	RequestTimeout  time.Duration
+	OIDCIssuer      string // must equal the token "iss" claim exactly
+	OIDCAudience    string // must appear in the token "aud" claim
+	OIDCJWKSURL     string // optional; skips discovery (internal IdP address)
+	RateLimit       RateLimit
+	// TrustedProxies are reverse proxies whose X-Forwarded-For is believed when
+	// resolving the client IP for rate limiting. Empty: use the TCP peer only.
+	TrustedProxies []netip.Prefix
+	// PublicURL is the browser-facing base URL of the web UI (no trailing
+	// slash), used for links in chat notifications. Empty: no links.
+	PublicURL         string
 	EncryptionKey     string   // base64 32 bytes; encrypts webhook secrets at rest
 	OldEncryptionKeys []string // retired keys, decrypt-only, during rotation
 	SMTP              SMTP
@@ -117,6 +126,20 @@ func Load(getenv func(string) string) (Config, error) {
 		UserBurst: parseBurst(get("NEBULA_RATE_LIMIT_USER_BURST", "40"), "NEBULA_RATE_LIMIT_USER_BURST", &errs),
 		IPRPS:     parseRate(get("NEBULA_RATE_LIMIT_IP_RPS", "100"), "NEBULA_RATE_LIMIT_IP_RPS", &errs),
 		IPBurst:   parseBurst(get("NEBULA_RATE_LIMIT_IP_BURST", "200"), "NEBULA_RATE_LIMIT_IP_BURST", &errs),
+	}
+
+	proxies, err := ratelimit.ParseTrustedProxies(get("NEBULA_TRUSTED_PROXIES", ""))
+	if err != nil {
+		errs = append(errs, fmt.Errorf("NEBULA_TRUSTED_PROXIES: %w", err))
+	}
+	cfg.TrustedProxies = proxies
+
+	if raw := get("NEBULA_PUBLIC_URL", ""); raw != "" {
+		u, err := checkPublicURL(raw, cfg.Env)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("NEBULA_PUBLIC_URL %w", err))
+		}
+		cfg.PublicURL = u
 	}
 
 	cfg.EncryptionKey = get("NEBULA_ENCRYPTION_KEY", "")
@@ -222,6 +245,22 @@ func checkURL(raw, env string) error {
 		return errors.New("must use https in production")
 	}
 	return nil
+}
+
+// checkPublicURL requires an absolute https URL without query, fragment or
+// credentials (http only in development) and returns it without a trailing slash.
+func checkPublicURL(raw, env string) (string, error) {
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" || (u.Scheme != "https" && u.Scheme != "http") {
+		return "", errors.New("must be an absolute http(s) URL")
+	}
+	if u.Scheme != "https" && env != "development" {
+		return "", errors.New("must use https (http is allowed only with NEBULA_ENV=development)")
+	}
+	if u.User != nil || u.RawQuery != "" || u.Fragment != "" || u.Opaque != "" {
+		return "", errors.New("must not contain credentials, a query or a fragment")
+	}
+	return strings.TrimRight(u.String(), "/"), nil
 }
 
 func parseRate(raw, key string, errs *[]error) float64 {

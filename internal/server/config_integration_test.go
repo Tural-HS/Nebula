@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"sync"
 	"testing"
 	"time"
@@ -292,5 +293,45 @@ func TestRateLimiting(t *testing.T) {
 		if rec.Code != 200 {
 			t.Fatalf("healthz limited: %d", rec.Code)
 		}
+	}
+}
+
+// Behind a trusted proxy each client gets its own IP bucket; a client that
+// talks to the API directly cannot pick a bucket by forging X-Forwarded-For.
+func TestRateLimitingBehindTrustedProxy(t *testing.T) {
+	pool := testdb.New(t)
+	h := NewAPIHandler(Deps{
+		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)), Metrics: observability.NewMetrics(),
+		DB: pool, Store: store.New(pool), Verifier: testUsers, RequestTimeout: 10 * time.Second,
+		RateLimit:      config.RateLimit{IPRPS: 0.001, IPBurst: 1},
+		TrustedProxies: []netip.Prefix{netip.MustParsePrefix("10.0.0.0/8")},
+	})
+	call := func(peer, xff string) int {
+		req := httptest.NewRequestWithContext(t.Context(), "GET", "/api/v1/me", nil)
+		req.RemoteAddr = peer + ":40000"
+		if xff != "" {
+			req.Header.Set("X-Forwarded-For", xff)
+		}
+		req.Header.Set("Authorization", "Bearer alice")
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		return rec.Code
+	}
+	// Two clients through the same proxy: separate buckets.
+	if c := call("10.0.0.2", "198.51.100.1"); c != 200 {
+		t.Fatalf("client 1: %d", c)
+	}
+	if c := call("10.0.0.2", "198.51.100.2"); c != 200 {
+		t.Fatalf("client 2 shares the proxy but not the bucket: %d", c)
+	}
+	if c := call("10.0.0.2", "6.6.6.6, 198.51.100.1"); c != http.StatusTooManyRequests {
+		t.Fatalf("client 1 prepending a fake hop must stay in its bucket: %d", c)
+	}
+	// Direct (untrusted) peer: XFF is ignored, the peer's bucket is used.
+	if c := call("203.0.113.5", "198.51.100.3"); c != 200 {
+		t.Fatalf("direct client: %d", c)
+	}
+	if c := call("203.0.113.5", "198.51.100.4"); c != http.StatusTooManyRequests {
+		t.Fatalf("forged XFF from an untrusted peer must not grant a new bucket: %d", c)
 	}
 }
