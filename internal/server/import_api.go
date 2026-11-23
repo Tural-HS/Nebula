@@ -28,7 +28,11 @@ import (
 // live in importer.DefaultLimits.
 const (
 	maxImportFileBytes = 10 << 20
-	maxImportBodyBytes = maxImportFileBytes + 256<<10 // multipart framing + mapping
+	// Mattermost Boards archives carry the board's images too (not imported,
+	// but part of the upload), so they may be larger (ADR-0020).
+	maxBoardsFileBytes = 50 << 20
+	maxImportBodyBytes = maxBoardsFileBytes + 256<<10 // multipart framing + mapping
+	maxBoardPeople     = 1000
 	maxMappingBytes    = 64 << 10
 	maxSheetNameBytes  = 256
 	importParseTimeout = 15 * time.Second
@@ -38,7 +42,8 @@ const (
 )
 
 // importSlots bounds concurrent imports per process: one import may hold a
-// 10 MiB upload plus up to 64 MiB of inflated workbook in memory.
+// 10 MiB upload (50 MiB for a Boards archive) plus up to 64 MiB of inflated
+// workbook or board data in memory.
 var importSlots = make(chan struct{}, 2)
 
 // importRoutes registers spreadsheet import under /projects/{project}. Imports
@@ -87,6 +92,9 @@ func (a *api) readUpload(w http.ResponseWriter, r *http.Request) (upload, bool) 
 		switch part.FormName() {
 		case "file":
 			limit = maxImportFileBytes
+			if importer.IsBoardsArchive(part.FileName()) {
+				limit = maxBoardsFileBytes
+			}
 		case "mapping":
 			limit = maxMappingBytes
 		case "sheet":
@@ -345,6 +353,7 @@ func (a *api) previewImport(w http.ResponseWriter, r *http.Request) {
 		"row_count": len(table.Rows),
 		"targets":   ic.targets,
 		"suggested": ic.suggest(table.Headers),
+		"people":    nonNil(table.People()),
 		"limits": map[string]any{
 			"max_file_bytes": maxImportFileBytes,
 			"max_rows":       importer.DefaultLimits.MaxRows,
@@ -365,6 +374,9 @@ type mappedColumn struct {
 type importMapping struct {
 	Columns     []mappedColumn `json:"columns"`
 	DefaultType string         `json:"default_type"`
+	// People maps Mattermost user ids of a Boards archive to member emails
+	// (ADR-0020); unmapped people stay empty.
+	People map[string]string `json:"people,omitempty"`
 }
 
 type importRowError struct {
@@ -416,6 +428,12 @@ func (a *api) runImport(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		a.fail(w, r, err)
 		return
+	}
+	if len(m.People) > 0 {
+		if err := ic.applyPeople(table, m.People); err != nil {
+			a.fail(w, r, err)
+			return
+		}
 	}
 	conv, err := ic.newConverter(table, m)
 	if err != nil {
@@ -483,6 +501,37 @@ func (a *api) runImport(w http.ResponseWriter, r *http.Request) {
 }
 
 // countRows counts distinct rows in a report sorted by row.
+// applyPeople rebuilds a Boards table with the admin's person mapping. Only
+// workspace members' emails are accepted: the values end up in assignees and
+// in the text of imported comments.
+func (ic *importContext) applyPeople(t *importer.Table, people map[string]string) error {
+	if t.Board == nil {
+		return &store.ValidationError{Field: "people", Message: "only Mattermost Boards archives have people to map"}
+	}
+	if len(people) > maxBoardPeople {
+		return &store.ValidationError{Field: "people", Message: fmt.Sprintf("at most %d people can be mapped", maxBoardPeople)}
+	}
+	clean := make(map[string]string, len(people))
+	for id, email := range people {
+		email = strings.TrimSpace(email)
+		if email == "" {
+			continue
+		}
+		if _, ok := ic.members[importer.Fold(email)]; !ok {
+			return &store.ValidationError{Field: "people", Message: fmt.Sprintf("no workspace member has the email %q", email)}
+		}
+		clean[id] = email
+	}
+	if err := t.ApplyPeople(clean, importer.DefaultLimits); err != nil {
+		var ie *importer.Error
+		if errors.As(err, &ie) {
+			return &store.ValidationError{Field: "people", Message: ie.Message}
+		}
+		return err
+	}
+	return nil
+}
+
 func countRows(report []importRowError) int {
 	n, last := 0, -1
 	for _, e := range report {

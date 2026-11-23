@@ -63,6 +63,7 @@ type Table struct {
 	Date1904  bool     // xlsx: serial dates count from 1904 (old Mac workbooks)
 	Headers   []string // Width entries; blank header cells are ""
 	Rows      []Row
+	Board     *Board // boards: the chosen board, rebuilt by ApplyPeople
 }
 
 // Width is the number of columns.
@@ -102,6 +103,8 @@ func Parse(ctx context.Context, fileName string, data []byte, sheet string, lim 
 		return nil, fail("empty_file", "the file is empty")
 	case bytes.HasPrefix(data, oleMagic):
 		return nil, fail("unsupported_format", "legacy .xls and password-protected workbooks are not supported; save the sheet as .xlsx or CSV (UTF-8)")
+	case bytes.HasPrefix(data, zipMagic) && IsBoardsArchive(fileName):
+		return parseBoardsArchive(ctx, data, sheet, lim)
 	case bytes.HasPrefix(data, zipMagic):
 		if ext != ".xlsx" && ext != ".xlsm" {
 			return nil, fail("unsupported_format", "only .xlsx workbooks and CSV files are supported")
@@ -116,8 +119,10 @@ func Parse(ctx context.Context, fileName string, data []byte, sheet string, lim 
 		return parseCSV(ctx, data, ext == ".tsv", lim)
 	case ".xlsx", ".xlsm":
 		return nil, fail("malformed_file", "the file is not a valid .xlsx workbook")
+	case ".boardarchive":
+		return nil, fail("malformed_file", "the file is not a valid Mattermost Boards archive")
 	}
-	return nil, fail("unsupported_format", "only .xlsx workbooks and CSV files are supported")
+	return nil, fail("unsupported_format", "only .xlsx workbooks, CSV files and Mattermost Boards archives (.boardarchive) are supported")
 }
 
 // builder collects rows and enforces the row, column and cell limits.

@@ -226,7 +226,7 @@ export function useDeleteItem(ws: string, project: string) {
 export function useCreateWorkspace() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { slug: string; name: string }) => api<Workspace>("POST", "/workspaces", body),
+    mutationFn: (body: { slug: string; name: string; template?: "az" | "en" }) => api<Workspace>("POST", "/workspaces", body),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.workspaces }),
   });
 }
@@ -234,7 +234,11 @@ export function useCreateWorkspace() {
 export function useCreateProject(ws: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { key: string; name: string; description?: string; visibility?: Project["visibility"] }) =>
+    mutationFn: (body: {
+      key: string; name: string; description?: string; visibility?: Project["visibility"];
+      /** Copy setup from an existing project (ADR-0020). */
+      template?: { from: string; members: boolean; recurrences: boolean; views: boolean };
+    }) =>
       api<Project>("POST", path`/workspaces/${ws}/projects`, body),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.projects(ws) }),
   });

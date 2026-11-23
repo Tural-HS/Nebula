@@ -21,7 +21,7 @@ export interface MappedColumn {
 
 export interface ImportPreview {
   file_name: string;
-  format: "csv" | "xlsx";
+  format: "csv" | "xlsx" | "boards";
   sheets: string[];
   sheet: string;
   delimiter: string;
@@ -30,7 +30,15 @@ export interface ImportPreview {
   row_count: number;
   targets: ImportTarget[];
   suggested: MappedColumn[];
+  /** Mattermost Boards: people found in the board (ids only, ADR-0020). */
+  people: BoardPerson[];
   limits: { max_file_bytes: number; max_rows: number; max_columns: number };
+}
+
+export interface BoardPerson {
+  id: string;
+  cards: number;
+  samples: string[];
 }
 
 export interface ImportRowError {
@@ -58,6 +66,8 @@ export interface ImportReport {
 export interface ImportMapping {
   columns: MappedColumn[];
   default_type: string;
+  /** Mattermost user id -> member email; omitted when empty. */
+  people?: Record<string, string>;
 }
 
 function form(file: File, sheet: string, mapping?: ImportMapping): FormData {

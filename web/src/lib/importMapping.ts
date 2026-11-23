@@ -4,8 +4,12 @@ import type { ImportMapping, ImportPreview, ImportTarget } from "../api/imports"
 /** Target per column index; "" means the column is ignored. */
 export type ColumnMapping = string[];
 
-export const ACCEPTED_EXTENSIONS = [".csv", ".tsv", ".txt", ".xlsx", ".xlsm"] as const;
+export const ACCEPTED_EXTENSIONS = [".csv", ".tsv", ".txt", ".xlsx", ".xlsm", ".boardarchive"] as const;
 export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024; // mirrors the server limit (ADR-0011)
+/** Mattermost Boards archives also carry the board's images (ADR-0020). */
+export const MAX_BOARDS_UPLOAD_BYTES = 50 * 1024 * 1024;
+
+export const isBoardsArchive = (name: string) => name.toLowerCase().endsWith(".boardarchive");
 
 /** The server's suggestions as a full per-column array. */
 export function initialMapping(preview: Pick<ImportPreview, "headers" | "suggested" | "targets">): ColumnMapping {
@@ -43,10 +47,12 @@ export function isMappingValid(mapping: ColumnMapping): boolean {
   return !p.missingTitle && p.duplicates.length === 0;
 }
 
-export function toPayload(mapping: ColumnMapping, defaultType: string): ImportMapping {
+export function toPayload(mapping: ColumnMapping, defaultType: string, people: Record<string, string> = {}): ImportMapping {
+  const chosen = Object.fromEntries(Object.entries(people).filter(([, email]) => email !== ""));
   return {
     columns: mapping.flatMap((target, column) => (target ? [{ column, target }] : [])),
     default_type: defaultType,
+    ...(Object.keys(chosen).length > 0 ? { people: chosen } : {}),
   };
 }
 
@@ -67,7 +73,7 @@ export function columnLabel(index: number, header: string | undefined): string {
 
 export type FileProblem = "extension" | "size" | "empty" | null;
 
-export function checkFile(file: Pick<File, "name" | "size">, maxBytes = MAX_UPLOAD_BYTES): FileProblem {
+export function checkFile(file: Pick<File, "name" | "size">, maxBytes = isBoardsArchive(file.name) ? MAX_BOARDS_UPLOAD_BYTES : MAX_UPLOAD_BYTES): FileProblem {
   const name = file.name.toLowerCase();
   if (!ACCEPTED_EXTENSIONS.some((ext) => name.endsWith(ext))) return "extension";
   if (file.size === 0) return "empty";
