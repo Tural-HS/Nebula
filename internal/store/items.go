@@ -190,6 +190,8 @@ type ListItemsParams struct {
 	Query        string
 	FieldFilters map[string]string // ?field.<key>=<value>, exact match
 	Due          string            // "", "overdue", "today", "week" (next 7 days) or "none"
+	DueFrom      *string           // due_date >= this YYYY-MM-DD (calendar range, inclusive)
+	DueTo        *string           // due_date <= this YYYY-MM-DD (inclusive)
 	Sort         string            // SortNumber (default) or SortDue, see itemsort.go
 	Limit        int
 	Cursor       *ItemCursor // continue after this position (nil = from the start)
@@ -308,6 +310,16 @@ func (s *Store) itemFilter(ctx context.Context, p ListItemsParams, withStatus bo
 	default:
 		return nil, nil, invalid("due", "must be overdue, today, week or none")
 	}
+	from, to, err := DueRange(p.DueFrom, p.DueTo)
+	if err != nil {
+		return nil, nil, err
+	}
+	if from != nil {
+		add("i.due_date >= ?::date", *from)
+	}
+	if to != nil {
+		add("i.due_date <= ?::date", *to)
+	}
 	return where, args, nil
 }
 
@@ -329,37 +341,65 @@ type UpdateItemParams struct {
 
 // UpdateItem applies a partial update if Version is current, recording a diff event.
 func (s *Store) UpdateItem(ctx context.Context, p UpdateItemParams) (Item, error) {
+	in, err := checkUpdate(p)
+	if err != nil {
+		return Item{}, err
+	}
+	var item Item
+	err = s.inTx(ctx, func(tx pgx.Tx) error {
+		var err error
+		item, _, err = updateItemTx(ctx, tx, p, in, nil)
+		return err
+	})
+	return item, err
+}
+
+// checkedUpdate holds the normalized scalar inputs of an update.
+type checkedUpdate struct {
+	title string
+	desc  *string
+	due   *string
+}
+
+// checkUpdate validates the parts of an update that need no database.
+func checkUpdate(p UpdateItemParams) (checkedUpdate, error) {
 	var title string
 	var err error
 	if p.Title.Set {
 		if p.Title.Null {
-			return Item{}, invalid("title", "cannot be null")
+			return checkedUpdate{}, invalid("title", "cannot be null")
 		}
 		if title, err = text("title", p.Title.Value, 1, maxTitleLen); err != nil {
-			return Item{}, err
+			return checkedUpdate{}, err
 		}
 	}
 	var desc *string
 	if p.Description.Set {
 		if desc, err = optionalText("description", p.Description.Ptr(), maxDescriptionLen); err != nil {
-			return Item{}, err
+			return checkedUpdate{}, err
 		}
 	}
 	var due *string
 	if p.DueDate.Set {
 		if due, err = dueDate(p.DueDate.Ptr()); err != nil {
-			return Item{}, err
+			return checkedUpdate{}, err
 		}
 	}
 	if p.StatusID.Set && p.StatusID.Null {
-		return Item{}, invalid("status_id", "cannot be null")
+		return checkedUpdate{}, invalid("status_id", "cannot be null")
 	}
 	if p.Fields.Set && p.Fields.Null {
-		return Item{}, invalid("fields", "cannot be null (send {\"key\": null} to clear one field)")
+		return checkedUpdate{}, invalid("fields", "cannot be null (send {\"key\": null} to clear one field)")
 	}
+	return checkedUpdate{title: title, desc: desc, due: due}, nil
+}
 
-	var item Item
-	err = s.inTx(ctx, func(tx pgx.Tx) error {
+// updateItemTx applies a checked update inside the caller's transaction and
+// records item.updated (extra is merged into its payload). changed is false
+// when the update was a no-op: then no event is written.
+func updateItemTx(ctx context.Context, tx pgx.Tx, p UpdateItemParams, in checkedUpdate, extra map[string]any) (item Item, changed bool, err error) {
+	title, desc, due := in.title, in.desc, in.due
+	err = func() error {
 		var (
 			id                    uuid.UUID
 			version               int
@@ -454,10 +494,12 @@ func (s *Store) UpdateItem(ctx context.Context, p UpdateItemParams) (Item, error
 		if err != nil || len(changes) == 0 {
 			return err
 		}
-		return appendEvent(ctx, tx, p.WorkspaceID, p.ActorID, "item", id, "item.updated",
-			map[string]any{"changes": changes, "snapshot": Snapshot(item)})
-	})
-	return item, err
+		changed = true
+		payload := map[string]any{"changes": changes, "snapshot": Snapshot(item)}
+		maps.Copy(payload, extra)
+		return appendEvent(ctx, tx, p.WorkspaceID, p.ActorID, "item", id, "item.updated", payload)
+	}()
+	return item, changed, err
 }
 
 // Snapshot is the item's state as of an event, in the flat shape automation
@@ -493,18 +535,33 @@ func Snapshot(it Item) map[string]any {
 // DeleteItem soft-deletes an item; history and events are preserved.
 func (s *Store) DeleteItem(ctx context.Context, wsID, projectID uuid.UUID, number int64, actorID uuid.UUID) error {
 	return s.inTx(ctx, func(tx pgx.Tx) error {
-		var id uuid.UUID
-		err := tx.QueryRow(ctx, `UPDATE items SET deleted_at = now(), version = version + 1
-			WHERE workspace_id = $1 AND project_id = $2 AND number = $3 AND deleted_at IS NULL
-			RETURNING id`, wsID, projectID, number).Scan(&id)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrNotFound
-		}
-		if err != nil {
-			return err
-		}
-		return appendEvent(ctx, tx, wsID, actorID, "item", id, "item.deleted", nil)
+		return deleteItemTx(ctx, tx, wsID, projectID, number, nil, actorID, nil)
 	})
+}
+
+// deleteItemTx soft-deletes one item inside the caller's transaction. A
+// non-nil version must match the current one (bulk deletes are checked like
+// edits, so a stale selection never deletes something changed meanwhile).
+func deleteItemTx(ctx context.Context, tx pgx.Tx, wsID, projectID uuid.UUID, number int64, version *int, actorID uuid.UUID, extra map[string]any) error {
+	var id uuid.UUID
+	var cur int
+	err := tx.QueryRow(ctx, `SELECT id, version FROM items
+		WHERE workspace_id = $1 AND project_id = $2 AND number = $3 AND deleted_at IS NULL
+		FOR UPDATE`, wsID, projectID, number).Scan(&id, &cur)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+	if version != nil && *version != cur {
+		return &ConflictError{Code: "version_conflict",
+			Message: fmt.Sprintf("item was modified by someone else (current version %d); reload and retry", cur)}
+	}
+	if _, err := tx.Exec(ctx, `UPDATE items SET deleted_at = now(), version = version + 1 WHERE id = $1`, id); err != nil {
+		return err
+	}
+	return appendEvent(ctx, tx, wsID, actorID, "item", id, "item.deleted", extra)
 }
 
 func diff(from, to any) map[string]any { return map[string]any{"from": from, "to": to} }
@@ -527,4 +584,41 @@ func dueDate(v *string) (*string, error) {
 	}
 	out := d.Format(time.DateOnly)
 	return &out, nil
+}
+
+// MaxDueRangeDays bounds a due_from..due_to window: a calendar shows at most
+// six weeks, an agenda a few months; a year is plenty and keeps the range
+// scan on items_project_due_number_idx small.
+const MaxDueRangeDays = 366
+
+// DueRange validates an optional inclusive date window (calendar view).
+func DueRange(from, to *string) (*string, *string, error) {
+	f, err := dueDateField("due_from", from)
+	if err != nil {
+		return nil, nil, err
+	}
+	t, err := dueDateField("due_to", to)
+	if err != nil {
+		return nil, nil, err
+	}
+	if f != nil && t != nil {
+		df, _ := time.Parse(time.DateOnly, *f)
+		dt, _ := time.Parse(time.DateOnly, *t)
+		if dt.Before(df) {
+			return nil, nil, invalid("due_to", "must not be before due_from")
+		}
+		if dt.Sub(df) > (MaxDueRangeDays-1)*24*time.Hour {
+			return nil, nil, invalid("due_to", "range must be at most %d days", MaxDueRangeDays)
+		}
+	}
+	return f, t, nil
+}
+
+func dueDateField(field string, v *string) (*string, error) {
+	out, err := dueDate(v)
+	var ve *ValidationError
+	if errors.As(err, &ve) {
+		ve.Field = field
+	}
+	return out, err
 }

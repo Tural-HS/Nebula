@@ -145,3 +145,17 @@ describe("formatting", () => {
     expect(formatFieldValue(undefined, "raw", members)).toBe("raw");
   });
 });
+
+describe("calendar mode", () => {
+  it("round-trips view=calendar and keeps the month outside the saved state", () => {
+    const s = readState(new URLSearchParams("view=calendar&cal=2026-12&assignee=me"));
+    expect(s.mode).toBe("calendar");
+    const p = writeState({ ...s, assignee: "" }, new URLSearchParams("view=calendar&cal=2026-12&assignee=me"));
+    expect(p.get("view")).toBe("calendar");
+    expect(p.get("cal")).toBe("2026-12"); // month navigation is not a view change
+    expect(p.has("assignee")).toBe(false);
+    expect(viewFromState(s).kind).toBe("calendar");
+    expect(stateFromView({ kind: "calendar", config: { filters: {}, columns: [], sort: "number", group_by: "status" } }).mode).toBe("calendar");
+    expect(readState(new URLSearchParams("view=gantt")).mode).toBe("table");
+  });
+});

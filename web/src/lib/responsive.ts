@@ -26,6 +26,9 @@ export function useMediaQuery(query: string): boolean {
 
 export const useCompact = () => useMediaQuery(COMPACT_QUERY);
 
+/** A mouse or trackpad is the primary pointer (not a touch screen). */
+export const FINE_POINTER = "(pointer: fine)";
+
 /**
  * Columns of the table as shown. On a narrow screen the key moves into the
  * title cell (a second line), and the title comes first so it stays pinned to
