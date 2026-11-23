@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient, type QueryKey } from "@tanstack/
 
 import { api, path } from "./client";
 import { keys } from "./hooks";
+import type { WebhookFormat } from "../lib/webhooks";
 import type { ActivityPage, FieldDefinition, ItemType, Member, Role, StatusCategory } from "./types";
 
 export interface WorkflowStatus {
@@ -30,7 +31,9 @@ export interface Workflow {
 
 export interface Webhook {
   id: string;
+  /** Masked (host + last 4 characters) for the slack format: that URL is the credential. */
   url: string;
+  format: WebhookFormat;
   events: string[];
   active: boolean;
   failure_count: number;
@@ -202,7 +205,8 @@ export function useAdminApi(ws: string) {
     ),
 
     createWebhook: useAdminMutation(
-      (b: { url: string; events: string[] }) => api<{ webhook: Webhook; secret: string }>("POST", base + "/webhooks", b),
+      (b: { url: string; format: WebhookFormat; events: string[] }) =>
+        api<{ webhook: Webhook; secret: string | null }>("POST", base + "/webhooks", b),
       [hooks],
     ),
     updateWebhook: useAdminMutation(
