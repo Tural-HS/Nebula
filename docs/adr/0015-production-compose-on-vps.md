@@ -83,6 +83,8 @@ Alloy → DaemonSet, Caddy → ingress + cert-manager):
 
 ## App dəyişiklikləri (production üçün tövsiyə olunur, bu ADR-də edilmədi)
 
+> Hamısı [ADR-0018](0018-production-hardening.md)-də həyata keçirilib; aşağıdakı yan yollar artıq yoxdur.
+
 1. `nebula healthcheck` alt-komandası — indi distroless image üçün healthcheck read-only mount edilmiş busybox ilə edilir.
 2. Sirlər üçün `*_FILE` dəstəyi (`NEBULA_DATABASE_URL_FILE`, `NEBULA_ENCRYPTION_KEY_FILE`, `NEBULA_SMTP_PASSWORD_FILE`) — sirlər env-də görünməsin.
 3. Job növbəsi üçün app metrikləri (`nebula_jobs_pending`, ən köhnə işin yaşı) — indi Postgres-dən `SECURITY DEFINER` funksiya ilə oxunur.
