@@ -347,6 +347,8 @@ Sxemi də geri qaytarmaq lazımdırsa `--migrate-down-to N` Down hissələrini *
 | 00014 notifications | var | bütün tətbiqdaxili bildirişlər silinir |
 | 00015 calendar views | var | data silmir; `calendar` növlü saxlanılan görünüş varsa Down xəta ilə dayanır — əvvəlcə onları `table`/`board`-a dəyişin və ya silin |
 | 00016 subtasks | var | bütün alt tapşırıq əlaqələri silinir (tapşırıqlar qalır, hamısı yuxarı səviyyəli olur); indekslər `CONCURRENTLY` qurulur |
+| 00017 attachments | var | ⚠️ **data itkisi:** bütün əlavələrin metadata-sı (`attachments`) silinir, fayllar isə blob store-da (volume/S3) yetim qalır — əvvəlcə metadata-nı ixrac edin, geri qayıtdıqdan sonra blob store-u ayrıca boşaldın (ADR-0022, §4.1). Mümkünsə yalnız image-i geri qaytarın, migrasiyanı yox |
+| 00018 search | var | axtarış indeksi (`search_docs`) və trigger-lər silinir, heç bir əsas məlumat itmir; köhnə image-də workspace axtarışı yoxdur. **Kilidlər:** Up-da trigger yaradılması `items`/`comments`-ə millisaniyəlik `SHARE ROW EXCLUSIVE` (`lock_timeout` 5 s), backfill 2000 sətirlik partiyalarla commit olunur (yazmalar davam edir; 100k tapşırıq + 200k şərh ≈ 22–26 s); Down-da trigger silinməsi eyni qısa kilid, `DROP TABLE search_docs` yalnız həmin cədvəli kilidləyir. Təkrar Up təhlükəsizdir (backfill davam edir). `pg_trgm` extension-u qalır |
 
 **ADR-0018-dən əvvəlki release-ə rollback:** köhnə image `*_FILE` sirləri oxumur və `nebula healthcheck` bilmir, yeni `compose.yaml` ilə işləmir; `rollback.sh` bunu yoxlayır və `.env`-i qaytarıb dayanır. Belə halda: `git -C /opt/nebula checkout <köhnə tag> -- deploy/production`, `nebula.env`-i bərpa edin (ondan `NEBULA_DATABASE_URL` `nebula` rolu ilə), sonra `rollback.sh`. `nebula_app` rolu və onun hüquqları qala bilər (zərərsizdir).
 

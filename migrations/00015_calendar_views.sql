@@ -1,6 +1,8 @@
--- Saved views of kind "calendar" (ADR-0023). Only the CHECK changes; NOT
--- VALID + VALIDATE keeps the ACCESS EXCLUSIVE lock to a catalog update, the
--- scan of existing rows runs under a weaker lock.
+-- Saved views of kind "calendar" (ADR-0023). Only the CHECK changes, no data.
+-- goose runs this in one transaction, so the ACCESS EXCLUSIVE lock from ADD
+-- CONSTRAINT is held until commit; NOT VALID + VALIDATE does not shorten it
+-- here. saved_views is small (a few views per project), so the lock lasts
+-- milliseconds.
 
 -- +goose Up
 ALTER TABLE saved_views DROP CONSTRAINT IF EXISTS saved_views_kind_check;

@@ -5,6 +5,7 @@ import { useAuth } from "../auth/context";
 import { useMe } from "../api/hooks";
 import { t } from "../i18n";
 import { cn } from "../lib/cn";
+import { GlobalSearch } from "./GlobalSearch";
 import { NotificationBell } from "./NotificationBell";
 import { Avatar, Button } from "./ui";
 
@@ -43,6 +44,7 @@ export function Layout({ crumbs, actions, children }: { crumbs: Crumb[]; actions
         </nav>
         <div className="ml-auto flex shrink-0 items-center gap-2">
           {actions}
+          <GlobalSearch />
           <NotificationBell />
           {me.data && (
             <span className="flex items-center gap-2 text-sm text-zinc-600 max-sm:hidden dark:text-zinc-400">
