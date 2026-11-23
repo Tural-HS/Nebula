@@ -1,0 +1,388 @@
+# Nebula production stack for a single Linux host (Debian 13 + Docker Engine + Compose v2).
+#
+#   docker compose --env-file .env -f compose.yaml up -d --wait
+#
+# Runbook: deploy/production/README.md. Decision record: docs/adr/0015-production-compose-on-vps.md.
+#
+# Invariants (do not break them when editing):
+#   - Only Caddy publishes ports (80/tcp, 443/tcp, 443/udp). Everything else is on internal networks.
+#   - Every image is pinned by digest. Application images come from .env (written by scripts/deploy.sh).
+#   - Secrets never live in this directory: they are files under ${NEBULA_SECRETS_DIR} (see scripts/gen-secrets.sh).
+#   - Every service: read-only root FS, cap_drop ALL, no-new-privileges, healthcheck, limits, log rotation.
+
+name: ${COMPOSE_PROJECT_NAME:-nebula-prod}
+
+x-hardening: &hardening
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  restart: unless-stopped
+  init: false
+  logging:
+    driver: json-file
+    options:
+      max-size: "20m"
+      max-file: "5"
+      tag: "{{.Name}}"
+
+# Secret files are readable by group ${NEBULA_SECRETS_GID} (mode 0440, owner root). Compose (non-Swarm)
+# bind-mounts them with host permissions, so consumers join that group via group_add. Each service
+# still sees only the secrets listed under it.
+x-secrets-group: &secrets-group
+  group_add: ["${NEBULA_SECRETS_GID:-10001}"]
+
+services:
+  # ---------------------------------------------------------------------------------------------
+  # Edge: TLS termination, HTTP->HTTPS, security headers, static web UI, reverse proxy.
+  # The image is Caddy + the built web UI (deploy/production/web.Dockerfile).
+  # ---------------------------------------------------------------------------------------------
+  caddy:
+    <<: *hardening
+    image: ${NEBULA_WEB_IMAGE:?set NEBULA_WEB_IMAGE (name@sha256:digest)}
+    user: "65532:65532"
+    # Bind 80/443 as non-root without CAP_NET_BIND_SERVICE (namespaced sysctl, this container only).
+    sysctls:
+      net.ipv4.ip_unprivileged_port_start: "0"
+    environment:
+      NEBULA_HOST: ${NEBULA_HOST:?}
+      NEBULA_AUTH_HOST: ${NEBULA_AUTH_HOST:?}
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM:-nebula}
+      ACME_EMAIL: ${ACME_EMAIL:?}
+      ACME_CA: ${ACME_CA:-https://acme-v02.api.letsencrypt.org/directory}
+    ports:
+      - "${NEBULA_BIND_ADDR:-0.0.0.0}:${NEBULA_HTTP_PORT:-80}:80/tcp"
+      - "${NEBULA_BIND_ADDR:-0.0.0.0}:${NEBULA_HTTPS_PORT:-443}:443/tcp"
+      - "${NEBULA_BIND_ADDR:-0.0.0.0}:${NEBULA_HTTPS_PORT:-443}:443/udp" # HTTP/3
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data     # ACME account + certificates: losing it means re-issuance (rate limits!)
+      - caddy-config:/config
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    networks:
+      edge:
+        ipv4_address: ${NEBULA_CADDY_IP:-172.30.10.10}
+        # Containers resolve the public hostnames to Caddy itself: Nebula reaches the IdP over
+        # verified TLS without hairpinning through the public IP.
+        aliases:
+          - ${NEBULA_HOST:?}
+          - ${NEBULA_AUTH_HOST:?}
+      metrics: {}
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "-T", "3", "http://127.0.0.1:2020/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits: { cpus: "1.0", memory: 256M }
+        reservations: { memory: 64M }
+
+  # ---------------------------------------------------------------------------------------------
+  # Nebula: one-shot migrations, then API + background worker in one process.
+  # ---------------------------------------------------------------------------------------------
+  migrate:
+    <<: *hardening
+    image: ${NEBULA_IMAGE:?set NEBULA_IMAGE (name@sha256:digest)}
+    command: ["migrate", "up"]
+    restart: "no"
+    env_file:
+      # required: false only so `compose config` works without secrets (CI, review). A missing file
+      # still fails closed: Nebula refuses to start without NEBULA_DATABASE_URL, and preflight.sh checks it.
+      - path: ${NEBULA_SECRETS_DIR:-/etc/nebula/secrets}/nebula.env
+        required: false
+    environment:
+      NEBULA_ENV: production
+      NEBULA_LOG_FORMAT: json
+    networks: [db]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits: { cpus: "1.0", memory: 256M }
+
+  nebula:
+    <<: *hardening
+    image: ${NEBULA_IMAGE:?set NEBULA_IMAGE (name@sha256:digest)}
+    command: ["serve"]
+    # Secrets (database URL, encryption key, SMTP password) arrive as env vars because the binary
+    # reads only env vars (no *_FILE support yet). The file is 0600 root and read by the compose CLI.
+    env_file:
+      # required: false only so `compose config` works without secrets (CI, review). A missing file
+      # still fails closed: Nebula refuses to start without NEBULA_DATABASE_URL, and preflight.sh checks it.
+      - path: ${NEBULA_SECRETS_DIR:-/etc/nebula/secrets}/nebula.env
+        required: false
+    environment:
+      NEBULA_ENV: production
+      NEBULA_LOG_FORMAT: json
+      NEBULA_LOG_LEVEL: ${NEBULA_LOG_LEVEL:-info}
+      NEBULA_HTTP_ADDR: ":8080"
+      NEBULA_ADMIN_ADDR: ":9090"
+      NEBULA_PUBLIC_URL: https://${NEBULA_HOST:?}
+      NEBULA_OIDC_ISSUER: https://${NEBULA_AUTH_HOST:?}/realms/${KEYCLOAK_REALM:-nebula}
+      NEBULA_OIDC_AUDIENCE: nebula-api
+      # Only Caddy's fixed address: nobody else on any network can spoof X-Forwarded-For.
+      NEBULA_TRUSTED_PROXIES: ${NEBULA_CADDY_IP:-172.30.10.10}/32
+      NEBULA_DB_MAX_CONNS: ${NEBULA_DB_MAX_CONNS:-20}
+      NEBULA_WORKER_CONCURRENCY: ${NEBULA_WORKER_CONCURRENCY:-4}
+      NEBULA_RATE_LIMIT_USER_RPS: ${NEBULA_RATE_LIMIT_USER_RPS:-20}
+      NEBULA_RATE_LIMIT_USER_BURST: ${NEBULA_RATE_LIMIT_USER_BURST:-40}
+      NEBULA_RATE_LIMIT_IP_RPS: ${NEBULA_RATE_LIMIT_IP_RPS:-100}
+      NEBULA_RATE_LIMIT_IP_BURST: ${NEBULA_RATE_LIMIT_IP_BURST:-200}
+      NEBULA_WEBHOOK_ALLOW_PRIVATE: "false"
+      NEBULA_SHUTDOWN_TIMEOUT: 25s
+    stop_grace_period: 30s # > NEBULA_SHUTDOWN_TIMEOUT, so in-flight requests and jobs drain
+    volumes:
+      # The image is distroless (no shell, no wget). A static busybox from a pinned image is mounted
+      # read-only only for the healthcheck. Remove once the binary has a `healthcheck` subcommand.
+      - type: image
+        source: ${HEALTHCHECK_IMAGE:-busybox:1.38.0-musl@sha256:80e38f9a1b39188b8bdb28879178edb322a4402b081a9aedda1924609decd6f6}
+        target: /opt/hc
+        read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777 # CSV/xlsx import scratch space
+    networks:
+      edge: {}    # Caddy -> API, egress for webhooks and SMTP
+      db: {}
+      metrics: {} # :9090 scraped by Alloy, never published
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/opt/hc/bin/busybox", "wget", "-q", "-O", "/dev/null", "-T", "3", "http://127.0.0.1:8080/readyz"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    deploy:
+      resources:
+        limits: { cpus: "2.0", memory: 1G }
+        reservations: { memory: 256M }
+
+  # ---------------------------------------------------------------------------------------------
+  # Keycloak (production mode, optimized build, own database). Admin console: SSH tunnel only.
+  # ---------------------------------------------------------------------------------------------
+  keycloak:
+    <<: [*hardening, *secrets-group]
+    image: ${KEYCLOAK_IMAGE:?set KEYCLOAK_IMAGE (name@sha256:digest)}
+    command: ["start", "--optimized", "--import-realm"]
+    environment:
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      NEBULA_KC_DB_PASSWORD_FILE: /run/secrets/keycloak_db_password # exported as KC_DB_PASSWORD by keycloak/entrypoint.sh
+      KC_HOSTNAME: https://${NEBULA_AUTH_HOST:?}
+      # Admin console and master realm are only reachable on the loopback-bound port below,
+      # through an SSH tunnel; Caddy blocks /admin and /realms/master publicly.
+      KC_HOSTNAME_ADMIN: http://localhost:${KEYCLOAK_ADMIN_TUNNEL_PORT:-8081}
+      KC_HTTP_ENABLED: "true" # TLS terminates at Caddy on the private edge network
+      KC_PROXY_HEADERS: xforwarded
+      KC_PROXY_TRUSTED_ADDRESSES: ${NEBULA_CADDY_IP:-172.30.10.10}/32
+      KC_LOG_CONSOLE_OUTPUT: json
+      # No bootstrap admin in the runtime env: the first (temporary) admin is created once with
+      # scripts/keycloak-bootstrap-admin.sh, which prompts for the password interactively.
+      JAVA_OPTS_KC_HEAP: "-XX:MaxRAMPercentage=70 -XX:InitialRAMPercentage=30"
+      # Realm template placeholders (keycloak/realm/nebula-realm.json).
+      NEBULA_HOST: ${NEBULA_HOST:?}
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM:-nebula}
+    secrets:
+      - keycloak_db_password
+    ports:
+      - "127.0.0.1:${KEYCLOAK_ADMIN_TUNNEL_PORT:-8081}:8080/tcp" # loopback only: ssh -L 8081:127.0.0.1:8081
+    volumes:
+      - ./keycloak/realm:/opt/keycloak/data/import:ro
+    tmpfs:
+      # All runtime state is in PostgreSQL; data/ only holds tmp files and the transaction log.
+      - /opt/keycloak/data:size=128m,uid=1000,gid=0,mode=0770
+      - /tmp:size=64m,mode=1777
+    networks:
+      edge: {}
+      db: {}
+      metrics: {}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      # No curl in the image: raw HTTP over bash /dev/tcp against the management port.
+      test:
+        - CMD
+        - bash
+        - -c
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/9000 &&
+          printf 'GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 &&
+          read -r status <&3 && [[ "$$status" == *" 200"* ]]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 90s
+    deploy:
+      resources:
+        limits: { cpus: "2.0", memory: 1536M }
+        reservations: { memory: 512M }
+
+  # ---------------------------------------------------------------------------------------------
+  # PostgreSQL 19 + pgBackRest (WAL archiving to S3, encrypted). One cluster, databases nebula
+  # and keycloak, each with its own role.
+  # ---------------------------------------------------------------------------------------------
+  postgres:
+    <<: [*hardening, *secrets-group]
+    image: ${POSTGRES_IMAGE:?set POSTGRES_IMAGE (name@sha256:digest)}
+    user: "999:999"
+    shm_size: 256m
+    command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_superuser_password
+      POSTGRES_DB: postgres
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=peer --data-checksums"
+      PGBACKREST_STANZA: ${PGBACKREST_STANZA:-nebula}
+      PGBACKREST_REPO1_S3_ENDPOINT: ${PGBACKREST_S3_ENDPOINT:?}
+      PGBACKREST_REPO1_S3_REGION: ${PGBACKREST_S3_REGION:?}
+      PGBACKREST_REPO1_S3_BUCKET: ${PGBACKREST_S3_BUCKET:?}
+      PGBACKREST_REPO1_S3_URI_STYLE: ${PGBACKREST_S3_URI_STYLE:-path}
+      PGBACKREST_REPO1_PATH: ${PGBACKREST_REPO_PATH:-/nebula}
+      PGBACKREST_REPO1_STORAGE_VERIFY_TLS: ${PGBACKREST_S3_VERIFY_TLS:-y}
+    secrets:
+      - postgres_superuser_password
+      - nebula_db_password
+      - keycloak_db_password
+      - monitoring_db_password
+      # pgBackRest repository credentials: read per invocation by /usr/local/bin/nebula-pgbackrest only.
+      - pgbackrest_s3_key
+      - pgbackrest_s3_key_secret
+      - pgbackrest_cipher_pass
+    volumes:
+      - pgdata:/var/lib/postgresql
+      - pgbackrest-spool:/var/spool/pgbackrest
+      - ./postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+    tmpfs:
+      - /var/run/postgresql:size=1m,mode=1777
+      - /tmp:size=256m,mode=1777
+    networks:
+      db: {}
+      egress: {} # outbound only (S3 for WAL archiving); nothing is published
+    healthcheck:
+      test: ["CMD", "pg_isready", "-q", "-h", "/var/run/postgresql", "-U", "postgres", "-d", "postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+    stop_grace_period: 60s # fast shutdown + final WAL push
+    deploy:
+      resources:
+        limits: { cpus: "2.0", memory: 2G }
+        reservations: { memory: 512M }
+
+  # ---------------------------------------------------------------------------------------------
+  # Observability: Grafana Alloy scrapes Nebula, Caddy, Keycloak, Postgres, host and containers,
+  # then remote-writes to the existing Grafana stack (Prometheus/Mimir). Alert rules live there.
+  # ---------------------------------------------------------------------------------------------
+  alloy:
+    <<: [*hardening, *secrets-group]
+    image: ${ALLOY_IMAGE:-grafana/alloy:v1.22.0@sha256:9acc2529bc1edb7f5b2bd801dd8334ebc80c158e3a9e5526ecd7c9a273d43189}
+    # uid 0 without any capability (no DAC override): reads host /proc, /sys and cgroups read-only;
+    # gid 473 = the image's alloy group that owns /var/lib/alloy.
+    user: "0:473"
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --storage.path=/var/lib/alloy/data
+      - --server.http.listen-addr=127.0.0.1:12345 # UI/debug: never on a network
+      - --disable-reporting
+    environment:
+      NEBULA_HOST: ${NEBULA_HOST:?}
+      NEBULA_AUTH_HOST: ${NEBULA_AUTH_HOST:?}
+      NEBULA_INSTANCE: ${NEBULA_INSTANCE:-nebula-prod}
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM:-nebula}
+      REMOTE_WRITE_URL: ${REMOTE_WRITE_URL:?}
+      REMOTE_WRITE_USERNAME: ${REMOTE_WRITE_USERNAME:-}
+    secrets:
+      - monitoring_db_password
+      - remote_write_password
+    volumes:
+      - ./alloy:/etc/alloy:ro
+      - alloy-data:/var/lib/alloy/data # WAL buffer: survives remote-write outages
+      - ${NEBULA_STATE_DIR:-/var/lib/nebula}/textfile:/textfile:ro # backup/restore-test metrics
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /sys/fs/cgroup:/sys/fs/cgroup:ro
+      - /run/udev/data:/run/udev/data:ro # disk device labels for diskstats
+      - /:/host/root:ro,rslave
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    networks:
+      db: {}
+      metrics: {}
+      egress: {}
+    # Host cgroup namespace (read-only mount below): cAdvisor reads container cgroups directly.
+    # No Docker or containerd socket is mounted: either would be root on the host. Container ids are
+    # mapped to compose service names by scripts/container-info.sh (textfile metric).
+    cgroup: host
+    healthcheck:
+      test:
+        - CMD
+        - bash
+        - -c
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/12345 &&
+          printf 'GET /-/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 &&
+          read -r status <&3 && [[ "$$status" == *" 200"* ]]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    deploy:
+      resources:
+        limits: { cpus: "0.5", memory: 512M }
+        reservations: { memory: 128M }
+
+networks:
+  # Caddy <-> Nebula/Keycloak. Not internal: Caddy needs ACME, Nebula webhooks/SMTP, Keycloak SMTP.
+  # Fixed subnet so the trusted-proxy setting can name Caddy's single address.
+  edge:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: ${NEBULA_EDGE_SUBNET:-172.30.10.0/24}
+  # Database traffic only. internal: no route to the outside world.
+  db:
+    driver: bridge
+    internal: true
+  # Metrics scraping only (Alloy -> Nebula :9090, Caddy :2020, Keycloak :9000).
+  metrics:
+    driver: bridge
+    internal: true
+  # Outbound-only network for Postgres (S3) and Alloy (remote write, self-probes).
+  egress:
+    driver: bridge
+
+volumes:
+  pgdata:
+  pgbackrest-spool:
+  caddy-data:
+  caddy-config:
+  alloy-data:
+
+secrets:
+  postgres_superuser_password:
+    file: ${NEBULA_SECRETS_DIR:-/etc/nebula/secrets}/postgres_superuser_password
+  nebula_db_password:
+    file: ${NEBULA_SECRETS_DIR:-/etc/nebula/secrets}/nebula_db_password
+  keycloak_db_password:
+    file: ${NEBULA_SECRETS_DIR:-/etc/nebula/secrets}/keycloak_db_password
+  monitoring_db_password:
+    file: ${NEBULA_SECRETS_DIR:-/etc/nebula/secrets}/monitoring_db_password
+  pgbackrest_s3_key:
+    file: ${NEBULA_SECRETS_DIR:-/etc/nebula/secrets}/pgbackrest_s3_key
+  pgbackrest_s3_key_secret:
+    file: ${NEBULA_SECRETS_DIR:-/etc/nebula/secrets}/pgbackrest_s3_key_secret
+  pgbackrest_cipher_pass:
+    file: ${NEBULA_SECRETS_DIR:-/etc/nebula/secrets}/pgbackrest_cipher_pass
+  remote_write_password:
+    file: ${NEBULA_SECRETS_DIR:-/etc/nebula/secrets}/remote_write_password
