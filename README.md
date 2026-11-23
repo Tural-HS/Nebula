@@ -15,6 +15,7 @@ böyük həcmli məlumatlarda sürətli, tam fərdiləşdirilə bilən, öz serv
 - Mattermost/Slack bildirişləri və etibarlı proxy-lər: [ADR-0010](docs/adr/0010-chat-notifications-and-trusted-proxies.md)
 - Saxlanılan görünüşlər, cədvəl sütunları və cəm sətri: [ADR-0014](docs/adr/0014-saved-views-and-table-totals.md)
 - Tətbiqdaxili bildirişlər: [ADR-0017](docs/adr/0017-in-app-notifications.md)
+- Workspace üzrə axtarış: [ADR-0024](docs/adr/0024-search.md)
 - Production (tək VPS, Docker Compose): [ADR-0015](docs/adr/0015-production-compose-on-vps.md), runbook [deploy/production/README.md](deploy/production/README.md)
 - Production hardening (fayl sirləri, ayrı DB rolları, healthcheck, növbə metrikləri, Trivy): [ADR-0018](docs/adr/0018-production-hardening.md)
 - Yol xəritəsi: [docs/ROADMAP.md](docs/ROADMAP.md)

@@ -56,6 +56,7 @@ func (a *api) routes(r chi.Router) {
 		a.fieldRoutes(r)
 		a.automationRoutes(r)
 		a.workspaceCollabRoutes(r)
+		a.searchRoutes(r)
 		r.Get("/members", a.listMembers)
 		r.With(requireRole(store.RoleAdmin)).Post("/members", a.addMember)
 		r.With(requireRole(store.RoleAdmin)).Patch("/members/{userID}", a.updateMemberRole)

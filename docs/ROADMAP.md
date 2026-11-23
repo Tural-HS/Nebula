@@ -58,6 +58,7 @@ Hər mərhələ yalnız testlər, miqrasiyalar (up və down) və CI yaşıl oldu
 - [x] Email dəvətləri: tək istifadəlik link (yalnız heş saxlanılır), IdP-nin təsdiqlədiyi email uyğun gəlməlidir, 7 gün, ləğv/yenidən göndər, limitlər (ADR-0016)
 - [x] Production hardening: `*_FILE` sirləri, ayrı miqrasiya/runtime DB rolları (runtime yalnız DML), `nebula healthcheck`, access log-da `client_ip`, app-dan növbə metrikləri, release-də Trivy gate (ADR-0018)
 - [x] Telefon və planşet: lövhədə toxunma ilə sürükləmə (basılı saxla, scroll ilə vuruşmur), sütunlarda snap, telefonda bir sətirlik alətlər paneli + "Filtrlər" vərəqi, sabit başlıqlı cədvəl, tam ekran tapşırıq paneli (klaviatura və safe-area), 44 px toxunma hədəfləri, heç bir səhifədə yana sürüşmə yoxdur; Playwright cihaz emulyasiyası ilə E2E (ADR-0019)
+- [x] Workspace üzrə axtarış: tapşırıqlar (açar, başlıq, təsvir) və şərhlər bir yerdə, Azərbaycan hərflərinin qatlanması ("odenis" ↔ "ödəniş"), prefiks və yazı xətası (pg_trgm) axtarışı, `QA-12` tam açarı birinci, gizli layihələr heç bir formada sızmır, Cmd/Ctrl+K dialoqu klaviatura ilə; 100k tapşırıq + 200k şərhdə seçici sorğular p95 < 5 ms, ən pis halda (sənədlərin 90%-i uyğun) ~0.25 s (ADR-0024, miqrasiya 00018)
 
 ## Phase 2: Şablonlar və görünüşlər
 - Proqram təminatı / HR / Satış / Marketinq şablonları; cədvəl, kanban, təqvim, forma görünüşləri
