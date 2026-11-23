@@ -40,6 +40,14 @@ services:
       NEBULA_OIDC_ISSUER: http://localhost:8081/realms/nebula
       NEBULA_OIDC_AUDIENCE: nebula-api
       NEBULA_OIDC_JWKS_URL: http://keycloak:8080/realms/nebula/protocol/openid-connect/certs
+      # Dev-only key: never reuse it anywhere else. Production: inject from a secret store.
+      NEBULA_ENCRYPTION_KEY: w6M0ukXHWNDX5PY1ojFtgzK1PZiVn8v+ao5Slf/GhHM=
+      NEBULA_SMTP_HOST: mailpit
+      NEBULA_SMTP_PORT: "1025"
+      NEBULA_SMTP_FROM: Nebula Dev <nebula@localhost.test>
+      NEBULA_SMTP_TLS: none
+      # Lets webhooks reach receivers on this machine (host.docker.internal). Dev only.
+      NEBULA_WEBHOOK_ALLOW_PRIVATE: "true"
     ports:
       - "127.0.0.1:8080:8080"
       - "127.0.0.1:9090:9090"
@@ -51,6 +59,10 @@ services:
         condition: service_completed_successfully
       keycloak:
         condition: service_healthy
+      mailpit:
+        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   # Dev-only identity provider. start-dev uses an embedded H2 database and plain HTTP.
   # The realm is imported only when it does not exist yet. To re-import after editing
@@ -87,6 +99,20 @@ services:
       timeout: 3s
       retries: 30
       start_period: 20s
+
+  # Dev-only mail catcher: every email Nebula sends shows up at http://localhost:8025.
+  mailpit:
+    image: axllent/mailpit:v1.34.0@sha256:23a2ef85bc50853ab3093645d1d64679afd8887e89da5e48a88940c172591a4e
+    ports:
+      - "127.0.0.1:8025:8025" # web UI
+      - "127.0.0.1:1025:1025" # SMTP, for `make run`
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
 
 volumes:
   pgdata:

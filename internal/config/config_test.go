@@ -113,3 +113,47 @@ func TestLoadNeverLeaksPassword(t *testing.T) {
 		t.Fatalf("error must not contain the password: %v", err)
 	}
 }
+
+func TestPhase1SecurityRules(t *testing.T) {
+	prodErrors := []struct {
+		name string
+		env  map[string]string
+		want string
+	}{
+		{"smtp without tls in prod", map[string]string{"NEBULA_SMTP_HOST": "smtp.example.com", "NEBULA_SMTP_FROM": "a@example.com", "NEBULA_SMTP_TLS": "none"}, "not allowed in production"},
+		{"smtp without from", map[string]string{"NEBULA_SMTP_HOST": "smtp.example.com"}, "NEBULA_SMTP_FROM is required"},
+		{"bad smtp tls", map[string]string{"NEBULA_SMTP_HOST": "smtp.example.com", "NEBULA_SMTP_FROM": "a@example.com", "NEBULA_SMTP_TLS": "ssl"}, "NEBULA_SMTP_TLS"},
+		{"private webhooks in prod", map[string]string{"NEBULA_WEBHOOK_ALLOW_PRIVATE": "true"}, "SSRF"},
+		{"bad worker count", map[string]string{"NEBULA_WORKER_CONCURRENCY": "-1"}, "NEBULA_WORKER_CONCURRENCY"},
+	}
+	for _, tt := range prodErrors {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := Load(env(tt.env)); err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("want %q, got %v", tt.want, err)
+			}
+		})
+	}
+	dev, err := Load(env(map[string]string{"NEBULA_ENV": "development", "NEBULA_WEBHOOK_ALLOW_PRIVATE": "true",
+		"NEBULA_SMTP_HOST": "mailpit", "NEBULA_SMTP_FROM": "a@localhost.test", "NEBULA_SMTP_TLS": "none"}))
+	if err != nil || !dev.Webhooks.AllowPrivate {
+		t.Fatalf("development must allow private webhooks and plain SMTP: %v", err)
+	}
+}
+
+func TestValidateRuntimeEncryptionKey(t *testing.T) {
+	for key, want := range map[string]string{
+		"":            "NEBULA_ENCRYPTION_KEY is required",
+		"not-base64!": "32 bytes",
+		"c2hvcnQ=":    "32 bytes", // "short"
+		"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=": "",
+	} {
+		cfg, err := Load(env(map[string]string{"NEBULA_ENCRYPTION_KEY": key}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = cfg.ValidateRuntime()
+		if want == "" && err != nil || want != "" && (err == nil || !strings.Contains(err.Error(), want)) {
+			t.Errorf("key %q: want %q, got %v", key, want, err)
+		}
+	}
+}

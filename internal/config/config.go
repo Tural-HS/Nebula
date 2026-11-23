@@ -3,6 +3,7 @@
 package config
 
 import (
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -15,19 +16,38 @@ import (
 
 // Config is the complete runtime configuration of the service.
 type Config struct {
-	Env             string // "development" or "production"
-	HTTPAddr        string // public API listener
-	AdminAddr       string // metrics listener; never expose publicly
-	DatabaseURL     string
-	DBMaxConns      int32
-	LogLevel        slog.Level
-	LogFormat       string // "json" or "text"
-	ShutdownTimeout time.Duration
-	RequestTimeout  time.Duration
-	OIDCIssuer      string // must equal the token "iss" claim exactly
-	OIDCAudience    string // must appear in the token "aud" claim
-	OIDCJWKSURL     string // optional; skips discovery (internal IdP address)
-	RateLimit       RateLimit
+	Env               string // "development" or "production"
+	HTTPAddr          string // public API listener
+	AdminAddr         string // metrics listener; never expose publicly
+	DatabaseURL       string
+	DBMaxConns        int32
+	LogLevel          slog.Level
+	LogFormat         string // "json" or "text"
+	ShutdownTimeout   time.Duration
+	RequestTimeout    time.Duration
+	OIDCIssuer        string // must equal the token "iss" claim exactly
+	OIDCAudience      string // must appear in the token "aud" claim
+	OIDCJWKSURL       string // optional; skips discovery (internal IdP address)
+	RateLimit         RateLimit
+	EncryptionKey     string // base64 32 bytes; encrypts webhook secrets at rest
+	SMTP              SMTP
+	Webhooks          Webhooks
+	WorkerConcurrency int // background jobs in this process; 0 disables
+}
+
+// SMTP configures outgoing email. Empty Host disables email.
+type SMTP struct {
+	Host     string
+	Port     int
+	Username string
+	Password string
+	From     string
+	TLS      string // starttls | tls | none
+}
+
+// Webhooks configures outgoing webhook delivery.
+type Webhooks struct {
+	AllowPrivate bool // allow loopback/private targets; development only
 }
 
 // RateLimit configures in-memory request limits (per replica). RPS 0 disables.
@@ -98,10 +118,63 @@ func Load(getenv func(string) string) (Config, error) {
 		IPBurst:   parseBurst(get("NEBULA_RATE_LIMIT_IP_BURST", "200"), "NEBULA_RATE_LIMIT_IP_BURST", &errs),
 	}
 
+	cfg.EncryptionKey = get("NEBULA_ENCRYPTION_KEY", "")
+	cfg.SMTP = SMTP{
+		Host:     get("NEBULA_SMTP_HOST", ""),
+		Username: get("NEBULA_SMTP_USERNAME", ""),
+		Password: getenv("NEBULA_SMTP_PASSWORD"), // not trimmed: may contain spaces
+		From:     get("NEBULA_SMTP_FROM", ""),
+		TLS:      get("NEBULA_SMTP_TLS", "starttls"),
+	}
+	port, err := strconv.Atoi(get("NEBULA_SMTP_PORT", "587"))
+	if err != nil || port < 1 || port > 65535 {
+		errs = append(errs, errors.New("NEBULA_SMTP_PORT must be a port number"))
+	}
+	cfg.SMTP.Port = port
+	if cfg.SMTP.Host != "" {
+		if cfg.SMTP.From == "" {
+			errs = append(errs, errors.New("NEBULA_SMTP_FROM is required when NEBULA_SMTP_HOST is set"))
+		}
+		switch cfg.SMTP.TLS {
+		case "starttls", "tls":
+		case "none":
+			if cfg.Env == "production" {
+				errs = append(errs, errors.New("NEBULA_SMTP_TLS=none is not allowed in production"))
+			}
+		default:
+			errs = append(errs, errors.New("NEBULA_SMTP_TLS must be starttls, tls or none"))
+		}
+	}
+	allowPrivate, err := strconv.ParseBool(get("NEBULA_WEBHOOK_ALLOW_PRIVATE", "false"))
+	if err != nil {
+		errs = append(errs, errors.New("NEBULA_WEBHOOK_ALLOW_PRIVATE must be true or false"))
+	}
+	if allowPrivate && cfg.Env == "production" {
+		errs = append(errs, errors.New("NEBULA_WEBHOOK_ALLOW_PRIVATE=true is not allowed in production (SSRF risk)"))
+	}
+	cfg.Webhooks.AllowPrivate = allowPrivate
+	workers, err := strconv.Atoi(get("NEBULA_WORKER_CONCURRENCY", "4"))
+	if err != nil || workers < 0 || workers > 256 {
+		errs = append(errs, errors.New("NEBULA_WORKER_CONCURRENCY must be an integer between 0 and 256"))
+	}
+	cfg.WorkerConcurrency = workers
+
 	cfg.ShutdownTimeout = parseDuration(get("NEBULA_SHUTDOWN_TIMEOUT", "25s"), "NEBULA_SHUTDOWN_TIMEOUT", &errs)
 	cfg.RequestTimeout = parseDuration(get("NEBULA_REQUEST_TIMEOUT", "30s"), "NEBULA_REQUEST_TIMEOUT", &errs)
 
 	return cfg, errors.Join(errs...)
+}
+
+// ValidateRuntime checks settings needed by serve and worker (not migrate).
+func (c Config) ValidateRuntime() error {
+	key, err := base64.StdEncoding.DecodeString(c.EncryptionKey)
+	switch {
+	case c.EncryptionKey == "":
+		return errors.New("NEBULA_ENCRYPTION_KEY is required (generate one with: openssl rand -base64 32)")
+	case err != nil || len(key) != 32:
+		return errors.New("NEBULA_ENCRYPTION_KEY must be 32 bytes, base64 encoded (openssl rand -base64 32)")
+	}
+	return nil
 }
 
 // ValidateAuth checks the settings only the API server needs, so operational

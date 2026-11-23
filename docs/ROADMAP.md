@@ -17,8 +17,16 @@ Hər mərhələ yalnız testlər, miqrasiyalar (up və down) və CI yaşıl oldu
 - [x] Workflow, status və item tipi idarəetmə API-si (ADR-0004)
 - [x] Rate limiting: IP başına (autentifikasiyadan əvvəl) və istifadəçi başına (ADR-0004)
 
-## Phase 1: Workflow və avtomatlaşdırma
-- Status keçidlərinin məcburi tətbiqi, avtomatlaşdırma qaydaları (trigger, şərt, əməliyyat), SMTP bildirişləri, çıxan webhook-lar
+## Phase 1: Workflow və avtomatlaşdırma (tamamlandı, ADR-0005)
+- [x] Status keçidlərinin məcburi tətbiqi və növbəti mümkün statuslar endpoint-i
+- [x] Transactional outbox + PostgreSQL job növbəsi (SKIP LOCKED, retry/backoff, `nebula worker`)
+- [x] Çıxan webhook-lar: HMAC imza, şifrələnmiş secret, SSRF qoruması, çatdırılma logu, avtomatik söndürmə
+- [x] Avtomatlaşdırma qaydaları (trigger, şərt, əməliyyat), dövrə qoruması, hadisə anındakı snapshot
+- [x] SMTP bildirişləri (məcburi TLS, header injection qoruması), dev mühitində Mailpit
+
+## Phase 1.5: Əməkdaşlıq (növbəti)
+- Şərhlər API-si və @mention bildirişləri, item tarixçəsi (activity feed) endpoint-i
+- Webhook "test ping", şifrələmə açarının rotasiyası, LISTEN/NOTIFY ilə daha az gecikmə
 
 ## Phase 2: Şablonlar və görünüşlər
 - Proqram təminatı / HR / Satış / Marketinq şablonları; cədvəl, kanban, təqvim, forma görünüşləri

@@ -18,6 +18,7 @@ import (
 	"github.com/nebula/nebula/internal/config"
 	"github.com/nebula/nebula/internal/observability"
 	"github.com/nebula/nebula/internal/ratelimit"
+	"github.com/nebula/nebula/internal/safehttp"
 	"github.com/nebula/nebula/internal/store"
 )
 
@@ -36,6 +37,7 @@ type Deps struct {
 	Version        string
 	RequestTimeout time.Duration
 	RateLimit      config.RateLimit // zero value disables limiting
+	Webhooks       safehttp.Options // URL policy for webhook targets
 }
 
 // NewAPIHandler returns the public HTTP handler.
@@ -74,7 +76,7 @@ func NewAPIHandler(d Deps) http.Handler {
 			r.Use(ratelimit.Middleware(ratelimit.New(d.RateLimit.UserRPS, d.RateLimit.UserBurst), func(r *http.Request) string {
 				return principal(r).UserID.String()
 			}, writeError))
-			(&api{store: d.Store, logger: d.Logger}).routes(r)
+			(&api{store: d.Store, logger: d.Logger, webhookOpts: d.Webhooks}).routes(r)
 		})
 	})
 

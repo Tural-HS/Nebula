@@ -17,7 +17,9 @@ func (a *api) configRoutes(r chi.Router) {
 
 	r.Get("/workflows", a.listWorkflows)
 	admin.Post("/workflows", a.createWorkflow)
-	admin.Patch("/workflows/{workflowID}", a.renameWorkflow)
+	admin.Patch("/workflows/{workflowID}", a.updateWorkflow)
+	admin.Post("/workflows/{workflowID}/transitions", a.addTransition)
+	admin.Delete("/workflows/{workflowID}/transitions/{transitionID}", a.deleteTransition)
 	admin.Post("/workflows/{workflowID}/statuses", a.addStatus)
 	admin.Patch("/workflows/{workflowID}/statuses/{statusID}", a.updateStatus)
 	admin.Delete("/workflows/{workflowID}/statuses/{statusID}", a.deleteStatus)
@@ -66,23 +68,76 @@ func (a *api) createWorkflow(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, wf)
 }
 
-func (a *api) renameWorkflow(w http.ResponseWriter, r *http.Request) {
+func (a *api) updateWorkflow(w http.ResponseWriter, r *http.Request) {
 	id, ok := a.uuidParam(w, r, "workflowID")
 	if !ok {
 		return
 	}
 	var body struct {
-		Name string `json:"name"`
+		Name               opt.Field[string] `json:"name"`
+		EnforceTransitions opt.Field[bool]   `json:"enforce_transitions"`
 	}
 	if !a.decode(w, r, &body) {
 		return
 	}
-	wf, err := a.store.RenameWorkflow(r.Context(), workspaceFrom(r).ID, principal(r).UserID, id, body.Name)
+	wf, err := a.store.UpdateWorkflow(r.Context(), workspaceFrom(r).ID, principal(r).UserID, id, body.Name, body.EnforceTransitions)
 	if err != nil {
 		a.fail(w, r, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, wf)
+}
+
+func (a *api) addTransition(w http.ResponseWriter, r *http.Request) {
+	id, ok := a.uuidParam(w, r, "workflowID")
+	if !ok {
+		return
+	}
+	var body struct {
+		Name string     `json:"name"`
+		From *uuid.UUID `json:"from_status_id"`
+		To   uuid.UUID  `json:"to_status_id"`
+	}
+	if !a.decode(w, r, &body) {
+		return
+	}
+	wf, err := a.store.AddTransition(r.Context(), workspaceFrom(r).ID, principal(r).UserID, id, body.Name, body.From, body.To)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, wf)
+}
+
+func (a *api) deleteTransition(w http.ResponseWriter, r *http.Request) {
+	wfID, ok := a.uuidParam(w, r, "workflowID")
+	if !ok {
+		return
+	}
+	trID, ok := a.uuidParam(w, r, "transitionID")
+	if !ok {
+		return
+	}
+	wf, err := a.store.DeleteTransition(r.Context(), workspaceFrom(r).ID, principal(r).UserID, wfID, trID)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, wf)
+}
+
+func (a *api) allowedStatuses(w http.ResponseWriter, r *http.Request) {
+	n, ok := itemNumber(r)
+	if !ok {
+		a.fail(w, r, store.ErrNotFound)
+		return
+	}
+	sts, err := a.store.AllowedStatuses(r.Context(), workspaceFrom(r).ID, projectFrom(r).ID, n)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"statuses": sts})
 }
 
 func (a *api) addStatus(w http.ResponseWriter, r *http.Request) {

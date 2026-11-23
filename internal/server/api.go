@@ -19,14 +19,16 @@ import (
 
 	"github.com/nebula/nebula/internal/auth"
 	"github.com/nebula/nebula/internal/opt"
+	"github.com/nebula/nebula/internal/safehttp"
 	"github.com/nebula/nebula/internal/store"
 )
 
 const maxBodyBytes = 1 << 20
 
 type api struct {
-	store  *store.Store
-	logger *slog.Logger
+	store       *store.Store
+	logger      *slog.Logger
+	webhookOpts safehttp.Options
 }
 
 type ctxKey int
@@ -47,6 +49,7 @@ func (a *api) routes(r chi.Router) {
 		r.Get("/item-types", a.listItemTypes)
 		a.configRoutes(r)
 		a.fieldRoutes(r)
+		a.automationRoutes(r)
 		r.With(requireRole(store.RoleAdmin)).Post("/members", a.addMember)
 		r.Get("/projects", a.listProjects)
 		r.With(requireRole(store.RoleAdmin)).Post("/projects", a.createProject)
@@ -57,6 +60,7 @@ func (a *api) routes(r chi.Router) {
 			r.Get("/items", a.listItems)
 			r.With(requireRole(store.RoleMember)).Post("/items", a.createItem)
 			r.Get("/items/{number}", a.getItem)
+			r.Get("/items/{number}/transitions", a.allowedStatuses)
 			r.With(requireRole(store.RoleMember)).Patch("/items/{number}", a.updateItem)
 			r.With(requireRole(store.RoleMember)).Delete("/items/{number}", a.deleteItem)
 		})

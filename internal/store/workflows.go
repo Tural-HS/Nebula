@@ -29,14 +29,27 @@ type WorkflowStatus struct {
 	IsInitial bool      `json:"is_initial"`
 }
 
-// Workflow is an ordered set of statuses shared by one or more item types.
-type Workflow struct {
-	ID        uuid.UUID        `json:"id"`
-	Name      string           `json:"name"`
-	Statuses  []WorkflowStatus `json:"statuses"`
-	CreatedAt time.Time        `json:"created_at"`
-	UpdatedAt time.Time        `json:"updated_at"`
+// Transition is an allowed status change. A nil From means "from any status".
+type Transition struct {
+	ID   uuid.UUID  `json:"id"`
+	Name string     `json:"name"`
+	From *uuid.UUID `json:"from_status_id"`
+	To   uuid.UUID  `json:"to_status_id"`
 }
+
+// Workflow is an ordered set of statuses shared by one or more item types.
+// With EnforceTransitions, items may only move along defined transitions.
+type Workflow struct {
+	ID                 uuid.UUID        `json:"id"`
+	Name               string           `json:"name"`
+	EnforceTransitions bool             `json:"enforce_transitions"`
+	Statuses           []WorkflowStatus `json:"statuses"`
+	Transitions        []Transition     `json:"transitions"`
+	CreatedAt          time.Time        `json:"created_at"`
+	UpdatedAt          time.Time        `json:"updated_at"`
+}
+
+const maxTransitionsPerWorkflow = 500
 
 // StatusInput is a status in a create request.
 type StatusInput struct {
@@ -61,14 +74,14 @@ func (s *Store) ListWorkflows(ctx context.Context, wsID uuid.UUID) ([]Workflow, 
 }
 
 func listWorkflows(ctx context.Context, q querier, wsID uuid.UUID, only *uuid.UUID) ([]Workflow, error) {
-	rows, err := q.Query(ctx, `SELECT id, name, created_at, updated_at FROM workflows
+	rows, err := q.Query(ctx, `SELECT id, name, enforce_transitions, created_at, updated_at FROM workflows
 		WHERE workspace_id = $1 AND ($2::uuid IS NULL OR id = $2) ORDER BY name, id`, wsID, only)
 	if err != nil {
 		return nil, err
 	}
 	wfs, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (Workflow, error) {
-		w := Workflow{Statuses: []WorkflowStatus{}}
-		return w, r.Scan(&w.ID, &w.Name, &w.CreatedAt, &w.UpdatedAt)
+		w := Workflow{Statuses: []WorkflowStatus{}, Transitions: []Transition{}}
+		return w, r.Scan(&w.ID, &w.Name, &w.EnforceTransitions, &w.CreatedAt, &w.UpdatedAt)
 	})
 	if err != nil {
 		return nil, err
@@ -89,9 +102,29 @@ func listWorkflows(ctx context.Context, q querier, wsID uuid.UUID, only *uuid.UU
 	if err != nil {
 		return nil, err
 	}
+	rows, err = q.Query(ctx, `SELECT t.workflow_id, t.id, t.name, t.from_status_id, t.to_status_id
+		FROM workflow_transitions t JOIN workflows w ON w.id = t.workflow_id
+		WHERE w.workspace_id = $1 AND ($2::uuid IS NULL OR w.id = $2) ORDER BY t.created_at, t.id`, wsID, only)
+	if err != nil {
+		return nil, err
+	}
+	trByWF := map[uuid.UUID][]Transition{}
+	_, err = pgx.CollectRows(rows, func(r pgx.CollectableRow) (struct{}, error) {
+		var wf uuid.UUID
+		var tr Transition
+		err := r.Scan(&wf, &tr.ID, &tr.Name, &tr.From, &tr.To)
+		trByWF[wf] = append(trByWF[wf], tr)
+		return struct{}{}, err
+	})
+	if err != nil {
+		return nil, err
+	}
 	for i := range wfs {
 		if sts := byWF[wfs[i].ID]; sts != nil {
 			wfs[i].Statuses = sts
+		}
+		if trs := trByWF[wfs[i].ID]; trs != nil {
+			wfs[i].Transitions = trs
 		}
 	}
 	return wfs, nil
@@ -165,24 +198,46 @@ func (s *Store) CreateWorkflow(ctx context.Context, wsID, actorID uuid.UUID, nam
 	return wf, err
 }
 
-// RenameWorkflow changes a workflow's name.
-func (s *Store) RenameWorkflow(ctx context.Context, wsID, actorID, id uuid.UUID, name string) (Workflow, error) {
-	name, err := text("name", name, 1, 200)
-	if err != nil {
-		return Workflow{}, err
+// UpdateWorkflow renames a workflow and/or toggles transition enforcement.
+func (s *Store) UpdateWorkflow(ctx context.Context, wsID, actorID, id uuid.UUID, name opt.Field[string], enforce opt.Field[bool]) (Workflow, error) {
+	if name.Null || enforce.Null {
+		return Workflow{}, invalid("body", "fields cannot be null")
 	}
 	var wf Workflow
-	err = s.inTx(ctx, func(tx pgx.Tx) error {
-		var old string
-		err := tx.QueryRow(ctx, `SELECT name FROM workflows WHERE workspace_id = $1 AND id = $2 FOR UPDATE`, wsID, id).Scan(&old)
+	err := s.inTx(ctx, func(tx pgx.Tx) error {
+		var oldName string
+		var oldEnforce bool
+		var transitions int
+		err := tx.QueryRow(ctx, `SELECT name, enforce_transitions,
+				(SELECT count(*) FROM workflow_transitions WHERE workflow_id = w.id)
+			FROM workflows w WHERE workspace_id = $1 AND id = $2 FOR UPDATE`, wsID, id).Scan(&oldName, &oldEnforce, &transitions)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrNotFound
 		}
 		if err != nil {
 			return err
 		}
-		if old != name {
-			_, err = tx.Exec(ctx, `UPDATE workflows SET name = $1 WHERE id = $2`, name, id)
+		newName, newEnforce := oldName, oldEnforce
+		if name.Set {
+			if newName, err = text("name", name.Value, 1, 200); err != nil {
+				return err
+			}
+		}
+		if enforce.Set {
+			newEnforce = enforce.Value
+		}
+		if newEnforce && !oldEnforce && transitions == 0 {
+			return &ConflictError{Code: "no_transitions", Message: "define transitions before enforcing them (otherwise no item could change status)"}
+		}
+		changes := map[string]any{}
+		if newName != oldName {
+			changes["name"] = diff(oldName, newName)
+		}
+		if newEnforce != oldEnforce {
+			changes["enforce_transitions"] = diff(oldEnforce, newEnforce)
+		}
+		if len(changes) > 0 {
+			_, err = tx.Exec(ctx, `UPDATE workflows SET name = $1, enforce_transitions = $2 WHERE id = $3`, newName, newEnforce, id)
 			if isUniqueViolation(err, "workflows_workspace_id_name_key") {
 				return &ConflictError{Code: "workflow_name_taken", Message: "a workflow with this name already exists"}
 			}
@@ -190,7 +245,7 @@ func (s *Store) RenameWorkflow(ctx context.Context, wsID, actorID, id uuid.UUID,
 				return err
 			}
 			if err := appendEvent(ctx, tx, wsID, actorID, "workflow", id, "workflow.updated",
-				map[string]any{"changes": map[string]any{"name": diff(old, name)}}); err != nil {
+				map[string]any{"changes": changes}); err != nil {
 				return err
 			}
 		}
@@ -198,6 +253,144 @@ func (s *Store) RenameWorkflow(ctx context.Context, wsID, actorID, id uuid.UUID,
 		return err
 	})
 	return wf, err
+}
+
+// AddTransition allows moving from one status (nil: any) to another.
+func (s *Store) AddTransition(ctx context.Context, wsID, actorID, workflowID uuid.UUID, name string, from *uuid.UUID, to uuid.UUID) (Workflow, error) {
+	name, err := text("name", name, 1, 100)
+	if err != nil {
+		return Workflow{}, err
+	}
+	if from != nil && *from == to {
+		return Workflow{}, invalid("to_status_id", "must differ from from_status_id")
+	}
+	var wf Workflow
+	err = s.inTx(ctx, func(tx pgx.Tx) error {
+		if err := lockWorkflow(ctx, tx, wsID, workflowID); err != nil {
+			return err
+		}
+		for field, id := range map[string]*uuid.UUID{"from_status_id": from, "to_status_id": &to} {
+			if id == nil {
+				continue
+			}
+			var ok bool
+			if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM statuses WHERE id = $1 AND workflow_id = $2)`,
+				*id, workflowID).Scan(&ok); err != nil {
+				return err
+			}
+			if !ok {
+				return invalid(field, "status does not belong to this workflow")
+			}
+		}
+		var n int
+		if err := tx.QueryRow(ctx, `SELECT count(*) FROM workflow_transitions WHERE workflow_id = $1`, workflowID).Scan(&n); err != nil {
+			return err
+		}
+		if n >= maxTransitionsPerWorkflow {
+			return invalid("name", "a workflow can have at most %d transitions", maxTransitionsPerWorkflow)
+		}
+		id := newID()
+		_, err := tx.Exec(ctx, `INSERT INTO workflow_transitions (id, workflow_id, from_status_id, to_status_id, name)
+			VALUES ($1, $2, $3, $4, $5)`, id, workflowID, from, to, name)
+		if isUniqueViolation(err, "workflow_transitions_unique_idx") {
+			return &ConflictError{Code: "transition_exists", Message: "this transition already exists"}
+		}
+		if err != nil {
+			return err
+		}
+		if err := appendEvent(ctx, tx, wsID, actorID, "workflow", workflowID, "transition.created",
+			map[string]any{"transition_id": id, "from": from, "to": to}); err != nil {
+			return err
+		}
+		wf, err = getWorkflow(ctx, tx, wsID, workflowID)
+		return err
+	})
+	return wf, err
+}
+
+// DeleteTransition removes a transition. The last one cannot be removed while
+// enforcement is on, because that would freeze every item in place.
+func (s *Store) DeleteTransition(ctx context.Context, wsID, actorID, workflowID, transitionID uuid.UUID) (Workflow, error) {
+	var wf Workflow
+	err := s.inTx(ctx, func(tx pgx.Tx) error {
+		if err := lockWorkflow(ctx, tx, wsID, workflowID); err != nil {
+			return err
+		}
+		var enforce bool
+		var n int
+		if err := tx.QueryRow(ctx, `SELECT enforce_transitions, (SELECT count(*) FROM workflow_transitions WHERE workflow_id = $1)
+			FROM workflows WHERE id = $1`, workflowID).Scan(&enforce, &n); err != nil {
+			return err
+		}
+		tag, err := tx.Exec(ctx, `DELETE FROM workflow_transitions WHERE id = $1 AND workflow_id = $2`, transitionID, workflowID)
+		if err != nil {
+			return err
+		}
+		if tag.RowsAffected() == 0 {
+			return ErrNotFound
+		}
+		if enforce && n <= 1 {
+			return &ConflictError{Code: "last_transition", Message: "disable enforcement before deleting the last transition"}
+		}
+		if err := appendEvent(ctx, tx, wsID, actorID, "workflow", workflowID, "transition.deleted",
+			map[string]any{"transition_id": transitionID}); err != nil {
+			return err
+		}
+		wf, err = getWorkflow(ctx, tx, wsID, workflowID)
+		return err
+	})
+	return wf, err
+}
+
+// checkTransition enforces the workflow's transition rules for a status change.
+func checkTransition(ctx context.Context, q querier, workflowID, from, to uuid.UUID) error {
+	var enforce, allowed bool
+	err := q.QueryRow(ctx, `SELECT w.enforce_transitions, EXISTS (
+			SELECT 1 FROM workflow_transitions t
+			WHERE t.workflow_id = w.id AND t.to_status_id = $3 AND (t.from_status_id = $2 OR t.from_status_id IS NULL))
+		FROM workflows w WHERE w.id = $1`, workflowID, from, to).Scan(&enforce, &allowed)
+	if err != nil {
+		return err
+	}
+	if enforce && !allowed {
+		return invalid("status_id", "this status change is not allowed by the workflow")
+	}
+	return nil
+}
+
+// AllowedStatuses returns the statuses an item can move to next.
+func (s *Store) AllowedStatuses(ctx context.Context, wsID, projectID uuid.UUID, number int64) ([]Status, error) {
+	rows, err := s.pool.Query(ctx, `SELECT st.id, st.name, st.category
+		FROM items i
+		JOIN item_types it ON it.id = i.item_type_id
+		JOIN workflows w ON w.id = it.workflow_id
+		JOIN statuses st ON st.workflow_id = w.id AND st.id <> i.status_id
+		WHERE i.workspace_id = $1 AND i.project_id = $2 AND i.number = $3 AND i.deleted_at IS NULL
+		  AND (NOT w.enforce_transitions OR EXISTS (
+			SELECT 1 FROM workflow_transitions t WHERE t.workflow_id = w.id AND t.to_status_id = st.id
+			  AND (t.from_status_id = i.status_id OR t.from_status_id IS NULL)))
+		ORDER BY st.position, st.name`, wsID, projectID, number)
+	if err != nil {
+		return nil, err
+	}
+	out, err := pgx.CollectRows(rows, pgx.RowToStructByPos[Status])
+	if err != nil {
+		return nil, err
+	}
+	if len(out) == 0 {
+		// Distinguish "item missing" from "no way forward".
+		if _, err := s.GetItem(ctx, wsID, projectID, number); err != nil {
+			return nil, err
+		}
+	}
+	return nonNilSlice(out), nil
+}
+
+func nonNilSlice[T any](s []T) []T {
+	if s == nil {
+		return []T{}
+	}
+	return s
 }
 
 // AddStatus appends a status to a workflow.

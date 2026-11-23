@@ -125,6 +125,11 @@ func installDefaultTemplate(ctx context.Context, tx pgx.Tx, wsID uuid.UUID) erro
 			return err
 		}
 	}
+	for _, r := range defaultRules() {
+		if _, err := insertRule(ctx, tx, wsID, uuid.Nil, r); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

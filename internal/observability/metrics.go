@@ -11,6 +11,8 @@ type Metrics struct {
 	Registry        *prometheus.Registry
 	RequestsTotal   *prometheus.CounterVec
 	RequestDuration *prometheus.HistogramVec
+	JobsTotal       *prometheus.CounterVec
+	JobDuration     *prometheus.HistogramVec
 }
 
 // NewMetrics creates and registers all collectors.
@@ -27,12 +29,23 @@ func NewMetrics() *Metrics {
 			Help:    "HTTP request latency by route pattern and method.",
 			Buckets: []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10},
 		}, []string{"route", "method"}),
+		JobsTotal: prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name: "nebula_jobs_total",
+			Help: "Background jobs processed, by kind and result (ok, retry, failed).",
+		}, []string{"kind", "result"}),
+		JobDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:    "nebula_job_duration_seconds",
+			Help:    "Background job run time by kind.",
+			Buckets: []float64{.01, .05, .1, .5, 1, 2.5, 5, 10, 30, 60},
+		}, []string{"kind"}),
 	}
 	reg.MustRegister(
 		collectors.NewGoCollector(),
 		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
 		m.RequestsTotal,
 		m.RequestDuration,
+		m.JobsTotal,
+		m.JobDuration,
 	)
 	return m
 }

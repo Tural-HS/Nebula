@@ -14,11 +14,14 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/nebula/nebula/internal/secretbox"
 )
 
 // Store wraps the connection pool.
 type Store struct {
 	pool *pgxpool.Pool
+	box  *secretbox.Box // nil: secret-bearing features (webhooks) are unavailable
 }
 
 // New returns a Store backed by pool.
@@ -105,15 +108,35 @@ func optionalText(field string, v *string, maxLen int) (*string, error) {
 	return &s, nil
 }
 
+// appendEvent writes an audit event and, in the same transaction, enqueues its
+// dispatch job (transactional outbox): if the change commits, its webhooks and
+// automations are guaranteed to run; if it rolls back, neither exists.
+// A zero actorID records a system/automation change (actor_id NULL).
 func appendEvent(ctx context.Context, q querier, workspaceID, actorID uuid.UUID,
 	entityType string, entityID uuid.UUID, action string, payload map[string]any) error {
 	if payload == nil {
 		payload = map[string]any{}
 	}
-	_, err := q.Exec(ctx, `INSERT INTO events (workspace_id, actor_id, entity_type, entity_id, action, payload)
-		VALUES ($1, $2, $3, $4, $5, $6)`, workspaceID, actorID, entityType, entityID, action, payload)
+	src := eventSource{source: "user"}
+	if v, ok := ctx.Value(sourceKey{}).(eventSource); ok {
+		src = v
+	}
+	var actor, rule any
+	if actorID != uuid.Nil {
+		actor = actorID
+	}
+	if src.ruleID != uuid.Nil {
+		rule = src.ruleID
+	}
+	var eventID int64
+	err := q.QueryRow(ctx, `INSERT INTO events (workspace_id, actor_id, entity_type, entity_id, action, payload, source, automation_rule_id)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+		workspaceID, actor, entityType, entityID, action, payload, src.source, rule).Scan(&eventID)
 	if err != nil {
 		return fmt.Errorf("append event %s: %w", action, err)
+	}
+	if err := enqueueJob(ctx, q, JobDispatchEvent, map[string]any{"event_id": eventID}, 5, ""); err != nil {
+		return fmt.Errorf("enqueue dispatch for %s: %w", action, err)
 	}
 	return nil
 }

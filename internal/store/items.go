@@ -146,7 +146,7 @@ func (s *Store) CreateItem(ctx context.Context, p CreateItemParams) (Item, error
 		if err != nil {
 			return err
 		}
-		payload := map[string]any{"key": item.Key, "title": title}
+		payload := map[string]any{"key": item.Key, "title": title, "snapshot": Snapshot(item)}
 		if len(fields) > 0 {
 			payload["fields"] = fields
 		}
@@ -351,6 +351,9 @@ func (s *Store) UpdateItem(ctx context.Context, p UpdateItemParams) (Item, error
 			if _, err := resolveStatus(ctx, tx, workflowID, &p.StatusID.Value); err != nil {
 				return err
 			}
+			if err := checkTransition(ctx, tx, workflowID, curStatus, p.StatusID.Value); err != nil {
+				return err
+			}
 			changes["status_id"] = diff(curStatus, p.StatusID.Value)
 			newStatus = p.StatusID.Value
 		}
@@ -390,15 +393,41 @@ func (s *Store) UpdateItem(ctx context.Context, p UpdateItemParams) (Item, error
 				newTitle, newDesc, newStatus, newAssignee, newFields, id); err != nil {
 				return err
 			}
-			if err := appendEvent(ctx, tx, p.WorkspaceID, p.ActorID, "item", id, "item.updated",
-				map[string]any{"changes": changes}); err != nil {
-				return err
-			}
 		}
 		item, err = scanItem(tx.QueryRow(ctx, itemSelect+` WHERE i.id = $1`, id))
-		return err
+		if err != nil || len(changes) == 0 {
+			return err
+		}
+		return appendEvent(ctx, tx, p.WorkspaceID, p.ActorID, "item", id, "item.updated",
+			map[string]any{"changes": changes, "snapshot": Snapshot(item)})
 	})
 	return item, err
+}
+
+// Snapshot is the item's state as of an event, in the flat shape automation
+// conditions read ("type", "status_category", "fields.<key>", ...). Storing it
+// in the event makes rule evaluation independent of later changes, including
+// other rules running on the same event.
+func Snapshot(it Item) map[string]any {
+	v := map[string]any{
+		"type":            it.Type.Key,
+		"project":         it.Key[:strings.LastIndexByte(it.Key, '-')],
+		"status":          it.Status.ID.String(),
+		"status_category": it.Status.Category,
+		"title":           it.Title,
+		"assignee":        nil,
+		"reporter":        nil,
+	}
+	if it.AssigneeID != nil {
+		v["assignee"] = it.AssigneeID.String()
+	}
+	if it.ReporterID != nil {
+		v["reporter"] = it.ReporterID.String()
+	}
+	for k, fv := range it.Fields {
+		v["fields."+k] = fv
+	}
+	return v
 }
 
 // DeleteItem soft-deletes an item; history and events are preserved.

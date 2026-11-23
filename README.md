@@ -7,6 +7,7 @@ böyük həcmli məlumatlarda sürətli, tam fərdiləşdirilə bilən, öz serv
 - Autentifikasiya və API qaydaları: [ADR-0002](docs/adr/0002-auth-and-api-conventions.md)
 - Fərdi sahələr: [ADR-0003](docs/adr/0003-custom-fields.md)
 - Konfiqurasiya API və rate limiting: [ADR-0004](docs/adr/0004-configuration-api-and-rate-limiting.md)
+- Status keçidləri, avtomatlaşdırma, webhook-lar və email: [ADR-0005](docs/adr/0005-automation-webhooks-email.md)
 - Yol xəritəsi: [docs/ROADMAP.md](docs/ROADMAP.md)
 
 ## Tələblər
@@ -17,7 +18,7 @@ böyük həcmli məlumatlarda sürətli, tam fərdiləşdirilə bilən, öz serv
 ## Sürətli başlanğıc
 
 ```bash
-make up                                   # Postgres 19 + Keycloak + miqrasiyalar + API Docker-də
+make up                                   # Postgres 19 + Keycloak + Mailpit + miqrasiyalar + API Docker-də
 TOKEN=$(make -s token USER=alice)         # Keycloak-dan dev access token (alice və ya bob)
 curl -H "Authorization: Bearer $TOKEN" localhost:8080/api/v1/me
 curl -H "Authorization: Bearer $TOKEN" -d '{"slug":"acme","name":"Acme"}' localhost:8080/api/v1/workspaces
@@ -25,13 +26,13 @@ make down
 ```
 
 Dev istifadəçiləri (`deploy/keycloak/nebula-realm.json`, yalnız lokal mühit üçün): `alice` / `bob`.
-Keycloak admin paneli: http://localhost:8081.
+Keycloak admin paneli: http://localhost:8081. Göndərilən bütün email-lər: http://localhost:8025 (Mailpit).
 Ardıcıl 5 səhv şifrə dev istifadəçini 60 saniyəlik bloklayır (brute-force qoruması productiondakı kimi aktivdir).
 
 API konteyneri olmadan lokal inkişaf:
 
 ```bash
-make run                      # Postgres + Keycloak-u başladır, miqrasiyaları tətbiq edir, API-ni go run ilə işə salır
+make run                      # Postgres + Keycloak + Mailpit-i başladır, miqrasiyaları tətbiq edir, API-ni go run ilə işə salır
 ```
 
 ## Keyfiyyət yoxlamaları
@@ -50,7 +51,8 @@ Bütün GitHub Action-lar commit SHA-ya, base image-lər digest-ə sabitlənib; 
 ## Binar fayl
 
 ```
-nebula serve            API-ni işə salır (default)
+nebula serve            API-ni və fon worker-ini işə salır (default)
+nebula worker           yalnız fon worker-ini işə salır (webhook, avtomatlaşdırma, email)
 nebula migrate up       gözləyən miqrasiyaları tətbiq edir (advisory lock ilə, bir neçə replika üçün təhlükəsiz)
 nebula migrate down     son miqrasiyanı geri qaytarır
 nebula migrate status   miqrasiyaların vəziyyətini göstərir
@@ -65,6 +67,7 @@ Yanlış konfiqurasiya zamanı proqram başlamır və bütün problemləri bir d
 | Dəyişən | Default | Qeyd |
 |---|---|---|
 | `NEBULA_DATABASE_URL` | məcburi | `postgres://...` |
+| `NEBULA_ENCRYPTION_KEY` | `serve`/`worker` üçün məcburi | 32 bayt base64 (`openssl rand -base64 32`); secret store-da saxlayın |
 | `NEBULA_OIDC_ISSUER` | `serve` üçün məcburi | Token-in `iss` dəyəri ilə tam eyni olmalıdır; productionda https |
 | `NEBULA_OIDC_AUDIENCE` | `serve` üçün məcburi | Token-in `aud` dəyərində olmalıdır |
 | `NEBULA_OIDC_JWKS_URL` | discovery | Açarlar üçün daxili ünvan (istəyə bağlı); productionda https |
@@ -78,6 +81,11 @@ Yanlış konfiqurasiya zamanı proqram başlamır və bütün problemləri bir d
 | `NEBULA_REQUEST_TIMEOUT` | `30s` | Hər sorğu üçün son müddət |
 | `NEBULA_RATE_LIMIT_USER_RPS` / `_BURST` | `20` / `40` | İstifadəçi başına, hər replika üçün; `0` söndürür |
 | `NEBULA_RATE_LIMIT_IP_RPS` / `_BURST` | `100` / `200` | IP başına, autentifikasiyadan əvvəl; reverse proxy arxasında limiti ingress-də tətbiq edin |
+| `NEBULA_WORKER_CONCURRENCY` | `4` | Prosesdəki paralel fon işləri; `0` → `serve` daxilində worker yoxdur |
+| `NEBULA_SMTP_HOST` | boş (email söndürülüb) | SMTP serveri |
+| `NEBULA_SMTP_PORT` / `_TLS` | `587` / `starttls` | `starttls`, `tls` və ya `none` (`none` productionda qadağandır) |
+| `NEBULA_SMTP_USERNAME` / `_PASSWORD` / `_FROM` | — | `FROM` email aktiv olduqda məcburidir |
+| `NEBULA_WEBHOOK_ALLOW_PRIVATE` | `false` | Daxili ünvanlara webhook; **yalnız development**, productionda qadağandır (SSRF) |
 
 ## Endpoint-lər
 
@@ -101,12 +109,20 @@ Bütün `/api/v1` endpoint-ləri (`/version` istisna olmaqla) `Authorization: Be
 | `GET, POST .../{ws}/fields` | Fərdi sahə tərifləri | guest+ / admin+ |
 | `GET, PATCH .../{ws}/fields/{field}` | Sahəni oxumaq / dəyişmək, arxivləmək | guest+ / admin+ |
 | `GET, POST .../{ws}/workflows` | Workflow-lar / yaratmaq | guest+ / admin+ |
-| `PATCH .../{ws}/workflows/{id}` | Adını dəyişmək | admin+ |
+| `PATCH .../{ws}/workflows/{id}` | Ad, `enforce_transitions` | admin+ |
+| `POST, DELETE .../{ws}/workflows/{id}/transitions[/{tid}]` | Status keçidi əlavə etmək / silmək | admin+ |
 | `POST .../{ws}/workflows/{id}/statuses` | Status əlavə etmək | admin+ |
 | `PATCH, DELETE .../{ws}/workflows/{id}/statuses/{statusID}` | Status dəyişmək / silmək | admin+ |
 | `GET .../projects/{KEY}/items` | Siyahı: `limit`, `cursor`, `q`, `status`, `assignee=me\|none\|{id}`, `field.<açar>=<dəyər>` | guest+ |
 | `POST .../projects/{KEY}/items` | Yaratmaq | member+ |
 | `GET, PATCH, DELETE .../items/{number}` | Oxumaq / `version` ilə qismən yeniləmək / soft delete | guest+ / member+ |
+| `GET .../items/{number}/transitions` | Növbəti mümkün statuslar | guest+ |
+| `GET, POST .../{ws}/webhooks` | Webhook-lar / yaratmaq (secret yalnız bir dəfə qaytarılır) | admin+ |
+| `GET, PATCH, DELETE .../{ws}/webhooks/{id}` | Oxumaq / dəyişmək / silmək | admin+ |
+| `POST .../{ws}/webhooks/{id}/rotate-secret` | Yeni secret | admin+ |
+| `GET .../{ws}/webhooks/{id}/deliveries` | Son çatdırılma cəhdləri | admin+ |
+| `GET, POST .../{ws}/automations` | Avtomatlaşdırma qaydaları / yaratmaq | admin+ |
+| `GET, PATCH, DELETE .../{ws}/automations/{id}` | Oxumaq / dəyişmək / silmək | admin+ |
 | `GET :9090/metrics` | Prometheus metrikləri, route şablonuna görə etiketlənir | daxili |
 
 ## Production qeydləri
@@ -115,3 +131,5 @@ Bütün `/api/v1` endpoint-ləri (`/version` istisna olmaqla) `Authorization: Be
 - `nebula migrate up`-ı API yenilənməsindən əvvəl ayrıca job kimi işlədin (K8s Job / Argo CD PreSync hook).
 - Hər miqrasiyanın işləyən `Down` hissəsi olmalı və əvvəlki relizin işləməsinə mane olmamalıdır (expand/contract).
 - Rate limit hər replikada ayrıca saxlanılır: N replika ilə faktiki limit N dəfə çoxdur.
+- Webhook, avtomatlaşdırma və email işləri PostgreSQL növbəsindədir (transactional outbox). Böyük yükdə `nebula worker`-i ayrıca deployment kimi miqyaslayın.
+- Webhook qəbul edənlər `Nebula-Signature`-i yoxlamalı və `Nebula-Event-Id` ilə dublikatları ayırmalıdır (ADR-0005).

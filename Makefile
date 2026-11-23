@@ -10,6 +10,8 @@ OIDC_JWKS_URL := $(OIDC_ISSUER)/protocol/openid-connect/certs
 OIDC_CLIENT   := nebula-cli
 # Dev-only seed users from deploy/keycloak/nebula-realm.json.
 DEV_PASSWORD_alice := alice-dev-only
+# Dev-only encryption key for `make run`; production injects its own from a secret store.
+DEV_ENCRYPTION_KEY := w6M0ukXHWNDX5PY1ojFtgzK1PZiVn8v+ao5Slf/GhHM=
 DEV_PASSWORD_bob   := bob-dev-only
 # $(USER) is also the shell login name, so only honour it when given on the command line.
 TOKEN_USER := $(if $(filter command line,$(origin USER)),$(USER),alice)
@@ -47,8 +49,8 @@ db-up: ## Start local Postgres and wait until healthy
 	docker compose up -d --wait postgres
 
 .PHONY: idp-up
-idp-up: ## Start local Keycloak (realm nebula) and wait until healthy
-	docker compose up -d --wait keycloak
+idp-up: ## Start local Keycloak (realm nebula) and Mailpit, wait until healthy
+	docker compose up -d --wait keycloak mailpit
 
 .PHONY: token
 token: ## Print a dev access token (USER=alice|bob, default alice)
@@ -67,10 +69,12 @@ migrate: db-up ## Apply migrations to the local dev database
 	NEBULA_DATABASE_URL='$(DEV_DB)' go run ./cmd/nebula migrate up
 
 .PHONY: run
-run: migrate idp-up ## Run the API locally (Postgres + Keycloak in Docker)
+run: migrate idp-up ## Run the API locally (Postgres + Keycloak + Mailpit in Docker)
 	NEBULA_ENV=development NEBULA_LOG_FORMAT=text NEBULA_DATABASE_URL='$(DEV_DB)' \
 	NEBULA_OIDC_ISSUER='$(OIDC_ISSUER)' NEBULA_OIDC_AUDIENCE='$(OIDC_AUDIENCE)' \
 	NEBULA_OIDC_JWKS_URL='$(OIDC_JWKS_URL)' \
+	NEBULA_ENCRYPTION_KEY='$(DEV_ENCRYPTION_KEY)' NEBULA_WEBHOOK_ALLOW_PRIVATE=true \
+	NEBULA_SMTP_HOST=localhost NEBULA_SMTP_PORT=1025 NEBULA_SMTP_TLS=none NEBULA_SMTP_FROM='Nebula Dev <nebula@localhost.test>' \
 	go run ./cmd/nebula serve
 
 .PHONY: up
