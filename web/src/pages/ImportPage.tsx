@@ -3,8 +3,8 @@ import { useId, useMemo, useState, type SyntheticEvent } from "react";
 import { Link, useParams } from "react-router";
 
 import { ApiError } from "../api/client";
-import { keys, useItemTypes, useProjects, useWorkspace } from "../api/hooks";
-import { previewImport, runImport, type ImportPreview, type ImportReport, type ImportTarget } from "../api/imports";
+import { keys, useItemTypes, useMembers, useProjects, useWorkspace } from "../api/hooks";
+import { previewImport, runImport, type BoardPerson, type ImportPreview, type ImportReport, type ImportTarget } from "../api/imports";
 import { roleAtLeast } from "../api/types";
 import { Layout } from "../components/Layout";
 import { Button, EmptyState, ErrorState, Label, Select, Spinner } from "../components/ui";
@@ -100,6 +100,8 @@ function ImportWizard({ ws, project, projectUrl }: { ws: string; project: string
   const [mapping, setMapping] = useState<ColumnMapping>([]);
   const [defaultType, setDefaultType] = useState("");
   const [report, setReport] = useState<ImportReport | null>(null);
+  const [people, setPeople] = useState<Record<string, string>>({});
+  const members = useMembers(ws);
   // Same default as the server: "task" if it exists, else the first type.
   const effectiveType = defaultType || (types.data?.find((x) => x.key === "task") ?? types.data?.[0])?.key || "";
 
@@ -108,13 +110,14 @@ function ImportWizard({ ws, project, projectUrl }: { ws: string; project: string
     onSuccess: (p) => {
       setPreview(p);
       setMapping(initialMapping(p));
+      setPeople({});
       setStep("map");
     },
   });
   const check = useMutation({
     mutationFn: (dryRun: boolean) => {
       if (!file || !preview) throw new Error("no file");
-      return runImport(ws, project, file, preview.sheet, toPayload(mapping, effectiveType), dryRun);
+      return runImport(ws, project, file, preview.sheet, toPayload(mapping, effectiveType, people), dryRun);
     },
     onSuccess: (r) => {
       setReport(r);
@@ -160,6 +163,9 @@ function ImportWizard({ ws, project, projectUrl }: { ws: string; project: string
           preview={preview}
           mapping={mapping}
           onMapping={setMapping}
+          people={people}
+          onPeople={setPeople}
+          memberEmails={(members.data ?? []).map((m) => ({ email: m.email, name: m.display_name }))}
           types={types.data ?? []}
           defaultType={effectiveType}
           onDefaultType={setDefaultType}
@@ -274,6 +280,8 @@ function TargetSelect({ id, label, value, targets, onChange }: {
 
 function MapStep(props: {
   preview: ImportPreview; mapping: ColumnMapping; onMapping: (m: ColumnMapping) => void;
+  people: Record<string, string>; onPeople: (p: Record<string, string>) => void;
+  memberEmails: { email: string; name: string }[];
   types: { key: string; name: string }[]; defaultType: string; onDefaultType: (k: string) => void;
   sheetPending: boolean; onSheet: (s: string) => void;
   pending: boolean; error: unknown; onBack: () => void; onValidate: () => void;
@@ -291,7 +299,7 @@ function MapStep(props: {
         </p>
         {preview.sheets.length > 1 && (
           <div className="min-w-[min(12rem,100%)]">
-            <Label htmlFor={`${id}-sheet`}>{ti.sheet}</Label>
+            <Label htmlFor={`${id}-sheet`}>{preview.format === "boards" ? ti.board : ti.sheet}</Label>
             <Select id={`${id}-sheet`} value={preview.sheet} disabled={props.sheetPending} onChange={(e) => { props.onSheet(e.target.value); }}>
               {preview.sheets.map((s) => (
                 <option key={s} value={s}>
@@ -353,6 +361,10 @@ function MapStep(props: {
         </div>
       </section>
 
+      {preview.people.length > 0 && (
+        <PeopleMapping people={preview.people} value={props.people} onChange={props.onPeople} members={props.memberEmails} />
+      )}
+
       <PreviewTable preview={preview} />
 
       {problems.missingTitle && <Problem>{ti.missingTitle}</Problem>}
@@ -364,6 +376,50 @@ function MapStep(props: {
         </Button>
       </div>
     </div>
+  );
+}
+
+// Mattermost Boards archives name people only by id (ADR-0020): the admin
+// tells who is who from the cards each id appears on.
+function PeopleMapping({ people, value, onChange, members }: {
+  people: BoardPerson[];
+  value: Record<string, string>;
+  onChange: (v: Record<string, string>) => void;
+  members: { email: string; name: string }[];
+}) {
+  const id = useId();
+  return (
+    <section aria-labelledby={`${id}-people`} className="rounded-xl bg-white ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-800">
+      <header className="border-b border-zinc-200 p-4 dark:border-zinc-800">
+        <h2 id={`${id}-people`} className="font-medium">{ti.peopleTitle}</h2>
+        <p className="mt-1 text-xs text-zinc-500">{ti.peopleHint}</p>
+        <p className="mt-1 text-xs text-zinc-500">{ti.personPrivateHint}</p>
+      </header>
+      <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
+        {people.map((p, i) => {
+          const label = ti.personLabel(p.cards, p.samples);
+          return (
+            <li key={p.id} className="flex flex-wrap items-center gap-3 px-4 py-2 text-sm">
+              <label htmlFor={`${id}-p-${String(i)}`} className="min-w-0 flex-1 text-zinc-700 dark:text-zinc-300">
+                <span className="block truncate" title={label}>{label}</span>
+                <span className="font-mono text-xs text-zinc-400">{p.id}</span>
+              </label>
+              <Select
+                id={`${id}-p-${String(i)}`}
+                className="w-full sm:w-72"
+                value={value[p.id] ?? ""}
+                onChange={(e) => { onChange({ ...value, [p.id]: e.target.value }); }}
+              >
+                <option value="">{ti.personNone}</option>
+                {members.map((m) => (
+                  <option key={m.email} value={m.email}>{`${m.name} · ${m.email}`}</option>
+                ))}
+              </Select>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
 

@@ -56,8 +56,19 @@ func canSeeProject(ctx context.Context, q querier, wsID, projectID, userID uuid.
 	return ok, err
 }
 
-// CreateProject creates a project in a workspace.
-func (s *Store) CreateProject(ctx context.Context, wsID, actorID uuid.UUID, key, name string, description *string, visibility string) (Project, error) {
+// ProjectTemplate copies the setup of an existing project into a new one
+// (ADR-0020). Items are never copied; workflows, item types and fields are
+// workspace-wide and need no copying.
+type ProjectTemplate struct {
+	From        string // source project key; "" = no template
+	Members     bool   // project members (matters for private projects)
+	Recurrences bool   // recurring items, scheduled from the source's next date
+	Views       bool   // shared saved views (personal views stay with their owners)
+}
+
+// CreateProject creates a project in a workspace, optionally copying the
+// setup of another project (tpl).
+func (s *Store) CreateProject(ctx context.Context, wsID, actorID uuid.UUID, key, name string, description *string, visibility string, tpl ProjectTemplate) (Project, error) {
 	if visibility == "" {
 		visibility = "workspace"
 	}
@@ -88,9 +99,102 @@ func (s *Store) CreateProject(ctx context.Context, wsID, actorID uuid.UUID, key,
 		if err != nil {
 			return err
 		}
-		return appendEvent(ctx, tx, wsID, actorID, "project", p.ID, "project.created", map[string]any{"key": key, "name": name, "visibility": visibility})
+		payload := map[string]any{"key": key, "name": name, "visibility": visibility}
+		if tpl.From != "" {
+			copied, err := copyProjectSetup(ctx, tx, wsID, actorID, p.ID, tpl)
+			if err != nil {
+				return err
+			}
+			payload["template"] = copied
+		}
+		return appendEvent(ctx, tx, wsID, actorID, "project", p.ID, "project.created", payload)
 	})
 	return p, err
+}
+
+// copyProjectSetup copies what tpl asks for from the source project into
+// dst, inside the caller's transaction, and returns what was copied.
+func copyProjectSetup(ctx context.Context, tx pgx.Tx, wsID, actorID, dst uuid.UUID, tpl ProjectTemplate) (map[string]any, error) {
+	var src uuid.UUID
+	// Only admins create projects and admins see every project, so no
+	// visibility check is needed beyond the workspace scope.
+	err := tx.QueryRow(ctx, `SELECT id FROM projects WHERE workspace_id = $1 AND key = $2 AND archived_at IS NULL`,
+		wsID, strings.ToUpper(strings.TrimSpace(tpl.From))).Scan(&src)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, invalid("template", "source project not found")
+	}
+	if err != nil {
+		return nil, err
+	}
+	out := map[string]any{"from": strings.ToUpper(strings.TrimSpace(tpl.From))}
+	if tpl.Members {
+		tag, err := tx.Exec(ctx, `INSERT INTO project_members (workspace_id, project_id, user_id, added_by)
+			SELECT workspace_id, $3, user_id, $4 FROM project_members WHERE workspace_id = $1 AND project_id = $2
+			ON CONFLICT DO NOTHING`, wsID, src, dst, actorID)
+		if err != nil {
+			return nil, err
+		}
+		out["members"] = tag.RowsAffected()
+	}
+	if tpl.Recurrences {
+		var have, add int
+		if err := tx.QueryRow(ctx, `SELECT count(*) FILTER (WHERE true), count(*) FILTER (WHERE project_id = $2)
+			FROM recurrences WHERE workspace_id = $1`, wsID, src).Scan(&have, &add); err != nil {
+			return nil, err
+		}
+		if have+add > maxRecurrencesPerWorkspace {
+			return nil, invalid("template", "a workspace can have at most %d recurring items", maxRecurrencesPerWorkspace)
+		}
+		// next_due is kept: the copy starts where the source would continue,
+		// never in the past (the scheduler catches up at most 24 per tick).
+		rows, err := tx.Query(ctx, `INSERT INTO recurrences (id, workspace_id, project_id, title, description, item_type_id,
+				assignee_id, fields, freq, every, weekdays, month_day, month, start_date, end_date, lead_days, next_due,
+				is_enabled, created_by)
+			SELECT gen_random_uuid(), workspace_id, $3, title, description, item_type_id, assignee_id, fields, freq, every,
+				weekdays, month_day, month, start_date, end_date, lead_days, next_due, is_enabled, $4
+			FROM recurrences WHERE workspace_id = $1 AND project_id = $2 ORDER BY created_at, id
+			RETURNING id, title, freq, next_due::text, is_enabled`, wsID, src, dst, actorID)
+		if err != nil {
+			return nil, err
+		}
+		type rec struct {
+			id      uuid.UUID
+			title   string
+			freq    string
+			next    *string
+			enabled bool
+		}
+		var recs []rec
+		for rows.Next() {
+			var r rec
+			if err := rows.Scan(&r.id, &r.title, &r.freq, &r.next, &r.enabled); err != nil {
+				rows.Close()
+				return nil, err
+			}
+			recs = append(recs, r)
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
+		for _, r := range recs {
+			if err := appendEvent(ctx, tx, wsID, actorID, "recurrence", r.id, "recurrence.created",
+				map[string]any{"title": r.title, "freq": r.freq, "next_due": r.next, "enabled": r.enabled}); err != nil {
+				return nil, err
+			}
+		}
+		out["recurrences"] = len(recs)
+	}
+	if tpl.Views {
+		tag, err := tx.Exec(ctx, `INSERT INTO saved_views (id, workspace_id, project_id, owner_id, name, kind, shared, config)
+			SELECT gen_random_uuid(), workspace_id, $3, $4, name, kind, true, config
+			FROM saved_views WHERE workspace_id = $1 AND project_id = $2 AND shared`, wsID, src, dst, actorID)
+		if err != nil {
+			return nil, err
+		}
+		out["views"] = tag.RowsAffected()
+	}
+	return out, nil
 }
 
 // ListProjects returns the workspace's active projects the viewer can see.

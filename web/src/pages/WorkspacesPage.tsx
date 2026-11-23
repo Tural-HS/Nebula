@@ -3,8 +3,9 @@ import { Link, useNavigate } from "react-router";
 
 import { useCreateWorkspace, useWorkspaces } from "../api/hooks";
 import { Layout } from "../components/Layout";
-import { Button, Dialog, EmptyState, ErrorState, FieldError, Input, Label, Spinner } from "../components/ui";
+import { Button, Dialog, EmptyState, ErrorState, FieldError, Input, Label, Select, Spinner } from "../components/ui";
 import { t } from "../i18n";
+import { tt } from "../i18n-templates";
 
 export function WorkspacesPage() {
   const q = useWorkspaces();
@@ -53,11 +54,12 @@ function CreateWorkspaceForm({ onDone }: { onDone: () => void }) {
   const navigate = useNavigate();
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
+  const [template, setTemplate] = useState<"az" | "en">("az");
 
   const submit = (e: SyntheticEvent) => {
     e.preventDefault();
     create.mutate(
-      { name, slug },
+      { name, slug, template },
       {
         onSuccess: (w) => {
           onDone();
@@ -77,6 +79,14 @@ function CreateWorkspaceForm({ onDone }: { onDone: () => void }) {
         <Label htmlFor="ws-slug">{t.slug}</Label>
         <Input id="ws-slug" value={slug} onChange={(e) => { setSlug(e.target.value.toLowerCase()); }} required pattern="[a-z0-9][a-z0-9\-]{1,62}" />
         <p className="mt-1 text-xs text-zinc-500">{t.slugHint}</p>
+      </div>
+      <div>
+        <Label htmlFor="ws-template">{tt.template}</Label>
+        <Select id="ws-template" value={template} onChange={(e) => { setTemplate(e.target.value === "en" ? "en" : "az"); }}>
+          <option value="az">{tt.templateAz}</option>
+          <option value="en">{tt.templateEn}</option>
+        </Select>
+        <p className="mt-1 text-xs text-zinc-500">{tt.templateHint}</p>
       </div>
       <FieldError error={create.error} />
       <div className="flex justify-end gap-2">

@@ -160,13 +160,14 @@ func (a *api) listWorkspaces(w http.ResponseWriter, r *http.Request) {
 
 func (a *api) createWorkspace(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Slug string `json:"slug"`
-		Name string `json:"name"`
+		Slug     string `json:"slug"`
+		Name     string `json:"name"`
+		Template string `json:"template"` // "en" (default) or "az", ADR-0020
 	}
 	if !a.decode(w, r, &body) {
 		return
 	}
-	ws, err := a.store.CreateWorkspace(r.Context(), principal(r).UserID, body.Slug, body.Name)
+	ws, err := a.store.CreateWorkspace(r.Context(), principal(r).UserID, body.Slug, body.Name, body.Template)
 	if err != nil {
 		a.fail(w, r, err)
 		return
@@ -287,12 +288,28 @@ func (a *api) createProject(w http.ResponseWriter, r *http.Request) {
 		Name        string  `json:"name"`
 		Description *string `json:"description"`
 		Visibility  string  `json:"visibility"`
+		// Optional template (ADR-0020): copy setup from an existing project.
+		Template *struct {
+			From        string `json:"from"`
+			Members     bool   `json:"members"`
+			Recurrences bool   `json:"recurrences"`
+			Views       bool   `json:"views"`
+		} `json:"template"`
 	}
 	if !a.decode(w, r, &body) {
 		return
 	}
+	var tpl store.ProjectTemplate
+	if body.Template != nil {
+		if strings.TrimSpace(body.Template.From) == "" {
+			a.fail(w, r, &store.ValidationError{Field: "template.from", Message: "is required"})
+			return
+		}
+		tpl = store.ProjectTemplate{From: body.Template.From, Members: body.Template.Members,
+			Recurrences: body.Template.Recurrences, Views: body.Template.Views}
+	}
 	ws := workspaceFrom(r)
-	p, err := a.store.CreateProject(r.Context(), ws.ID, principal(r).UserID, body.Key, body.Name, body.Description, body.Visibility)
+	p, err := a.store.CreateProject(r.Context(), ws.ID, principal(r).UserID, body.Key, body.Name, body.Description, body.Visibility, tpl)
 	if err != nil {
 		a.fail(w, r, err)
 		return

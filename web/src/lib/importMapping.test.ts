@@ -68,6 +68,10 @@ describe("import mapping", () => {
   it("checks files before uploading", () => {
     expect(checkFile({ name: "Müştərilər.XLSX", size: 1000 })).toBeNull();
     expect(checkFile({ name: "a.csv", size: 0 })).toBe("empty");
+    // Boards archives carry images: 50 MB instead of 10 MB (ADR-0020).
+    expect(checkFile({ name: "archive-2026-11-24.boardarchive", size: 30 * 1024 * 1024 })).toBeNull();
+    expect(checkFile({ name: "a.boardarchive", size: 51 * 1024 * 1024 })).toBe("size");
+    expect(checkFile({ name: "a.csv", size: 11 * 1024 * 1024 })).toBe("size");
     expect(checkFile({ name: "a.xls", size: 10 })).toBe("extension");
     expect(checkFile({ name: "a.pdf", size: 10 })).toBe("extension");
     expect(checkFile({ name: "a.csv", size: 10 * 1024 * 1024 + 1 })).toBe("size");
@@ -84,5 +88,14 @@ describe("import mapping", () => {
     expect(sampleValues(rows, 0, 2)).toEqual(["a", "b"]);
     expect(sampleValues(rows, 1)).toEqual(["x", "y"]);
     expect(sampleValues(rows, 5)).toEqual([]);
+  });
+});
+
+describe("toPayload people", () => {
+  it("sends only chosen people, and nothing when none are chosen", () => {
+    expect(toPayload(["title"], "task", { u1: "a@example.com", u2: "" })).toEqual({
+      columns: [{ column: 0, target: "title" }], default_type: "task", people: { u1: "a@example.com" },
+    });
+    expect(toPayload(["title"], "task", { u2: "" })).not.toHaveProperty("people");
   });
 });

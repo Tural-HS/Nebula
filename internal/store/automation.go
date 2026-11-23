@@ -400,3 +400,21 @@ func defaultRules() []RuleInput {
 			Actions:    []Action{notify}},
 	}
 }
+
+// defaultRulesAZ are defaultRules with Azerbaijani names and email text.
+func defaultRulesAZ() []RuleInput {
+	notify := Action{
+		Type:    ActionSendEmail,
+		To:      []string{"assignee"},
+		Subject: "[{{item.key}}] Sizə təyin edildi: {{item.title}}",
+		Body:    "{{item.key}} \"{{item.title}}\" sizə təyin edildi.\n\nNövü: {{item.type}}\nStatus: {{item.status}}\n",
+	}
+	assigned := Condition{Field: "assignee", Op: "is_not_empty"}
+	return []RuleInput{
+		{Name: "Yaradılanda icraçıya bildir", Trigger: TriggerItemCreated, Enabled: true,
+			Conditions: []Condition{assigned}, Actions: []Action{notify}},
+		{Name: "İcraçı dəyişəndə bildir", Trigger: TriggerItemUpdated, Enabled: true,
+			Conditions: []Condition{{Field: "changed", Op: "includes", Value: json.RawMessage(`"assignee_id"`)}, assigned},
+			Actions:    []Action{notify}},
+	}
+}

@@ -4,23 +4,29 @@ import type { FieldType } from "./api/types";
 export const ti = {
   importAction: "İdxal et",
   title: "Cədvəldən idxal",
-  intro: "CSV (UTF-8) və ya Excel (.xlsx) faylından tapşırıqları bu layihəyə əlavə edin. Fayl serverdə yalnız oxunur, saxlanılmır.",
+  intro: "CSV (UTF-8), Excel (.xlsx) və ya Mattermost Boards arxivindən (.boardarchive) tapşırıqları bu layihəyə əlavə edin. Fayl serverdə yalnız oxunur, saxlanılmır.",
   steps: ["Fayl", "Sütunlar", "Yoxlama", "Nəticə"] as const,
   stepLabel: (n: number, of: number) => `Addım ${String(n)} / ${String(of)}`,
 
   file: "Fayl",
   chooseFile: "Fayl seçin",
   fileHint: (maxMb: number, maxRows: number) =>
-    `.csv, .tsv və ya .xlsx; ən çox ${String(maxMb)} MB və ${maxRows.toLocaleString("az")} sətir. Birinci sətir başlıqdır.`,
+    `.csv, .tsv, .xlsx və ya .boardarchive; cədvəl ən çox ${String(maxMb)} MB, Boards arxivi 50 MB, ${maxRows.toLocaleString("az")} sətir. Cədvəldə birinci sətir başlıqdır.`,
   readFile: "Faylı oxu",
   reading: "Oxunur…",
   fileProblem: {
-    extension: "Bu fayl növü dəstəklənmir. .xlsx və ya CSV (UTF-8) seçin.",
-    size: "Fayl 10 MB-dan böyükdür. Cədvəli bir neçə fayla bölün.",
+    extension: "Bu fayl növü dəstəklənmir. .xlsx, CSV (UTF-8) və ya .boardarchive seçin.",
+    size: "Fayl çox böyükdür (cədvəl 10 MB, Boards arxivi 50 MB). Faylı bölün.",
     empty: "Fayl boşdur.",
   },
 
   sheet: "Vərəq",
+  board: "Board",
+  peopleTitle: "Mattermost istifadəçiləri",
+  peopleHint: "Arxivdə ad və email yoxdur, yalnız istifadəçi kodları var. Kartlara baxaraq hər birini Nebula üzvünə uyğunlaşdırın: icraçı və şərh müəllifi kimi istifadə olunacaq. Seçilməyənlər boş qalır.",
+  personLabel: (n: number, samples: string[]) => `${String(n)} kart: ${samples.join(", ")}${n > samples.length ? "…" : ""}`,
+  personNone: "— boş qalsın —",
+  personPrivateHint: "Özəl layihədə icraçı layihə üzvü olmalıdır.",
   summary: (rows: number, file: string) => `${file}: ${rows.toLocaleString("az")} sətir`,
   delimiter: (d: string) => `Ayırıcı: ${d === "\t" ? "tab" : d}`,
   defaultType: "Tip (sütunda göstərilməyibsə)",

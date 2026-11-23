@@ -4,10 +4,11 @@ import { Link, useNavigate, useParams } from "react-router";
 import { useCreateProject, useProjects, useWorkspace } from "../api/hooks";
 import { roleAtLeast } from "../api/types";
 import { Layout } from "../components/Layout";
-import { Button, Dialog, EmptyState, ErrorState, FieldError, Input, Label, Spinner } from "../components/ui";
+import { Button, Dialog, EmptyState, ErrorState, FieldError, Input, Label, Select, Spinner } from "../components/ui";
 import { t } from "../i18n";
 import { tp } from "../i18n-project";
 import { ta } from "../i18n-admin";
+import { tt } from "../i18n-templates";
 
 export function ProjectsPage() {
   const { ws = "" } = useParams();
@@ -81,15 +82,18 @@ export function ProjectsPage() {
 
 function CreateProjectForm({ ws, onDone }: { ws: string; onDone: () => void }) {
   const create = useCreateProject(ws);
+  const projects = useProjects(ws);
   const navigate = useNavigate();
   const [name, setName] = useState("");
   const [key, setKey] = useState("");
   const [isPrivate, setPrivate] = useState(false);
+  const [from, setFrom] = useState("");
+  const [copy, setCopy] = useState({ members: true, recurrences: true, views: true });
 
   const submit = (e: SyntheticEvent) => {
     e.preventDefault();
     create.mutate(
-      { name, key, visibility: isPrivate ? "private" : "workspace" },
+      { name, key, visibility: isPrivate ? "private" : "workspace", ...(from ? { template: { from, ...copy } } : {}) },
       {
         onSuccess: (p) => {
           onDone();
@@ -117,6 +121,31 @@ function CreateProjectForm({ ws, onDone }: { ws: string; onDone: () => void }) {
           <span className="block text-xs text-zinc-500">{tp.privateHint}</span>
         </span>
       </label>
+      {(projects.data?.length ?? 0) > 0 && (
+        <div>
+          <Label htmlFor="p-template">{tt.projectTemplate}</Label>
+          <Select id="p-template" value={from} onChange={(e) => {
+            const src = projects.data?.find((p) => p.key === e.target.value);
+            setFrom(e.target.value);
+            // A department template is usually private like its source.
+            if (src) setPrivate(src.visibility === "private");
+          }}>
+            <option value="">{tt.projectTemplateNone}</option>
+            {projects.data?.map((p) => <option key={p.key} value={p.key}>{`${p.key} · ${p.name}`}</option>)}
+          </Select>
+          {from && (
+            <fieldset className="mt-2 space-y-1">
+              <legend className="text-xs text-zinc-500">{tt.projectTemplateHint}</legend>
+              {(["members", "recurrences", "views"] as const).map((k) => (
+                <label key={k} className="flex items-center gap-2 text-sm pointer-coarse:min-h-11">
+                  <input type="checkbox" className="accent-brand-600" checked={copy[k]} onChange={(e) => { setCopy({ ...copy, [k]: e.target.checked }); }} />
+                  {k === "members" ? tt.copyMembers : k === "recurrences" ? tt.copyRecurrences : tt.copyViews}
+                </label>
+              ))}
+            </fieldset>
+          )}
+        </div>
+      )}
       <FieldError error={create.error} />
       <div className="flex justify-end gap-2">
         <Button onClick={onDone}>{t.cancel}</Button>

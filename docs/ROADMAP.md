@@ -58,6 +58,7 @@ Hər mərhələ yalnız testlər, miqrasiyalar (up və down) və CI yaşıl oldu
 - [x] Email dəvətləri: tək istifadəlik link (yalnız heş saxlanılır), IdP-nin təsdiqlədiyi email uyğun gəlməlidir, 7 gün, ləğv/yenidən göndər, limitlər (ADR-0016)
 - [x] Production hardening: `*_FILE` sirləri, ayrı miqrasiya/runtime DB rolları (runtime yalnız DML), `nebula healthcheck`, access log-da `client_ip`, app-dan növbə metrikləri, release-də Trivy gate (ADR-0018)
 - [x] Telefon və planşet: lövhədə toxunma ilə sürükləmə (basılı saxla, scroll ilə vuruşmur), sütunlarda snap, telefonda bir sətirlik alətlər paneli + "Filtrlər" vərəqi, sabit başlıqlı cədvəl, tam ekran tapşırıq paneli (klaviatura və safe-area), 44 px toxunma hədəfləri, heç bir səhifədə yana sürüşmə yoxdur; Playwright cihaz emulyasiyası ilə E2E (ADR-0019)
+- [x] Mattermost Boards-dan keçid: azərbaycanca workspace şablonu (Görüləcək → İcrada → Yoxlamada → Tamamlandı, Asia/Baku), mövcud layihədən layihə şablonu (üzvlər, təkrarlanan tapşırıqlar, ümumi görünüşlər), `.boardarchive` importu (kart mətni + köhnə şərhlər təsvirdə, Mattermost istifadəçilərinin üzvlərə uyğunlaşdırılması), keçid runbook-u (ADR-0020, `docs/runbooks/mattermost-boards-migration.md`)
 
 ## Phase 2: Şablonlar və görünüşlər
 - Proqram təminatı / HR / Satış / Marketinq şablonları; cədvəl, kanban, təqvim, forma görünüşləri

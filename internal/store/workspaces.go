@@ -70,8 +70,20 @@ type ItemType struct {
 
 var slugRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{1,62}$`)
 
-// CreateWorkspace creates a workspace owned by owner and installs the default template.
-func (s *Store) CreateWorkspace(ctx context.Context, owner uuid.UUID, slug, name string) (Workspace, error) {
+// Workspace templates: the language of the default statuses, item types and
+// notification rules a new workspace starts with (ADR-0020).
+const (
+	TemplateEnglish     = "en"
+	TemplateAzerbaijani = "az"
+)
+
+// CreateWorkspace creates a workspace owned by owner and installs the default
+// template in the given language ("" means English, the historical default).
+func (s *Store) CreateWorkspace(ctx context.Context, owner uuid.UUID, slug, name, template string) (Workspace, error) {
+	tpl, ok := workspaceTemplates[template]
+	if !ok {
+		return Workspace{}, invalid("template", "must be en or az")
+	}
 	slug = strings.ToLower(strings.TrimSpace(slug))
 	if !slugRe.MatchString(slug) {
 		return Workspace{}, invalid("slug", "must be 2-63 characters: lowercase letters, digits and hyphens, not starting with a hyphen")
@@ -81,10 +93,10 @@ func (s *Store) CreateWorkspace(ctx context.Context, owner uuid.UUID, slug, name
 		return Workspace{}, err
 	}
 
-	ws := Workspace{ID: newID(), Slug: slug, Name: name, Role: RoleOwner, Timezone: "UTC"}
+	ws := Workspace{ID: newID(), Slug: slug, Name: name, Role: RoleOwner, Timezone: tpl.timezone}
 	err = s.inTx(ctx, func(tx pgx.Tx) error {
-		err := tx.QueryRow(ctx, `INSERT INTO workspaces (id, slug, name) VALUES ($1, $2, $3) RETURNING created_at`,
-			ws.ID, slug, name).Scan(&ws.CreatedAt)
+		err := tx.QueryRow(ctx, `INSERT INTO workspaces (id, slug, name, timezone) VALUES ($1, $2, $3, $4) RETURNING created_at, overdue_digest_hour`,
+			ws.ID, slug, name, tpl.timezone).Scan(&ws.CreatedAt, &ws.OverdueDigestHour)
 		if isUniqueViolation(err, "workspaces_slug_key") {
 			return &ConflictError{Code: "slug_taken", Message: "workspace slug is already taken"}
 		}
@@ -95,43 +107,82 @@ func (s *Store) CreateWorkspace(ctx context.Context, owner uuid.UUID, slug, name
 			ws.ID, owner); err != nil {
 			return err
 		}
-		if err := installDefaultTemplate(ctx, tx, ws.ID); err != nil {
+		if err := installDefaultTemplate(ctx, tx, ws.ID, tpl); err != nil {
 			return err
 		}
 		return appendEvent(ctx, tx, ws.ID, owner, "workspace", ws.ID, "workspace.created",
-			map[string]any{"slug": slug, "name": name})
+			map[string]any{"slug": slug, "name": name, "template": tpl.key})
 	})
 	return ws, err
 }
 
-// installDefaultTemplate gives every new workspace a usable workflow and item types.
-func installDefaultTemplate(ctx context.Context, tx pgx.Tx, wsID uuid.UUID) error {
-	wfID := newID()
-	if _, err := tx.Exec(ctx, `INSERT INTO workflows (id, workspace_id, name) VALUES ($1, $2, 'Default')`, wfID, wsID); err != nil {
-		return err
-	}
-	statuses := []struct {
-		name, category string
-		initial        bool
-	}{
+type templateStatus struct {
+	name, category string
+	initial        bool
+}
+
+// workspaceTemplate is the starting configuration of a new workspace. Item
+// type keys stay English identifiers (they appear in URLs, the API and
+// automation rules); only display names are translated.
+type workspaceTemplate struct {
+	key       string
+	timezone  string
+	workflow  string
+	statuses  []templateStatus
+	itemTypes [][2]string // key, name
+	rules     func() []RuleInput
+}
+
+var workspaceTemplates = map[string]workspaceTemplate{
+	"": templateEN, TemplateEnglish: templateEN, TemplateAzerbaijani: templateAZ,
+}
+
+var templateEN = workspaceTemplate{
+	key: TemplateEnglish, timezone: "UTC", workflow: "Default",
+	statuses: []templateStatus{
 		{"To Do", "todo", true},
 		{"In Progress", "in_progress", false},
 		{"Done", "done", false},
 		{"Canceled", "canceled", false},
+	},
+	itemTypes: [][2]string{{"task", "Task"}, {"bug", "Bug"}},
+	rules:     defaultRules,
+}
+
+// templateAZ matches how FinTez teams name their columns on Mattermost Boards
+// ("Görüləcək → İcrada → Yoxlamada → Tamamlandı").
+var templateAZ = workspaceTemplate{
+	key: TemplateAzerbaijani, timezone: "Asia/Baku", workflow: "Əsas",
+	statuses: []templateStatus{
+		{"Görüləcək", "todo", true},
+		{"İcrada", "in_progress", false},
+		{"Yoxlamada", "in_progress", false},
+		{"Tamamlandı", "done", false},
+		{"Ləğv edildi", "canceled", false},
+	},
+	itemTypes: [][2]string{{"task", "Tapşırıq"}, {"bug", "Xəta"}},
+	rules:     defaultRulesAZ,
+}
+
+// installDefaultTemplate gives every new workspace a usable workflow and item types.
+func installDefaultTemplate(ctx context.Context, tx pgx.Tx, wsID uuid.UUID, tpl workspaceTemplate) error {
+	wfID := newID()
+	if _, err := tx.Exec(ctx, `INSERT INTO workflows (id, workspace_id, name) VALUES ($1, $2, $3)`, wfID, wsID, tpl.workflow); err != nil {
+		return err
 	}
-	for i, st := range statuses {
+	for i, st := range tpl.statuses {
 		if _, err := tx.Exec(ctx, `INSERT INTO statuses (id, workspace_id, workflow_id, name, category, position, is_initial)
 			VALUES ($1, $2, $3, $4, $5, $6, $7)`, newID(), wsID, wfID, st.name, st.category, i, st.initial); err != nil {
 			return err
 		}
 	}
-	for _, it := range [][2]string{{"task", "Task"}, {"bug", "Bug"}} {
+	for _, it := range tpl.itemTypes {
 		if _, err := tx.Exec(ctx, `INSERT INTO item_types (id, workspace_id, workflow_id, key, name) VALUES ($1, $2, $3, $4, $5)`,
 			newID(), wsID, wfID, it[0], it[1]); err != nil {
 			return err
 		}
 	}
-	for _, r := range defaultRules() {
+	for _, r := range tpl.rules() {
 		if _, err := insertRule(ctx, tx, wsID, uuid.Nil, r); err != nil {
 			return err
 		}
