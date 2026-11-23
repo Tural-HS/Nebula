@@ -261,6 +261,7 @@ Sxemi də geri qaytarmaq lazımdırsa `--migrate-down-to N` Down hissələrini *
 | 00009 recurrences | var | təkrarlanan qaydalar silinir |
 | 00010 project privacy | var | ⚠️ **təhlükəsizlik**: `visibility` və layihə üzvləri silinir, **gizli layihələr bütün workspace üzvlərinə görünən olur**. Gizli layihə varsa Down əvəzinə PITR istifadə edin |
 | 00011 saved views | var | saxlanılan görünüşlər silinir; indeks `CONCURRENTLY` silinir (yazmaları bloklamır) |
+| 00012 webhook projects | var | ⚠️ **təhlükəsizlik**: webhook-ların layihə filtri (`project_ids`) silinir; köhnə image-də **gizli layihələrin hadisələri bütün webhook-lara gedir** (ADR-0013-ün bağlanmış boşluğu). Gizli layihə varsa: rollback-dən əvvəl webhook-ları söndürün və ya yalnız image-i qaytarın (sxem qalsın) |
 
 **ADR-0018-dən əvvəlki release-ə rollback:** köhnə image `*_FILE` sirləri oxumur və `nebula healthcheck` bilmir, yeni `compose.yaml` ilə işləmir; `rollback.sh` bunu yoxlayır və `.env`-i qaytarıb dayanır. Belə halda: `git -C /opt/nebula checkout <köhnə tag> -- deploy/production`, `nebula.env`-i bərpa edin (ondan `NEBULA_DATABASE_URL` `nebula` rolu ilə), sonra `rollback.sh`. `nebula_app` rolu və onun hüquqları qala bilər (zərərsizdir).
 
