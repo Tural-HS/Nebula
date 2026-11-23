@@ -17,10 +17,10 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
 
-	"github.com/nebula/nebula/internal/auth"
-	"github.com/nebula/nebula/internal/opt"
-	"github.com/nebula/nebula/internal/safehttp"
-	"github.com/nebula/nebula/internal/store"
+	"github.com/Tural-HS/Nebula/internal/auth"
+	"github.com/Tural-HS/Nebula/internal/opt"
+	"github.com/Tural-HS/Nebula/internal/safehttp"
+	"github.com/Tural-HS/Nebula/internal/store"
 )
 
 const maxBodyBytes = 1 << 20

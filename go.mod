@@ -1,4 +1,4 @@
-module github.com/nebula/nebula
+module github.com/Tural-HS/Nebula
 
 go 1.27.4
 

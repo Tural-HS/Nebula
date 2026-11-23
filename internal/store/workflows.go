@@ -10,7 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
-	"github.com/nebula/nebula/internal/opt"
+	"github.com/Tural-HS/Nebula/internal/opt"
 )
 
 const (

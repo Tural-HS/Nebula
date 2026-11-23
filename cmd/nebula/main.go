@@ -23,17 +23,17 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/nebula/nebula/internal/auth"
-	"github.com/nebula/nebula/internal/config"
-	"github.com/nebula/nebula/internal/database"
-	"github.com/nebula/nebula/internal/engine"
-	"github.com/nebula/nebula/internal/mail"
-	"github.com/nebula/nebula/internal/observability"
-	"github.com/nebula/nebula/internal/safehttp"
-	"github.com/nebula/nebula/internal/secretbox"
-	"github.com/nebula/nebula/internal/server"
-	"github.com/nebula/nebula/internal/store"
-	"github.com/nebula/nebula/internal/worker"
+	"github.com/Tural-HS/Nebula/internal/auth"
+	"github.com/Tural-HS/Nebula/internal/config"
+	"github.com/Tural-HS/Nebula/internal/database"
+	"github.com/Tural-HS/Nebula/internal/engine"
+	"github.com/Tural-HS/Nebula/internal/mail"
+	"github.com/Tural-HS/Nebula/internal/observability"
+	"github.com/Tural-HS/Nebula/internal/safehttp"
+	"github.com/Tural-HS/Nebula/internal/secretbox"
+	"github.com/Tural-HS/Nebula/internal/server"
+	"github.com/Tural-HS/Nebula/internal/store"
+	"github.com/Tural-HS/Nebula/internal/worker"
 )
 
 // version is set at build time: -ldflags "-X main.version=v1.2.3".

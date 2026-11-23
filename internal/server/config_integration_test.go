@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/nebula/nebula/internal/config"
-	"github.com/nebula/nebula/internal/observability"
-	"github.com/nebula/nebula/internal/store"
-	"github.com/nebula/nebula/internal/testdb"
+	"github.com/Tural-HS/Nebula/internal/config"
+	"github.com/Tural-HS/Nebula/internal/observability"
+	"github.com/Tural-HS/Nebula/internal/store"
+	"github.com/Tural-HS/Nebula/internal/testdb"
 )
 
 const wfBase = "/api/v1/workspaces/acme/workflows"

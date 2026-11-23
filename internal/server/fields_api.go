@@ -6,8 +6,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/nebula/nebula/internal/opt"
-	"github.com/nebula/nebula/internal/store"
+	"github.com/Tural-HS/Nebula/internal/opt"
+	"github.com/Tural-HS/Nebula/internal/store"
 )
 
 // fieldRoutes registers custom field definitions under /workspaces/{workspace}.

@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/nebula/nebula/internal/store"
+	"github.com/Tural-HS/Nebula/internal/store"
 )
 
 func cond(field, op string, value any) store.Condition {

@@ -6,9 +6,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/nebula/nebula/internal/opt"
-	"github.com/nebula/nebula/internal/safehttp"
-	"github.com/nebula/nebula/internal/store"
+	"github.com/Tural-HS/Nebula/internal/opt"
+	"github.com/Tural-HS/Nebula/internal/safehttp"
+	"github.com/Tural-HS/Nebula/internal/store"
 )
 
 // automationRoutes manages webhooks and automation rules. Everything here is

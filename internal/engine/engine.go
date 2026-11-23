@@ -21,11 +21,11 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/nebula/nebula/internal/mail"
-	"github.com/nebula/nebula/internal/opt"
-	"github.com/nebula/nebula/internal/safehttp"
-	"github.com/nebula/nebula/internal/store"
-	"github.com/nebula/nebula/internal/worker"
+	"github.com/Tural-HS/Nebula/internal/mail"
+	"github.com/Tural-HS/Nebula/internal/opt"
+	"github.com/Tural-HS/Nebula/internal/safehttp"
+	"github.com/Tural-HS/Nebula/internal/store"
+	"github.com/Tural-HS/Nebula/internal/worker"
 )
 
 // Engine holds the dependencies of all job handlers.

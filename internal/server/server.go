@@ -14,12 +14,12 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"github.com/nebula/nebula/internal/auth"
-	"github.com/nebula/nebula/internal/config"
-	"github.com/nebula/nebula/internal/observability"
-	"github.com/nebula/nebula/internal/ratelimit"
-	"github.com/nebula/nebula/internal/safehttp"
-	"github.com/nebula/nebula/internal/store"
+	"github.com/Tural-HS/Nebula/internal/auth"
+	"github.com/Tural-HS/Nebula/internal/config"
+	"github.com/Tural-HS/Nebula/internal/observability"
+	"github.com/Tural-HS/Nebula/internal/ratelimit"
+	"github.com/Tural-HS/Nebula/internal/safehttp"
+	"github.com/Tural-HS/Nebula/internal/store"
 )
 
 // Pinger is the readiness dependency (satisfied by *pgxpool.Pool).

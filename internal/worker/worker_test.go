@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/nebula/nebula/internal/observability"
-	"github.com/nebula/nebula/internal/store"
+	"github.com/Tural-HS/Nebula/internal/observability"
+	"github.com/Tural-HS/Nebula/internal/store"
 )
 
 type fakeQueue struct {

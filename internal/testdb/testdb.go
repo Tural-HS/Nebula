@@ -16,7 +16,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/nebula/nebula/internal/database"
+	"github.com/Tural-HS/Nebula/internal/database"
 )
 
 // EnvVar points at a Postgres server where the test user may CREATE DATABASE.

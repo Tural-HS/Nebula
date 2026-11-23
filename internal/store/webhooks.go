@@ -13,8 +13,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
-	"github.com/nebula/nebula/internal/opt"
-	"github.com/nebula/nebula/internal/secretbox"
+	"github.com/Tural-HS/Nebula/internal/opt"
+	"github.com/Tural-HS/Nebula/internal/secretbox"
 )
 
 const (

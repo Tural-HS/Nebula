@@ -10,8 +10,8 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/nebula/nebula/internal/database"
-	"github.com/nebula/nebula/internal/testdb"
+	"github.com/Tural-HS/Nebula/internal/database"
+	"github.com/Tural-HS/Nebula/internal/testdb"
 )
 
 // Integration tests run against a real PostgreSQL in a throwaway database.

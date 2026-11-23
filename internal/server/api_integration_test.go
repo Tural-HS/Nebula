@@ -17,10 +17,10 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/nebula/nebula/internal/auth"
-	"github.com/nebula/nebula/internal/observability"
-	"github.com/nebula/nebula/internal/store"
-	"github.com/nebula/nebula/internal/testdb"
+	"github.com/Tural-HS/Nebula/internal/auth"
+	"github.com/Tural-HS/Nebula/internal/observability"
+	"github.com/Tural-HS/Nebula/internal/store"
+	"github.com/Tural-HS/Nebula/internal/testdb"
 )
 
 // tokenVerifier maps opaque test tokens to identities. Real JWT verification

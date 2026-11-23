@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/nebula/nebula/internal/auth"
-	"github.com/nebula/nebula/internal/observability"
+	"github.com/Tural-HS/Nebula/internal/auth"
+	"github.com/Tural-HS/Nebula/internal/observability"
 )
 
 type fakeDB struct{ err error }

@@ -8,7 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
-	"github.com/nebula/nebula/internal/auth"
+	"github.com/Tural-HS/Nebula/internal/auth"
 )
 
 // ResolveUser finds the user for (issuer, subject), creating it on first

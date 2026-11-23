@@ -15,7 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/nebula/nebula/internal/secretbox"
+	"github.com/Tural-HS/Nebula/internal/secretbox"
 )
 
 // Store wraps the connection pool.

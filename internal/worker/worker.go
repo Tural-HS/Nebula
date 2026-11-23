@@ -14,8 +14,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/nebula/nebula/internal/observability"
-	"github.com/nebula/nebula/internal/store"
+	"github.com/Tural-HS/Nebula/internal/observability"
+	"github.com/Tural-HS/Nebula/internal/store"
 )
 
 // Handler processes one job. Returning an error schedules a retry with
