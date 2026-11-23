@@ -1,0 +1,21 @@
+# Accepted vulnerability risks for the release Trivy gate (.github/workflows/release.yml, ADR-0018).
+# Every entry: narrowest scope (paths/purls), a reason, and an expiry. An expired entry fails the
+# gate again, which forces a fresh decision. Remove an entry as soon as upstream ships the fix.
+vulnerabilities:
+  - id: CVE-2026-78661
+    paths:
+      - usr/bin/caddy
+    statement: >-
+      golang.org/x/net/html DoS on crafted HTML input. Caddy 2.11.9 (latest, 2026-11-05) still bundles
+      x/net v0.60.0. Our Caddyfile uses no templates/markdown, so Caddy never parses untrusted HTML.
+      Remove when the next Caddy release ships x/net >= 0.62.0.
+    expired_at: 2026-12-31
+  - id: CVE-2026-102554
+    purls:
+      - pkg:maven/com.google.guava/guava@33.6.0-jre
+    statement: >-
+      Guava deserialization DoS, bundled in Keycloak 26.8.2 (newest build 26.8.2-3, 2026-11-19, is what
+      we pin); not patchable without modifying the Keycloak distribution. Reachability NOT verified.
+      Mitigations: Keycloak only behind Caddy, admin console not public, memory limit + restart.
+      Short expiry on purpose: re-check for a Keycloak release with guava >= 33.7.2 and remove.
+    expired_at: 2026-12-15
