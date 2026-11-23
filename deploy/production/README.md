@@ -189,6 +189,87 @@ journalctl -u 'nebula-backup@*' --since today
 
 RPO ≤ 2–5 dəq, RTO (DB) — restore testinin ölçdüyü müddət (dashboard: "Restore duration"). Host tam itsə RTO 2–4 saatdır (yeni VPS + bu runbook).
 
+### 4.1 Fayllar (attachments, ADR-0022)
+
+pgBackRest **yalnız Postgres-i** saxlayır. Tapşırıqlara əlavə edilən faylların baytları bazada deyil:
+default olaraq `attachments` volume-undadır (`/var/lib/nebula/attachments`), S3 backend-də isə bucket-dədir.
+Bazada yalnız metadata və təsadüfi açar (`storage_key`) var. Ona görə fayllar **ayrıca** backup olunmalıdır.
+
+**Uyğunluq qaydası.** Fayl əvvəlcə yazılır, sətir sonra commit olunur; fayllar heç vaxt dəyişdirilmir.
+Silinmiş faylın blob-u `NEBULA_ATTACHMENTS_PURGE_DELAY` (default `168h` = 7 gün) qədər saxlanılır.
+Nəticə: bazanı T anına bərpa edirsinizsə, **T-dən sonrakı ilk fayl snapshot-unu** (T-dən ən çox 7 gün sonra) bərpa edin —
+T anında bazada olan bütün faylları ehtiva edir. Fayl backup-ı gündəlikdirsə, gecikmə ≥ 1 gün olmalıdır; 7 gün ehtiyat payıdır.
+Artıq fayllar (bazada sətri olmayan) zərərsizdir: worker onları növbəyə salmır, istəsəniz əl ilə silinə bilər.
+
+#### Lokal volume → restic (S3-ə, şifrəli)
+
+pgBackRest-dən **ayrı** bucket/prefix və ayrı açar istifadə edin. Image-i digest ilə pinləyin və yeniləmədən əvvəl
+digest-i yoxlayın: `docker buildx imagetools inspect restic/restic:0.20.0`.
+
+```bash
+# /etc/nebula/restic.env (0400 root): RESTIC_REPOSITORY=s3:https://<s3-endpoint>/<bucket>/nebula-files
+#   AWS_ACCESS_KEY_ID=…  AWS_SECRET_ACCESS_KEY=…  RESTIC_PASSWORD_FILE=/run/secrets/restic_password
+# /etc/nebula/secrets/restic_password: openssl rand -base64 32 (offline nüsxəsi olmadan repo bərpa olunmur!)
+RESTIC='docker run --rm --env-file /etc/nebula/restic.env
+  -v /etc/nebula/secrets/restic_password:/run/secrets/restic_password:ro
+  restic/restic:0.20.0@sha256:93999df80d4ac6cb148e82d2ef1fe6a81996f17ff535e772723538211b31555a'
+VOL=$(docker volume ls -q --filter label=com.docker.compose.volume=attachments)
+
+$RESTIC init                                                          # bir dəfə
+$RESTIC -v "$VOL":/data:ro backup /data --host nebula --tag attachments   # hər gecə, DB backup-dan sonra (~03:00 UTC)
+$RESTIC forget --host nebula --tag attachments --keep-daily 14 --keep-weekly 8 --prune   # ≥ 4 həftəlik PITR pəncərəsi
+$RESTIC check --read-data-subset=5%                                   # həftəlik
+```
+
+Hələ timer yoxdur: cron/systemd-ə əl ilə əlavə edin və nəticəni izləyin (follow-up: `nebula-files-backup.timer` + metrik).
+
+**Bərpa:**
+
+```bash
+docker compose stop nebula
+$RESTIC snapshots --tag attachments                                   # T-dən sonrakı ilk snapshot-u seçin
+$RESTIC -v "$VOL":/data restore <snapshot-id> --target / --include /data
+docker compose up -d --wait nebula
+# Yoxlama: bazada olub faylı olmayan açar qalmamalıdır (çıxış boş olmalıdır).
+docker compose exec -T postgres psql -U postgres -d nebula -Atc 'SELECT storage_key FROM attachments' | sort >/tmp/db-keys
+docker run --rm -v "$VOL":/data:ro --entrypoint find restic/restic:0.20.0@sha256:93999df80d4ac6cb148e82d2ef1fe6a81996f17ff535e772723538211b31555a \
+  /data -type f -not -path '*/.staging/*' -exec basename {} \; | sort >/tmp/blob-keys
+comm -23 /tmp/db-keys /tmp/blob-keys
+```
+
+restic UID/GID-ni saxlayır (fayllar `65532`, rejim `0600`/`0700`). Yeni volume-a bərpa edirsinizsə, əvvəlcə Nebula-nı bir dəfə
+başladın ki, volume image-dən düzgün sahiblik alsın.
+
+#### S3 backend (`NEBULA_ATTACHMENTS_BACKEND=s3`)
+
+- Bucket-də **versioning** yandırın və lifecycle qaydası ilə köhnə (noncurrent) versiyaları **≥ 35 gün** saxlayın; mümkünsə başqa regiona replikasiya.
+- Nebula açarları heç vaxt təkrar istifadə etmir və obyektləri üzərinə yazmır; silinmə yalnız worker-in `DELETE`-idir (gecikmədən sonra).
+  Bərpa: bazanı T-yə qaytarın, sonra `comm` yoxlamasındakı itkin açarlar üçün delete marker-ləri silin (`aws s3api delete-object --version-id <marker>`).
+- Açarları sir faylları kimi verin (`*_FILE`), heç vaxt environment-də yox — `compose.override.yaml` nümunəsi:
+
+```yaml
+services:
+  nebula:
+    environment:
+      NEBULA_ATTACHMENTS_BACKEND: s3
+      NEBULA_ATTACHMENTS_S3_ENDPOINT: https://<s3-endpoint>
+      NEBULA_ATTACHMENTS_S3_BUCKET: <bucket>
+      NEBULA_ATTACHMENTS_S3_PREFIX: attachments/
+      NEBULA_ATTACHMENTS_S3_ACCESS_KEY_FILE: /run/secrets/nebula_attachments_s3_access_key
+      NEBULA_ATTACHMENTS_S3_SECRET_KEY_FILE: /run/secrets/nebula_attachments_s3_secret_key
+      NEBULA_ATTACHMENTS_TMP_DIR: /tmp
+    tmpfs:
+      - /tmp:size=256m,mode=1777   # yükləmə yoxlanılarkən staging (maks. fayl × paralel yükləmə)
+    secrets: [nebula_attachments_s3_access_key, nebula_attachments_s3_secret_key]
+secrets:
+  nebula_attachments_s3_access_key: { file: /etc/nebula/secrets/nebula_attachments_s3_access_key }
+  nebula_attachments_s3_secret_key: { file: /etc/nebula/secrets/nebula_attachments_s3_secret_key }
+```
+
+  S3 açarına yalnız bu bucket/prefix üzrə `GetObject`, `PutObject`, `DeleteObject` icazəsi verin.
+
+`restore-test.sh` faylları yoxlamır; rübdə bir dəfə yuxarıdakı bərpanı test volume-una edin.
+
 ## 5. Restore testi (aylıq, avtomatik)
 
 `nebula-restore-test.timer` hər ayın ilk çərşənbə axşamı `scripts/restore-test.sh`-ı işlədir:

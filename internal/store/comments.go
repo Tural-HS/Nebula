@@ -416,6 +416,9 @@ func (s *Store) DeleteComment(ctx context.Context, wsID, projectID uuid.UUID, nu
 		if _, err := tx.Exec(ctx, `UPDATE comments SET deleted_at = now() WHERE id = $1`, commentID); err != nil {
 			return err
 		}
+		if err := deleteCommentAttachments(ctx, tx, wsID, actorID, item, commentID); err != nil {
+			return err
+		}
 		return appendEvent(ctx, tx, wsID, actorID, "item", item.id, "comment.deleted", map[string]any{"comment_id": commentID})
 	})
 }

@@ -23,6 +23,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/Tural-HS/Nebula/internal/blobstore"
 	"github.com/Tural-HS/Nebula/internal/mail"
 	"github.com/Tural-HS/Nebula/internal/opt"
 	"github.com/Tural-HS/Nebula/internal/safehttp"
@@ -40,6 +41,10 @@ type Engine struct {
 	Version  string
 	// PublicURL is the web UI base URL for links in chat messages ("" = no links).
 	PublicURL string
+	// Blobs is the attachment store whose orphaned blobs Tick removes (nil: none).
+	Blobs blobstore.Store
+	// BlobPurgeDelay keeps a deleted attachment's blob this long (backups, ADR-0022).
+	BlobPurgeDelay time.Duration
 }
 
 // Handlers maps job kinds to handlers.

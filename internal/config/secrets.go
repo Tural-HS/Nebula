@@ -22,6 +22,8 @@ var SecretKeys = []string{
 	"NEBULA_ENCRYPTION_KEY",
 	"NEBULA_ENCRYPTION_KEYS_OLD",
 	"NEBULA_SMTP_PASSWORD",
+	"NEBULA_ATTACHMENTS_S3_ACCESS_KEY",
+	"NEBULA_ATTACHMENTS_S3_SECRET_KEY",
 }
 
 // maxSecretFileSize bounds what a *_FILE may contain: secrets are short, and a

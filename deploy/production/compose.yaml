@@ -149,9 +149,20 @@ services:
       NEBULA_RATE_LIMIT_IP_BURST: ${NEBULA_RATE_LIMIT_IP_BURST:-200}
       NEBULA_WEBHOOK_ALLOW_PRIVATE: "false"
       NEBULA_SHUTDOWN_TIMEOUT: 25s
+      # File attachments (ADR-0022): blobs on the "attachments" volume, not in Postgres, so
+      # pgBackRest does NOT back them up — see README section 4.1. 20 MiB per file fits under
+      # Caddy's 25MB /api body limit. Switch to S3 with NEBULA_ATTACHMENTS_BACKEND=s3 (+ _S3_*).
+      NEBULA_ATTACHMENTS_BACKEND: ${NEBULA_ATTACHMENTS_BACKEND:-local}
+      NEBULA_ATTACHMENTS_DIR: /var/lib/nebula/attachments
+      NEBULA_ATTACHMENTS_MAX_FILE_MB: ${NEBULA_ATTACHMENTS_MAX_FILE_MB:-20}
+      NEBULA_ATTACHMENTS_WORKSPACE_QUOTA_MB: ${NEBULA_ATTACHMENTS_WORKSPACE_QUOTA_MB:-5120}
+      NEBULA_ATTACHMENTS_UPLOADS_PER_MINUTE: ${NEBULA_ATTACHMENTS_UPLOADS_PER_MINUTE:-30}
+      NEBULA_ATTACHMENTS_PURGE_DELAY: ${NEBULA_ATTACHMENTS_PURGE_DELAY:-168h} # >= file backup interval
     stop_grace_period: 30s # > NEBULA_SHUTDOWN_TIMEOUT, so in-flight requests and jobs drain
+    volumes:
+      - attachments:/var/lib/nebula/attachments
     tmpfs:
-      - /tmp:size=64m,mode=1777 # CSV/xlsx import scratch space
+      - /tmp:size=64m,mode=1777 # CSV/xlsx import scratch space (S3 attachment staging needs more: raise size)
     networks:
       edge: {}    # Caddy -> API, egress for webhooks and SMTP
       db: {}
@@ -375,6 +386,7 @@ networks:
 
 volumes:
   pgdata:
+  attachments: # file attachments; back up with scripts/README section 4.1, not pgBackRest
   pgbackrest-spool:
   caddy-data:
   caddy-config:

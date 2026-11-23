@@ -26,6 +26,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/Tural-HS/Nebula/internal/auth"
+	"github.com/Tural-HS/Nebula/internal/blobstore"
 	"github.com/Tural-HS/Nebula/internal/config"
 	"github.com/Tural-HS/Nebula/internal/database"
 	"github.com/Tural-HS/Nebula/internal/engine"
@@ -129,6 +130,7 @@ type runtime struct {
 	store   *store.Store
 	metrics *observability.Metrics
 	webhook safehttp.Options
+	blobs   blobstore.Store // nil: attachments disabled
 }
 
 func newRuntime(ctx context.Context, cfg config.Config, logger *slog.Logger) (*runtime, error) {
@@ -144,7 +146,13 @@ func newRuntime(ctx context.Context, cfg config.Config, logger *slog.Logger) (*r
 		return nil, err
 	}
 	warnIfSchemaOwner(ctx, pool, cfg, logger)
+	blobs, err := newBlobStore(cfg.Attachments, logger)
+	if err != nil {
+		pool.Close()
+		return nil, err
+	}
 	return &runtime{
+		blobs:   blobs,
 		pool:    pool,
 		store:   store.New(pool).WithSecrets(box),
 		metrics: observability.NewMetrics(),
@@ -173,6 +181,7 @@ func (rt *runtime) newWorker(ctx context.Context, cfg config.Config, logger *slo
 	eng := &engine.Engine{
 		Store: rt.store, HTTP: safehttp.NewClient(rt.webhook), HTTPOpts: rt.webhook,
 		Mail: sender, Logger: logger, Version: version, PublicURL: cfg.PublicURL,
+		Blobs: rt.blobs, BlobPurgeDelay: cfg.Attachments.PurgeDelay,
 	}
 	return worker.New(rt.store, eng.Handlers(), logger, rt.metrics, worker.Options{
 		Concurrency:   max(cfg.WorkerConcurrency, 1),
@@ -257,6 +266,7 @@ func serve(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 		RequestTimeout: cfg.RequestTimeout,
 		RateLimit:      cfg.RateLimit,
 		TrustedProxies: cfg.TrustedProxies,
+		Attachments:    attachmentDeps(cfg.Attachments, rt.blobs),
 	}), cfg.RequestTimeout)
 	admin := newHTTPServer(cfg.AdminAddr, server.NewAdminHandler(metrics), 10*time.Second)
 

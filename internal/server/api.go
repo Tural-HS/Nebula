@@ -19,6 +19,7 @@ import (
 
 	"github.com/Tural-HS/Nebula/internal/auth"
 	"github.com/Tural-HS/Nebula/internal/opt"
+	"github.com/Tural-HS/Nebula/internal/ratelimit"
 	"github.com/Tural-HS/Nebula/internal/safehttp"
 	"github.com/Tural-HS/Nebula/internal/store"
 )
@@ -30,6 +31,9 @@ type api struct {
 	logger      *slog.Logger
 	webhookOpts safehttp.Options
 	publicURL   string
+	// attach and uploadLimiter: file attachments (attachment_api.go).
+	attach        Attachments
+	uploadLimiter *ratelimit.Limiter
 }
 
 type ctxKey int
@@ -74,6 +78,7 @@ func (a *api) routes(r chi.Router) {
 			r.With(requireRole(store.RoleMember)).Patch("/items/{number}", a.updateItem)
 			r.With(requireRole(store.RoleMember)).Delete("/items/{number}", a.deleteItem)
 			a.itemCollabRoutes(r)
+			a.attachmentRoutes(r)
 			a.importRoutes(r)
 			a.recurrenceRoutes(r)
 			a.projectSettingsRoutes(r)

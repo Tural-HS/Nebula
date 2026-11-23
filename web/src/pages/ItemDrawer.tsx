@@ -5,11 +5,13 @@ import { ApiError } from "../api/client";
 import { keys, useAssignable, useDeleteItem, useMe, useFields, useItem, useItemTypes, useMembers, useTransitions, useUpdateItem, type ItemPatch } from "../api/hooks";
 import type { FieldValue, Item } from "../api/types";
 import { ActivityFeed } from "../components/ActivityFeed";
+import { Attachments } from "../components/Attachments";
 import { Comments } from "../components/Comments";
+import { DescriptionField } from "../components/DescriptionField";
 import { FieldEditor } from "../components/FieldEditor";
 import { ParentCrumb, SubtaskSection } from "../components/Subtasks";
 import { useToast } from "../components/toast-context";
-import { Avatar, Button, DueChip, ErrorState, Label, Select, Spinner, StatusBadge, touchField } from "../components/ui";
+import { Avatar, Button, DueChip, ErrorState, Select, Spinner, StatusBadge, touchField } from "../components/ui";
 import { t } from "../i18n";
 import { cn } from "../lib/cn";
 import { formatDateTime } from "../lib/format";
@@ -73,8 +75,8 @@ function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose }: {
   const types = useItemTypes(ws);
   const fields = useFields(ws);
   const transitions = useTransitions(ws, project, item.number);
+  const me = useMe();
   const [title, setTitle] = useState(item.title);
-  const [desc, setDesc] = useState(item.description ?? "");
   const [due, setDue] = useState(item.due_date ?? "");
 
   const memberName = (id: string | null) => (id ? (members.data?.find((m) => m.user_id === id)?.display_name ?? "…") : null);
@@ -261,21 +263,7 @@ function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose }: {
           <dd className="text-zinc-600 dark:text-zinc-400">{formatDateTime(item.updated_at)}</dd>
         </dl>
 
-        <div>
-          <Label htmlFor="item-desc">{t.description}</Label>
-          <textarea
-            id="item-desc"
-            rows={6}
-            value={desc}
-            disabled={!canEdit}
-            maxLength={100_000}
-            onChange={(e) => { setDesc(e.target.value); }}
-            onBlur={() => {
-              if (desc !== (item.description ?? "")) save({ description: desc.trim() ? desc : null });
-            }}
-            className="w-full rounded-md bg-white px-3 py-2 text-sm whitespace-pre-wrap ring-1 pointer-coarse:text-base ring-zinc-300 focus:ring-2 focus:ring-brand-500 dark:bg-zinc-900 dark:ring-zinc-700"
-          />
-        </div>
+        <DescriptionField value={item.description} canEdit={canEdit} onSave={(v) => { save({ description: v }); }} />
 
         {/* One level only: a subtask has no subtasks of its own (ADR-0021). */}
         {!item.parent && <SubtaskSection ws={ws} project={project} item={item} canEdit={canEdit} />}
@@ -304,6 +292,8 @@ function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose }: {
             </div>
           </section>
         )}
+
+        <Attachments ws={ws} project={project} n={item.number} meId={me.data?.id} canWrite={canEdit} isAdmin={isAdmin} />
 
         <CollabTabs ws={ws} project={project} n={item.number} canWrite={canEdit} isAdmin={isAdmin} />
       </div>

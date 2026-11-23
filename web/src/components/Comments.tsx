@@ -6,9 +6,11 @@ import type { Comment, Member } from "../api/types";
 import { t } from "../i18n";
 import { flattenBy } from "../lib/collections";
 import { formatRelative } from "../lib/format";
-import { activeMentionQuery, toEditable, tokenize, toStored, type Person } from "../lib/mentions";
+import { activeMentionQuery, toEditable, toStored, type Person } from "../lib/mentions";
+import { Markdown } from "./Markdown";
 import { useToast } from "./toast-context";
 import { Avatar, Button, ErrorState, Spinner } from "./ui";
+import { WritePreview } from "./WritePreview";
 
 interface Props {
   ws: string;
@@ -81,20 +83,7 @@ export function Comments({ ws, project, n, members, mentionable, meId, canWrite,
 }
 
 function CommentBody({ body, people }: { body: string; people: Person[] }) {
-  const names = new Map(people.map((p) => [p.id.toLowerCase(), p.name]));
-  return (
-    <p className="text-sm break-words whitespace-pre-wrap">
-      {tokenize(body).map((part, i) =>
-        part.kind === "text" ? (
-          <span key={i}>{part.value}</span>
-        ) : (
-          <span key={i} className="rounded bg-brand-50 px-1 font-medium text-brand-700 dark:bg-brand-700/30 dark:text-brand-100">
-            @{names.get(part.id) ?? t.unknownPerson}
-          </span>
-        ),
-      )}
-    </p>
-  );
+  return <Markdown source={body} people={people} />;
 }
 
 function CommentRow({ comment: c, people, suggest, canEdit, canDelete, onSave, onDelete }: {
@@ -225,41 +214,45 @@ function Composer({ people, suggest = people, initial = "", initialPicked = [], 
   };
 
   return (
-    <div className="relative">
-      <textarea
-        ref={ref}
-        rows={3}
-        value={text}
-        maxLength={20_000}
-        placeholder={t.writeComment}
-        aria-label={t.writeComment}
-        onChange={(e) => {
-          setText(e.target.value);
-          updateQuery(e.target.value, e.target.selectionStart);
-        }}
-        onKeyDown={onKeyDown}
-        onBlur={() => { setTimeout(() => { setQuery(null); }, 150); }}
-        className="w-full rounded-md bg-white px-3 py-2 text-sm ring-1 ring-zinc-300 pointer-coarse:text-base focus:ring-2 focus:ring-brand-500 dark:bg-zinc-900 dark:ring-zinc-700"
-      />
-      {suggestions.length > 0 && (
-        <ul role="listbox" className="absolute bottom-full left-0 z-10 mb-1 w-64 max-w-full overflow-hidden rounded-md bg-white shadow-lg ring-1 ring-zinc-200 dark:bg-zinc-800 dark:ring-zinc-700">
-          {suggestions.map((p, i) => (
-            <li
-              key={p.id}
-              role="option"
-              aria-selected={i === active}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                pick(p);
-              }}
-              className={"flex cursor-pointer items-center gap-2 px-3 py-1.5 text-sm " + (i === active ? "bg-brand-50 dark:bg-brand-700/40" : "")}
-            >
-              <Avatar name={p.name} />
-              {p.name}
-            </li>
-          ))}
-        </ul>
-      )}
+    <div>
+      <WritePreview preview={toStored(text, picked)} people={people}>
+        <div className="relative">
+          <textarea
+            ref={ref}
+            rows={3}
+            value={text}
+            maxLength={20_000}
+            placeholder={t.writeComment}
+            aria-label={t.writeComment}
+            onChange={(e) => {
+              setText(e.target.value);
+              updateQuery(e.target.value, e.target.selectionStart);
+            }}
+            onKeyDown={onKeyDown}
+            onBlur={() => { setTimeout(() => { setQuery(null); }, 150); }}
+            className="w-full rounded-md bg-white px-3 py-2 text-sm ring-1 ring-zinc-300 pointer-coarse:text-base focus:ring-2 focus:ring-brand-500 dark:bg-zinc-900 dark:ring-zinc-700"
+          />
+          {suggestions.length > 0 && (
+            <ul role="listbox" className="absolute bottom-full left-0 z-10 mb-1 w-64 max-w-full overflow-hidden rounded-md bg-white shadow-lg ring-1 ring-zinc-200 dark:bg-zinc-800 dark:ring-zinc-700">
+              {suggestions.map((p, i) => (
+                <li
+                  key={p.id}
+                  role="option"
+                  aria-selected={i === active}
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    pick(p);
+                  }}
+                  className={"flex cursor-pointer items-center gap-2 px-3 py-1.5 text-sm " + (i === active ? "bg-brand-50 dark:bg-brand-700/40" : "")}
+                >
+                  <Avatar name={p.name} />
+                  {p.name}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </WritePreview>
       <div className="mt-2 flex justify-end gap-2">
         {onCancel && <Button onClick={onCancel}>{t.cancel}</Button>}
         <Button variant="primary" onClick={submit} disabled={pending || !text.trim()}>

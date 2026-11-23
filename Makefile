@@ -74,6 +74,7 @@ run: migrate idp-up ## Run the API locally (Postgres + Keycloak + Mailpit in Doc
 	NEBULA_OIDC_ISSUER='$(OIDC_ISSUER)' NEBULA_OIDC_AUDIENCE='$(OIDC_AUDIENCE)' \
 	NEBULA_OIDC_JWKS_URL='$(OIDC_JWKS_URL)' \
 	NEBULA_ENCRYPTION_KEY='$(DEV_ENCRYPTION_KEY)' NEBULA_WEBHOOK_ALLOW_PRIVATE=true \
+	NEBULA_ATTACHMENTS_DIR=.data/attachments \
 	NEBULA_SMTP_HOST=localhost NEBULA_SMTP_PORT=1025 NEBULA_SMTP_TLS=none NEBULA_SMTP_FROM='Nebula Dev <nebula@localhost.test>' \
 	go run ./cmd/nebula serve
 
