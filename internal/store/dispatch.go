@@ -48,23 +48,37 @@ func (s *Store) FanOut(ctx context.Context, e Event) (webhooks, rules int, err e
 		return 0, 0, nil // delivered directly to the pinged webhook only
 	}
 	err = s.inTx(ctx, func(tx pgx.Tx) error {
-		rows, err := tx.Query(ctx, `SELECT id, events FROM webhooks WHERE workspace_id = $1 AND is_active`, e.WorkspaceID)
+		rows, err := tx.Query(ctx, `SELECT id, events, project_ids FROM webhooks WHERE workspace_id = $1 AND is_active`, e.WorkspaceID)
 		if err != nil {
 			return err
 		}
 		type hook struct {
-			id     uuid.UUID
-			events []string
+			id       uuid.UUID
+			events   []string
+			projects []uuid.UUID
 		}
 		hooks, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (hook, error) {
 			var h hook
-			return h, r.Scan(&h.id, &h.events)
+			return h, r.Scan(&h.id, &h.events, &h.projects)
 		})
 		if err != nil {
 			return err
 		}
+		var scope *EventScope // resolved once, only if a webhook is subscribed
 		for _, h := range hooks {
 			if !MatchEvent(h.events, e.Action) {
+				continue
+			}
+			if scope == nil {
+				sc, err := eventScope(ctx, tx, e)
+				if err != nil {
+					return err
+				}
+				scope = &sc
+			}
+			// Project filter (ADR-0013): private projects only reach webhooks
+			// that list them. Checked again at delivery time.
+			if !scope.Allows(h.projects) {
 				continue
 			}
 			if err := enqueueJob(ctx, tx, JobDeliverWebhook, map[string]any{"webhook_id": h.id, "event_id": e.ID}, 12,

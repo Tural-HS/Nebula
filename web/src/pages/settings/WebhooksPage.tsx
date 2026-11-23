@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { useAdminApi, useDeliveries, useWebhooks, type Webhook } from "../../api/admin";
+import { useProjects } from "../../api/hooks";
 import { Button, ErrorState, Input, Select, Spinner } from "../../components/ui";
 import { t } from "../../i18n";
 import { ta } from "../../i18n-admin";
@@ -57,6 +58,7 @@ function NewWebhook({ ws, onSecret }: { ws: string; onSecret: (s: string) => voi
   const [url, setUrl] = useState("");
   const [format, setFormat] = useState<WebhookFormat>("nebula");
   const [events, setEvents] = useState(defaultEvents("nebula"));
+  const [projects, setProjects] = useState<string[]>([]);
   const chooseFormat = (f: WebhookFormat) => {
     // Swap the events only while they are still the previous default.
     if (events === defaultEvents(format)) setEvents(defaultEvents(f));
@@ -70,7 +72,7 @@ function NewWebhook({ ws, onSecret }: { ws: string; onSecret: (s: string) => voi
         className="flex flex-wrap items-end gap-2"
         onSubmit={(e) => {
           e.preventDefault();
-          adm.createWebhook.mutate({ url: url.trim(), format, events: parseEvents(events) }, {
+          adm.createWebhook.mutate({ url: url.trim(), format, events: parseEvents(events), project_ids: projects }, {
             onSuccess: (r) => {
               setUrl("");
               if (r.secret) onSecret(r.secret);
@@ -102,6 +104,7 @@ function NewWebhook({ ws, onSecret }: { ws: string; onSecret: (s: string) => voi
           <span>{ta.events} <span className="text-zinc-400">({ta.eventsHint})</span></span>
           <Input required value={events} onChange={(e) => { setEvents(e.target.value); }} className="w-64" />
         </label>
+        <ProjectFilter ws={ws} value={projects} onChange={setProjects} />
         <Button type="submit" variant="primary" disabled={adm.createWebhook.isPending}>{t.create}</Button>
       </form>
       {format === "slack" && <p className="mt-2 text-xs text-zinc-500">{ta.slackHint}</p>}
@@ -112,6 +115,34 @@ function NewWebhook({ ws, onSecret }: { ws: string; onSecret: (s: string) => voi
         </p>
       )}
     </Card>
+  );
+}
+
+/** Which projects a webhook covers; none ticked = every workspace-visible project. */
+function ProjectFilter({ ws, value, onChange }: { ws: string; value: string[]; onChange: (ids: string[]) => void }) {
+  const projects = useProjects(ws);
+  const list = projects.data ?? [];
+  const summary = value.length === 0 ? ta.webhookProjects.all : ta.webhookProjects.selected(value.length);
+  return (
+    <details className="relative text-xs">
+      <summary className="cursor-pointer list-none rounded-md px-2.5 py-1.5 ring-1 ring-zinc-300 dark:ring-zinc-700" aria-label={`${ta.webhookProjects.label}: ${summary}`}>
+        {ta.webhookProjects.label}: {summary} ▾
+      </summary>
+      <div className="absolute z-10 mt-1 w-72 space-y-1 rounded-md bg-white p-2 shadow-lg ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-700">
+        {list.map((p) => (
+          <label key={p.id} className="flex items-center gap-2 py-0.5">
+            <input
+              type="checkbox"
+              className="accent-brand-600"
+              checked={value.includes(p.id)}
+              onChange={(e) => { onChange(e.target.checked ? [...value, p.id] : value.filter((x) => x !== p.id)); }}
+            />
+            <span className="font-mono text-zinc-500">{p.key}</span> {p.name} {p.visibility === "private" && "🔒"}
+          </label>
+        ))}
+        <p className="border-t border-zinc-100 pt-1.5 text-zinc-500 dark:border-zinc-800">{ta.webhookProjects.hint}</p>
+      </div>
+    </details>
   );
 }
 
@@ -152,6 +183,11 @@ function WebhookCard({ ws, hook, onSecret }: { ws: string; hook: Webhook; onSecr
           onBlur={() => {
             if (events !== hook.events.join(", ")) adm.updateWebhook.mutate({ id: hook.id, body: { events: parseEvents(events) } }, { onSuccess: fb.ok(), onError: fb.fail });
           }}
+        />
+        <ProjectFilter
+          ws={ws}
+          value={hook.project_ids}
+          onChange={(ids) => { adm.updateWebhook.mutate({ id: hook.id, body: { project_ids: ids } }, { onSuccess: fb.ok(), onError: fb.fail }); }}
         />
         <Button onClick={() => { adm.pingWebhook.mutate(hook.id, { onSuccess: () => { fb.ok(hook.format === "slack" ? ta.pingedChat : ta.pinged)(); setShowLog(true); }, onError: fb.fail }); }}>{ta.ping}</Button>
         <Button variant="ghost" onClick={() => { setShowLog((v) => !v); }}>{ta.deliveries}</Button>

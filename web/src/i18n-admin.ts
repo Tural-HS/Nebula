@@ -30,6 +30,13 @@ export const ta = {
 
   roles: { guest: "Qonaq", member: "Üzv", admin: "Admin", owner: "Sahib" } satisfies Record<Role, string>,
 
+  webhookProjects: {
+    label: "Layihələr",
+    all: "Bütün açıq layihələr",
+    selected: (n: number) => `${String(n)} layihə`,
+    hint: "Heç biri seçilməyibsə, gizli layihələrin hadisələri bu webhook-a göndərilmir. Gizli layihə üçün onu burada açıq seçin.",
+  },
+
   general: {
     name: "Workspace adı",
     timezone: "Saat qurşağı",

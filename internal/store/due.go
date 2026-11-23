@@ -17,7 +17,11 @@ const (
 	// ActionOverdueDigest is emitted at most once per workspace and local day.
 	ActionOverdueDigest = "workspace.overdue_digest"
 
-	maxDigestItems = 100
+	// A digest lists the oldest maxDigestPerProject overdue items of every
+	// project (at most maxDigestItems in all), so a webhook filtered to one
+	// project still gets that project's list (ADR-0013).
+	maxDigestPerProject = 50
+	maxDigestItems      = 1000
 )
 
 // withSystem marks events as caused by the scheduler: actor_id NULL,
@@ -144,19 +148,35 @@ func (s *Store) EmitOverdueDigests(ctx context.Context) (int, error) {
 			return err
 		}
 		for _, r := range runs {
-			var total int
-			if err := tx.QueryRow(ctx, `SELECT count(*) FROM items i
+			counts, err := tx.Query(ctx, `SELECT p.key, count(*) FROM items i
 				JOIN workspaces w ON w.id = i.workspace_id JOIN statuses s ON s.id = i.status_id
-				WHERE i.workspace_id = $1 AND `+openOverdue, r.ws).Scan(&total); err != nil {
+				JOIN projects p ON p.id = i.project_id
+				WHERE i.workspace_id = $1 AND `+openOverdue+` GROUP BY p.key`, r.ws)
+			if err != nil {
+				return err
+			}
+			byProject := map[string]int{}
+			total := 0
+			var key string
+			var cnt int
+			if _, err := pgx.ForEachRow(counts, []any{&key, &cnt}, func() error {
+				byProject[key] = cnt
+				total += cnt
+				return nil
+			}); err != nil {
 				return err
 			}
 			if total == 0 {
 				continue
 			}
-			ids, err := tx.Query(ctx, `SELECT i.id FROM items i
-				JOIN workspaces w ON w.id = i.workspace_id JOIN statuses s ON s.id = i.status_id
-				WHERE i.workspace_id = $1 AND `+openOverdue+`
-				ORDER BY i.due_date, i.number LIMIT $2`, r.ws, maxDigestItems)
+			ids, err := tx.Query(ctx, `SELECT id FROM (
+					SELECT i.id, i.due_date, i.number,
+						row_number() OVER (PARTITION BY i.project_id ORDER BY i.due_date, i.number) AS rn
+					FROM items i
+					JOIN workspaces w ON w.id = i.workspace_id JOIN statuses s ON s.id = i.status_id
+					WHERE i.workspace_id = $1 AND `+openOverdue+`) x
+				WHERE rn <= $3
+				ORDER BY due_date, number LIMIT $2`, r.ws, maxDigestItems, maxDigestPerProject)
 			if err != nil {
 				return err
 			}
@@ -174,6 +194,7 @@ func (s *Store) EmitOverdueDigests(ctx context.Context) (int, error) {
 			}
 			payload := map[string]any{
 				"date": r.date, "timezone": r.tz, "total": total, "truncated": total > len(items), "items": items,
+				"by_project": byProject,
 			}
 			if err := appendEvent(ctx, tx, r.ws, uuid.Nil, "workspace", r.ws, ActionOverdueDigest, payload); err != nil {
 				return err

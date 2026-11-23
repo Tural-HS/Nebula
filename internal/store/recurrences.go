@@ -359,7 +359,9 @@ func (s *Store) DeleteRecurrence(ctx context.Context, wsID, projectID, actorID, 
 		if err != nil {
 			return err
 		}
-		return appendEvent(ctx, tx, wsID, actorID, "recurrence", id, "recurrence.deleted", map[string]any{"title": title})
+		// The row is gone: carry the project so webhook project filters still apply.
+		return appendEvent(ctx, tx, wsID, actorID, "recurrence", id, "recurrence.deleted",
+			map[string]any{"title": title, "project_id": projectID.String()})
 	})
 }
 

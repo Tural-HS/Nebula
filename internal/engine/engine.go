@@ -136,6 +136,28 @@ func (e *Engine) deliverWebhook(ctx context.Context, j store.Job) error {
 	if !p.Force && (!target.Active || !store.MatchEvent(target.Events, ev.Action)) {
 		return nil // disabled or unsubscribed since the event happened
 	}
+	if !p.Force {
+		// Project filter, checked again at delivery: the project may have
+		// become private, or the filter changed, since the event (ADR-0013).
+		scope, err := e.Store.EventScopeOf(ctx, ev)
+		if err != nil {
+			return err
+		}
+		if !scope.Allows(target.ProjectIDs) {
+			return nil
+		}
+		if ev.Action == store.ActionOverdueDigest {
+			keys, err := e.Store.WebhookProjectKeys(ctx, ev.WorkspaceID, target.ProjectIDs)
+			if err != nil {
+				return err
+			}
+			filtered, ok := FilterDigest(ev.Payload, keys)
+			if !ok {
+				return nil // nothing overdue in this webhook's projects
+			}
+			ev.Payload = filtered
+		}
+	}
 
 	body, err := e.webhookBody(ctx, target, ev)
 	if err != nil {

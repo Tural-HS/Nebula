@@ -46,15 +46,18 @@ const (
 // Webhook is an outgoing HTTP subscription. The signing secret is never returned
 // after creation (or rotation). For the slack format URL is masked.
 type Webhook struct {
-	ID             uuid.UUID `json:"id"`
-	URL            string    `json:"url"`
-	Format         string    `json:"format"`
-	Events         []string  `json:"events"`
-	Active         bool      `json:"active"`
-	FailureCount   int       `json:"failure_count"`
-	DisabledReason *string   `json:"disabled_reason"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
+	ID     uuid.UUID `json:"id"`
+	URL    string    `json:"url"`
+	Format string    `json:"format"`
+	Events []string  `json:"events"`
+	// ProjectIDs limits delivery to these projects; empty = every
+	// workspace-visible project (private ones only when listed).
+	ProjectIDs     []uuid.UUID `json:"project_ids"`
+	Active         bool        `json:"active"`
+	FailureCount   int         `json:"failure_count"`
+	DisabledReason *string     `json:"disabled_reason"`
+	CreatedAt      time.Time   `json:"created_at"`
+	UpdatedAt      time.Time   `json:"updated_at"`
 }
 
 // WebhookDelivery is one delivery attempt, for debugging receivers.
@@ -155,13 +158,13 @@ func normalizeFormat(f string) (string, error) {
 	return "", invalid("format", "must be %q or %q", WebhookFormatNebula, WebhookFormatSlack)
 }
 
-const webhookColumns = `id, url, format, events, is_active, failure_count, disabled_reason, created_at, updated_at`
+const webhookColumns = `id, url, format, events, project_ids, is_active, failure_count, disabled_reason, created_at, updated_at`
 
 const webhookSelect = `SELECT ` + webhookColumns + ` FROM webhooks`
 
 func scanWebhook(row pgx.Row) (Webhook, error) {
 	var w Webhook
-	err := row.Scan(&w.ID, &w.URL, &w.Format, &w.Events, &w.Active, &w.FailureCount, &w.DisabledReason, &w.CreatedAt, &w.UpdatedAt)
+	err := row.Scan(&w.ID, &w.URL, &w.Format, &w.Events, &w.ProjectIDs, &w.Active, &w.FailureCount, &w.DisabledReason, &w.CreatedAt, &w.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Webhook{}, ErrNotFound
 	}
@@ -170,7 +173,7 @@ func scanWebhook(row pgx.Row) (Webhook, error) {
 
 // CreateWebhook registers a webhook and returns its signing secret (shown
 // once). A slack-format webhook is not signed, so its secret is "".
-func (s *Store) CreateWebhook(ctx context.Context, wsID, actorID uuid.UUID, rawURL, format string, events []string, check URLValidator) (Webhook, string, error) {
+func (s *Store) CreateWebhook(ctx context.Context, wsID, actorID uuid.UUID, rawURL, format string, events []string, projectIDs []uuid.UUID, check URLValidator) (Webhook, string, error) {
 	rawURL = strings.TrimSpace(rawURL)
 	format, err := normalizeFormat(format)
 	if err != nil {
@@ -207,16 +210,20 @@ func (s *Store) CreateWebhook(ctx context.Context, wsID, actorID uuid.UUID, rawU
 		if n >= maxWebhooksPerWorkspace {
 			return &ConflictError{Code: "webhook_limit_reached", Message: "a workspace can have at most 20 webhooks"}
 		}
-		w, err = scanWebhook(tx.QueryRow(ctx, `INSERT INTO webhooks (id, workspace_id, url, url_encrypted, format, secret_encrypted, events, created_by)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		projects, err := normalizeProjectFilter(ctx, tx, wsID, projectIDs)
+		if err != nil {
+			return err
+		}
+		w, err = scanWebhook(tx.QueryRow(ctx, `INSERT INTO webhooks (id, workspace_id, url, url_encrypted, format, secret_encrypted, events, project_ids, created_by)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 			RETURNING `+webhookColumns,
-			id, wsID, shownURL, sealedURL, format, sealed, events, actorID))
+			id, wsID, shownURL, sealedURL, format, sealed, events, projects, actorID))
 		if err != nil {
 			return err
 		}
 		// Neither the secret nor a slack URL is part of the audit payload.
 		return appendEvent(ctx, tx, wsID, actorID, "webhook", id, "webhook.created",
-			map[string]any{"url": shownURL, "format": format, "events": events})
+			map[string]any{"url": shownURL, "format": format, "events": events, "project_ids": w.ProjectIDs})
 	})
 	if format == WebhookFormatSlack {
 		secret = ""
@@ -243,13 +250,14 @@ type UpdateWebhookParams struct {
 	WorkspaceID, ActorID, ID uuid.UUID
 	URL                      opt.Field[string]
 	Events                   opt.Field[[]string]
+	ProjectIDs               opt.Field[[]uuid.UUID]
 	Active                   opt.Field[bool]
 	Check                    URLValidator
 }
 
 // UpdateWebhook changes URL, events or active state. Re-activating clears the failure counter.
 func (s *Store) UpdateWebhook(ctx context.Context, p UpdateWebhookParams) (Webhook, error) {
-	if p.URL.Null || p.Events.Null || p.Active.Null {
+	if p.URL.Null || p.Events.Null || p.Active.Null || p.ProjectIDs.Null {
 		return Webhook{}, invalid("body", "fields cannot be null")
 	}
 	var w Webhook
@@ -274,6 +282,11 @@ func (s *Store) UpdateWebhook(ctx context.Context, p UpdateWebhookParams) (Webho
 				return err
 			}
 		}
+		if p.ProjectIDs.Set {
+			if next.ProjectIDs, err = normalizeProjectFilter(ctx, tx, p.WorkspaceID, p.ProjectIDs.Value); err != nil {
+				return err
+			}
+		}
 		if p.Active.Set {
 			next.Active = p.Active.Value
 		}
@@ -281,15 +294,15 @@ func (s *Store) UpdateWebhook(ctx context.Context, p UpdateWebhookParams) (Webho
 		w, err = scanWebhook(tx.QueryRow(ctx, `UPDATE webhooks SET url = $1, events = $2, is_active = $3,
 				failure_count = CASE WHEN $4 THEN 0 ELSE failure_count END,
 				disabled_reason = CASE WHEN $4 THEN NULL ELSE disabled_reason END,
-				url_encrypted = COALESCE($6, url_encrypted)
+				url_encrypted = COALESCE($6, url_encrypted), project_ids = $7
 			WHERE id = $5
 			RETURNING `+webhookColumns,
-			next.URL, next.Events, next.Active, reactivate, cur.ID, sealedURL))
+			next.URL, next.Events, next.Active, reactivate, cur.ID, sealedURL, next.ProjectIDs))
 		if err != nil {
 			return err
 		}
 		return appendEvent(ctx, tx, p.WorkspaceID, p.ActorID, "webhook", cur.ID, "webhook.updated",
-			map[string]any{"url": w.URL, "events": w.Events, "active": w.Active})
+			map[string]any{"url": w.URL, "events": w.Events, "active": w.Active, "project_ids": w.ProjectIDs})
 	})
 	return w, err
 }
@@ -356,14 +369,15 @@ type DeliveryTarget struct {
 	Secret      string
 	Active      bool
 	Events      []string
+	ProjectIDs  []uuid.UUID
 }
 
 // WebhookTarget loads and decrypts a webhook for delivery.
 func (s *Store) WebhookTarget(ctx context.Context, id uuid.UUID) (DeliveryTarget, error) {
 	var t DeliveryTarget
 	var sealed, sealedURL []byte
-	err := s.pool.QueryRow(ctx, `SELECT id, workspace_id, url, url_encrypted, format, secret_encrypted, is_active, events FROM webhooks WHERE id = $1`, id).
-		Scan(&t.ID, &t.WorkspaceID, &t.URL, &sealedURL, &t.Format, &sealed, &t.Active, &t.Events)
+	err := s.pool.QueryRow(ctx, `SELECT id, workspace_id, url, url_encrypted, format, secret_encrypted, is_active, events, project_ids FROM webhooks WHERE id = $1`, id).
+		Scan(&t.ID, &t.WorkspaceID, &t.URL, &sealedURL, &t.Format, &sealed, &t.Active, &t.Events, &t.ProjectIDs)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return t, ErrNotFound
 	}

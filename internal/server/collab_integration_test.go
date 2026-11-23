@@ -249,12 +249,12 @@ func TestEncryptionKeyRotation(t *testing.T) {
 	_ = pool.QueryRow(ctx, `INSERT INTO users (id, oidc_issuer, oidc_subject, email, display_name)
 		VALUES (gen_random_uuid(), 'i', 's', 'o@example.com', 'O') RETURNING id`).Scan(&owner)
 	_ = pool.QueryRow(ctx, `INSERT INTO workspaces (id, slug, name) VALUES (gen_random_uuid(), 'rot', 'Rot') RETURNING id`).Scan(&ws)
-	hook, secret, err := old.CreateWebhook(ctx, uuid.MustParse(ws), uuid.MustParse(owner), "https://hooks.example.com/x", store.WebhookFormatNebula, []string{"*"}, func(string) error { return nil })
+	hook, secret, err := old.CreateWebhook(ctx, uuid.MustParse(ws), uuid.MustParse(owner), "https://hooks.example.com/x", store.WebhookFormatNebula, []string{"*"}, nil, func(string) error { return nil })
 	if err != nil {
 		t.Fatal(err)
 	}
 	const slackURL = "https://chat.example.com/hooks/abcdefghijklmnopqrstuvwxyz"
-	slackHook, _, err := old.CreateWebhook(ctx, uuid.MustParse(ws), uuid.MustParse(owner), slackURL, store.WebhookFormatSlack, []string{"*"}, func(string) error { return nil })
+	slackHook, _, err := old.CreateWebhook(ctx, uuid.MustParse(ws), uuid.MustParse(owner), slackURL, store.WebhookFormatSlack, []string{"*"}, nil, func(string) error { return nil })
 	if err != nil {
 		t.Fatal(err)
 	}

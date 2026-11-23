@@ -12,7 +12,7 @@ export const tp = {
   noMembers: "Hələ heç kim əlavə edilməyib.",
   remove: "Çıxar",
   webhookWarning:
-    "Diqqət: webhook-lar workspace səviyyəsindədir. \"item.*\" abunəsi olan webhook (məs. ümumi Mattermost kanalı) gizli layihənin hadisələrini də alır. Gizli layihələr üçün ümumi kanal webhook-larını yoxlayın.",
+    "Gizli layihənin hadisələri yalnız bu layihəni açıq seçmiş webhook-lara göndərilir (Ayarlar → Webhook-lar → Layihələr). Şöbə kanalı üçün webhook-da bu layihəni seçin.",
   makePrivateConfirm: "Layihə gizli olsun? Layihə üzvü olmayan adi üzvlər onu artıq görməyəcək.",
   adminOnly: "Layihə ayarlarını yalnız adminlər dəyişə bilər.",
 } as const;

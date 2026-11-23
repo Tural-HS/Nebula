@@ -35,6 +35,8 @@ export interface Webhook {
   url: string;
   format: WebhookFormat;
   events: string[];
+  /** Projects delivered; empty = every workspace-visible project (private ones only when listed). */
+  project_ids: string[];
   active: boolean;
   failure_count: number;
   disabled_reason: string | null;
@@ -209,12 +211,13 @@ export function useAdminApi(ws: string) {
     ),
 
     createWebhook: useAdminMutation(
-      (b: { url: string; format: WebhookFormat; events: string[] }) =>
+      (b: { url: string; format: WebhookFormat; events: string[]; project_ids: string[] }) =>
         api<{ webhook: Webhook; secret: string | null }>("POST", base + "/webhooks", b),
       [hooks],
     ),
     updateWebhook: useAdminMutation(
-      (v: { id: string; body: { url?: string; events?: string[]; active?: boolean } }) => api<Webhook>("PATCH", base + path`/webhooks/${v.id}`, v.body),
+      (v: { id: string; body: { url?: string; events?: string[]; project_ids?: string[]; active?: boolean } }) =>
+        api<Webhook>("PATCH", base + path`/webhooks/${v.id}`, v.body),
       [hooks],
     ),
     deleteWebhook: useAdminMutation((id: string) => api<undefined>("DELETE", base + path`/webhooks/${id}`), [hooks]),

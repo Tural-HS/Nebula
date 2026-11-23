@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 
 	"github.com/Tural-HS/Nebula/internal/opt"
 	"github.com/Tural-HS/Nebula/internal/safehttp"
@@ -51,11 +52,13 @@ func (a *api) createWebhook(w http.ResponseWriter, r *http.Request) {
 		URL    string   `json:"url"`
 		Format string   `json:"format"` // nebula (default) | slack; fixed after creation
 		Events []string `json:"events"`
+		// Projects to deliver; empty = every workspace-visible project.
+		ProjectIDs []uuid.UUID `json:"project_ids"`
 	}
 	if !a.decode(w, r, &body) {
 		return
 	}
-	hook, secret, err := a.store.CreateWebhook(r.Context(), workspaceFrom(r).ID, principal(r).UserID, body.URL, body.Format, body.Events, a.checkWebhookURL)
+	hook, secret, err := a.store.CreateWebhook(r.Context(), workspaceFrom(r).ID, principal(r).UserID, body.URL, body.Format, body.Events, body.ProjectIDs, a.checkWebhookURL)
 	if err != nil {
 		a.fail(w, r, err)
 		return
@@ -88,16 +91,17 @@ func (a *api) updateWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		URL    opt.Field[string]   `json:"url"`
-		Events opt.Field[[]string] `json:"events"`
-		Active opt.Field[bool]     `json:"active"`
+		URL        opt.Field[string]      `json:"url"`
+		Events     opt.Field[[]string]    `json:"events"`
+		ProjectIDs opt.Field[[]uuid.UUID] `json:"project_ids"`
+		Active     opt.Field[bool]        `json:"active"`
 	}
 	if !a.decode(w, r, &body) {
 		return
 	}
 	hook, err := a.store.UpdateWebhook(r.Context(), store.UpdateWebhookParams{
 		WorkspaceID: workspaceFrom(r).ID, ActorID: principal(r).UserID, ID: id,
-		URL: body.URL, Events: body.Events, Active: body.Active, Check: a.checkWebhookURL,
+		URL: body.URL, Events: body.Events, ProjectIDs: body.ProjectIDs, Active: body.Active, Check: a.checkWebhookURL,
 	})
 	if err != nil {
 		a.fail(w, r, err)

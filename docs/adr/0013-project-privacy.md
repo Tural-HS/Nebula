@@ -24,13 +24,17 @@ gizli lövhəsi var idi.
 | Üzvlük və görünürlük dəyişiklikləri audit olunur (`project.updated`, `project.member_added`, `project.member_removed`) | Kimin nə vaxt giriş aldığı izlənir |
 | İdarəetmə: admin+ (`PATCH /projects/{p}`, `PUT/DELETE /projects/{p}/members/{userID}`) | Şöbə rəhbərinə layihə səviyyəli admin rolu sonrakı mərhələdə |
 
-## Məlum məhdudiyyət (növbəti iş)
+## Webhook-lar və gizli layihələr (həll edildi, migrasiya 00012)
 
-Webhook-lar workspace səviyyəsindədir: `item.*` abunəsi olan webhook **gizli layihələrin** hadisələrini də alır,
-gündəlik gecikmə xülasəsi (`workspace.overdue_digest`) isə bütün layihələri bir mesajda toplayır. Webhook-u ümumi
-Mattermost kanalına bağlamaq gizli layihənin başlıqlarını həmin kanala göndərə bilər. Həll: webhook-a layihə filtri
-(boş = hamısı) və xülasənin çatdırılma zamanı həmin filtrə görə süzülməsi. O vaxta qədər admin gizli layihələr olan
-workspace-də ümumi kanal webhook-larını diqqətlə seçməlidir; UI bunu xəbərdarlıqla göstərir.
+| Qərar | Səbəb |
+|---|---|
+| Webhook-un `project_ids` siyahısı var; **boş = bütün açıq (workspace) layihələr** | Mövcud webhook-lar gizli layihə hadisələrini avtomatik almamağa başlayır: təhlükəsiz default |
+| Gizli layihə yalnız onu **açıq seçmiş** webhook-a çatır | Şöbənin kanalı = öz layihəsini seçmiş webhook (FinTez modeli) |
+| Hadisənin layihəsi bir yerdə təyin olunur (`EventScopeOf`): tapşırıq və şərh (tapşırıq üzərindən), təkrarlanma, layihə, görünüş. Silmə hadisələri `project_id`-ni payload-da daşıyır | Sətri silinmiş obyektin hadisəsi də düzgün süzülür |
+| Layihəsi müəyyən edilə bilməyən layihə hadisəsi **heç bir** webhook-a getmir | Fail closed: şübhədə sızma yoxdur |
+| Filtr həm FanOut-da, həm də çatdırılma anında yoxlanır | Hadisədən sonra layihə gizli edilibsə, artıq növbədə olan çatdırılma da dayanır |
+| Gündəlik xülasə hər layihədən ən köhnə 50 gecikməni (cəmi ≤1000) və `by_project` saylarını daşıyır; çatdırılmada webhook-un layihələrinə görə süzülür, cəm yenidən hesablanır, boş qalırsa göndərilmir | Hər şöbə kanalı yalnız öz gecikmələrini, düzgün sayla alır |
+| Workspace səviyyəli hadisələr (sahələr, workflow-lar, üzvlər…) bütün abunə olan webhook-lara gedir | Onlar layihəyə aid deyil |
 
 Adminin yazdığı avtomatlaşdırma qaydasında `send_email` alıcısı kimi konkret email göstərilibsə, o şəxs layihəni
 görə bilməsə də email alır: bu, adminin öz qərarıdır və audit olunur.
