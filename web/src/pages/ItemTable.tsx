@@ -2,12 +2,15 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { useEffect, useMemo, useRef, type CSSProperties, type ReactNode } from "react";
 
 import type { FieldDefinition, FieldSums, Item, Member } from "../api/types";
+import { tc } from "../i18n-calendar";
+import { inlineKind, type InlineEdit } from "../lib/inline";
+import { InlineCell } from "./InlineCell";
 import { Avatar, DueChip, StatusBadge } from "../components/ui";
 import { t } from "../i18n";
 import { tv } from "../i18n-views";
 import { cn } from "../lib/cn";
 import { formatDateTime, formatRelative } from "../lib/format";
-import { displayColumns, useCompact } from "../lib/responsive";
+import { displayColumns, FINE_POINTER, useCompact, useMediaQuery } from "../lib/responsive";
 import { columnHeader, fieldKey, formatDecimal, formatFieldValue, isFieldColumn } from "../lib/views";
 
 // ---------------------------------------------------------------------------
@@ -58,7 +61,16 @@ function track(col: string, def: FieldDefinition | undefined, compact: boolean):
   }
 }
 
-export function ItemTable({ items, columns: chosen, fields, members, sums, hasMore, loadingMore, loadMore, onOpen }: {
+/** Row selection for bulk edits (ADR-0023); absent on phones. */
+export interface TableSelection {
+  selected: ReadonlySet<number>;
+  toggle: (n: number) => void;
+  /** "all" when every loaded row is selected, "some", or "none". */
+  state: "all" | "some" | "none";
+  toggleAll: () => void;
+}
+
+export function ItemTable({ items, columns: chosen, fields, members, sums, hasMore, loadingMore, loadMore, onOpen, selection, inline }: {
   items: Item[];
   columns: string[];
   fields: ReadonlyMap<string, FieldDefinition>;
@@ -69,8 +81,18 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
   loadingMore: boolean;
   loadMore: () => void;
   onOpen: (n: number) => void;
+  selection?: TableSelection | undefined;
+  /** Inline cell editing; absent for read-only users. */
+  inline?: InlineEdit | undefined;
 }) {
   const compact = useCompact();
+  // Touch screens keep one tap target per row (ADR-0019): no checkboxes,
+  // no inline editors; the item panel edits there. A mouse or trackpad
+  // (also on a touch laptop) gets both.
+  const fine = useMediaQuery(FINE_POINTER);
+  const plainRows = compact || !fine;
+  const select = plainRows ? undefined : selection;
+  const edit = plainRows ? undefined : inline;
   const { columns, keyInTitle } = useMemo(() => displayColumns(chosen, compact), [chosen, compact]);
   const scrollRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Virtual is designed for this usage
@@ -89,9 +111,15 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
 
   const grid = useMemo<CSSProperties>(() => {
     const tracks = columns.map((c) => track(c, isFieldColumn(c) ? fields.get(fieldKey(c)) : undefined, compact));
+    // The first column also holds the row checkbox: 2 rem wider.
+    const first = tracks[0];
+    if (select && first) {
+      const [g, w] = first;
+      tracks[0] = [g.startsWith("minmax(") ? g.replace(/^minmax\(([\d.]+)rem/, (_m, n: string) => `minmax(${String(Number(n) + 2)}rem`) : `${String(w + 2)}rem`, w + 2];
+    }
     const rem = tracks.reduce((n, [, w]) => n + w, 0) + 0.75 * (tracks.length - 1) + 2; // gaps and padding
     return { gridTemplateColumns: tracks.map(([g]) => g).join(" "), minWidth: `${String(rem)}rem` };
-  }, [columns, fields, compact]);
+  }, [columns, fields, compact, select]);
   const numeric = (c: string) => isFieldColumn(c) && fields.get(fieldKey(c))?.type === "number";
   const showDueInTitle = !columns.includes("due_date");
   const hasSums = columns.some(numeric);
@@ -142,7 +170,17 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
     <div ref={scrollRef} className="h-full overflow-auto" role="table" aria-rowcount={items.length}>
       <div role="row" style={grid} className={cn(ROW, "sticky top-0 z-[2] h-9 border-b border-zinc-200 bg-zinc-50 text-xs font-medium tracking-wide text-zinc-500 uppercase dark:border-zinc-800 dark:bg-zinc-950")}>
         {columns.map((c, i) => (
-          <span key={c} role="columnheader" className={cn("truncate", numeric(c) && "text-right", i === 0 && STICKY_LEFT, i === 0 && STICKY_EDGE)}>
+          <span key={c} role="columnheader" className={cn("truncate", numeric(c) && "text-right", i === 0 && STICKY_LEFT, i === 0 && STICKY_EDGE, i === 0 && select && "flex items-center gap-3")}>
+            {i === 0 && select && (
+              <input
+                type="checkbox"
+                aria-label={tc.selectAll}
+                className="size-4 accent-brand-600"
+                checked={select.state === "all"}
+                ref={(el) => { if (el) el.indeterminate = select.state === "some"; }}
+                onChange={select.toggleAll}
+              />
+            )}
             {c === "title" && keyInTitle ? `${columnHeader("key", fields)} · ${columnHeader(c, fields)}` : columnHeader(c, fields)}
           </span>
         ))}
@@ -156,7 +194,7 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
               role="row"
               style={{ position: "absolute", top: 0, left: 0, right: 0, height: row.size, transform: `translateY(${String(row.start)}px)` }}
             >
-              {it ? (
+              {it && plainRows ? (
                 <button
                   type="button"
                   onClick={() => { onOpen(it.number); }}
@@ -169,6 +207,50 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
                     </span>
                   ))}
                 </button>
+              ) : it ? (
+                // Desktop: the title opens the item (a button, so the
+                // keyboard reaches it), editable cells edit in place, and a
+                // click anywhere else on the row opens the item as well.
+                <div
+                  style={grid}
+                  onClick={(e) => {
+                    if (!(e.target as HTMLElement).closest("button, input, select, textarea, a, label")) onOpen(it.number);
+                  }}
+                  data-selected={select?.selected.has(it.number) || undefined}
+                  className={cn(
+                    ROW,
+                    "h-full w-full cursor-pointer border-b border-zinc-100 text-left text-sm hover:bg-zinc-100/70 dark:border-zinc-800/60 dark:hover:bg-zinc-800/60",
+                    select?.selected.has(it.number) && "bg-brand-50/70 dark:bg-brand-950/30",
+                  )}
+                >
+                  {columns.map((c, i) => {
+                    const kind = edit ? inlineKind(c, fields) : null;
+                    return (
+                      <span key={c} role="cell" className={cn("min-w-0", i === 0 && STICKY_LEFT, i === 0 && STICKY_EDGE, i === 0 && select && "flex items-center gap-3")}>
+                        {i === 0 && select && (
+                          <input
+                            type="checkbox"
+                            aria-label={tc.select(it.key)}
+                            className="size-4 shrink-0 accent-brand-600"
+                            checked={select.selected.has(it.number)}
+                            onChange={() => { select.toggle(it.number); }}
+                          />
+                        )}
+                        {c === "title" ? (
+                          <button type="button" className="flex min-w-0 flex-1 text-left hover:underline" onClick={() => { onOpen(it.number); }}>
+                            {cell(it, c)}
+                          </button>
+                        ) : kind && edit ? (
+                          <InlineCell item={it} col={c} kind={kind} label={columnHeader(c, fields)} edit={edit} fields={fields}>
+                            {cell(it, c)}
+                          </InlineCell>
+                        ) : (
+                          cell(it, c)
+                        )}
+                      </span>
+                    );
+                  })}
+                </div>
               ) : (
                 <div className="px-4 py-3 text-sm text-zinc-500">{t.loadingMore}</div>
               )}

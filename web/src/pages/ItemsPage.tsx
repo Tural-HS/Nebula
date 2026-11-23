@@ -1,8 +1,10 @@
 import { lazy, Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 
-import { useFields, useItems, useItemSums, useItemTypes, useMembers, useProjects, useWorkspace, type DueFilter } from "../api/hooks";
-import { roleAtLeast, type SavedView, type Status } from "../api/types";
+import { MAX_BULK, useOptimisticUpdate } from "../api/bulk";
+import { ApiError } from "../api/client";
+import { useAssignable, useFields, useItems, useItemSums, useItemTypes, useMembers, useProjects, useWorkspace, type DueFilter } from "../api/hooks";
+import { roleAtLeast, type Item, type SavedView, type Status } from "../api/types";
 import { useViews } from "../api/views";
 import { Layout } from "../components/Layout";
 import { useToast } from "../components/toast-context";
@@ -14,17 +16,22 @@ import { tp } from "../i18n-project";
 import { tr } from "../i18n-recur";
 import { ti } from "../i18n-import";
 import { tm } from "../i18n-mobile";
+import { tc } from "../i18n-calendar";
+import { monthOf, parseMonth, todayIn } from "../lib/calendar";
 import { activeFilterCount, useCompact } from "../lib/responsive";
 import { flattenPages } from "../lib/board";
 import { emptyState, filtersOf, hasState, readState, sameState, stateFromView, sumFields, visibleColumns, writeState, type PageState } from "../lib/views";
 import { CreateItemDialog } from "./CreateItemDialog";
-import { ItemTable } from "./ItemTable";
+import { BulkBar } from "./BulkBar";
+import { ItemTable, type TableSelection } from "./ItemTable";
+import type { InlineEdit } from "../lib/inline";
 import { ColumnPicker, FilterPicker, Popover, ViewSwitcher } from "./ViewTools";
 
 // The board (drag and drop) and the item panel (comments, activity) load on
 // demand: the table needs neither for its first paint.
 const Board = lazy(async () => ({ default: (await import("./BoardView")).Board }));
 const ItemDrawer = lazy(async () => ({ default: (await import("./ItemDrawer")).ItemDrawer }));
+const CalendarView = lazy(async () => ({ default: (await import("./CalendarView")).CalendarView }));
 
 function useDebounced<T>(value: T, ms: number): T {
   const [v, setV] = useState(value);
@@ -135,6 +142,69 @@ export function ItemsPage() {
 
   const memberById = useMemo(() => new Map((members.data ?? []).map((m) => [m.user_id, m])), [members.data]);
   const all = useMemo(() => flattenPages(items.data?.pages ?? []), [items.data]);
+  const assignable = useAssignable(ws, project);
+  const today = todayIn(workspace.data?.timezone);
+  const month = parseMonth(params.get("cal")) ?? monthOf(today);
+
+  // Bulk selection (ADR-0023): item numbers of the current filtered list. A
+  // different filter or view is a different list, so the selection resets.
+  const listKey = JSON.stringify([filters, view]);
+  const [selection, setSelection] = useState<{ key: string; numbers: Set<number> }>({ key: listKey, numbers: new Set() });
+  const selectedNumbers = selection.key === listKey ? selection.numbers : EMPTY;
+  const selectedItems = useMemo(() => all.filter((it) => selectedNumbers.has(it.number)), [all, selectedNumbers]);
+  const setSelected = (numbers: Set<number>) => { setSelection({ key: listKey, numbers }); };
+  const [selectingAll, setSelectingAll] = useState(false);
+  const selectAll = async () => {
+    // Every row of the filtered result, loading further pages up to the cap.
+    setSelectingAll(true);
+    try {
+      let list: Item[] = all;
+      let more = items.hasNextPage;
+      while (more && list.length < MAX_BULK) {
+        const r = await items.fetchNextPage();
+        list = flattenPages(r.data?.pages ?? []);
+        more = r.hasNextPage;
+      }
+      setSelected(new Set(list.slice(0, MAX_BULK).map((it) => it.number)));
+      if (list.length > MAX_BULK || more) toast("success", tc.bulkCap(MAX_BULK));
+    } finally {
+      setSelectingAll(false);
+    }
+  };
+  const tableSelection: TableSelection | undefined = canEdit
+    ? {
+        selected: selectedNumbers,
+        state: selectedNumbers.size === 0 ? "none" : selectedNumbers.size >= Math.min(all.length, MAX_BULK) && !items.hasNextPage ? "all" : "some",
+        toggle: (n) => {
+          const next = new Set(selectedNumbers);
+          if (next.has(n)) next.delete(n);
+          else if (next.size < MAX_BULK) next.add(n);
+          else toast("error", tc.bulkCap(MAX_BULK));
+          setSelected(next);
+        },
+        toggleAll: () => {
+          if (selectingAll) return;
+          if (selectedNumbers.size > 0) setSelected(new Set());
+          else void selectAll();
+        },
+      }
+    : undefined;
+
+  const optimistic = useOptimisticUpdate(ws, project);
+  const inline: InlineEdit | undefined = canEdit
+    ? {
+        ws,
+        project,
+        today,
+        assignable,
+        commit: (item, patch, next) => {
+          optimistic.mutate(
+            { item, patch, optimistic: next },
+            { onError: (err) => { toast("error", err instanceof ApiError && err.isConflict ? t.conflict : err instanceof ApiError ? `${tc.saveFailed}: ${err.message}` : tc.saveFailed); } },
+          );
+        },
+      }
+    : undefined;
 
   // Toolbar controls, laid out in one row from md up and in a bottom sheet
   // on phones (only one layout is rendered at a time, ADR-0019).
@@ -208,7 +278,7 @@ export function ItemsPage() {
   );
   const viewTabs = (
     <div role="tablist" aria-label="view" className="inline-flex shrink-0 rounded-md ring-1 ring-zinc-300 dark:ring-zinc-700">
-      {(["table", "board"] as const).map((v) => (
+      {(["table", "board", "calendar"] as const).map((v) => (
         <button
           key={v}
           role="tab"
@@ -220,7 +290,7 @@ export function ItemsPage() {
             view === v ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900" : "text-zinc-600 dark:text-zinc-300",
           )}
         >
-          {v === "table" ? t.viewTable : t.viewBoard}
+          {v === "table" ? t.viewTable : v === "board" ? t.viewBoard : tc.viewCalendar}
         </button>
       ))}
     </div>
@@ -284,7 +354,7 @@ export function ItemsPage() {
             {assigneeSelect("max-w-56")}
             {dueSelect("max-w-48")}
             {filterPicker(false)}
-            {sortSelect("max-w-48")}
+            {view !== "calendar" && sortSelect("max-w-48")}
             {view === "table" && columnPicker(false)}
             {view === "board" && groupSelect("max-w-48")}
             <div className="ml-auto">{viewTabs}</div>
@@ -298,7 +368,7 @@ export function ItemsPage() {
               <SheetGroup label={t.assignee}>{assigneeSelect("")}</SheetGroup>
               <SheetGroup label={t.dueFilter}>{dueSelect("")}</SheetGroup>
               {filterPicker(true)}
-              <SheetGroup label={tv.sort}>{sortSelect("")}</SheetGroup>
+              {view !== "calendar" && <SheetGroup label={tv.sort}>{sortSelect("")}</SheetGroup>}
               {view === "board" && <SheetGroup label={t.groupBy}>{groupSelect("")}</SheetGroup>}
               {view === "table" && columnPicker(true)}
               {readOnly}
@@ -306,8 +376,36 @@ export function ItemsPage() {
           </Dialog>
         )}
 
+        {view === "table" && !compact && selectedItems.length > 0 && (
+          <BulkBar
+            ws={ws}
+            project={project}
+            projectKey={project}
+            selected={selectedItems}
+            statuses={statuses}
+            assignable={assignable}
+            fields={fields}
+            isAdmin={isAdmin}
+            onClear={() => { setSelected(new Set()); }}
+          />
+        )}
         <div className="min-h-0 flex-1">
-          {view === "board" ? (
+          {view === "calendar" ? (
+            <Suspense fallback={<Spinner />}>
+              <CalendarView
+                ws={ws}
+                project={project}
+                filters={filters}
+                month={month}
+                today={today}
+                onMonth={(m) => { setParam("cal", m === monthOf(today) ? null : m); }}
+                members={memberById}
+                canEdit={canEdit}
+                compact={compact}
+                onOpen={(n) => { setParam("item", String(n)); }}
+              />
+            </Suspense>
+          ) : view === "board" ? (
             <Suspense fallback={<Spinner />}>
             <Board
               ws={ws}
@@ -336,6 +434,8 @@ export function ItemsPage() {
               loadingMore={items.isFetchingNextPage}
               loadMore={() => void items.fetchNextPage()}
               onOpen={(n) => { setParam("item", String(n)); }}
+              selection={tableSelection}
+              inline={inline}
             />
           )}
         </div>
@@ -358,6 +458,7 @@ export function ItemsPage() {
 }
 
 const DUE_FILTERS: readonly DueFilter[] = ["overdue", "today", "week", "none"];
+const EMPTY: ReadonlySet<number> = new Set();
 
 const HEADER_LINK = "rounded-md px-3 py-1.5 text-sm whitespace-nowrap text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800";
 

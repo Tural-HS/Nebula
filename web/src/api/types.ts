@@ -131,7 +131,7 @@ export interface SavedView {
   project_id: string;
   owner_id: string;
   name: string;
-  kind: "table" | "board";
+  kind: "table" | "board" | "calendar";
   shared: boolean;
   config: ViewConfig;
   /** The caller may rename, change or delete it. */

@@ -20,8 +20,9 @@ import (
 
 // View kinds: how the project page shows the view's items.
 const (
-	ViewTable = "table"
-	ViewBoard = "board"
+	ViewTable    = "table"
+	ViewBoard    = "board"
+	ViewCalendar = "calendar" // month grid by due date (ADR-0023)
 )
 
 const (
@@ -308,8 +309,8 @@ func validateView(ctx context.Context, q querier, v ViewCaller, view *View) erro
 		return err
 	}
 	view.Name = name
-	if view.Kind != ViewTable && view.Kind != ViewBoard {
-		return invalid("kind", "must be table or board")
+	if view.Kind != ViewTable && view.Kind != ViewBoard && view.Kind != ViewCalendar {
+		return invalid("kind", "must be table, board or calendar")
 	}
 
 	c := &view.Config

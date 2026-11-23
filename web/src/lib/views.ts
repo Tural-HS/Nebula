@@ -8,7 +8,8 @@ import { tv } from "../i18n-views";
 import { formatDate, formatDateTime } from "./format";
 import type { GroupBy } from "./board";
 
-export type Mode = "table" | "board";
+export type Mode = "table" | "board" | "calendar";
+export const MODES: readonly Mode[] = ["table", "board", "calendar"];
 
 export interface PageState {
   mode: Mode;
@@ -52,7 +53,7 @@ export function emptyState(): PageState {
 /** Reads the page state from the URL, ignoring anything malformed. */
 export function readState(p: URLSearchParams): PageState {
   const s = emptyState();
-  if (p.get("view") === "board") s.mode = "board";
+  s.mode = MODES.find((m) => m !== "table" && m === p.get("view")) ?? "table";
   s.q = p.get("q") ?? "";
   const a = p.get("assignee") ?? "";
   if (a === "me" || a === "none" || UUID.test(a)) s.assignee = a;
@@ -73,7 +74,7 @@ export function writeState(s: PageState, base: URLSearchParams = new URLSearchPa
   const p = new URLSearchParams(base);
   for (const k of STATE_PARAMS) p.delete(k);
   for (const k of [...p.keys()]) if (k.startsWith("field.")) p.delete(k);
-  if (s.mode === "board") p.set("view", "board");
+  if (s.mode !== "table") p.set("view", s.mode);
   if (s.q.trim()) p.set("q", s.q.trim());
   if (s.assignee) p.set("assignee", s.assignee);
   if (s.due) p.set("due", s.due);

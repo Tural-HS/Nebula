@@ -88,6 +88,9 @@ export interface ItemFilters {
   status?: readonly string[];
   fields?: Readonly<Record<string, string>>;
   sort?: ItemSort;
+  /** Inclusive due-date window (calendar view), YYYY-MM-DD. */
+  dueFrom?: string;
+  dueTo?: string;
 }
 
 const PAGE_SIZE = 100;
@@ -100,6 +103,8 @@ export function itemsQueryString(f: ItemFilters, cursor: string | null): string 
   if (f.status && f.status.length > 0) p.set("status", f.status.join(","));
   for (const [k, v] of Object.entries(f.fields ?? {}).sort(([a], [b]) => a.localeCompare(b))) p.set("field." + k, v);
   if (f.sort && f.sort !== "number") p.set("sort", f.sort);
+  if (f.dueFrom) p.set("due_from", f.dueFrom);
+  if (f.dueTo) p.set("due_to", f.dueTo);
   if (cursor) p.set("cursor", cursor);
   return p.toString();
 }

@@ -78,6 +78,7 @@ func (a *api) routes(r chi.Router) {
 			a.recurrenceRoutes(r)
 			a.projectSettingsRoutes(r)
 			a.viewRoutes(r)
+			a.bulkRoutes(r)
 		})
 	})
 }
@@ -438,6 +439,19 @@ func parseItemFilters(w http.ResponseWriter, r *http.Request) (store.ListItemsPa
 		p.FieldFilters[name] = vals[0]
 	}
 	p.Due = q.Get("due") // validated by the store
+	for _, k := range []string{"due_from", "due_to"} {
+		if len(q[k]) > 1 {
+			writeError(w, http.StatusBadRequest, "bad_request", k+" may be given only once")
+			return store.ListItemsParams{}, false
+		}
+	}
+	if v := q.Get("due_from"); v != "" {
+		p.DueFrom = &v
+	}
+	if v := q.Get("due_to"); v != "" {
+		p.DueTo = &v
+	}
+	// Range rules (dates, order, at most store.MaxDueRangeDays) are the store's.
 	switch v := q.Get("assignee"); v {
 	case "":
 	case "me":
