@@ -1,7 +1,7 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api, path } from "./client";
-import type { ActivityPage, Comment, CommentPage, FieldDefinition, FieldValue, Item, ItemPage, ItemType, Me, Member, Project, ProjectMember, Status, Workspace } from "./types";
+import type { ActivityPage, Comment, CommentPage, FieldDefinition, FieldSums, FieldValue, Item, ItemPage, ItemType, Me, Member, Project, ProjectMember, Status, Workspace } from "./types";
 
 export const keys = {
   me: ["me"] as const,
@@ -78,11 +78,16 @@ export const useFields = (ws: string) =>
   });
 
 export type DueFilter = "" | "overdue" | "today" | "week" | "none";
+export type ItemSort = "number" | "due";
 
 export interface ItemFilters {
   q: string;
-  assignee: "" | "me" | "none";
+  /** "", "me", "none" or a user id. */
+  assignee: string;
   due?: DueFilter;
+  status?: readonly string[];
+  fields?: Readonly<Record<string, string>>;
+  sort?: ItemSort;
 }
 
 const PAGE_SIZE = 100;
@@ -92,6 +97,9 @@ export function itemsQueryString(f: ItemFilters, cursor: string | null): string 
   if (f.q.trim()) p.set("q", f.q.trim());
   if (f.assignee) p.set("assignee", f.assignee);
   if (f.due) p.set("due", f.due);
+  if (f.status && f.status.length > 0) p.set("status", f.status.join(","));
+  for (const [k, v] of Object.entries(f.fields ?? {}).sort(([a], [b]) => a.localeCompare(b))) p.set("field." + k, v);
+  if (f.sort && f.sort !== "number") p.set("sort", f.sort);
   if (cursor) p.set("cursor", cursor);
   return p.toString();
 }
@@ -118,7 +126,7 @@ export const useColumnItems = (ws: string, project: string, filters: ItemFilters
     queryFn: ({ pageParam }) => {
       const p = new URLSearchParams(itemsQueryString(filters, pageParam));
       p.set("limit", String(COLUMN_PAGE));
-      p.set("status", statusIds.join(","));
+      p.set("status", statusIds.join(",")); // the column's statuses, already narrowed to the filter
       return api<ItemPage>("GET", path`/workspaces/${ws}/projects/${project}/items` + "?" + p.toString());
     },
     getNextPageParam: (last) => last.next_cursor,
@@ -134,6 +142,20 @@ export const useItemCounts = (ws: string, project: string, filters: ItemFilters,
         "GET",
         path`/workspaces/${ws}/projects/${project}/items/counts` + "?" + itemsQueryString(filters, null),
       ),
+  });
+
+/** Totals of number fields over every item matching the filters (the table's sum row). */
+export const useItemSums = (ws: string, project: string, filters: ItemFilters, fields: readonly string[]) =>
+  useQuery({
+    enabled: fields.length > 0,
+    queryKey: [...keys.items(ws, project), "sums", filters, fields],
+    queryFn: async () => {
+      const p = new URLSearchParams(itemsQueryString(filters, null));
+      p.delete("limit");
+      p.delete("sort");
+      p.set("fields", fields.join(","));
+      return (await api<{ sums: FieldSums }>("GET", path`/workspaces/${ws}/projects/${project}/items/sums` + "?" + p.toString())).sums;
+    },
   });
 
 export const useItem = (ws: string, project: string, n: number | null) =>

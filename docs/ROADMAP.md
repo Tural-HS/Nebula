@@ -52,9 +52,9 @@ Hər mərhələ yalnız testlər, miqrasiyalar (up və down) və CI yaşıl oldu
 - [x] Etibarlı proxy-lər üçün rate limit: `NEBULA_TRUSTED_PROXIES`, `X-Forwarded-For` yalnız etibarlı CIDR-lərdən, sağdan sola (ADR-0010)
 - [x] Təkrarlanan tapşırıqlar: gündəlik/həftəlik/aylıq (ayın son günü daxil)/illik, yalnız növbəti tapşırıq `lead_days` əvvəl, buraxılmış tarixlərin bərpası, xətalı qaydanın söndürülməsi (ADR-0012)
 - [x] Layihə səviyyəsində məxfilik: gizli layihələr (yalnız üzvlər + workspace adminləri), layihə üzvləri, icraçı və @mention yalnız layihəni görə bilənlərə (ADR-0013)
+- [x] Saxlanılan görünüşlər (şəxsi/ümumi, filtrlər, sütunlar, sıralama, qruplaşdırma), fərdi sahə sütunları, bütün filtrlənmiş nəticə üzrə cəm sətri, son tarixə görə sıralama, kod bölünməsi (ADR-0014)
 - [x] Production: tək VPS-də Docker Compose (Caddy + TLS/CSP, Keycloak production rejimi, PG 19 + pgBackRest → S3, PITR və aylıq avtomatik restore testi, Alloy + alertlər → Mattermost, digest ilə deploy/rollback skriptləri) (ADR-0015, `deploy/production/README.md`)
 - Webhook-lara layihə filtri (gizli layihə hadisələri ümumi kanala getməsin; gündəlik xülasə filtrə görə)
-- FinTez köçürülməsi üçün: saxlanılan görünüşlər + cəm sətri
 
 ## Phase 2: Şablonlar və görünüşlər
 - Proqram təminatı / HR / Satış / Marketinq şablonları; cədvəl, kanban, təqvim, forma görünüşləri

@@ -13,6 +13,7 @@ böyük həcmli məlumatlarda sürətli, tam fərdiləşdirilə bilən, öz serv
 - Veb interfeys: [ADR-0006](docs/adr/0006-web-ui.md)
 - Əməkdaşlıq (şərhlər, @mention, aktivlik, audit, açar rotasiyası): [ADR-0007](docs/adr/0007-collaboration.md)
 - Mattermost/Slack bildirişləri və etibarlı proxy-lər: [ADR-0010](docs/adr/0010-chat-notifications-and-trusted-proxies.md)
+- Saxlanılan görünüşlər, cədvəl sütunları və cəm sətri: [ADR-0014](docs/adr/0014-saved-views-and-table-totals.md)
 - Production (tək VPS, Docker Compose): [ADR-0015](docs/adr/0015-production-compose-on-vps.md), runbook [deploy/production/README.md](deploy/production/README.md)
 - Yol xəritəsi: [docs/ROADMAP.md](docs/ROADMAP.md)
 
@@ -140,7 +141,10 @@ Bütün `/api/v1` endpoint-ləri (`/version` istisna olmaqla) `Authorization: Be
 | `POST, DELETE .../{ws}/workflows/{id}/transitions[/{tid}]` | Status keçidi əlavə etmək / silmək | admin+ |
 | `POST .../{ws}/workflows/{id}/statuses` | Status əlavə etmək | admin+ |
 | `PATCH, DELETE .../{ws}/workflows/{id}/statuses/{statusID}` | Status dəyişmək / silmək | admin+ |
-| `GET .../projects/{KEY}/items` | Siyahı: `limit`, `cursor`, `q`, `status`, `assignee=me\|none\|{id}`, `field.<açar>=<dəyər>` | guest+ |
+| `GET .../projects/{KEY}/items` | Siyahı: `limit`, `cursor`, `q`, `status`, `assignee=me\|none\|{id}`, `field.<açar>=<dəyər>`, `due`, `sort=number\|due` (kursor sıralamaya bağlıdır) | guest+ |
+| `GET .../projects/{KEY}/items/sums?fields=a,b` | Rəqəm sahələrinin bütün filtrlənmiş nəticə üzrə cəmi və sayı (siyahının eyni filtrləri, ən çox 10 sahə) | guest+ |
+| `GET, POST .../projects/{KEY}/views` | Saxlanılan görünüşlər (öz şəxsiləri + ümumilər) / yaratmaq (`shared: true` admin+) | guest+ |
+| `GET, PATCH, DELETE .../projects/{KEY}/views/{id}` | Oxumaq / dəyişmək / silmək (şəxsi: sahibi; ümumi: sahibi və ya admin+) | guest+ |
 | `POST .../projects/{KEY}/items` | Yaratmaq | member+ |
 | `POST .../projects/{KEY}/imports/preview` | CSV/xlsx önbaxışı (multipart `file`, `sheet`): vərəqlər, başlıqlar, ilk 20 sətir, təklif olunan uyğunlaşdırma | admin+ |
 | `POST .../projects/{KEY}/imports[?dry_run=true]` | İdxal (multipart `file`, `sheet`, `mapping`): hamısı və ya heç nə; `dry_run` yalnız yoxlayır | admin+ |

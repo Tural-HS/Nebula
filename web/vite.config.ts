@@ -26,6 +26,16 @@ export default defineConfig({
   build: {
     sourcemap: "hidden",
     target: "es2023",
+    rolldownOptions: {
+      output: {
+        // Libraries every page needs go into one long-cached vendor chunk, so
+        // a release that only changes app code does not re-download them.
+        // Libraries of lazy pages (dnd-kit for the board) stay with those pages.
+        codeSplitting: {
+          groups: [{ name: "vendor", test: /[\\/]node_modules[\\/](react|react-dom|scheduler|react-router|@tanstack|oidc-client-ts|jwt-decode)[\\/]/ }],
+        },
+      },
+    },
   },
   test: {
     environment: "node",

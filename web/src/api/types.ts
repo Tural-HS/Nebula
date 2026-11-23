@@ -112,6 +112,37 @@ export interface Item {
   updated_at: string;
 }
 
+export interface ViewConfig {
+  filters: {
+    q?: string;
+    assignee?: string;
+    due?: "" | "overdue" | "today" | "week" | "none";
+    status?: string[];
+    fields?: Record<string, string>;
+  };
+  columns: string[];
+  sort: "number" | "due";
+  group_by: "status" | "category";
+}
+
+/** A saved view (ADR-0014): personal (owner only) or shared with the project. */
+export interface SavedView {
+  id: string;
+  project_id: string;
+  owner_id: string;
+  name: string;
+  kind: "table" | "board";
+  shared: boolean;
+  config: ViewConfig;
+  /** The caller may rename, change or delete it. */
+  can_edit: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Totals of number fields over the whole filtered list; sum is an exact decimal string. */
+export type FieldSums = Record<string, { sum: string; count: number }>;
+
 export interface ItemPage {
   items: Item[];
   next_cursor: string | null;

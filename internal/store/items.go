@@ -190,45 +190,47 @@ type ListItemsParams struct {
 	Query        string
 	FieldFilters map[string]string // ?field.<key>=<value>, exact match
 	Due          string            // "", "overdue", "today", "week" (next 7 days) or "none"
+	Sort         string            // SortNumber (default) or SortDue, see itemsort.go
 	Limit        int
-	BeforeNumber int64 // cursor: return items with number < BeforeNumber (0 = from newest)
+	Cursor       *ItemCursor // continue after this position (nil = from the start)
 }
 
-// ListItems returns items newest-first using keyset pagination, which stays
-// fast at any depth (OFFSET would scan every skipped row).
-func (s *Store) ListItems(ctx context.Context, p ListItemsParams) (items []Item, nextBefore int64, err error) {
+// ListItems returns one page of items in the requested order using keyset
+// pagination, which stays fast at any depth (OFFSET would scan every skipped
+// row). next is nil on the last page.
+func (s *Store) ListItems(ctx context.Context, p ListItemsParams) (items []Item, next *ItemCursor, err error) {
 	where, args, err := s.itemFilter(ctx, p, true)
 	if err != nil {
-		return nil, 0, err
+		return nil, nil, err
 	}
-	if p.BeforeNumber > 0 {
-		args = append(args, p.BeforeNumber)
-		where = append(where, "i.number < $"+strconv.Itoa(len(args)))
+	order, where, args, err := sortAndSeek(p, where, args)
+	if err != nil {
+		return nil, nil, err
 	}
 	args = append(args, p.Limit+1)
-	sql := fmt.Sprintf("%s WHERE %s ORDER BY i.number DESC LIMIT $%d", itemSelect, strings.Join(where, " AND "), len(args))
+	sql := fmt.Sprintf("%s WHERE %s ORDER BY %s LIMIT $%d", itemSelect, strings.Join(where, " AND "), order, len(args))
 
 	rows, err := s.pool.Query(ctx, sql, args...)
 	if err != nil {
-		return nil, 0, err
+		return nil, nil, err
 	}
 	defer rows.Close()
 	items = []Item{}
 	for rows.Next() {
 		it, err := scanItem(rows)
 		if err != nil {
-			return nil, 0, err
+			return nil, nil, err
 		}
 		items = append(items, it)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, 0, err
+		return nil, nil, err
 	}
 	if len(items) > p.Limit {
 		items = items[:p.Limit]
-		nextBefore = items[len(items)-1].Number
+		next = cursorAfter(p.Sort, items[len(items)-1])
 	}
-	return items, nextBefore, nil
+	return items, next, nil
 }
 
 // CountItemsByStatus counts the items matching the same filters as ListItems,
