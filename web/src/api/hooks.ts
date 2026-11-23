@@ -66,13 +66,44 @@ export function itemsQueryString(f: ItemFilters, cursor: string | null): string 
   return p.toString();
 }
 
-export const useItems = (ws: string, project: string, filters: ItemFilters) =>
+export const useItems = (ws: string, project: string, filters: ItemFilters, enabled = true) =>
   useInfiniteQuery({
+    enabled,
     queryKey: [...keys.items(ws, project), filters],
     initialPageParam: null as string | null,
     queryFn: ({ pageParam }) =>
       api<ItemPage>("GET", path`/workspaces/${ws}/projects/${project}/items` + "?" + itemsQueryString(filters, pageParam)),
     getNextPageParam: (last) => last.next_cursor,
+  });
+
+const COLUMN_PAGE = 50;
+
+/** One board column: items in any of the given statuses, newest first, paged.
+ *  The key lives under keys.items, so every item mutation refreshes it. */
+export const useColumnItems = (ws: string, project: string, filters: ItemFilters, statusIds: readonly string[]) =>
+  useInfiniteQuery({
+    enabled: statusIds.length > 0,
+    queryKey: [...keys.items(ws, project), "column", statusIds, filters],
+    initialPageParam: null as string | null,
+    queryFn: ({ pageParam }) => {
+      const p = new URLSearchParams(itemsQueryString(filters, pageParam));
+      p.set("limit", String(COLUMN_PAGE));
+      p.set("status", statusIds.join(","));
+      return api<ItemPage>("GET", path`/workspaces/${ws}/projects/${project}/items` + "?" + p.toString());
+    },
+    getNextPageParam: (last) => last.next_cursor,
+  });
+
+/** Item counts per status for the current filters (board column sizes). */
+export const useItemCounts = (ws: string, project: string, filters: ItemFilters, enabled = true) =>
+  useQuery({
+    enabled,
+    queryKey: [...keys.items(ws, project), "counts", filters],
+    queryFn: () =>
+      api<{ by_status: Record<string, number>; total: number }>(
+        "GET",
+        path`/workspaces/${ws}/projects/${project}/items/counts` + "?" + itemsQueryString(filters, null),
+      ),
   });
 
 export const useItem = (ws: string, project: string, n: number | null) =>

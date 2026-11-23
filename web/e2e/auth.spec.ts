@@ -14,7 +14,7 @@ test.describe("authentication", () => {
     // The single-use auth code is exchanged exactly once and the user lands
     // exactly where they started, including the query string.
     await expect(page).toHaveURL(new RegExp(`${seed.url}\\?view=board$`));
-    await expect(page.getByRole("region", { name: "Görüləcək" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "To Do" })).toBeVisible();
     await ctx.close();
   });
 

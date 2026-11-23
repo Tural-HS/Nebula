@@ -4,13 +4,16 @@ export class ApiError extends Error {
   readonly status: number;
   readonly code: string;
   readonly field: string | undefined;
+  /** Seconds the server asked us to wait (Retry-After on 429/503), if any. */
+  readonly retryAfter: number | undefined;
 
-  constructor(status: number, code: string, message: string, field?: string) {
+  constructor(status: number, code: string, message: string, field?: string, retryAfter?: number) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.code = code;
     this.field = field;
+    this.retryAfter = retryAfter;
   }
 
   get isConflict(): boolean {
@@ -46,7 +49,14 @@ export async function parseError(res: Response): Promise<ApiError> {
     body.error?.code ?? `http_${res.status}`,
     body.error?.message ?? (res.statusText || "request failed"),
     body.error?.field,
+    parseRetryAfter(res.headers.get("Retry-After")),
   );
+}
+
+/** Retry-After in delta-seconds form; the HTTP-date form is not used by our API. */
+function parseRetryAfter(v: string | null): number | undefined {
+  if (!v || !/^\d{1,5}$/.test(v.trim())) return undefined;
+  return Number(v.trim());
 }
 
 export async function api<T>(method: string, path: string, body?: unknown, fetchImpl: typeof fetch = fetch): Promise<T> {

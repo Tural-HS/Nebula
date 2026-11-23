@@ -207,39 +207,13 @@ type ListItemsParams struct {
 // ListItems returns items newest-first using keyset pagination, which stays
 // fast at any depth (OFFSET would scan every skipped row).
 func (s *Store) ListItems(ctx context.Context, p ListItemsParams) (items []Item, nextBefore int64, err error) {
-	where := []string{"i.workspace_id = $1", "i.project_id = $2", "i.deleted_at IS NULL"}
-	args := []any{p.WorkspaceID, p.ProjectID}
-	add := func(cond string, v any) {
-		args = append(args, v)
-		where = append(where, strings.ReplaceAll(cond, "?", "$"+strconv.Itoa(len(args))))
-	}
-	if len(p.StatusIDs) > 0 {
-		ids := make([]string, len(p.StatusIDs))
-		for i, id := range p.StatusIDs {
-			ids[i] = id.String()
-		}
-		add("i.status_id = ANY(?::uuid[])", ids)
-	}
-	if p.AssigneeID != nil {
-		add("i.assignee_id = ?", *p.AssigneeID)
-	}
-	if p.Unassigned {
-		where = append(where, "i.assignee_id IS NULL")
-	}
-	if len(p.FieldFilters) > 0 {
-		conds, err := fieldFilterConditions(ctx, s.pool, p.WorkspaceID, p.FieldFilters)
-		if err != nil {
-			return nil, 0, err
-		}
-		for _, c := range conds {
-			add("i.fields @> ?::jsonb", c)
-		}
-	}
-	if q := strings.TrimSpace(p.Query); q != "" {
-		add("i.search @@ websearch_to_tsquery('simple', ?)", q)
+	where, args, err := s.itemFilter(ctx, p, true)
+	if err != nil {
+		return nil, 0, err
 	}
 	if p.BeforeNumber > 0 {
-		add("i.number < ?", p.BeforeNumber)
+		args = append(args, p.BeforeNumber)
+		where = append(where, "i.number < $"+strconv.Itoa(len(args)))
 	}
 	args = append(args, p.Limit+1)
 	sql := fmt.Sprintf("%s WHERE %s ORDER BY i.number DESC LIMIT $%d", itemSelect, strings.Join(where, " AND "), len(args))
@@ -265,6 +239,68 @@ func (s *Store) ListItems(ctx context.Context, p ListItemsParams) (items []Item,
 		nextBefore = items[len(items)-1].Number
 	}
 	return items, nextBefore, nil
+}
+
+// CountItemsByStatus counts the items matching the same filters as ListItems,
+// per status. Status filters, cursor and limit are ignored: a board needs the
+// size of every column, whatever is currently loaded.
+func (s *Store) CountItemsByStatus(ctx context.Context, p ListItemsParams) (map[uuid.UUID]int64, error) {
+	where, args, err := s.itemFilter(ctx, p, false)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := s.pool.Query(ctx, "SELECT i.status_id, count(*) FROM items i WHERE "+strings.Join(where, " AND ")+" GROUP BY i.status_id", args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[uuid.UUID]int64{}
+	for rows.Next() {
+		var id uuid.UUID
+		var n int64
+		if err := rows.Scan(&id, &n); err != nil {
+			return nil, err
+		}
+		out[id] = n
+	}
+	return out, rows.Err()
+}
+
+// itemFilter builds the WHERE conditions shared by listing and counting.
+// Values are always bound as parameters, never interpolated.
+func (s *Store) itemFilter(ctx context.Context, p ListItemsParams, withStatus bool) (where []string, args []any, err error) {
+	where = []string{"i.workspace_id = $1", "i.project_id = $2", "i.deleted_at IS NULL"}
+	args = []any{p.WorkspaceID, p.ProjectID}
+	add := func(cond string, v any) {
+		args = append(args, v)
+		where = append(where, strings.ReplaceAll(cond, "?", "$"+strconv.Itoa(len(args))))
+	}
+	if withStatus && len(p.StatusIDs) > 0 {
+		ids := make([]string, len(p.StatusIDs))
+		for i, id := range p.StatusIDs {
+			ids[i] = id.String()
+		}
+		add("i.status_id = ANY(?::uuid[])", ids)
+	}
+	if p.AssigneeID != nil {
+		add("i.assignee_id = ?", *p.AssigneeID)
+	}
+	if p.Unassigned {
+		where = append(where, "i.assignee_id IS NULL")
+	}
+	if len(p.FieldFilters) > 0 {
+		conds, err := fieldFilterConditions(ctx, s.pool, p.WorkspaceID, p.FieldFilters)
+		if err != nil {
+			return nil, nil, err
+		}
+		for _, c := range conds {
+			add("i.fields @> ?::jsonb", c)
+		}
+	}
+	if q := strings.TrimSpace(p.Query); q != "" {
+		add("i.search @@ websearch_to_tsquery('simple', ?)", q)
+	}
+	return where, args, nil
 }
 
 // UpdateItemParams is a partial update; unset fields are left unchanged.

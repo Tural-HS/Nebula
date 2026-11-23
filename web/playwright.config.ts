@@ -15,7 +15,10 @@ export default defineConfig({
   timeout: 60_000,
   expect: { timeout: 10_000 },
   fullyParallel: false,
-  workers: CI ? 1 : 2,
+  // One worker everywhere: every spec acts as the same two users, and parallel
+  // workers would make one person look like 30+ requests/s to the per-user
+  // rate limit, which no real user does. Matches CI.
+  workers: 1,
   retries: CI ? 1 : 0,
   forbidOnly: CI,
   reporter: CI ? [["github"], ["html", { open: "never" }]] : [["list"], ["html", { open: "never" }]],

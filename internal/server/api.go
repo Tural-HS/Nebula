@@ -62,6 +62,7 @@ func (a *api) routes(r chi.Router) {
 			r.Use(a.loadProject)
 			r.Get("/", a.getProject)
 			r.Get("/items", a.listItems)
+			r.Get("/items/counts", a.countItems)
 			r.With(requireRole(store.RoleMember)).Post("/items", a.createItem)
 			r.Get("/items/{number}", a.getItem)
 			r.Get("/items/{number}/transitions", a.allowedStatuses)
@@ -270,11 +271,51 @@ const (
 )
 
 func (a *api) listItems(w http.ResponseWriter, r *http.Request) {
+	p, ok := parseItemFilters(w, r)
+	if !ok {
+		return
+	}
+	items, next, err := a.store.ListItems(r.Context(), p)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	resp := map[string]any{"items": items, "next_cursor": nil}
+	if next > 0 {
+		resp["next_cursor"] = encodeCursor(next)
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// countItems returns how many items match the list filters, per status, so a
+// board can show true column sizes while loading each column page by page.
+func (a *api) countItems(w http.ResponseWriter, r *http.Request) {
+	p, ok := parseItemFilters(w, r)
+	if !ok {
+		return
+	}
+	counts, err := a.store.CountItemsByStatus(r.Context(), p)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	byStatus := make(map[string]int64, len(counts))
+	var total int64
+	for id, n := range counts {
+		byStatus[id.String()] = n
+		total += n
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"by_status": byStatus, "total": total})
+}
+
+// parseItemFilters reads the item list query string, writing a 400 and
+// returning false when it is invalid.
+func parseItemFilters(w http.ResponseWriter, r *http.Request) (store.ListItemsParams, bool) {
 	// url.Query() silently drops malformed pairs; reject them instead.
 	q, err := url.ParseQuery(r.URL.RawQuery)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "bad_request", "malformed query string")
-		return
+		return store.ListItemsParams{}, false
 	}
 	p := store.ListItemsParams{
 		WorkspaceID: workspaceFrom(r).ID,
@@ -284,13 +325,13 @@ func (a *api) listItems(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(p.Query) > 500 {
 		writeError(w, http.StatusBadRequest, "bad_request", "q must be at most 500 characters")
-		return
+		return store.ListItemsParams{}, false
 	}
 	if v := q.Get("limit"); v != "" {
 		n, err := strconv.Atoi(v)
 		if err != nil || n < 1 || n > maxPageSize {
 			writeError(w, http.StatusBadRequest, "bad_request", fmt.Sprintf("limit must be between 1 and %d", maxPageSize))
-			return
+			return store.ListItemsParams{}, false
 		}
 		p.Limit = n
 	}
@@ -298,7 +339,7 @@ func (a *api) listItems(w http.ResponseWriter, r *http.Request) {
 		n, err := decodeCursor(v)
 		if err != nil {
 			writeError(w, http.StatusBadRequest, "bad_request", "invalid cursor")
-			return
+			return store.ListItemsParams{}, false
 		}
 		p.BeforeNumber = n
 	}
@@ -307,14 +348,14 @@ func (a *api) listItems(w http.ResponseWriter, r *http.Request) {
 			id, err := uuid.Parse(strings.TrimSpace(part))
 			if err != nil {
 				writeError(w, http.StatusBadRequest, "bad_request", "status must be a list of status ids")
-				return
+				return store.ListItemsParams{}, false
 			}
 			p.StatusIDs = append(p.StatusIDs, id)
 		}
 	}
 	if len(p.StatusIDs) > 50 {
 		writeError(w, http.StatusBadRequest, "bad_request", "at most 50 status filters")
-		return
+		return store.ListItemsParams{}, false
 	}
 	for key, vals := range q {
 		name, ok := strings.CutPrefix(key, "field.")
@@ -323,7 +364,7 @@ func (a *api) listItems(w http.ResponseWriter, r *http.Request) {
 		}
 		if len(vals) != 1 {
 			writeError(w, http.StatusBadRequest, "bad_request", key+" may be given only once")
-			return
+			return store.ListItemsParams{}, false
 		}
 		if p.FieldFilters == nil {
 			p.FieldFilters = map[string]string{}
@@ -341,21 +382,12 @@ func (a *api) listItems(w http.ResponseWriter, r *http.Request) {
 		id, err := uuid.Parse(v)
 		if err != nil {
 			writeError(w, http.StatusBadRequest, "bad_request", "assignee must be a user id, 'me' or 'none'")
-			return
+			return store.ListItemsParams{}, false
 		}
 		p.AssigneeID = &id
 	}
 
-	items, next, err := a.store.ListItems(r.Context(), p)
-	if err != nil {
-		a.fail(w, r, err)
-		return
-	}
-	resp := map[string]any{"items": items, "next_cursor": nil}
-	if next > 0 {
-		resp["next_cursor"] = encodeCursor(next)
-	}
-	writeJSON(w, http.StatusOK, resp)
+	return p, true
 }
 
 func (a *api) createItem(w http.ResponseWriter, r *http.Request) {

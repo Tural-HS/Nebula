@@ -18,7 +18,7 @@ test("create an item, edit it in the panel and see its history", async ({ page }
   // Creating opens the new item's panel.
   const panel = page.getByRole("dialog", { name: "QA-1" });
   await expect(panel).toBeVisible();
-  await expect(page.getByRole("status").or(page.getByText("QA-1 yaradıldı"))).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "QA-1 yaradıldı" })).toBeVisible(); // the toast, not a spinner
 
   await panel.getByLabel("Status").selectOption({ label: "In Progress" });
   await expect(panel.getByLabel("Status")).toHaveValue(/.+/);

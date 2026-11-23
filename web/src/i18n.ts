@@ -47,7 +47,12 @@ export const t = {
   viewBoard: "Lövhə",
   noItems: "Heç nə tapılmadı.",
   loadingMore: "Daha çox yüklənir…",
-  boardLimit: (n: number) => `Lövhədə ilk ${n} tapşırıq göstərilir. Daralt üçün axtarış və filtrlərdən istifadə edin.`,
+  groupBy: "Qruplaşdır",
+  groupStatus: "Status üzrə",
+  groupCategory: "Kateqoriya üzrə",
+  boardOther: "Digər (arxiv tiplər)",
+  boardNoTypes: "Bu workspace-də tapşırıq tipi yoxdur.",
+  columnEmpty: "Boşdur",
   customFields: "Sahələr",
   confirmDelete: "Bu tapşırığı silmək istədiyinizə əminsiniz?",
 

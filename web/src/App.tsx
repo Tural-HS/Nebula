@@ -2,9 +2,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { BrowserRouter, Route, Routes } from "react-router";
 
-import { ApiError, setUnauthorizedHandler } from "./api/client";
+import { setUnauthorizedHandler } from "./api/client";
 import { useAuth } from "./auth/context";
 import { ToastProvider } from "./components/toast";
+import { retryDelay, shouldRetry, shouldRetryMutation } from "./lib/retry";
 import { EmptyState, Spinner } from "./components/ui";
 import { t } from "./i18n";
 import { ItemsPage } from "./pages/ItemsPage";
@@ -24,8 +25,14 @@ function makeQueryClient() {
       queries: {
         staleTime: 15_000,
         refetchOnWindowFocus: true,
-        // Client errors (403/404/422) won't fix themselves; only retry transient ones.
-        retry: (count, err) => !(err instanceof ApiError && err.status < 500) && count < 2,
+        // Only transient failures (429, 5xx, network) are retried; see lib/retry.
+        retry: shouldRetry,
+        retryDelay,
+      },
+      mutations: {
+        // Only 429: the request was rejected before it ran (lib/retry).
+        retry: shouldRetryMutation,
+        retryDelay,
       },
     },
   });

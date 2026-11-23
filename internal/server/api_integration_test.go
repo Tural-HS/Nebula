@@ -423,6 +423,56 @@ func TestListPaginationAndFilters(t *testing.T) {
 	e.must(200, "carol", "GET", items, nil)
 }
 
+func TestItemCountsByStatus(t *testing.T) {
+	e := newEnv(t)
+	e.setup()
+	carolID := e.must(200, "carol", "GET", "/api/v1/me", nil).Body["id"].(string)
+	for i, title := range []string{"Login broken", "Invoice export", "Login timeout", "Dark mode"} {
+		body := map[string]any{"title": title}
+		if i%2 == 0 {
+			body["assignee_id"] = carolID
+		}
+		e.must(201, "carol", "POST", items, body)
+	}
+	// Move #1 to another status of its workflow.
+	allowed := e.must(200, "carol", "GET", items+"/1/transitions", nil).Body["statuses"].([]any)
+	if len(allowed) == 0 {
+		t.Fatal("no transitions from the initial status")
+	}
+	target := allowed[0].(map[string]any)["id"].(string)
+	e.must(200, "carol", "PATCH", items+"/1", map[string]any{"version": 1, "status_id": target})
+	initial := e.must(200, "carol", "GET", items+"/2", nil).Body["status"].(map[string]any)["id"].(string)
+
+	counts := func(query string) (map[string]any, float64) {
+		t.Helper()
+		b := e.must(200, "bob", "GET", items+"/counts?"+query, nil).Body
+		return b["by_status"].(map[string]any), b["total"].(float64)
+	}
+	by, total := counts("")
+	if total != 4 || by[initial] != 3.0 || by[target] != 1.0 {
+		t.Fatalf("counts = %v total %v", by, total)
+	}
+	// Same filters as the list; a status filter does not hide other columns.
+	if by, total = counts("q=login&status=" + initial); total != 2 || by[target] != 1.0 {
+		t.Fatalf("q=login counts = %v total %v", by, total)
+	}
+	if _, total = counts("assignee=none"); total != 2 {
+		t.Fatalf("assignee=none total %v", total)
+	}
+	// Deleted items are not counted.
+	e.must(204, "carol", "DELETE", items+"/4", nil)
+	if _, total = counts(""); total != 3 {
+		t.Fatalf("after delete total %v", total)
+	}
+	if r := e.call("carol", "GET", items+"/counts?assignee=xyz", nil); r.Status != 400 {
+		t.Fatalf("bad filter: %d", r.Status)
+	}
+	// Tenant isolation: an outsider cannot count another workspace's items.
+	if r := e.call("dave", "GET", items+"/counts", nil); r.Status != 404 {
+		t.Fatalf("outsider: %d", r.Status)
+	}
+}
+
 func TestConcurrentCreatesGetUniqueSequentialNumbers(t *testing.T) {
 	e := newEnv(t)
 	e.setup()

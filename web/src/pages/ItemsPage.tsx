@@ -1,23 +1,21 @@
-import { DndContext, KeyboardSensor, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import { DndContext, KeyboardSensor, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from "@dnd-kit/core";
 import { useQueryClient } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "react-router";
 
 import { api, ApiError, path } from "../api/client";
-import { keys, useItems, useItemTypes, useMembers, useProjects, useUpdateItem, useWorkspace, type ItemFilters } from "../api/hooks";
+import { keys, useColumnItems, useItemCounts, useItems, useItemTypes, useMembers, useProjects, useUpdateItem, useWorkspace, type ItemFilters } from "../api/hooks";
 import { roleAtLeast, type Item, type Member, type Status, type StatusCategory } from "../api/types";
 import { Layout } from "../components/Layout";
 import { useToast } from "../components/toast-context";
 import { Avatar, Button, EmptyState, ErrorState, Input, Select, Spinner, StatusBadge } from "../components/ui";
 import { cn } from "../lib/cn";
 import { t } from "../i18n";
-import { CATEGORIES, flattenPages, groupByCategory, pickTargetStatus } from "../lib/board";
+import { buildColumns, columnCount, dropTargets, flattenPages, otherColumn, pickTargetStatus, type BoardColumn, type GroupBy } from "../lib/board";
 import { formatDateTime, formatRelative } from "../lib/format";
 import { CreateItemDialog } from "./CreateItemDialog";
 import { ItemDrawer } from "./ItemDrawer";
-
-const BOARD_LIMIT = 500;
 
 function useDebounced<T>(value: T, ms: number): T {
   const [v, setV] = useState(value);
@@ -32,6 +30,7 @@ export function ItemsPage() {
   const { ws = "", project = "" } = useParams();
   const [params, setParams] = useSearchParams();
   const view = params.get("view") === "board" ? "board" : "table";
+  const groupBy: GroupBy = params.get("group") === "category" ? "category" : "status";
   const openItem = Number(params.get("item")) || null;
   const assigneeParam = params.get("assignee");
   const assignee: ItemFilters["assignee"] = assigneeParam === "me" || assigneeParam === "none" ? assigneeParam : "";
@@ -42,7 +41,8 @@ export function ItemsPage() {
   const workspace = useWorkspace(ws);
   const projects = useProjects(ws);
   const members = useMembers(ws);
-  const items = useItems(ws, project, { q, assignee });
+  const filters = useMemo<ItemFilters>(() => ({ q, assignee }), [q, assignee]);
+  const items = useItems(ws, project, filters, view === "table");
   const canEdit = roleAtLeast(workspace.data?.role, "member");
   const projectName = projects.data?.find((p) => p.key === project)?.name ?? project;
 
@@ -97,6 +97,12 @@ export function ItemsPage() {
             <option value="me">{t.filterMine}</option>
             <option value="none">{t.filterNone}</option>
           </Select>
+          {view === "board" && (
+            <Select aria-label={t.groupBy} value={groupBy} onChange={(e) => { setParam("group", e.target.value === "category" ? "category" : null); }} className="max-w-48">
+              <option value="status">{t.groupStatus}</option>
+              <option value="category">{t.groupCategory}</option>
+            </Select>
+          )}
           <div role="tablist" aria-label="view" className="ml-auto inline-flex rounded-md ring-1 ring-zinc-300 dark:ring-zinc-700">
             {(["table", "board"] as const).map((v) => (
               <button
@@ -115,29 +121,28 @@ export function ItemsPage() {
         </div>
 
         <div className="min-h-0 flex-1">
-          {items.isPending ? (
+          {view === "board" ? (
+            <Board
+              ws={ws}
+              project={project}
+              filters={filters}
+              groupBy={groupBy}
+              members={memberById}
+              canEdit={canEdit}
+              onOpen={(n) => { setParam("item", String(n)); }}
+            />
+          ) : items.isPending ? (
             <Spinner />
           ) : items.isError ? (
             <ErrorState error={items.error} onRetry={() => void items.refetch()} />
           ) : all.length === 0 ? (
             <EmptyState>{t.noItems}</EmptyState>
-          ) : view === "table" ? (
+          ) : (
             <ItemTable
               items={all}
               members={memberById}
               hasMore={items.hasNextPage}
               loadingMore={items.isFetchingNextPage}
-              loadMore={() => void items.fetchNextPage()}
-              onOpen={(n) => { setParam("item", String(n)); }}
-            />
-          ) : (
-            <Board
-              ws={ws}
-              project={project}
-              items={all}
-              members={memberById}
-              canEdit={canEdit}
-              hasMore={items.hasNextPage}
               loadMore={() => void items.fetchNextPage()}
               onOpen={(n) => { setParam("item", String(n)); }}
             />
@@ -245,97 +250,184 @@ function AssigneeCell({ id, members }: { id: string | null; members: Map<string,
 }
 
 // ---------------------------------------------------------------------------
-// Board: columns by status category; drag a card to change its status
+// Board: one column per status (or per category). Every column loads its own
+// items page by page and shows its true size from /items/counts, so a project
+// with thousands of items stays fast and nothing is cut off. Drag a card to
+// change its status; columns the workflow does not allow are dimmed.
 // ---------------------------------------------------------------------------
 
-function Board({ ws, project, items, members, canEdit, hasMore, loadMore, onOpen }: {
-  ws: string; project: string; items: Item[]; members: Map<string, Member>; canEdit: boolean;
-  hasMore: boolean; loadMore: () => void; onOpen: (n: number) => void;
+/** An item being moved: shown in its target column until the server answers. */
+interface Move {
+  item: Item;
+  from: string; // column key
+  to: string;
+}
+
+function Board({ ws, project, filters, groupBy, members, canEdit, onOpen }: {
+  ws: string; project: string; filters: ItemFilters; groupBy: GroupBy; members: Map<string, Member>; canEdit: boolean;
+  onOpen: (n: number) => void;
 }) {
   const qc = useQueryClient();
   const toast = useToast();
   const types = useItemTypes(ws);
+  const counts = useItemCounts(ws, project, filters);
   const update = useUpdateItem(ws, project);
-  // Optimistic placement while the server confirms the move.
-  const [pending, setPending] = useState<Record<string, Status>>({});
-
-  useEffect(() => {
-    if (hasMore && items.length < BOARD_LIMIT) loadMore();
-  }, [hasMore, items.length, loadMore]);
+  const [moves, setMoves] = useState<Record<string, Move>>({});
+  const [drag, setDrag] = useState<{ item: Item; targets: Set<string> | null } | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }), // small moves stay clicks
     useSensor(KeyboardSensor),
   );
 
-  const shown = items.slice(0, BOARD_LIMIT).map((it) => {
-    const p = pending[it.id];
-    return p ? { ...it, status: p } : it;
-  });
-  const columns = groupByCategory(shown);
+  const columns = useMemo(() => {
+    const cols = buildColumns(types.data ?? [], groupBy, (c) => t.category[c]);
+    const other = otherColumn(cols, Object.keys(counts.data?.by_status ?? {}), t.boardOther);
+    return other ? [...cols, other] : cols;
+  }, [types.data, groupBy, counts.data]);
+
+  if (types.isPending) return <Spinner />;
+  if (types.isError) return <ErrorState error={types.error} onRetry={() => void types.refetch()} />;
+  if (columns.length === 0) return <EmptyState>{t.boardNoTypes}</EmptyState>;
+
+  const allowedFor = (item: Item) =>
+    qc.query({
+      queryKey: keys.transitions(ws, project, item.number),
+      queryFn: async () => (await api<{ statuses: Status[] }>("GET", path`/workspaces/${ws}/projects/${project}/items/${item.number}/transitions`)).statuses,
+      staleTime: 0,
+    });
+
+  const onDragStart = ({ active }: DragStartEvent) => {
+    const item = (active.data.current as { item?: Item } | undefined)?.item;
+    if (!item) return;
+    setDrag({ item, targets: null });
+    allowedFor(item)
+      .then((allowed) => { setDrag((d) => (d?.item.id === item.id ? { item, targets: dropTargets(item, columns, types.data, allowed) } : d)); })
+      .catch(() => undefined); // the drop re-checks and reports errors
+  };
 
   const onDragEnd = async ({ active, over }: DragEndEvent) => {
-    if (!over || !canEdit) return;
-    const item = items.find((i) => i.id === active.id);
-    const category = over.id as StatusCategory;
-    if (!item || item.status.category === category) return;
+    setDrag(null);
+    const data = active.data.current as { item?: Item; column?: string } | undefined;
+    const item = data?.item;
+    const column = columns.find((c) => c.key === over?.id);
+    if (!item || !column || !canEdit || column.key === data.column) return;
     try {
-      const allowed = await qc.query({
-        queryKey: keys.transitions(ws, project, item.number),
-        queryFn: async () => (await api<{ statuses: Status[] }>("GET", path`/workspaces/${ws}/projects/${project}/items/${item.number}/transitions`)).statuses,
-        staleTime: 0,
-      });
-      const target = pickTargetStatus(item, category, types.data ?? [], allowed);
+      const target = pickTargetStatus(item, column, types.data, await allowedFor(item));
       if (!target) {
         toast("error", t.transitionNotAllowed);
         return;
       }
-      setPending((p) => ({ ...p, [item.id]: target }));
+      setMoves((m) => ({ ...m, [item.id]: { item: { ...item, status: target }, from: data.column ?? "", to: column.key } }));
       await update.mutateAsync({ n: item.number, patch: { version: item.version, status_id: target.id } });
+      // Keep the card where it was dropped until the columns have reloaded.
+      // The mutation already started that reload; join it instead of
+      // cancelling and restarting every column's request.
+      await qc.invalidateQueries({ queryKey: keys.items(ws, project) }, { cancelRefetch: false });
     } catch (err) {
       toast("error", err instanceof ApiError && err.isConflict ? t.conflict : err instanceof ApiError ? err.message : t.errorGeneric);
     } finally {
-      setPending((p) => Object.fromEntries(Object.entries(p).filter(([id]) => id !== item.id)));
+      setMoves((m) => Object.fromEntries(Object.entries(m).filter(([id]) => id !== item.id)));
     }
   };
 
+  const pending = Object.values(moves);
   return (
-    <DndContext sensors={sensors} onDragEnd={(e) => void onDragEnd(e)}>
-      <div className="flex h-full flex-col">
-        {items.length > BOARD_LIMIT && <p className="px-4 pt-3 text-xs text-zinc-500">{t.boardLimit(BOARD_LIMIT)}</p>}
-        <div className="flex min-h-0 flex-1 gap-3 overflow-x-auto p-4">
-          {CATEGORIES.map((c) => (
-            <Column key={c} category={c} count={columns[c].length}>
-              {columns[c].map((it) => (
-                <Card key={it.id} item={it} members={members} draggable={canEdit} onOpen={onOpen} />
-              ))}
-            </Column>
-          ))}
-        </div>
+    <DndContext sensors={sensors} onDragStart={onDragStart} onDragCancel={() => { setDrag(null); }} onDragEnd={(e) => void onDragEnd(e)}>
+      <div className="flex h-full min-h-0 gap-3 overflow-x-auto p-4">
+        {columns.map((c) => {
+          const base = columnCount(c, counts.data?.by_status);
+          const delta = pending.filter((m) => m.to === c.key).length - pending.filter((m) => m.from === c.key).length;
+          return (
+            <BoardColumnView
+              key={c.key}
+              ws={ws}
+              project={project}
+              filters={filters}
+              column={c}
+              count={base === undefined ? undefined : base + delta}
+              moves={moves}
+              members={members}
+              canEdit={canEdit && !c.other}
+              dimmed={drag !== null && drag.targets !== null && !drag.targets.has(c.key) && !c.statusIds.includes(drag.item.status.id)}
+              onOpen={onOpen}
+            />
+          );
+        })}
       </div>
     </DndContext>
   );
 }
 
-function Column({ category, count, children }: { category: StatusCategory; count: number; children: React.ReactNode }) {
-  const { setNodeRef, isOver } = useDroppable({ id: category });
+function BoardColumnView({ ws, project, filters, column, count, moves, members, canEdit, dimmed, onOpen }: {
+  ws: string; project: string; filters: ItemFilters; column: BoardColumn; count: number | undefined;
+  moves: Record<string, Move>; members: Map<string, Member>; canEdit: boolean; dimmed: boolean; onOpen: (n: number) => void;
+}) {
+  const q = useColumnItems(ws, project, filters, column.statusIds);
+  const { setNodeRef, isOver } = useDroppable({ id: column.key, disabled: Boolean(column.other) });
+  const sentinel = useRef<HTMLDivElement>(null);
+  const { hasNextPage, isFetchingNextPage, fetchNextPage } = q;
+
+  // Load the next page when the end of the column scrolls into view.
+  useEffect(() => {
+    const el = sentinel.current;
+    if (!el || !hasNextPage) return;
+    const io = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting) && !isFetchingNextPage) void fetchNextPage();
+    }, { rootMargin: "200px" });
+    io.observe(el);
+    return () => { io.disconnect(); };
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+
+  const incoming = Object.values(moves).filter((m) => m.to === column.key).map((m) => m.item);
+  const own = flattenPages(q.data?.pages ?? []).filter((it) => !(it.id in moves));
+  const shown = [...incoming, ...own];
+
   return (
     <section
       ref={setNodeRef}
-      aria-label={t.category[category]}
-      className={cn("flex min-h-0 w-72 min-w-64 flex-1 shrink-0 flex-col rounded-xl bg-zinc-100 dark:bg-zinc-900", isOver && "ring-2 ring-brand-500")}
+      aria-label={column.name}
+      className={cn(
+        "flex min-h-0 w-72 min-w-64 shrink-0 flex-col rounded-xl bg-zinc-100 transition-opacity dark:bg-zinc-900",
+        isOver && !dimmed && "ring-2 ring-brand-500",
+        dimmed && "opacity-40",
+      )}
     >
-      <h2 className="flex items-center justify-between px-3 py-2 text-xs font-semibold tracking-wide text-zinc-600 uppercase dark:text-zinc-400">
-        {t.category[category]}
-        <span className="rounded-full bg-zinc-200 px-1.5 text-[11px] dark:bg-zinc-800">{count}</span>
+      <h2 className="flex items-center justify-between gap-2 px-3 py-2 text-xs font-semibold tracking-wide text-zinc-600 uppercase dark:text-zinc-400">
+        <span className="flex min-w-0 items-center gap-1.5">
+          <span aria-hidden className={cn("size-2 shrink-0 rounded-full", CATEGORY_DOT[column.category])} />
+          <span className="truncate">{column.name}</span>
+        </span>
+        <span className="rounded-full bg-zinc-200 px-1.5 text-[11px] tabular-nums dark:bg-zinc-800">{count ?? "…"}</span>
       </h2>
-      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-2 pb-2">{children}</div>
+      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-2 pb-2">
+        {q.isPending && column.statusIds.length > 0 ? (
+          <Spinner />
+        ) : q.isError ? (
+          <ErrorState error={q.error} onRetry={() => void q.refetch()} />
+        ) : shown.length === 0 ? (
+          <p className="px-1 py-6 text-center text-xs text-zinc-400">{t.columnEmpty}</p>
+        ) : (
+          shown.map((it) => <Card key={it.id} item={it} column={column.key} members={members} draggable={canEdit} onOpen={onOpen} />)
+        )}
+        <div ref={sentinel} aria-hidden className="h-px shrink-0" />
+        {isFetchingNextPage && <Spinner />}
+      </div>
     </section>
   );
 }
 
-function Card({ item, members, draggable, onOpen }: { item: Item; members: Map<string, Member>; draggable: boolean; onOpen: (n: number) => void }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: item.id, disabled: !draggable });
+const CATEGORY_DOT: Record<StatusCategory, string> = {
+  todo: "bg-zinc-400",
+  in_progress: "bg-brand-500",
+  done: "bg-emerald-500",
+  canceled: "bg-zinc-300 dark:bg-zinc-600",
+};
+
+function Card({ item, column, members, draggable, onOpen }: {
+  item: Item; column: string; members: Map<string, Member>; draggable: boolean; onOpen: (n: number) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: item.id, disabled: !draggable, data: { item, column } });
   const style = transform ? { transform: `translate3d(${String(transform.x)}px, ${String(transform.y)}px, 0)` } : undefined;
   const assignee = item.assignee_id ? members.get(item.assignee_id)?.display_name : undefined;
   return (
@@ -350,7 +442,7 @@ function Card({ item, members, draggable, onOpen }: { item: Item; members: Map<s
       }}
       className={cn(
         "cursor-pointer rounded-lg bg-white p-3 text-sm shadow-sm ring-1 ring-zinc-200 dark:bg-zinc-800 dark:ring-zinc-700",
-        isDragging && "z-10 opacity-80 shadow-lg",
+        isDragging && "relative z-10 opacity-80 shadow-lg",
       )}
     >
       <p className="line-clamp-3">{item.title}</p>
