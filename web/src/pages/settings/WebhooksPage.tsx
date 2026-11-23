@@ -80,13 +80,13 @@ function NewWebhook({ ws, onSecret }: { ws: string; onSecret: (s: string) => voi
           });
         }}
       >
-        <label className="text-xs text-zinc-500">
+        <label className="flex flex-col gap-1 text-xs text-zinc-500">
           {ta.format}
           <Select value={format} onChange={(e) => { chooseFormat(e.target.value as WebhookFormat); }} className="w-52">
             {WEBHOOK_FORMATS.map((f) => <option key={f} value={f}>{ta.formats[f]}</option>)}
           </Select>
         </label>
-        <label className="min-w-64 flex-1 text-xs text-zinc-500">
+        <label className="flex min-w-64 flex-1 flex-col gap-1 text-xs text-zinc-500">
           {ta.url}
           <Input
             required
@@ -98,8 +98,8 @@ function NewWebhook({ ws, onSecret }: { ws: string; onSecret: (s: string) => voi
             onChange={(e) => { setUrl(e.target.value); }}
           />
         </label>
-        <label className="text-xs text-zinc-500">
-          {ta.events} <span className="text-zinc-400">({ta.eventsHint})</span>
+        <label className="flex flex-col gap-1 text-xs text-zinc-500">
+          <span>{ta.events} <span className="text-zinc-400">({ta.eventsHint})</span></span>
           <Input required value={events} onChange={(e) => { setEvents(e.target.value); }} className="w-64" />
         </label>
         <Button type="submit" variant="primary" disabled={adm.createWebhook.isPending}>{t.create}</Button>

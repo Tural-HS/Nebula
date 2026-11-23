@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 
 import { ApiError } from "../api/client";
 import { useCommentMutations, useComments } from "../api/hooks";
@@ -149,6 +149,19 @@ function Composer({ people, initial = "", initialPicked = [], pending, onSubmit,
   const [query, setQuery] = useState<string | null>(null);
   const [active, setActive] = useState(0);
   const ref = useRef<HTMLTextAreaElement>(null);
+  // Caret to restore after a mention is inserted. Applied in a layout effect,
+  // i.e. synchronously when React writes the new value: a later frame
+  // (requestAnimationFrame) let fast typing land at the end first and then
+  // yanked the caret back, scrambling the text ("bu gün." -> "gün.bu").
+  const caretAfterPick = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    const pos = caretAfterPick.current;
+    const el = ref.current;
+    if (pos === null || !el) return;
+    caretAfterPick.current = null;
+    el.focus();
+    el.setSelectionRange(pos, pos);
+  }, [text]);
 
   const suggestions =
     query === null ? [] : people.filter((p) => p.name.toLocaleLowerCase("az").includes(query.toLocaleLowerCase("az"))).slice(0, 6);
@@ -166,10 +179,7 @@ function Composer({ people, initial = "", initialPicked = [], pending, onSubmit,
     setText(next);
     setPicked((xs) => (xs.some((x) => x.id === p.id) ? xs : [...xs, p]));
     setQuery(null);
-    requestAnimationFrame(() => {
-      el?.focus();
-      el?.setSelectionRange(before.length, before.length);
-    });
+    caretAfterPick.current = before.length;
   };
 
   const submit = () => {

@@ -20,8 +20,11 @@ test("admin adds a Mattermost webhook; its URL is never shown again", async ({ p
   await expect(page.getByLabel(/^Hadisələr/)).toHaveValue("item.*, comment.created");
   await page.getByRole("button", { name: "Yarat" }).click();
 
-  await expect(page.getByText("https://chat.example.com/…9z", { exact: false })).toBeVisible();
-  await expect(page.getByText("Mattermost / Slack", { exact: true })).toBeVisible();
+  const masked = page.getByText("https://chat.example.com/…wx9z", { exact: false }); // scheme, host, last 4
+  await expect(masked).toBeVisible();
+  // The created webhook's card (not the format picker) shows its format.
+  const card = masked.locator("xpath=ancestor::*[.//button[normalize-space()='Test göndər']][1]");
+  await expect(card.getByText("Mattermost / Slack", { exact: true })).toBeVisible();
   await expect(page.getByText(/secret yalnız indi göstərilir/)).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Secret-i yenilə" })).toHaveCount(0);
   await expect(page.locator("body")).not.toContainText(token);
