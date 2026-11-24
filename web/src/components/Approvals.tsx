@@ -20,6 +20,7 @@ import { formatDateTime } from "../lib/format";
 import { badgeText } from "../lib/notifications";
 import { Button, Dialog, ErrorState, Input, Spinner, StatusBadge, touchField } from "./ui";
 import { useToast } from "./toast-context";
+import { ApproverRoster } from "./ApproverRoster";
 
 export function ApprovalBadge({ approval, className }: { approval?: PendingApproval | null; className?: string }) {
   if (!approval) return null;
@@ -264,9 +265,7 @@ function RequestCard({ ws, project, n, req }: { ws: string; project: string; n: 
 
       {pending && (
         <>
-          <p className="text-xs text-zinc-500">
-            {req.approvers.length > 0 ? `${tap.approvers}: ${req.approvers.map((a) => a.display_name).join(", ")}` : tap.noApprovers}
-          </p>
+          <ApproverRoster req={req} />
           {(req.can_approve || req.can_cancel) && (
             <div className="flex flex-wrap gap-2">
               {req.can_approve && (

@@ -12,6 +12,7 @@ import { tf as forms } from "./forms";
 import { ti as importer } from "./import";
 import { ti as invite } from "./invite";
 import { tk as kinds } from "./kinds";
+import { tlg as ledger } from "./ledger";
 import { tl as links } from "./links";
 import { tm as mobile } from "./mobile";
 import { tn as notifications } from "./notifications";
@@ -20,8 +21,9 @@ import { tr as recur } from "./recur";
 import { ts as search } from "./search";
 import { ts as subtasks } from "./subtasks";
 import { tt as templates } from "./templates";
+import { tth as theme } from "./theme";
 import { tv as views } from "./views";
 import { twc as webhookChat } from "./webhookChat";
 import { tw as workdays } from "./workdays";
 
-export const en: Messages = { admin, approvalInbox, approvals, attach, calendar, core, evidence, forms, formulas, importer, invite, kinds, links, mobile, notifications, project, recur, search, subtasks, templates, views, webhookChat, workdays };
+export const en: Messages = { admin, approvalInbox, approvals, attach, calendar, core, evidence, forms, formulas, importer, invite, kinds, ledger, links, mobile, notifications, project, recur, search, subtasks, templates, theme, views, webhookChat, workdays };

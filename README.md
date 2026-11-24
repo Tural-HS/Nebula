@@ -32,6 +32,7 @@ böyük həcmli məlumatlarda sürətli, tam fərdiləşdirilə bilən, öz serv
 - Qəbul formaları və "Tələblərim" (yalnız daxil olmuş istifadəçilər, anonim formalar təxirə salınıb): [ADR-0032](docs/adr/0032-intake-forms.md)
 - Komanda növünə görə workspace şablonları (Maliyyə, İT, HR): [ADR-0033](docs/adr/0033-workspace-kinds.md)
 - Təsdiq qutusu, dəyişiklikdə yenidən təsdiq və iş günü ilə təsdiq müddətləri: [ADR-0034](docs/adr/0034-approval-inbox-reapproval-deadlines.md)
+- Rəng rejimi (açıq/tünd/sistem), workspace vurğu rəngi, tapşırıq siyahısı və panelinin "Ledger" dizaynı: [ADR-0035](docs/adr/0035-design-and-theme.md)
 - Yol xəritəsi: [docs/ROADMAP.md](docs/ROADMAP.md)
 
 ## Tələblər

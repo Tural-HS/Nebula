@@ -8,6 +8,7 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { ToastProvider } from "./components/toast";
 import { retryDelay, shouldRetry, shouldRetryMutation } from "./lib/retry";
 import { EmptyState, Spinner } from "./components/ui";
+import { WorkspaceAccent } from "./components/WorkspaceAccent";
 import { t } from "./i18n";
 import { ItemsPage } from "./pages/ItemsPage";
 import { ApprovalsInboxPage } from "./pages/ApprovalsInboxPage";
@@ -75,6 +76,7 @@ export function App() {
     <QueryClientProvider client={queryClient}>
       <ToastProvider>
         <BrowserRouter>
+          <WorkspaceAccent />
           <ErrorBoundary>
           <Suspense fallback={<Spinner />}>
           <Routes>

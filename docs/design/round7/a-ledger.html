@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="az">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Nebula round 7 — A: Ledger</title>
+<script src="data.js?v=2"></script>
+<style>
+  :root {
+    --brand-50: oklch(0.975 0.018 205); --brand-100: oklch(0.94 0.04 200); --brand-300: oklch(0.81 0.08 205);
+    --brand-500: oklch(0.62 0.098 205); --brand-600: oklch(0.53 0.088 215); --brand-700: oklch(0.45 0.08 225); --brand-900: oklch(0.3 0.08 272);
+    --bg: #f6f7f8; --surface: #fff; --raised: #fff; --line: #e3e5e8; --line-soft: #eff1f3; --text: #17191c; --muted: #6b7079; --faint: #9aa0a8;
+    --hover: #f2f6f7; --sel: var(--brand-50); --sel-line: var(--brand-300);
+    --red: #c81e1e; --red-bg: #fdecec; --amber: #b45309; --amber-bg: #fff4e0; --amber-mark: #f59e0b; --green: #15803d; --blocked: #6b7079;
+    --chip: #eef1f3; --scrim: rgba(23,25,28,.18);
+    color-scheme: light;
+  }
+  .dark {
+    --bg: #0c0d0f; --surface: #15171a; --raised: #1b1e22; --line: #2a2e34; --line-soft: #1f2226; --text: #eceef0; --muted: #9aa0a8; --faint: #6b7079;
+    --hover: #1c2226; --sel: oklch(0.3 0.05 215 / .55); --sel-line: var(--brand-600);
+    --red: #f87171; --red-bg: #3a1515; --amber: #fbbf24; --amber-bg: #3a2a0c; --amber-mark: #f59e0b; --green: #4ade80; --blocked: #9aa0a8;
+    --chip: #23272c; --scrim: rgba(0,0,0,.45);
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--bg); color: var(--text); font: 14px/1.4 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; }
+  button, input, select { font: inherit; color: inherit; }
+  .app { display: flex; flex-direction: column; height: 100vh; }
+
+  /* Header (unchanged product chrome) */
+  header { display: flex; align-items: center; gap: 12px; height: 48px; padding: 0 16px; background: var(--surface); border-bottom: 1px solid var(--line); flex-shrink: 0; }
+  header img { width: 28px; height: 28px; }
+  .crumbs { color: var(--muted); font-size: 13px; display: flex; gap: 6px; min-width: 0; }
+  .crumbs b { color: var(--text); font-weight: 600; }
+  .hdr-right { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+  .ghost { border: 0; background: none; padding: 6px 8px; border-radius: 6px; color: var(--muted); }
+
+  /* Command bar: one line, never wraps. Views are tabs, filters are tokens. */
+  .cmd { display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 16px; background: var(--surface); border-bottom: 1px solid var(--line); flex-shrink: 0; }
+  .views { display: flex; align-self: stretch; gap: 2px; }
+  .views button { border: 0; background: none; padding: 0 10px; font-size: 13px; color: var(--muted); border-bottom: 2px solid transparent; }
+  .views button[aria-current] { color: var(--text); font-weight: 600; border-bottom-color: var(--brand-600); }
+  .views .dirty::after { content: ""; display: inline-block; width: 6px; height: 6px; margin-left: 6px; border-radius: 50%; background: var(--amber-mark); vertical-align: 1px; }
+  .sep { width: 1px; align-self: center; height: 20px; background: var(--line); }
+  .search { flex: 1; min-width: 160px; display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 8px; border-radius: 6px; background: var(--bg); border: 1px solid var(--line); overflow: hidden; }
+  .search input { border: 0; background: none; outline: none; flex: 1; min-width: 60px; font-size: 13px; }
+  .tok { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding: 0 4px 0 8px; border-radius: 4px; background: var(--chip); font-size: 12px; white-space: nowrap; }
+  .tok span { color: var(--muted); }
+  .tok i { font-style: normal; color: var(--faint); padding: 0 3px; }
+  .tool { height: 30px; padding: 0 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); font-size: 13px; white-space: nowrap; }
+  .count { font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .primary { height: 30px; padding: 0 12px; border-radius: 6px; border: 0; background: var(--brand-600); color: #fff; font-weight: 600; font-size: 13px; white-space: nowrap; }
+
+  /* Table */
+  .main { position: relative; flex: 1; min-height: 0; display: flex; }
+  .table { flex: 1; overflow: auto; background: var(--surface); }
+  .row { display: grid; grid-template-columns: 4px 34px 76px minmax(260px, 1fr) 84px 112px 110px 96px 128px; align-items: center; height: 34px; border-bottom: 1px solid var(--line-soft); font-size: 13px; }
+  .row > * { padding: 0 8px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row > .rail { padding: 0; align-self: stretch; }
+  .row.head { position: sticky; top: 0; z-index: 1; height: 32px; background: var(--bg); border-bottom: 1px solid var(--line); color: var(--muted); font-size: 12px; font-weight: 500; }
+  .row:not(.head):hover { background: var(--hover); }
+  .row.sel { background: var(--sel); box-shadow: inset 0 0 0 1px var(--sel-line); }
+  .num { text-align: right; }
+  .key { color: var(--muted); font-size: 12px; }
+  .title { font-weight: 500; }
+  .rail.overdue { background: var(--red); }
+  .rail.approval { background: var(--amber-mark); }
+  .rail.blocked { background: repeating-linear-gradient(180deg, var(--blocked) 0 3px, transparent 3px 6px); }
+  /* Signals: fixed slots, so the same signal lines up down the page. */
+  .sig { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; font-size: 11px; }
+  .sig b { font-weight: 600; text-align: center; border-radius: 3px; line-height: 18px; }
+  .sig .ap { color: var(--amber); background: var(--amber-bg); }
+  .sig .bl { color: var(--blocked); background: var(--chip); }
+  .sig .st { color: var(--muted); }
+  .status { display: inline-flex; align-items: center; gap: 6px; }
+  .status::before { content: ""; width: 8px; height: 8px; border-radius: 2px; background: var(--faint); flex-shrink: 0; }
+  .status.doing::before { background: var(--brand-500); }
+  .status.done::before { background: var(--green); }
+  .status.st-gate::before { background: transparent; box-shadow: inset 0 0 0 2px var(--amber-mark); }
+  .who { display: inline-flex; align-items: center; gap: 6px; }
+  .av { width: 20px; height: 20px; border-radius: 50%; background: var(--brand-100); color: var(--brand-900); font-size: 10px; font-weight: 700; display: inline-grid; place-items: center; flex-shrink: 0; }
+  .dark .av { background: var(--brand-900); color: var(--brand-100); }
+  .due.late { color: var(--red); font-weight: 600; }
+  .due small { color: var(--muted); font-size: 11px; margin-left: 4px; }
+  .due.late small { color: var(--red); font-weight: 500; }
+  .unit { color: var(--faint); font-size: 11px; margin-left: 3px; }
+  .foot { position: sticky; bottom: 0; background: var(--bg); border-top: 1px solid var(--line); border-bottom: 0; font-weight: 600; }
+  .foot .lbl { color: var(--muted); font-weight: 500; }
+  input[type=checkbox] { accent-color: var(--brand-600); margin: 0; }
+
+  /* Drawer: content column + facts rail */
+  .scrim { display: none; }
+  .drawer { flex: 0 0 720px; width: 720px; background: var(--raised); border-left: 1px solid var(--line); display: flex; flex-direction: column; box-shadow: -12px 0 32px -16px rgba(0,0,0,.25); }
+  .dh { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--line); }
+  .dh .k { color: var(--muted); font-size: 12px; }
+  .dh .tp { font-size: 12px; color: var(--muted); padding: 2px 6px; border-radius: 4px; background: var(--chip); }
+  .dh .acts { margin-left: auto; display: flex; gap: 6px; }
+  .dbody { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 248px; }
+  .dmain { overflow: auto; padding: 18px 20px 24px; }
+  .drail { overflow: auto; padding: 16px; border-left: 1px solid var(--line); background: var(--bg); }
+  h1.t { font-size: 20px; line-height: 1.3; margin: 0 0 12px; font-weight: 650; letter-spacing: -.01em; }
+  .gate { display: flex; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 8px; background: var(--amber-bg); color: var(--text); margin-bottom: 16px; border: 1px solid color-mix(in oklab, var(--amber-mark) 40%, transparent); }
+  .gate .bar { flex: 1; height: 6px; border-radius: 3px; background: color-mix(in oklab, var(--amber-mark) 25%, transparent); overflow: hidden; }
+  .gate .bar i { display: block; width: 50%; height: 100%; background: var(--amber-mark); }
+  .gate small { color: var(--muted); }
+  .gate button { height: 28px; padding: 0 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); font-size: 12px; font-weight: 600; }
+  .desc { color: var(--text); font-size: 14px; line-height: 1.55; margin: 0 0 20px; max-width: 64ch; }
+  .sec { border-top: 1px solid var(--line); padding: 12px 0; }
+  .sec h2 { font-size: 13px; font-weight: 600; margin: 0 0 8px; display: flex; align-items: center; gap: 8px; }
+  .sec h2 span { color: var(--muted); font-weight: 500; }
+  .sec h2 button { margin-left: auto; }
+  .li { display: flex; align-items: center; gap: 8px; height: 30px; font-size: 13px; }
+  .li .k { color: var(--muted); font-size: 12px; width: 60px; }
+  .li .r { margin-left: auto; color: var(--muted); font-size: 12px; }
+  .check { width: 14px; height: 14px; border-radius: 3px; border: 1.5px solid var(--faint); flex-shrink: 0; }
+  .check.on { background: var(--green); border-color: var(--green); }
+  .tabs { display: flex; gap: 16px; border-bottom: 1px solid var(--line); margin-top: 8px; }
+  .tabs button { border: 0; background: none; padding: 8px 0; font-size: 13px; color: var(--muted); border-bottom: 2px solid transparent; }
+  .tabs button[aria-current] { color: var(--text); font-weight: 600; border-bottom-color: var(--brand-600); }
+  .ev { display: grid; grid-template-columns: 24px 1fr auto; gap: 8px; padding: 10px 0; font-size: 13px; border-bottom: 1px solid var(--line-soft); }
+  .ev time { color: var(--muted); font-size: 12px; }
+  dl.facts { margin: 0; display: grid; gap: 12px; }
+  dl.facts dt { font-size: 12px; color: var(--muted); margin-bottom: 3px; }
+  dl.facts dd { margin: 0; font-size: 13px; }
+  .fsel { display: flex; align-items: center; justify-content: space-between; height: 30px; padding: 0 8px; border-radius: 6px; background: var(--surface); border: 1px solid var(--line); }
+  .fsel::after { content: "▾"; color: var(--faint); font-size: 11px; }
+  .money { font-size: 18px; font-weight: 650; letter-spacing: -.01em; }
+  .rail-h { font-size: 12px; font-weight: 600; color: var(--muted); margin: 18px 0 10px; padding-top: 14px; border-top: 1px solid var(--line); }
+
+  /* Split view: with the drawer open the table keeps the columns that identify a row. */
+  @media (min-width: 701px) {
+    html:not(.hide-drawer) .row { grid-template-columns: 4px 34px 72px minmax(0, 1fr) 84px 116px; }
+    html:not(.hide-drawer) .row > :nth-child(6), html:not(.hide-drawer) .row > :nth-child(7), html:not(.hide-drawer) .row > :nth-child(8) { display: none; }
+  }
+
+  /* Phone */
+  .phone-only { display: none; }
+  @media (max-width: 700px) {
+    header { padding: 0 12px; gap: 8px; }
+    .desk-only { display: none !important; }
+    .phone-only { display: initial; }
+    h1.phone-only { display: block; margin: 0; }
+    .cmd { height: auto; flex-wrap: wrap; padding: 8px 12px; gap: 8px; }
+    .views { order: 1; width: 100%; overflow-x: auto; height: 32px; scrollbar-width: none; }
+    .views button { white-space: nowrap; }
+    .search { order: 2; min-width: 0; height: 40px; }
+    .cmd .tool { order: 3; height: 40px; }
+    .tokrow { display: flex; gap: 6px; padding: 8px 12px; overflow-x: auto; background: var(--surface); border-bottom: 1px solid var(--line); scrollbar-width: none; }
+    .table .row { grid-template-columns: 4px minmax(0, 1fr) auto; height: auto; padding: 8px 0; align-items: start; }
+    .row.head, .row.foot { display: none; }
+    .row > .c-chk, .row > .c-key, .row > .c-type, .row > .c-st, .row > .c-who, .row > .c-sig, .row > .c-due, .row > .c-amt { display: none; }
+    .m-title { display: block; white-space: normal; }
+    .m-title .title { display: block; line-height: 1.35; }
+    .m-meta { display: flex; gap: 8px; margin-top: 4px; font-size: 12px; color: var(--muted); flex-wrap: wrap; align-items: center; }
+    .m-right { text-align: right; font-size: 13px; font-weight: 600; }
+    .m-right .due { display: block; font-size: 11px; font-weight: 500; margin-top: 4px; }
+    .sumbar { display: flex; justify-content: space-between; padding: 10px 12px; font-size: 13px; background: var(--bg); border-top: 1px solid var(--line); position: sticky; bottom: 0; font-weight: 600; }
+    .drawer { position: fixed; inset: 48px 0 0 0; width: 100%; border-left: 0; z-index: 5; }
+    .scrim { display: none; }
+    html:not(.show-drawer) .drawer { display: none; }
+    .dbody { display: block; overflow: auto; }
+    .dmain { overflow: visible; padding: 14px 14px 24px; }
+    .drail { border-left: 0; border-bottom: 1px solid var(--line); padding: 12px 14px; }
+    dl.facts { grid-template-columns: 1fr 1fr; gap: 10px 12px; }
+    .rail-h, .rail-more, dl.rail-more, .dmain > h1.t { display: none; }
+    .m-h1 { padding: 14px 14px 0; background: var(--bg); }
+    .dh { padding: 6px 8px 6px 4px; }
+    .dh .acts .tool { height: 40px; }
+    .back { height: 44px; min-width: 44px; border: 0; background: none; font-size: 18px; color: var(--muted); }
+    h1.t { font-size: 18px; }
+    .gate { flex-wrap: wrap; }
+  }
+  .hide-drawer .drawer, .hide-drawer .scrim { display: none; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <img src="../../brand/logo-mark.png" alt="" />
+    <nav class="crumbs"><span class="desk-only">FinOps</span><span class="desk-only">/</span><b>Mühasibatlıq</b></nav>
+    <div class="hdr-right">
+      <button class="ghost" aria-label="Axtarış">⌕</button>
+      <button class="ghost" aria-label="Bildirişlər">🔔</button>
+      <span class="desk-only" style="font-size:12px;color:var(--muted)">AZ ☾</span>
+      <button class="ghost">Çıxış</button>
+    </div>
+  </header>
+
+  <div class="cmd">
+    <div class="views" role="tablist">
+      <button>Hamısı</button><button aria-current="true" class="dirty">Bu ay bağlanış</button><button>Mənim</button><button>Təsdiq gözləyənlər</button>
+    </div>
+    <span class="sep desk-only"></span>
+    <label class="search">
+      <span style="color:var(--faint)">⌕</span>
+      <span class="tok desk-only"><span>Status</span>İcrada, Yoxlamada<i>✕</i></span>
+      <span class="tok desk-only"><span>Son tarix</span>bu ay<i>✕</i></span>
+      <input placeholder="Axtar və ya filtr əlavə et…" />
+    </label>
+    <button class="tool desk-only">Sırala: son tarix ↑</button>
+    <button class="tool desk-only">Sütunlar</button>
+    <button class="tool phone-only">Filtrlər 2</button>
+    <span class="count desk-only">12 tapşırıq</span>
+    <button class="primary desk-only">Yeni tapşırıq</button>
+  </div>
+  <div class="tokrow phone-only">
+    <span class="tok"><span>Status</span>İcrada, Yoxlamada<i>✕</i></span>
+    <span class="tok"><span>Son tarix</span>bu ay<i>✕</i></span>
+  </div>
+
+  <div class="main">
+    <div class="table" id="tbl" role="table"></div>
+    <div class="scrim desk-only"></div>
+    <aside class="drawer" id="drawer"></aside>
+  </div>
+</div>
+
+<script>
+  const { items, statuses, people, fmt } = NB;
+  const sev = (s) => (s.overdue ? "overdue" : s.approval ? "approval" : s.blocked ? "blocked" : "");
+  const ini = (w) => (w ? people[w].split(" ").map((p) => p[0]).join("") : "");
+  const tbl = document.getElementById("tbl");
+  let html = `<div class="row head" role="row"><span class="rail"></span><span><input type="checkbox" aria-label="Hamısını seç"></span><span>Açar</span><span>Başlıq</span><span title="Təsdiq, bloklanma, alt tapşırıqlar">Siqnal</span><span>Status</span><span>Cavabdeh</span><span>Son tarix</span><span class="num">Məbləğ, ₼</span></div>`;
+  let total = 0;
+  items.forEach((it, i) => {
+    const s = it.signals; total += it.amount;
+    const st = statuses[it.status];
+    const sig = `<span class="sig">${s.approval ? `<b class="ap" title="Təsdiq ${s.approval[0]}/${s.approval[1]}">✓${s.approval[0]}/${s.approval[1]}</b>` : "<b></b>"}${s.blocked ? `<b class="bl" title="Bloklanıb">⛔</b>` : "<b></b>"}${s.subtasks ? `<b class="st" title="Alt tapşırıqlar">${s.subtasks[0]}/${s.subtasks[1]}</b>` : "<b></b>"}</span>`;
+    const due = it.due ? `<span class="due ${s.overdue ? "late" : ""}">${it.due}${s.overdue ? `<small>−${parseInt(it.dueRel)} g</small>` : ""}</span>` : `<span style="color:var(--faint)">—</span>`;
+    html += `<div class="row ${i === 1 ? "sel" : ""}" role="row">
+      <span class="rail ${sev(s)}"></span>
+      <span class="c-chk"><input type="checkbox" aria-label="Seç"></span>
+      <span class="key c-key">${it.key}</span>
+      <span class="m-title"><span class="title">${it.title}</span><span class="m-meta phone-only"><span>${it.key}</span><span class="status ${st.cat} ${st.gate ? "st-gate" : ""}">${st.name}</span>${s.approval ? `<span style="color:var(--amber)">✓${s.approval[0]}/${s.approval[1]}</span>` : ""}${s.blocked ? "<span>⛔</span>" : ""}${it.who ? `<span class="av">${ini(it.who)}</span>` : ""}</span></span>
+      <span class="c-sig">${sig}</span>
+      <span class="c-st"><span class="status ${st.cat} ${st.gate ? "st-gate" : ""}">${st.name}</span></span>
+      <span class="c-who">${it.who ? `<span class="who"><span class="av">${ini(it.who)}</span>${people[it.who]}</span>` : `<span style="color:var(--faint)">Təyin edilməyib</span>`}</span>
+      <span class="c-due">${due}</span>
+      <span class="num c-amt">${fmt(it.amount)}</span>
+      <span class="m-right phone-only">${it.amount ? fmt(it.amount) : ""}${it.due ? `<span class="due ${s.overdue ? "late" : ""}">${s.overdue ? it.dueRel : it.due}</span>` : ""}</span>
+    </div>`;
+  });
+  html += `<div class="row foot"><span></span><span></span><span></span><span class="lbl">Cəmi, 12 tapşırıq</span><span></span><span></span><span></span><span></span><span class="num">${fmt(total)}</span></div>`;
+  html += `<div class="sumbar phone-only"><span style="color:var(--muted);font-weight:500">12 tapşırıq</span><span>${fmt(total)} ₼</span></div>`;
+  tbl.innerHTML = html;
+
+  document.getElementById("drawer").innerHTML = `
+    <div class="dh">
+      <button class="back phone-only" aria-label="Geri">‹</button>
+      <span class="k">FIN-209</span><span class="tp">Ödəniş</span>
+      <span class="status st-gate desk-only" style="font-size:13px">Yoxlamada</span>
+      <div class="acts">
+        <button class="tool desk-only">İzlə</button>
+        <button class="tool desk-only">Sübut paketi</button>
+        <button class="tool" aria-label="Digər">⋯</button>
+        <button class="tool desk-only" aria-label="Bağla">✕</button>
+      </div>
+    </div>
+    <div class="dbody">
+      <h1 class="t m-h1 phone-only">Kontragent 0142 üzrə ödəniş tapşırığı</h1>
+      <aside class="drail" style="grid-column:2;grid-row:1">
+        <dl class="facts">
+          <div><dt>Məbləğ</dt><dd class="money">42 800,00 <span class="unit">₼</span></dd></div>
+          <div><dt>Status</dt><dd><span class="fsel"><span class="status st-gate">Yoxlamada</span></span></dd></div>
+          <div><dt>Cavabdeh</dt><dd><span class="fsel"><span class="who"><span class="av">RK</span>Rauf K.</span></span></dd></div>
+          <div><dt>Son tarix</dt><dd><span class="due late">21 noy 2026</span><br><small style="color:var(--red)">3 iş günü gecikib</small></dd></div>
+          <div class="rail-more"><dt>Kontragent</dt><dd>Kontragent 0142</dd></div>
+          <div class="rail-more"><dt>Xərc mərkəzi</dt><dd>CC-04 Əməliyyatlar</dd></div>
+        </dl>
+        <div class="rail-h">Qeyd</div>
+        <dl class="facts rail-more">
+          <div><dt>Müəllif</dt><dd>Leyla H.</dd></div>
+          <div><dt>Yeniləndi</dt><dd>bu gün, 10:42</dd></div>
+          <div><dt>İzləyənlər</dt><dd>3 nəfər</dd></div>
+        </dl>
+      </aside>
+      <div class="dmain" style="grid-column:1;grid-row:1">
+        <h1 class="t">Kontragent 0142 üzrə ödəniş tapşırığı</h1>
+        <div class="gate" role="status">
+          <div><b>Təsdiq: 1 / 2</b><br><small>Tamamlandı statusuna keçid üçün</small></div>
+          <div class="bar"><i></i></div>
+          <button>Təsdiqlə</button>
+        </div>
+        <p class="desc">Noyabr müqaviləsi üzrə ikinci hissə. Hesab-faktura reyestrdə yoxlanıb; bank rekvizitləri ötən ödənişlə eynidir.</p>
+        <div class="sec"><h2>Alt tapşırıqlar <span>1 / 3</span><button class="ghost">+ Əlavə et</button></h2>
+          <div class="li"><span class="check on"></span><span class="k">FIN-210</span>Hesab-fakturanın yoxlanması<span class="r">Leyla H.</span></div>
+          <div class="li"><span class="check"></span><span class="k">FIN-211</span>Rekvizitlərin təsdiqi<span class="r">Rauf K.</span></div>
+          <div class="li"><span class="check"></span><span class="k">FIN-213</span>Ödəniş tapşırığının bankda yaradılması<span class="r">—</span></div>
+        </div>
+        <div class="sec"><h2>Əlaqələr <span>2</span></h2>
+          <div class="li"><span style="color:var(--red);font-size:12px;width:92px">bloklayır</span><span class="k">FIN-196</span>Kontragent 0388 ilə üzləşmə aktı</div>
+          <div class="li"><span style="color:var(--muted);font-size:12px;width:92px">əlaqəli</span><span class="k">FIN-212</span>Bank çıxarışının uzlaşdırılması</div>
+        </div>
+        <div class="sec"><h2>Fayllar <span>2</span></h2>
+          <div class="li">📄 hesab-faktura-1187.pdf<span class="r">214 KB</span></div>
+          <div class="li">📄 muqavile-elave-3.pdf<span class="r">1,2 MB</span></div>
+        </div>
+        <div class="tabs"><button aria-current="true">Şərhlər 4</button><button>Fəaliyyət</button></div>
+        <div class="ev"><span class="av">LH</span><span><b>Leyla H.</b> Rekvizitlər yoxlandı, uyğundur.</span><time>09:15</time></div>
+        <div class="ev"><span class="av">RK</span><span><b>Rauf K.</b> təsdiq istədi: Tamamlandı</span><time>dünən</time></div>
+      </div>
+    </div>`;
+</script>
+</body>
+</html>

@@ -3,12 +3,14 @@ import { Link, useNavigate } from "react-router";
 
 import { useCreateWorkspace, useWorkspaces } from "../api/hooks";
 import { LanguageMenu } from "../components/LanguageMenu";
+import { ThemeMenu } from "../components/ThemeMenu";
 import { Layout } from "../components/Layout";
 import { Button, Dialog, EmptyState, ErrorState, FieldError, Input, Label, Select, Spinner } from "../components/ui";
 import { t } from "../i18n";
 import { ta } from "../i18n-admin";
 import { tk } from "../i18n-kinds";
 import { tt } from "../i18n-templates";
+import { tth } from "../i18n-theme";
 import { activeLocale, isLocale, LOCALES, type Locale } from "../i18n/locale";
 import { createWorkspaceBody, isWorkspaceKind, kindNotes, WORKSPACE_KINDS, type WorkspaceKind } from "../lib/workspaceKinds";
 
@@ -47,11 +49,18 @@ export function WorkspacesPage() {
             ))}
           </ul>
         )}
-        {/* Phones: the header has no room for the language picker (ADR-0019, ADR-0025). */}
-        <p className="mt-6 flex items-center justify-end gap-2 text-sm text-zinc-500 sm:hidden">
-          <span aria-hidden>{t.language}</span>
-          <LanguageMenu className="h-11" />
-        </p>
+        {/* Phones: the header has no room for the language picker (ADR-0019, ADR-0025);
+            below xl it has none for the theme picker either (ADR-0035). */}
+        <div className="mt-6 flex flex-wrap items-center justify-end gap-x-4 gap-y-2 text-sm text-zinc-500 xl:hidden">
+          <label className="flex items-center gap-2">
+            <span>{tth.theme}</span>
+            <ThemeMenu labelled className="h-11 pointer-fine:h-8" />
+          </label>
+          <span className="flex items-center gap-2 sm:hidden">
+            <span aria-hidden>{t.language}</span>
+            <LanguageMenu className="h-11" />
+          </span>
+        </div>
       </div>
       <Dialog open={open} onClose={() => { setOpen(false); }} title={t.newWorkspace}>
         <CreateWorkspaceForm onDone={() => { setOpen(false); }} />

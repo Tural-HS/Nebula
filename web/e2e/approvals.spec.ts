@@ -66,6 +66,7 @@ test.describe("as the approver", () => {
   test("lists show the badge and the 'pending my approval' filter", async ({ page }) => {
     await page.goto(seed.url);
     await expect(page.getByRole("row").filter({ hasText: "Hesab-faktura 1001" }).getByLabel("Təsdiq gözləyir: 0/1")).toBeVisible();
+    await page.locator("summary", { hasText: /^Filtrlər/ }).click(); // the filter menu (ADR-0035)
     await page.getByLabel("Təsdiq", { exact: true }).selectOption({ label: "Mənim təsdiqimi gözləyənlər" });
     await expect(page).toHaveURL(/approval=mine/);
     await expect(page.getByRole("row").filter({ hasText: "Hesab-faktura" })).toHaveCount(2);

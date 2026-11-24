@@ -2,13 +2,11 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { useEffect, useMemo, useRef, type CSSProperties, type ReactNode } from "react";
 
 import type { FieldDefinition, FieldSums, Item, Member } from "../api/types";
-import { ApprovalBadge } from "../components/Approvals";
-import { BlockedBadge } from "../components/Links";
-import { SubtaskBadge } from "../components/Subtasks";
+import { SignalCell, StatusText } from "../components/Signals";
 import { tc } from "../i18n-calendar";
 import { inlineKind, type InlineEdit } from "../lib/inline";
 import { InlineCell } from "./InlineCell";
-import { Avatar, DueChip, StatusBadge } from "../components/ui";
+import { Avatar, DueChip } from "../components/ui";
 import { t } from "../i18n";
 import { tv } from "../i18n-views";
 import { cn } from "../lib/cn";
@@ -17,6 +15,8 @@ import { displayColumns, FINE_POINTER, useCompact, useMediaQuery } from "../lib/
 import { columnHeader, fieldKey, formatDecimal, formatFieldValue, isFieldColumn } from "../lib/views";
 import { isFormula, isNumeric } from "../lib/formula";
 import { tf } from "../i18n-formulas";
+import { tlg } from "../i18n-ledger";
+import { ROW_STRIPE, rowSignal } from "../lib/queues";
 
 // ---------------------------------------------------------------------------
 // Table: virtualized, so only visible rows are in the DOM (100k rows stay
@@ -26,7 +26,11 @@ import { tf } from "../i18n-formulas";
 // title is pinned instead, with the key folded into it (lib/responsive).
 // ---------------------------------------------------------------------------
 
-const ROW_HEIGHT = 44;
+// Dense rows for a mouse (ADR-0035); touch keeps 44 px targets (ADR-0019).
+const ROW_HEIGHT = 36;
+const TOUCH_ROW_HEIGHT = 44;
+/** Not a user column: always right after the title (ADR-0035). */
+const SIGNALS = "signals";
 const ROW = "grid items-center gap-3 px-3 md:px-4";
 // Sticky cells need an opaque background: the page's.
 const STICKY_LEFT = "sticky left-0 z-[1] bg-zinc-50 dark:bg-zinc-950";
@@ -39,6 +43,8 @@ function track(col: string, def: FieldDefinition | undefined, compact: boolean):
   switch (col) {
     case "key":
       return ["6.5rem", 6.5];
+    case SIGNALS:
+      return ["7.25rem", 7.25];
     case "title":
       // Pinned on phones: leave about half of a 375 px screen for the rest.
       return compact ? ["minmax(10.5rem,1fr)", 10.5] : ["minmax(14rem,1fr)", 14];
@@ -98,13 +104,18 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
   const plainRows = compact || !fine;
   const select = plainRows ? undefined : selection;
   const edit = plainRows ? undefined : inline;
-  const { columns, keyInTitle } = useMemo(() => displayColumns(chosen, compact), [chosen, compact]);
+  const { columns, keyInTitle } = useMemo(() => {
+    const d = displayColumns(chosen, compact);
+    const at = d.columns.indexOf("title");
+    return { ...d, columns: [...d.columns.slice(0, at + 1), SIGNALS, ...d.columns.slice(at + 1)] };
+  }, [chosen, compact]);
+  const rowHeight = plainRows ? TOUCH_ROW_HEIGHT : ROW_HEIGHT;
   const scrollRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Virtual is designed for this usage
   const virtualizer = useVirtualizer({
     count: hasMore ? items.length + 1 : items.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => ROW_HEIGHT,
+    estimateSize: () => rowHeight,
     overscan: 12,
   });
   const rows = virtualizer.getVirtualItems();
@@ -115,7 +126,8 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
   }, [hasMore, loadingMore, lastIndex, items.length, loadMore]);
 
   const grid = useMemo<CSSProperties>(() => {
-    const tracks = columns.map((c) => track(c, isFieldColumn(c) ? fields.get(fieldKey(c)) : undefined, compact));
+    const tracks = columns.map((c): [string, number] =>
+      c === SIGNALS && !columns.includes("due_date") ? ["14.5rem", 14.5] : track(c, isFieldColumn(c) ? fields.get(fieldKey(c)) : undefined, compact));
     // The first column also holds the row checkbox: 2 rem wider.
     const first = tracks[0];
     if (select && first) {
@@ -125,6 +137,7 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
     const rem = tracks.reduce((n, [, w]) => n + w, 0) + 0.75 * (tracks.length - 1) + 2; // gaps and padding
     return { gridTemplateColumns: tracks.map(([g]) => g).join(" "), minWidth: `${String(rem)}rem` };
   }, [columns, fields, compact, select]);
+  const header = (c: string) => (c === SIGNALS ? tlg.signals : columnHeader(c, fields));
   const numeric = (c: string) => isFieldColumn(c) && isNumeric(fields.get(fieldKey(c)));
   // Formula columns are computed and read-only (ADR-0030): marked with ƒ.
   const formulaDef = (c: string) => {
@@ -138,28 +151,26 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
   const cell = (it: Item, col: string): ReactNode => {
     switch (col) {
       case "key":
-        return <span className="font-mono text-xs text-zinc-500">{it.key}</span>;
+        return <span className="text-xs text-zinc-500 tabular-nums">{it.key}</span>;
       case "title": {
         const title = (
           <span className="flex min-w-0 items-center gap-2">
-            <span className="truncate">{it.title}</span>
-            <SubtaskBadge summary={it.subtasks} />
-            <ApprovalBadge approval={it.approval} />
-            <BlockedBadge blocked={it.blocked} />
-            {showDueInTitle && it.due_date && <DueChip date={it.due_date} overdue={it.overdue} />}
+            <span className="truncate font-medium">{it.title}</span>
           </span>
         );
         return keyInTitle ? (
           <span className="flex min-w-0 flex-col leading-tight">
-            <span className="font-mono text-[11px] text-zinc-500">{it.key}</span>
+            <span className="text-[11px] text-zinc-500 tabular-nums">{it.key}</span>
             {title}
           </span>
         ) : title;
       }
+      case SIGNALS:
+        return <SignalCell item={it} withDue={showDueInTitle} />;
       case "type":
         return <span className="block truncate text-zinc-600 dark:text-zinc-400">{it.type.name}</span>;
       case "status":
-        return <StatusBadge name={it.status.name} category={it.status.category} />;
+        return <StatusText name={it.status.name} category={it.status.category} />;
       case "assignee":
         return (
           <span className="flex min-w-0 items-center gap-2">
@@ -190,9 +201,9 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
 
   return (
     <div ref={scrollRef} className="h-full overflow-auto" role="table" aria-rowcount={items.length}>
-      <div role="row" style={grid} className={cn(ROW, "sticky top-0 z-[2] h-9 border-b border-zinc-200 bg-zinc-50 text-xs font-medium tracking-wide text-zinc-500 uppercase dark:border-zinc-800 dark:bg-zinc-950")}>
+      <div role="row" style={grid} className={cn(ROW, "sticky top-0 z-[2] h-8 border-b border-zinc-200 bg-zinc-50 text-xs font-medium text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950")}>
         {columns.map((c, i) => (
-          <span key={c} role="columnheader" className={cn("truncate", numeric(c) && "text-right", i === 0 && STICKY_LEFT, i === 0 && STICKY_EDGE, i === 0 && select && "flex items-center gap-3")}>
+          <span key={c} role="columnheader" title={c === SIGNALS ? tlg.signalsHint : undefined} className={cn("truncate", numeric(c) && "text-right", i === 0 && STICKY_LEFT, i === 0 && STICKY_EDGE, i === 0 && select && "flex items-center gap-3")}>
             {i === 0 && select && (
               <input
                 type="checkbox"
@@ -203,26 +214,33 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
                 onChange={select.toggleAll}
               />
             )}
-            {formulaDef(c) && <span className="mr-1 font-serif normal-case italic" title={`${tf.readOnly}\n${tf.title(formulaDef(c)?.options.formula?.expression ?? "")}`}>ƒ</span>}
-            {c === "title" && keyInTitle ? `${columnHeader("key", fields)} · ${columnHeader(c, fields)}` : columnHeader(c, fields)}
+            {formulaDef(c) && <span className="mr-1 font-serif italic" title={`${tf.readOnly}\n${tf.title(formulaDef(c)?.options.formula?.expression ?? "")}`}>ƒ</span>}
+            {c === "title" && keyInTitle ? `${columnHeader("key", fields)} / ${header(c)}` : header(c)}
           </span>
         ))}
       </div>
       <div style={{ height: virtualizer.getTotalSize(), position: "relative", minWidth: grid.minWidth }}>
         {rows.map((row) => {
           const it = items[row.index];
+          const signal = it ? rowSignal(it) : null;
           return (
             <div
               key={row.key}
               role="row"
               style={{ position: "absolute", top: 0, left: 0, right: 0, height: row.size, transform: `translateY(${String(row.start)}px)` }}
             >
+              {/* The row's most urgent signal on its left edge; sticky, so it stays while the row scrolls sideways. */}
+              {signal && (
+                <span aria-hidden className="pointer-events-none sticky left-0 z-[3] block size-0">
+                  <span className={cn("absolute top-0 left-0 w-[3px]", ROW_STRIPE[signal])} style={{ height: row.size }} />
+                </span>
+              )}
               {it && plainRows ? (
                 <button
                   type="button"
                   onClick={() => { onOpen(it.number); }}
                   style={grid}
-                  className={cn(ROW, "h-full w-full border-b border-zinc-100 text-left text-sm hover:bg-zinc-100/70 dark:border-zinc-800/60 dark:hover:bg-zinc-800/60")}
+                  className={cn(ROW, "h-full w-full border-b border-zinc-100 text-left text-sm tabular-nums hover:bg-zinc-100/70 dark:border-zinc-800/60 dark:hover:bg-zinc-800/60")}
                 >
                   {columns.map((c, i) => (
                     <span key={c} role="cell" className={cn("min-w-0", i === 0 && STICKY_LEFT, i === 0 && STICKY_EDGE)}>
@@ -242,7 +260,7 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
                   data-selected={select?.selected.has(it.number) || undefined}
                   className={cn(
                     ROW,
-                    "h-full w-full cursor-pointer border-b border-zinc-100 text-left text-sm hover:bg-zinc-100/70 dark:border-zinc-800/60 dark:hover:bg-zinc-800/60",
+                    "h-full w-full cursor-pointer border-b border-zinc-100 text-left text-sm tabular-nums hover:bg-zinc-100/70 dark:border-zinc-800/60 dark:hover:bg-zinc-800/60",
                     select?.selected.has(it.number) && "bg-brand-50/70 dark:bg-brand-950/30",
                   )}
                 >
@@ -264,7 +282,7 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
                             {cell(it, c)}
                           </button>
                         ) : kind && edit ? (
-                          <InlineCell item={it} col={c} kind={kind} label={columnHeader(c, fields)} edit={edit} fields={fields}>
+                          <InlineCell item={it} col={c} kind={kind} label={header(c)} edit={edit} fields={fields}>
                             {cell(it, c)}
                           </InlineCell>
                         ) : (

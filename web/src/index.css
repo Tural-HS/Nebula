@@ -1,19 +1,37 @@
 @import "tailwindcss";
 
+/* Dark mode follows the `dark` class on <html>, set by public/theme-init.js
+   before the first paint and by lib/theme.ts afterwards (ADR-0035): the user
+   picks light, dark or the system setting. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   /* Taken from the logo's navy → blue → teal gradient (docs/brand). All in
      sRGB gamut. White text: 600 = 5.1:1, 700 = 7.3:1 (WCAG AA); the 500
-     focus ring is 3.5:1 on white (non-text minimum is 3:1). */
+     focus ring is 3.5:1 on white (non-text minimum is 3:1). The full scale is
+     mirrored as the "teal" accent in lib/accent.ts (ADR-0035), where a
+     workspace accent overrides these variables; accent.test.ts keeps both in
+     step. 200/300/400/800/950 were added with it (earlier classes using them,
+     such as dark:text-brand-300, rendered nothing). */
   --color-brand-50: oklch(0.975 0.018 205);
   --color-brand-100: oklch(0.94 0.04 200);
+  --color-brand-200: oklch(0.885 0.06 203);
+  --color-brand-300: oklch(0.81 0.08 205);
+  --color-brand-400: oklch(0.72 0.095 205);
   --color-brand-500: oklch(0.62 0.098 205);
   --color-brand-600: oklch(0.53 0.088 215);
   --color-brand-700: oklch(0.45 0.08 225);
+  --color-brand-800: oklch(0.38 0.08 245);
   --color-brand-900: oklch(0.3 0.08 272);
+  --color-brand-950: oklch(0.23 0.065 272);
 }
 
 @layer base {
+  :root {
+    /* Item panel width beside the table from lg (ADR-0035); the list reserves it. */
+    --drawer-w: min(60rem, 64vw);
+  }
   html,
   body,
   #root {
