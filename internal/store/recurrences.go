@@ -36,7 +36,9 @@ type Recurrence struct {
 	Every       int            `json:"every"`
 	Weekdays    []int          `json:"weekdays"`
 	MonthDay    *int           `json:"month_day"`
+	WorkDay     *int           `json:"work_day"`
 	Month       *int           `json:"month"`
+	Shift       string         `json:"shift"`
 	StartDate   string         `json:"start_date"`
 	EndDate     *string        `json:"end_date"`
 	LeadDays    int            `json:"lead_days"`
@@ -66,7 +68,9 @@ type ScheduleInput struct {
 	Every     int     `json:"every"`
 	Weekdays  []int   `json:"weekdays"`
 	MonthDay  *int    `json:"month_day"`
+	WorkDay   *int    `json:"work_day"` // N-th working day 1..23 or -1 = last (ADR-0027)
 	Month     *int    `json:"month"`
+	Shift     string  `json:"shift"` // none (default) | previous | next
 	StartDate string  `json:"start_date"`
 	EndDate   *string `json:"end_date"`
 }
@@ -77,7 +81,7 @@ func (in ScheduleInput) Schedule() (recur.Schedule, error) {
 	if err != nil {
 		return recur.Schedule{}, invalid("start_date", "must be a date YYYY-MM-DD")
 	}
-	s := recur.Schedule{Freq: in.Freq, Interval: in.Every, Start: start}
+	s := recur.Schedule{Freq: in.Freq, Interval: in.Every, Start: start, Shift: in.shift()}
 	if in.EndDate != nil {
 		end, err := time.Parse(time.DateOnly, *in.EndDate)
 		if err != nil {
@@ -91,6 +95,12 @@ func (in ScheduleInput) Schedule() (recur.Schedule, error) {
 	if in.MonthDay != nil {
 		s.MonthDay = *in.MonthDay
 	}
+	if in.WorkDay != nil {
+		if *in.WorkDay == 0 {
+			return recur.Schedule{}, invalid("work_day", "must be 1 to %d, -1 (last working day) or null", recur.MaxWorkDay)
+		}
+		s.WorkDay = *in.WorkDay
+	}
 	if in.Month != nil {
 		s.Month = time.Month(*in.Month)
 	}
@@ -103,6 +113,13 @@ func (in ScheduleInput) Schedule() (recur.Schedule, error) {
 	return s, nil
 }
 
+func (in ScheduleInput) shift() string {
+	if in.Shift == "" {
+		return recur.ShiftNone
+	}
+	return in.Shift
+}
+
 // PreviewSchedule returns the next dates of a schedule, from today in the
 // workspace's time zone, without saving anything.
 func (s *Store) PreviewSchedule(ctx context.Context, wsID uuid.UUID, in ScheduleInput) ([]string, error) {
@@ -113,6 +130,11 @@ func (s *Store) PreviewSchedule(ctx context.Context, wsID uuid.UUID, in Schedule
 	today, err := workspaceToday(ctx, s.pool, wsID)
 	if err != nil {
 		return nil, err
+	}
+	if sched.UsesCalendar() {
+		if sched.Cal, err = loadCalendar(ctx, s.pool, wsID, false); err != nil {
+			return nil, err
+		}
 	}
 	return formatDates(sched.Upcoming(today, upcomingPreview)), nil
 }
@@ -171,31 +193,30 @@ func validateRecurrence(ctx context.Context, q querier, wsID, projectID uuid.UUI
 	return sched, prep, lead, nil
 }
 
-// firstDue is the first date at or after max(today, from) that has no item yet.
-func firstDue(sched recur.Schedule, today time.Time, after *time.Time) *time.Time {
-	from := today
-	if after != nil && !after.Before(from) {
-		from = after.AddDate(0, 0, 1)
-	}
-	d, ok := sched.Next(from)
+// firstDue is the due date of the first occurrence from today on that comes
+// after the last one with an item (see recur.Schedule.NextAfter).
+func firstDue(sched recur.Schedule, today time.Time, after *recur.Occurrence) *time.Time {
+	o, ok := sched.NextAfter(today, after)
 	if !ok {
 		return nil
 	}
-	return &d
+	return &o.Due
 }
 
 const recurrenceSelect = `SELECT r.id, r.title, r.description, t.id, t.key, t.name, r.assignee_id, r.fields,
-	r.freq, r.every, r.weekdays, r.month_day, r.month, r.start_date::text, r.end_date::text, r.lead_days,
+	r.freq, r.every, r.weekdays, r.month_day, r.work_day, r.month, r.shift, r.start_date::text, r.end_date::text, r.lead_days,
 	r.next_due::text, r.is_enabled, r.last_error, r.created_at, r.updated_at
 	FROM recurrences r JOIN item_types t ON t.id = r.item_type_id`
 
-func scanRecurrence(row pgx.Row) (Recurrence, error) {
+// scanRecurrence reads a rule; its upcoming dates use cal (nil = default
+// calendar; only rules with working-day options depend on it).
+func scanRecurrence(row pgx.Row, cal *recur.Calendar) (Recurrence, error) {
 	var r Recurrence
 	var weekdays []int16
-	var monthDay, month *int16
+	var monthDay, workDay, month *int16
 	var every, lead int16
 	err := row.Scan(&r.ID, &r.Title, &r.Description, &r.Type.ID, &r.Type.Key, &r.Type.Name, &r.AssigneeID, &r.Fields,
-		&r.Freq, &every, &weekdays, &monthDay, &month, &r.StartDate, &r.EndDate, &lead,
+		&r.Freq, &every, &weekdays, &monthDay, &workDay, &month, &r.Shift, &r.StartDate, &r.EndDate, &lead,
 		&r.NextDue, &r.Enabled, &r.LastError, &r.CreatedAt, &r.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Recurrence{}, ErrNotFound
@@ -212,6 +233,10 @@ func scanRecurrence(row pgx.Row) (Recurrence, error) {
 		v := int(*monthDay)
 		r.MonthDay = &v
 	}
+	if workDay != nil {
+		v := int(*workDay)
+		r.WorkDay = &v
+	}
 	if month != nil {
 		v := int(*month)
 		r.Month = &v
@@ -219,6 +244,7 @@ func scanRecurrence(row pgx.Row) (Recurrence, error) {
 	r.Upcoming = []string{}
 	if r.NextDue != nil {
 		if sched, err := r.input().Schedule(); err == nil {
+			sched.Cal = cal
 			next, _ := time.Parse(time.DateOnly, *r.NextDue)
 			r.Upcoming = formatDates(sched.Upcoming(next, upcomingPreview))
 		}
@@ -227,12 +253,16 @@ func scanRecurrence(row pgx.Row) (Recurrence, error) {
 }
 
 func (r Recurrence) input() ScheduleInput {
-	return ScheduleInput{Freq: r.Freq, Every: r.Every, Weekdays: r.Weekdays, MonthDay: r.MonthDay, Month: r.Month,
-		StartDate: r.StartDate, EndDate: r.EndDate}
+	return ScheduleInput{Freq: r.Freq, Every: r.Every, Weekdays: r.Weekdays, MonthDay: r.MonthDay, WorkDay: r.WorkDay,
+		Month: r.Month, Shift: r.Shift, StartDate: r.StartDate, EndDate: r.EndDate}
 }
 
 // ListRecurrences returns a project's rules, soonest first.
 func (s *Store) ListRecurrences(ctx context.Context, wsID, projectID uuid.UUID) ([]Recurrence, error) {
+	cal, err := loadCalendar(ctx, s.pool, wsID, false)
+	if err != nil {
+		return nil, err
+	}
 	rows, err := s.pool.Query(ctx, recurrenceSelect+` WHERE r.workspace_id = $1 AND r.project_id = $2
 		ORDER BY r.next_due NULLS LAST, r.title, r.id`, wsID, projectID)
 	if err != nil {
@@ -241,7 +271,7 @@ func (s *Store) ListRecurrences(ctx context.Context, wsID, projectID uuid.UUID) 
 	defer rows.Close()
 	out := []Recurrence{}
 	for rows.Next() {
-		r, err := scanRecurrence(rows)
+		r, err := scanRecurrence(rows, cal)
 		if err != nil {
 			return nil, err
 		}
@@ -252,8 +282,12 @@ func (s *Store) ListRecurrences(ctx context.Context, wsID, projectID uuid.UUID) 
 
 // GetRecurrence returns one rule of a project.
 func (s *Store) GetRecurrence(ctx context.Context, wsID, projectID, id uuid.UUID) (Recurrence, error) {
+	cal, err := loadCalendar(ctx, s.pool, wsID, false)
+	if err != nil {
+		return Recurrence{}, err
+	}
 	return scanRecurrence(s.pool.QueryRow(ctx, recurrenceSelect+` WHERE r.workspace_id = $1 AND r.project_id = $2 AND r.id = $3`,
-		wsID, projectID, id))
+		wsID, projectID, id), cal)
 }
 
 func weekdaysArray(in []int) []int16 {
@@ -281,8 +315,11 @@ func (s *Store) SaveRecurrence(ctx context.Context, wsID, projectID, actorID, id
 		if err != nil {
 			return err
 		}
+		if sched.Cal, err = loadCalendar(ctx, tx, wsID, true); err != nil {
+			return err
+		}
 		action := "recurrence.created"
-		var lastRun *time.Time
+		var last *recur.Occurrence
 		if id == uuid.Nil {
 			var n int
 			if err := tx.QueryRow(ctx, `SELECT count(*) FROM recurrences WHERE workspace_id = $1`, wsID).Scan(&n); err != nil {
@@ -302,17 +339,20 @@ func (s *Store) SaveRecurrence(ctx context.Context, wsID, projectID, actorID, id
 				return err
 			}
 			// Never schedule a date that already has an item.
-			if err := tx.QueryRow(ctx, `SELECT max(due_date) FROM recurrence_runs WHERE recurrence_id = $1`, id).Scan(&lastRun); err != nil {
+			if last, err = lastRun(ctx, tx, id); err != nil {
 				return err
 			}
 		}
-		next := firstDue(sched, today, lastRun)
-		var end, monthDay, month any
+		next := firstDue(sched, today, last)
+		var end, monthDay, workDay, month any
 		if sched.End != nil {
 			end = sched.End.Format(time.DateOnly)
 		}
 		if in.MonthDay != nil {
 			monthDay = *in.MonthDay
+		}
+		if in.WorkDay != nil {
+			workDay = *in.WorkDay
 		}
 		if in.Month != nil {
 			month = *in.Month
@@ -323,23 +363,25 @@ func (s *Store) SaveRecurrence(ctx context.Context, wsID, projectID, actorID, id
 		}
 		_, err = tx.Exec(ctx, `INSERT INTO recurrences (id, workspace_id, project_id, title, description, item_type_id,
 				assignee_id, fields, freq, every, weekdays, month_day, month, start_date, end_date, lead_days, next_due,
-				is_enabled, last_error, created_by)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::date, $15::date, $16, $17::date, $18, NULL, $19)
+				is_enabled, last_error, created_by, work_day, shift)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::date, $15::date, $16, $17::date, $18, NULL, $19,
+				$20, $21)
 			ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title, description = EXCLUDED.description,
 				item_type_id = EXCLUDED.item_type_id, assignee_id = EXCLUDED.assignee_id, fields = EXCLUDED.fields,
 				freq = EXCLUDED.freq, every = EXCLUDED.every, weekdays = EXCLUDED.weekdays, month_day = EXCLUDED.month_day,
 				month = EXCLUDED.month, start_date = EXCLUDED.start_date, end_date = EXCLUDED.end_date,
 				lead_days = EXCLUDED.lead_days, next_due = EXCLUDED.next_due, is_enabled = EXCLUDED.is_enabled,
-				last_error = NULL`,
+				last_error = NULL, work_day = EXCLUDED.work_day, shift = EXCLUDED.shift`,
 			id, wsID, projectID, strings.TrimSpace(in.Title), prep.desc, prep.typ.ID, prep.assignee, prep.fields,
 			in.Freq, in.Every, weekdaysArray(in.Weekdays), monthDay, month, in.StartDate, end, lead, nextDue,
-			enabled, actorID)
+			enabled, actorID, workDay, sched.Shift)
 		if err != nil {
 			return err
 		}
 		saved = id
 		return appendEvent(ctx, tx, wsID, actorID, "recurrence", id, action,
-			map[string]any{"title": in.Title, "freq": in.Freq, "next_due": nextDue, "enabled": enabled})
+			map[string]any{"title": in.Title, "freq": in.Freq, "work_day": workDay, "shift": sched.Shift,
+				"next_due": nextDue, "enabled": enabled})
 	})
 	if err != nil {
 		return Recurrence{}, err
@@ -402,14 +444,25 @@ func (s *Store) runRecurrence(ctx context.Context, id uuid.UUID) (int, error) {
 			wsID, projectID uuid.UUID
 			r               Recurrence
 		)
-		row := tx.QueryRow(ctx, `SELECT r.workspace_id, r.project_id FROM recurrences r WHERE r.id = $1 AND r.is_enabled
+		// Lock order everywhere: workspace (calendar) first, then the rule, so a
+		// concurrent calendar change (rescheduleRecurrences) cannot deadlock.
+		if err := tx.QueryRow(ctx, `SELECT workspace_id FROM recurrences WHERE id = $1`, id).Scan(&wsID); errors.Is(err, pgx.ErrNoRows) {
+			return nil
+		} else if err != nil {
+			return err
+		}
+		cal, err := loadCalendar(ctx, tx, wsID, true)
+		if err != nil {
+			return err
+		}
+		row := tx.QueryRow(ctx, `SELECT r.project_id FROM recurrences r WHERE r.id = $1 AND r.is_enabled
 			FOR UPDATE SKIP LOCKED`, id)
-		if err := row.Scan(&wsID, &projectID); errors.Is(err, pgx.ErrNoRows) {
+		if err := row.Scan(&projectID); errors.Is(err, pgx.ErrNoRows) {
 			return nil // disabled, deleted or being run by another replica
 		} else if err != nil {
 			return err
 		}
-		r, err := scanRecurrence(tx.QueryRow(ctx, recurrenceSelect+` WHERE r.id = $1`, id))
+		r, err = scanRecurrence(tx.QueryRow(ctx, recurrenceSelect+` WHERE r.id = $1`, id), cal)
 		if err != nil {
 			return err
 		}
@@ -417,6 +470,7 @@ func (s *Store) runRecurrence(ctx context.Context, id uuid.UUID) (int, error) {
 		if err != nil {
 			return err
 		}
+		sched.Cal = cal
 		today, err := workspaceToday(ctx, tx, wsID)
 		if err != nil {
 			return err
@@ -429,46 +483,51 @@ func (s *Store) runRecurrence(ctx context.Context, id uuid.UUID) (int, error) {
 			}
 			fields[k] = raw
 		}
-		next := r.NextDue
-		for range maxCatchUpPerRule {
-			if next == nil {
-				break
-			}
-			due, err := time.Parse(time.DateOnly, *next)
+		// Missed dates from next_due on are caught up; a date that already has
+		// an item (same due date, or same nominal date before a calendar
+		// change moved it) is skipped.
+		var after *recur.Occurrence
+		var next *string
+		if r.NextDue != nil {
+			from, err := time.Parse(time.DateOnly, *r.NextDue)
 			if err != nil {
 				return err
 			}
-			if due.AddDate(0, 0, -r.LeadDays).After(today) {
-				break
-			}
-			var done bool
-			if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM recurrence_runs WHERE recurrence_id = $1 AND due_date = $2::date)`,
-				id, *next).Scan(&done); err != nil {
-				return err
-			}
-			if !done {
-				dueStr := *next
-				item, err := createItemTx(ctx, tx, CreateItemParams{
-					WorkspaceID: wsID, ProjectID: projectID, Title: RenderRecurrenceTitle(r.Title, due),
-					Description: r.Description, TypeKey: r.Type.Key, AssigneeID: r.AssigneeID, DueDate: &dueStr, Fields: fields,
-				}, map[string]any{"recurrence_id": id})
-				if errors.As(err, &failure) {
-					return err
+			for i := 0; ; i++ {
+				occ, ok := sched.NextAfter(from, after)
+				if !ok {
+					break
 				}
-				if err != nil {
-					return err
-				}
-				if _, err := tx.Exec(ctx, `INSERT INTO recurrence_runs (workspace_id, recurrence_id, due_date, item_id)
-					VALUES ($1, $2, $3::date, $4)`, wsID, id, *next, item.ID); err != nil {
-					return err
-				}
-				created++
-			}
-			n, ok := sched.Next(due.AddDate(0, 0, 1))
-			next = nil
-			if ok {
-				v := n.Format(time.DateOnly)
+				v := occ.Due.Format(time.DateOnly)
 				next = &v
+				if i == maxCatchUpPerRule || occ.Due.AddDate(0, 0, -r.LeadDays).After(today) {
+					break
+				}
+				var done bool
+				if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM recurrence_runs WHERE recurrence_id = $1
+						AND (due_date = $2::date OR coalesce(nominal_date, due_date) = $3::date))`,
+					id, v, occ.Nominal.Format(time.DateOnly)).Scan(&done); err != nil {
+					return err
+				}
+				if !done {
+					item, err := createItemTx(ctx, tx, CreateItemParams{
+						WorkspaceID: wsID, ProjectID: projectID, Title: RenderRecurrenceTitle(r.Title, occ.Due),
+						Description: r.Description, TypeKey: r.Type.Key, AssigneeID: r.AssigneeID, DueDate: &v, Fields: fields,
+					}, map[string]any{"recurrence_id": id})
+					if errors.As(err, &failure) {
+						return err
+					}
+					if err != nil {
+						return err
+					}
+					if _, err := tx.Exec(ctx, `INSERT INTO recurrence_runs (workspace_id, recurrence_id, due_date, item_id, nominal_date)
+						VALUES ($1, $2, $3::date, $4, $5::date)`, wsID, id, v, item.ID, occ.Nominal.Format(time.DateOnly)); err != nil {
+						return err
+					}
+					created++
+				}
+				after = &occ
+				next = nil
 			}
 		}
 		_, err = tx.Exec(ctx, `UPDATE recurrences SET next_due = $1::date, last_error = NULL WHERE id = $2`, next, id)

@@ -24,6 +24,7 @@ böyük həcmli məlumatlarda sürətli, tam fərdiləşdirilə bilən, öz serv
 - Alt tapşırıqlar (bir səviyyə, DB-də qorunur): [ADR-0021](docs/adr/0021-subtasks.md)
 - Təqvim, toplu və sətirdaxili redaktə: [ADR-0023](docs/adr/0023-calendar-bulk-inline.md)
 - Status keçidlərində "dörd göz" təsdiqi (hazırlayan öz işini təsdiqləyə bilməz, N təsdiq): [ADR-0026](docs/adr/0026-four-eyes-approvals.md)
+- İş təqvimi (həftə sonu, bayramlar, köçürmələr) və iş gününə bağlı təkrarlanma: [ADR-0027](docs/adr/0027-working-day-calendar.md)
 - Yol xəritəsi: [docs/ROADMAP.md](docs/ROADMAP.md)
 
 ## Tələblər

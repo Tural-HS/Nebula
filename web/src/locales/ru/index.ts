@@ -15,5 +15,6 @@ import { ts as search } from "./search";
 import { ts as subtasks } from "./subtasks";
 import { tt as templates } from "./templates";
 import { tv as views } from "./views";
+import { tw as workdays } from "./workdays";
 
-export const ru: Messages = { admin, approvals, attach, calendar, core, importer, invite, mobile, notifications, project, recur, search, subtasks, templates, views };
+export const ru: Messages = { admin, approvals, attach, calendar, core, importer, invite, mobile, notifications, project, recur, search, subtasks, templates, views, workdays };

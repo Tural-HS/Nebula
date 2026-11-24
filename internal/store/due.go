@@ -148,6 +148,14 @@ func (s *Store) EmitOverdueDigests(ctx context.Context) (int, error) {
 			return err
 		}
 		for _, r := range runs {
+			// No digest on the workspace's non-working days (ADR-0027): the run
+			// row above marks the day as done, and the next working day's
+			// digest lists everything that is still overdue.
+			if working, err := isWorkday(ctx, tx, r.ws, r.date); err != nil {
+				return err
+			} else if !working {
+				continue
+			}
 			counts, err := tx.Query(ctx, `SELECT p.key, count(*) FROM items i
 				JOIN workspaces w ON w.id = i.workspace_id JOIN statuses s ON s.id = i.status_id
 				JOIN projects p ON p.id = i.project_id
