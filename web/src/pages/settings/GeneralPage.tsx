@@ -33,7 +33,7 @@ function General({ ws }: { ws: string }) {
   return (
     <div className="space-y-4">
       <GeneralForm key={workspace.data.id} ws={ws} workspace={workspace.data} />
-      {/* Shown once the API returns the field (migration pending, ADR-0035). */}
+      {/* Hidden if the API predates accents (ADR-0035, migration 00028). */}
       {workspace.data.accent !== undefined && <AccentPicker ws={ws} accent={workspace.data.accent} />}
     </div>
   );

@@ -40,7 +40,16 @@ type Workspace struct {
 	Timezone string `json:"timezone"`
 	// OverdueDigestHour is the local hour of the daily overdue digest; nil = off.
 	OverdueDigestHour *int `json:"overdue_digest_hour"`
+	// Accent is the workspace colour key (ADR-0035); nil = the default teal.
+	Accent *string `json:"accent"`
 }
+
+// AccentDefault is the Nebula teal; it is stored as NULL.
+const AccentDefault = "teal"
+
+// accents are the curated colour keys of web/src/lib/accent.ts besides the
+// default; migration 00028's CHECK lists the same keys.
+var accents = map[string]bool{"ocean": true, "indigo": true, "violet": true, "plum": true, "forest": true, "graphite": true}
 
 // Member is a user's membership in a workspace.
 type Member struct {
@@ -221,7 +230,7 @@ func installDefaultTemplate(ctx context.Context, tx pgx.Tx, wsID uuid.UUID, tpl 
 	return nil
 }
 
-const workspaceSelect = `SELECT w.id, w.slug, w.name, m.role, w.created_at, w.timezone, w.overdue_digest_hour
+const workspaceSelect = `SELECT w.id, w.slug, w.name, m.role, w.created_at, w.timezone, w.overdue_digest_hour, w.accent
 	FROM workspaces w JOIN workspace_members m ON m.workspace_id = w.id`
 
 // ListWorkspaces returns the workspaces userID belongs to.
@@ -458,10 +467,11 @@ func isMember(ctx context.Context, q querier, wsID, userID uuid.UUID) (bool, err
 type UpdateWorkspaceParams struct {
 	Name              opt.Field[string]
 	Timezone          opt.Field[string]
-	OverdueDigestHour opt.Field[int] // null turns the digest off
+	OverdueDigestHour opt.Field[int]    // null turns the digest off
+	Accent            opt.Field[string] // null or "teal" = the default colour
 }
 
-// UpdateWorkspace changes name, time zone or digest hour (admin+, checked by
+// UpdateWorkspace changes name, time zone, digest hour or accent (admin+, checked by
 // the caller) and records a workspace.updated event.
 func (s *Store) UpdateWorkspace(ctx context.Context, wsID, actorID uuid.UUID, p UpdateWorkspaceParams) error {
 	if (p.Name.Set && p.Name.Null) || (p.Timezone.Set && p.Timezone.Null) {
@@ -485,6 +495,14 @@ func (s *Store) UpdateWorkspace(ctx context.Context, wsID, actorID uuid.UUID, p 
 	if p.OverdueDigestHour.Set && !p.OverdueDigestHour.Null && (p.OverdueDigestHour.Value < 0 || p.OverdueDigestHour.Value > 23) {
 		return invalid("overdue_digest_hour", "must be 0 to 23 or null")
 	}
+	var accent *string // the requested value; nil = default
+	if p.Accent.Set && !p.Accent.Null && p.Accent.Value != AccentDefault {
+		if !accents[p.Accent.Value] {
+			return invalid("accent", "must be one of teal, ocean, indigo, violet, plum, forest, graphite or null")
+		}
+		v := p.Accent.Value
+		accent = &v
+	}
 	return s.inTx(ctx, func(tx pgx.Tx) error {
 		if p.Timezone.Set {
 			var known bool
@@ -497,12 +515,13 @@ func (s *Store) UpdateWorkspace(ctx context.Context, wsID, actorID uuid.UUID, p 
 		}
 		var curName, curTZ string
 		var curHour *int
-		if err := tx.QueryRow(ctx, `SELECT name, timezone, overdue_digest_hour FROM workspaces WHERE id = $1 FOR UPDATE`, wsID).
-			Scan(&curName, &curTZ, &curHour); err != nil {
+		var curAccent *string
+		if err := tx.QueryRow(ctx, `SELECT name, timezone, overdue_digest_hour, accent FROM workspaces WHERE id = $1 FOR UPDATE`, wsID).
+			Scan(&curName, &curTZ, &curHour, &curAccent); err != nil {
 			return err
 		}
 		changes := map[string]any{}
-		newName, newTZ, newHour := curName, curTZ, curHour
+		newName, newTZ, newHour, newAccent := curName, curTZ, curHour, curAccent
 		if p.Name.Set && name != curName {
 			changes["name"] = diff(curName, name)
 			newName = name
@@ -522,11 +541,15 @@ func (s *Store) UpdateWorkspace(ctx context.Context, wsID, actorID uuid.UUID, p 
 				newHour = h
 			}
 		}
+		if p.Accent.Set && !equalPtr(curAccent, accent) {
+			changes["accent"] = diff(accentKey(curAccent), accentKey(accent))
+			newAccent = accent
+		}
 		if len(changes) == 0 {
 			return nil
 		}
-		if _, err := tx.Exec(ctx, `UPDATE workspaces SET name = $1, timezone = $2, overdue_digest_hour = $3 WHERE id = $4`,
-			newName, newTZ, newHour, wsID); err != nil {
+		if _, err := tx.Exec(ctx, `UPDATE workspaces SET name = $1, timezone = $2, overdue_digest_hour = $3, accent = $4 WHERE id = $5`,
+			newName, newTZ, newHour, newAccent, wsID); err != nil {
 			return err
 		}
 		if _, ok := changes["timezone"]; ok {
@@ -537,4 +560,12 @@ func (s *Store) UpdateWorkspace(ctx context.Context, wsID, actorID uuid.UUID, p 
 		}
 		return appendEvent(ctx, tx, wsID, actorID, "workspace", wsID, "workspace.updated", map[string]any{"changes": changes})
 	})
+}
+
+// accentKey names the colour in audit payloads: the default is "teal", not null.
+func accentKey(a *string) string {
+	if a == nil {
+		return AccentDefault
+	}
+	return *a
 }

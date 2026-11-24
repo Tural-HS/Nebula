@@ -19,8 +19,8 @@ export interface Workspace {
   timezone: string;
   /** Local hour of the daily overdue digest; null = off. */
   overdue_digest_hour: number | null;
-  /** Accent colour key (lib/accent.ts, ADR-0035); null = the Nebula teal.
-   * Absent while the API does not support accents yet (migration pending). */
+  /** Accent colour key (lib/accent.ts, ADR-0035, migration 00028); null = the
+   * Nebula teal. Optional so an older API (without the field) hides the picker. */
   accent?: string | null;
 }
 

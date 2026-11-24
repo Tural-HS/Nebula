@@ -197,19 +197,20 @@ func (a *api) getWorkspace(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, workspaceFrom(r))
 }
 
-// updateWorkspace changes workspace settings: name, time zone, digest hour.
+// updateWorkspace changes workspace settings: name, time zone, digest hour, accent colour.
 func (a *api) updateWorkspace(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Name              opt.Field[string] `json:"name"`
 		Timezone          opt.Field[string] `json:"timezone"`
 		OverdueDigestHour opt.Field[int]    `json:"overdue_digest_hour"`
+		Accent            opt.Field[string] `json:"accent"`
 	}
 	if !a.decode(w, r, &body) {
 		return
 	}
 	ws := workspaceFrom(r)
 	if err := a.store.UpdateWorkspace(r.Context(), ws.ID, principal(r).UserID, store.UpdateWorkspaceParams{
-		Name: body.Name, Timezone: body.Timezone, OverdueDigestHour: body.OverdueDigestHour,
+		Name: body.Name, Timezone: body.Timezone, OverdueDigestHour: body.OverdueDigestHour, Accent: body.Accent,
 	}); err != nil {
 		a.fail(w, r, err)
 		return

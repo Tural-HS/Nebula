@@ -1,7 +1,6 @@
 # ADR-0035: Rəng rejimi, workspace vurğu rəngi və tapşırıq siyahısı/panelinin yeni dizaynı
 
-- Status: Qaralama — rəng rejimi qəbul edilib; vurğu rənginin backend hissəsi (miqrasiya 00028) və dizayn istiqamətinin
-  seçimi gözləyir
+- Status: Qaralama — rəng rejimi və vurğu rəngi (miqrasiya 00028) qəbul edilib; dizayn istiqamətinin seçimi gözləyir
 - Tarix: 2026-11-24
 
 ## Kontekst
@@ -40,17 +39,17 @@ Bu ADR (1) və (2)-ni həll edir; (3) üçün iki dizayn istiqaməti təqdim edi
 | Hər şkala 11 addımdır (50…950, OKLCH, sRGB gamut daxilində) və `accent.test.ts` WCAG 2.x yoxlayır: ağ mətn 600 üzərində və 600 ağ üzərində ≥ 4,5:1; 700 mətn 50 fonunda ≥ 4,5:1; tünd rejimdə 300/400 mətn zinc-900 üzərində ≥ 4,5:1, 100 zinc-950 üzərində ≥ 4,5:1; 500 fokus halqası ağ və zinc-950 üzərində ≥ 3:1 | Yoxlama koddadır, rəng dəyişəndə CI sınar | Əl ilə yoxlama: unudulur |
 | Tətbiq: workspace marşrutunda (`/w/:ws/...`) `<html>`-in `--color-brand-*` dəyişənləri **CSSOM ilə** əvəzlənir; başqa səhifələrdə silinir | Tailwind 4 utilitləri `var(--color-brand-600)` oxuyur — heç bir komponent dəyişmir. CSSOM CSP `style-src 'self'` ilə icazəlidir (inline `style=""` atributu deyil) | Hər komponentə `accent` prop: yüzlərlə dəyişiklik. Workspace başına ayrıca CSS faylı: build-də dinamik deyil |
 | Firuzəyi şkala `index.css`-dəki brend tokenləri ilə **eynidir** (test yoxlayır). 200/300/400/800/950 addımları əlavə olundu | Əvvəl `dark:text-brand-300`, `dark:bg-brand-950/40` kimi siniflər mövcud olmayan tokenə istinad edirdi və heç nə çəkmirdi (tünd rejimdə bəzi seçilmiş elementlər fonsuz idi) | — |
-| Saxlama: `workspaces.accent text NULL` + CHECK (7 açar), `PATCH /workspaces/{ws}` `{accent}` (admin+), `workspace.updated` hadisəsi dəyişikliyi yazır | Hamı üçün eyni olmalıdır (admin seçir) — `localStorage` olmaz. Mövcud ümumi "workspace settings" mexanizmi (jsonb) yoxdur | jsonb `settings` sütunu: bir sahə üçün sxemsiz konteyner, validasiya zəifləyir |
+| Saxlama: `workspaces.accent text NULL` + adlı CHECK `workspaces_accent_check` (standartdan başqa 6 açar; firuzəyi = NULL), `PATCH /workspaces/{ws}` `{accent}` (admin+, mövcud yol), açarı əvvəlcə server yoxlayır (422), CHECK ehtiyat xəttdir; `GET` cavabında `accent`; `workspace.updated` hadisəsi `{"accent": {"from": "teal", "to": "violet"}}` yazır (standart `null` yox, `teal` adlanır) | Hamı üçün eyni olmalıdır (admin seçir) — `localStorage` olmaz. Mövcud ümumi "workspace settings" mexanizmi (jsonb) yoxdur | jsonb `settings` sütunu: bir sahə üçün sxemsiz konteyner, validasiya zəifləyir |
 
-**Vəziyyət:** frontend tamamdır (palitra, tətbiq, "Ümumi" parametrlər səhifəsində seçici, sətirlər). Backend üçün
-**miqrasiya 00028 lazımdır**; əsas sessiyanın icazəsi olmadan yaradılmayıb. Seçici yalnız API `accent` sahəsini
-qaytaranda görünür (`workspace.accent !== undefined`), ona görə bu branch backend-siz təhlükəsiz birləşir: sahə
-yoxdursa heç nə dəyişmir.
+Seçici "Ümumi" parametrlər səhifəsindədir (admin+) və seçimdə dərhal saxlayır. API `accent` sahəsini qaytarmırsa
+(köhnə backend) seçici gizlənir.
 
-00028 üçün plan: `ALTER TABLE workspaces ADD COLUMN accent text NULL CHECK (accent IN ('ocean','indigo','violet',
-'plum','forest','graphite'))` (`teal` = NULL). Metadata-only dəyişiklik, `ACCESS EXCLUSIVE` millisaniyəlik;
-`lock_timeout` 5 s. Down: sütun silinir, workspace-lər firuzəyiyə qayıdır; köhnə image yeni sxemlə işləyir (sütunu
-oxumur).
+### Miqrasiya 00028
+
+`ALTER TABLE workspaces ADD COLUMN accent text NULL CONSTRAINT workspaces_accent_check CHECK (accent IN ('ocean',
+'indigo','violet','plum','forest','graphite'))`. Default-suz NULL sütun **yalnız metadata dəyişikliyidir**: `workspaces`-ə
+millisaniyəlik `ACCESS EXCLUSIVE`, cədvəl yenidən yazılmır və skan edilmir; `lock_timeout` 5 s. Down: sütun silinir,
+yalnız vurğu seçimi itir (iz `events`-də qalır); köhnə image sütunu oxumur, hər iki sxemlə işləyir.
 
 ## Tapşırıq siyahısı və panel — iki istiqamət (seçim gözləyir)
 
@@ -108,8 +107,8 @@ deməkdir. Son qərar istifadəçinindir.
 
 ## Miqrasiya
 
-Bu branch miqrasiya yaratmır. 00028 yalnız vurğu rənginin backend-i üçün lazımdır (yuxarıda); 00026 və 00027
-paralel işlərə (ADR-0033, ADR-0034) ayrılıb.
+00028 (yuxarıda). Round 7 nömrələri: A (ADR-0033) = 00026 (istifadə olunmaya bilər), B (ADR-0034) = 00027,
+C (bu ADR) = 00028.
 
 ## Nəticələr
 
@@ -122,7 +121,6 @@ paralel işlərə (ADR-0033, ADR-0034) ayrılıb.
 ## Açıq suallar
 
 - Dizayn istiqaməti: A, B və ya qarışıq (tövsiyə yuxarıda).
-- 00028-ə icazə (vurğu rənginin backend-i).
 - Şrift: `--font-sans` "Inter"-i göstərir, amma şrift yüklənmir (sistem şrifti işləyir). Rəqəmlər üçün self-host
   edilmiş şrift (məs. Inter və ya IBM Plex Sans, `tabular-nums` + `slashed-zero`) ayrıca qərar ola bilər — CSP
   `font-src 'self'` ilə uyğundur.
