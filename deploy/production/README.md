@@ -16,6 +16,9 @@ Bütün əmrlər host-da `root` (və ya `sudo`) ilə, `/opt/nebula/deploy/produc
 | `scripts/` | `gen-secrets`, `preflight`, `deploy`, `rollback`, `db-roles`, `backup`, `restore`, `restore-test`, `container-info`, `keycloak-bootstrap-admin` |
 | `systemd/` | Backup, restore testi və container-info timer-ləri |
 | `host/` | `daemon.json`, sysctl, sshd, fail2ban nümunələri |
+| `compose.shared-host.yaml`, `shared-host/` | Yalnız pilot: başqa stack-in Caddy-si arxasında işləmək (bölmə 13) |
+| `compose.local-s3.yaml`, `scripts/local-s3-init.sh` | Yalnız pilot: eyni hostda pulsuz S3 backup hədəfi (bölmə 13.5) |
+| `compose.repo2-offsite.yaml` | Müvəqqəti: yerli backup-dan off-site S3-ə kəsintisiz köçmə (bölmə 13.5) |
 
 ## 1. Host hazırlığı (Debian 13) — hardening checklist
 
@@ -400,8 +403,218 @@ Down-u olan amma data silən miqrasiyadan sonra, və ya Down-u olmayan (gələc�
 
 ```bash
 docker compose -f deploy/production/compose.yaml --env-file deploy/production/.env.example config --quiet
-docker run --rm -v "$PWD/deploy/production:/mnt:ro" -w /mnt koalaman/shellcheck:v0.11.0 -x scripts/*.sh postgres/nebula-pgbackrest postgres/initdb/*.sh keycloak/*.sh
+# glob-lar host-un shell-ində açılır, ona görə deploy/production qovluğundan:
+(cd deploy/production && docker run --rm -v "$PWD:/mnt:ro" -w /mnt koalaman/shellcheck:v0.11.0 -x scripts/*.sh postgres/nebula-pgbackrest postgres/initdb/*.sh keycloak/*.sh)
 go test ./internal/database -run RuntimeRole   # NEBULA_TEST_DATABASE_URL ilə: runtime rolu DDL edə bilmir
 ```
 
 Smoke test lazımdırsa: fərqli project adı (`COMPOSE_PROJECT_NAME=nebula-prodtest`), `NEBULA_BIND_ADDR=127.0.0.1`, yüksək portlar, ayrıca edge subnet; dev stack-ə (`nebula` project) toxunmayın və bitəndə `docker compose -p nebula-prodtest down -v` edin.
+
+## 13. Paylaşılan hostda pilot
+
+Host-da artıq başqa Docker Compose stack-i işləyir və onun Caddy-si 80/443-ü tutur. Nebula həmin Caddy-nin arxasında işləyir:
+xarici Caddy `NEBULA_HOST` və `NEBULA_AUTH_HOST` üçün TLS-i bitirir və sorğuları ortaq Docker şəbəkəsi üzərindən HTTP ilə Nebula-nın öz Caddy-sinə ötürür.
+Nebula Caddy-si bütün qaydalarını saxlayır (CSP, HSTS və digər header-lər, `/api` proxy, `/admin` bloku, body limitləri), ona görə tətbiqin davranışı bölmə 1–11 ilə eynidir.
+
+```
+brauzer ──TLS──▶ mövcud Caddy (80/443, şəbəkə stack_web) ──HTTP──▶ nebula-edge:80 (Nebula Caddy) ──▶ nebula / keycloak
+nebula (OIDC discovery, JWKS) ──host-gateway:443──▶ mövcud Caddy ──▶ … (TLS ictimai sertifikatla doğrulanır)
+```
+
+**Nə vaxt:** yalnız pilot və qısa müddətli sınaq üçün, ayrıca VPS hələ yoxdursa. Production ayrıca VPS-dədir (bölmə 1–11); köçmə aşağıda.
+
+| | Ayrıca VPS | Paylaşılan host |
+|---|---|---|
+| TLS, ACME, HTTP→HTTPS | Nebula Caddy | Mövcud Caddy |
+| Publish olunan portlar | Nebula Caddy 80/443 | Heç biri (yalnız Keycloak admin `127.0.0.1:8081`) |
+| Header-lər, CSP, `/api`, `/admin` bloku, body limitləri | Nebula Caddy | Nebula Caddy (dəyişməz) |
+| Müştəri IP-si | TCP peer | `X-Forwarded-For` yalnız `NEBULA_SHARED_PROXY_SUBNET`-dən |
+| Nebula → IdP (`https://NEBULA_AUTH_HOST`) | edge alias ilə Nebula Caddy | `host-gateway` → mövcud Caddy (ictimai sertifikat) |
+| `host/daemon.json`, sysctl, ufw | tətbiq olunur | **tətbiq olunmur** (mövcud stack-ə təsir edir) |
+
+Nebula tərəfi: `compose.shared-host.yaml` (override) Nebula Caddy-ni xarici şəbəkəyə (`NEBULA_SHARED_PROXY_NETWORK`) `NEBULA_SHARED_PROXY_ALIAS` (default `nebula-edge`) adı ilə qoşur, port publish etmir, `NEBULA_SITE_SCHEME=http` ilə Caddyfile-da ACME və redirect-i söndürür, `NEBULA_TRUSTED_PROXY_CIDRS` ilə xarici proxy-nin subnet-inə etibar edir. Nebula və Keycloak yenə yalnız Nebula Caddy-nin sabit ünvanına etibar edir; Caddy onlara həll olunmuş müştəri IP-sini bir hop kimi ötürür. Bütün ictimai URL-lər (`NEBULA_PUBLIC_URL`, OIDC issuer, `KC_HOSTNAME`) `https://` qalır.
+Caddyfile web image-ə bişirilmir (`./caddy/Caddyfile` mount olunur), ona görə bu rejim mövcud image-lərlə işləyir.
+
+### 13.1 Risklər
+
+- **Blast radius:** ictimai tətbiqlə eyni kernel, Docker daemon, disk və yaddaş. Birinin OOM-u, disk dolması, Docker restartı və ya upgrade-i hər ikisini dayandırır; bir konteynerdən host-a qaçış digərini də ələ keçirir. Hər iki stack-in sahibi və yeniləmə pəncərələri razılaşdırılmalıdır.
+- **Yaddaş:** rehearsal-da Nebula stack-i sabit ~1.5 GiB, pik ~1.9 GiB (Keycloak ~0.75–0.9 GiB, Alloy ~0.37, Postgres ~0.2–0.4, Nebula ~0.13–0.19, Caddy ~0.06), xarici Caddy ~20–30 MiB. Konteyner limitlərinin cəmi ~5.3 GiB-dir (Postgres 2G, Keycloak 1.5G, Nebula 1G, Alloy 512M, Caddy 256M): 8 GB-lıq hostda hamısı eyni anda limitə çatarsa yaddaş çatmaz. `free -m`-i və `NebulaMemoryPressure`/OOM alertlərini izləyin; swap 1–2 GB olsun.
+- **Mövcud Caddy ortaq nöqtədir:** onun konfiqurasiya xətası və ya restartı Nebula-nı da dayandırır, Nebula bloku isə səhv olarsa digər saytları da sındıra bilər. Ona görə həmişə əvvəlcə `caddy validate`, sonra `caddy reload` (restart yox).
+- **Ortaq şəbəkə:** `stack_web`-dəki hər konteyner Nebula Caddy-yə birbaşa HTTP ilə çata bilər və `X-Forwarded-For`-u saxtalaşdıra bilər (rate limit açarı, access log-dakı `client_ip`). Bütün subnet etibarlıdır, çünki xarici Caddy-nin IP-si sabit deyil. Autentifikasiya buna bağlı deyil (token tələb olunur). Pilot üçün qəbul edilən risk; o stack-in konteynerləri sizin nəzarətinizdədir.
+- **Host hardening yoxdur:** `host/daemon.json` (`icc: false`, `userland-proxy: false`, `live-restore`), sysctl və ufw dəyişiklikləri mövcud stack-ə təsir edir və `systemctl restart docker` hər iki stack-i dayandırır, ona görə tətbiq olunmur. Nebula servislərinin öz hardening-i (read-only FS, `cap_drop: ALL`, `no-new-privileges`, limitlər) qalır.
+- **Pinlənməmiş image:** mövcud stack-in `caddy:2-alpine` tag-i digest ilə pinlənməyib. `docker compose pull` gözlənilmədən yeni Caddy versiyası gətirə bilər, bu da Nebula-ya da təsir edər. Tövsiyə: onu digest ilə pinləyin (`caddy:2.11.4-alpine@sha256:…`, digest `docker buildx imagetools inspect caddy:2.11.4-alpine` ilə). Bu runbook həmin stack-in compose faylını dəyişmir.
+- **Host-un öz sorğuları:** host-dan `127.0.0.1:443`-ə gələn sorğular (məs. smoke test) Nebula log-unda xarici Caddy-nin IP-si ilə görünür (userland-proxy). Xaricdən gələn sorğularda real IP görünür.
+- **Monitorinq:** Alloy Nebula-nı yığır, mövcud Caddy-ni yox. İctimai prob (`blackbox`) xarici Caddy-dən keçir, yəni əsl istifadəçi yolunu ölçür.
+
+### 13.2 Quraşdırma
+
+Mövcud stack-in compose faylı dəyişdirilmir. Ona yalnız Caddyfile-a sayt bloku əlavə olunur və `caddy reload` edilir.
+
+1. **Yoxlama.** Mövcud Caddy-nin şəbəkəsi və subnet-i, boş portlar, yaddaş və disk:
+   ```bash
+   docker network inspect <stack_web> -f '{{range .IPAM.Config}}{{.Subnet}} {{end}}'   # məs. 172.19.0.0/16
+   docker network ls -q | xargs docker network inspect -f '{{.Name}} {{range .IPAM.Config}}{{.Subnet}} {{end}}'   # 172.30.10.0/24 boşdur?
+   ss -ltn | grep -E ':(8081)\b' || echo "8081 boşdur"
+   free -m; df -h /var/lib/docker
+   ```
+   Bölmə 1-dən yalnız bunlar: amd64, alətlər (`jq curl openssl util-linux git`), cosign, vaxt sinxronu. `daemon.json`, sysctl və ufw-ya toxunmayın.
+2. **DNS:** `NEBULA_HOST` və `NEBULA_AUTH_HOST` üçün A/AAAA qeydləri bu host-a (CAA: `0 issue "letsencrypt.org"`). Sertifikatı mövcud Caddy alır, ona görə DNS 4-cü addımdan əvvəl hazır olmalıdır.
+3. **Kod, `.env`, sirlər:** bölmə 2.1 və 2.2 eynidir. `.env`-də əlavə olaraq (nümunə `.env.example`-dadır):
+   ```bash
+   COMPOSE_FILE=compose.yaml:compose.shared-host.yaml   # skriptlər VƏ əl ilə docker compose eyni faylları görür
+   NEBULA_SHARED_PROXY_NETWORK=<stack_web>
+   NEBULA_SHARED_PROXY_SUBNET=<172.19.0.0/16>            # 1-ci addımdakı subnet
+   NEBULA_SHARED_PROXY_ALIAS=nebula-edge
+   ```
+   `NEBULA_HTTPS_PORT=443` qalsın (smoke test xarici Caddy-dən keçir). `ACME_EMAIL`/`ACME_CA` doldurulmalıdır, amma bu rejimdə istifadə olunmur. `NEBULA_BIND_ADDR`/`NEBULA_HTTP_PORT` nəzərə alınmır.
+   `COMPOSE_FILE` `.env`-də olmalıdır, təkcə `NEBULA_COMPOSE_OVERRIDE`-də yox: əks halda əl ilə `docker compose up` override olmadan Caddy-ni 80/443-də açmağa çalışar, Nebula isə IdP-yə yolunu itirər. `preflight.sh` bunu, şəbəkənin mövcudluğunu, subnet-i və alias-ın başqa konteynerdə olmadığını yoxlayır.
+   ```bash
+   sudo ./scripts/preflight.sh
+   ```
+4. **Mövcud Caddy-yə sayt bloku:** `shared-host/outer-caddy.snippet`-dəki nümunə hostnamelərini `NEBULA_HOST`/`NEBULA_AUTH_HOST` ilə əvəz edib onun Caddyfile-ının sonuna əlavə edin. Caddyfile çox vaxt tək fayl kimi mount olunur: faylı **yerində** dəyişin (`>>` ilə əlavə və ya `cat new > Caddyfile`). `sed -i` və bəzi redaktorlar yeni inode yaradır, onda konteyner köhnə faylı görür.
+   ```bash
+   cd /opt/stack
+   cp -p Caddyfile Caddyfile.bak.$(date +%F)
+   { echo; sed -e 's/auth\.nebula\.example\.com/<NEBULA_AUTH_HOST>/g' -e 's/nebula\.example\.com/<NEBULA_HOST>/g' \
+       /opt/nebula/deploy/production/shared-host/outer-caddy.snippet; } >> Caddyfile
+   docker compose exec <caddy> tail -n 5 /etc/caddy/Caddyfile                      # konteyner yeni məzmunu görür?
+   docker compose exec <caddy> caddy validate --config /etc/caddy/Caddyfile        # "Valid configuration"
+   docker compose exec <caddy> caddy reload --config /etc/caddy/Caddyfile          # restart yox
+   docker compose logs --since 2m <caddy> | grep -E 'certificate obtained|error'   # iki sertifikat
+   curl -sS -o /dev/null -w '%{http_code}\n' https://<mövcud sayt>/               # digər saytlar işləyir
+   ```
+   Bu anda Nebula hostnamelərində 502 normaldır (Nebula hələ yoxdur).
+5. **Baza, backup, deploy:** bölmə 2.4 və 2.5 eynidir (`deploy.sh … --verify`). Smoke test `127.0.0.1:443` üzərindən xarici Caddy-dən keçir (real TLS).
+6. **Timer-lər və admin:** bölmə 2.6 və 3 eynidir. `COMPOSE_FILE` `.env`-də olduğu üçün systemd drop-in lazım deyil.
+7. **Yoxlama:**
+   ```bash
+   curl -sS -o /dev/null -D - https://<NEBULA_HOST>/ | grep -iE 'strict-transport|content-security|x-frame'   # hər biri bir dəfə
+   docker compose logs --since 5m nebula | grep '"route":"/api/v1/me"' | tail -3   # client_ip = xarici müştəri IP-si, 172.19.x deyil
+   ```
+
+### 13.3 Rollback və pilotun dayandırılması
+
+- **Nebula release-ini geri qaytarmaq:** bölmə 9 eynidir; mövcud stack-ə toxunmur.
+- **Pilotu söndürmək** (məlumat qalır): `docker compose down` (volume-lar qalır; `stack_web` external-dır, silinmir). Sonra mövcud Caddyfile-dan Nebula blokunu silin (yerində, məs. `cp -p Caddyfile.bak.<tarix> /tmp/c && cat /tmp/c > Caddyfile`), `caddy validate`, `caddy reload`. Söndürülmüş Nebula-nın hostnamelərinə mövcud Caddy 502 qaytarır (HSTS ilə), digər saytlar işləməyə davam edir.
+- **Tam silmək:** yalnız son backup-ın (`backup.sh info`) və fayl backup-ının (bölmə 4.1) yoxlanmasından sonra: `docker compose down -v`, `/etc/nebula`, `/var/lib/nebula`.
+
+### 13.4 Ayrıca VPS-ə köçmə
+
+Bölmə 6-dakı "host tam itibsə" axını ilə (rehearsal-da yoxlanılıb), eyni image digest-ləri ilə:
+
+1. Yeni VPS: bölmə 1 tam (hardening daxil). Yerli backup (13.5) istifadə olunursa, əvvəlcə off-site S3-ə köçün: köhnə hostun diski yeni hosta gəlmir. `/opt/nebula`, `.env` (shared-host sətirlərini silin: `COMPOSE_FILE`, `NEBULA_SHARED_PROXY_*`), `/etc/nebula/secrets` (offline nüsxədən və ya OpenBao-dan, eyni dəyərlərlə).
+2. DNS TTL-ini bir gün əvvəl 300 s-ə endirin.
+3. Köhnə hostda yazmaları dayandırın və son vəziyyəti arxivləşdirin: `docker compose stop caddy nebula keycloak`, `sudo ./scripts/backup.sh incr`, `sudo ./scripts/backup.sh check`, faylları restic ilə (bölmə 4.1). Sonra `docker compose down`: **iki Postgres eyni pgBackRest stanza-sına eyni anda arxiv yazmamalıdır.**
+4. Yeni hostda: `docker compose up -d --wait postgres` → `sudo ./scripts/restore.sh` → attachments restic-dən → `sudo ./scripts/deploy.sh <eyni digest-lər> --verify`.
+5. DNS-i yeni IP-yə yönəldin; yeni Nebula Caddy sertifikatı özü alır (80/443 açıq olmalıdır). Yoxlama: login, `/api/v1/me`, `backup.sh check`, `restore-test.sh`.
+6. Köhnə hostda Nebula blokunu mövcud Caddyfile-dan silin (13.3), volume-ları bir müddət saxlayıb sonra silin.
+
+### 13.5 Pulsuz yerel backup (pilot)
+
+Pilot dövründə xarici object storage üçün büdcə yoxdursa, pgBackRest **eyni hostdakı** S3 serverinə yazır:
+`backup-s3` servisi (versitygw, posix backend), məlumat host-da `${NEBULA_STATE_DIR}/backup-s3` qovluğunda adi fayllar kimi saxlanılır.
+Bu **müvəqqəti** həlldir; production off-site S3 ilə işləyir (bölmə 4).
+
+```
+postgres (pgBackRest, TLS ca.crt ilə doğrulanır) ──HTTPS, şəbəkə <project>-backup (internal)──▶ backup-s3:7070 ──▶ /var/lib/nebula/backup-s3
+restore-test konteyneri ──eyni şəbəkə──▶ backup-s3
+```
+
+**Nədən qoruyur:** səhv silinmə və ya yenilənmə, məntiqi korlanma, uğursuz miqrasiya — PITR ilə istənilən ana qayıtmaq (retention pəncərəsi daxilində), aylıq restore testi.
+**Nədən QORUMUR:** host-un, diskin və ya VPS hesabının itməsi, ransomware/root kompromisi (Postgres konteynerində `backup-s3`-ün root açarı var; host-da root olan hər kəs faylları silə bilər). Backup verilənlər bazası ilə **eyni diskdədir**.
+
+- **netcup server snapshot-larını mütləq yandırın** (provayder panelində, məs. gündəlik və ya həftəlik, bir neçə nüsxə): host itkisinə qarşı yeganə əlavə qat budur. Snapshot ardıcıl deyilsə belə, pgBackRest repo-su (şifrəli, `backup-s3` qovluğu) ondan bərpa oluna bilər.
+- Mümkünsə əlavə olaraq qovluğu başqa maşına köçürün (repo artıq client-side şifrəlidir): `rsync -aX --delete /var/lib/nebula/backup-s3/ <başqa-host>:/backup/nebula-s3/` (`-X`: versitygw obyekt metadata-sını xattr-da saxlayır).
+- **Qayda:** pilot bitməzdən əvvəl, ən gec **Mattermost Boards söndürülməzdən və Nebula məlumatın yeganə nüsxəsinə çevrilməzdən əvvəl** off-site S3-ə keçin (aşağıda "Off-site S3-ə köçmə"). O vaxta qədər Boards ikinci nüsxədir.
+
+#### Quraşdırma (13.2-nin 3-cü addımına əlavə)
+
+`.env`-də (nümunə `.env.example`-dadır; yuxarıdakı `PGBACKREST_S3_*` dəyərlərini əvəz edir):
+
+```bash
+COMPOSE_FILE=compose.yaml:compose.shared-host.yaml:compose.local-s3.yaml
+NEBULA_LOCAL_S3=1
+PGBACKREST_S3_ENDPOINT=backup-s3:7070        # port endpoint-də host:port kimi
+PGBACKREST_S3_REGION=us-east-1               # istənilən; backup-s3 eyni regionla başlayır
+PGBACKREST_S3_BUCKET=nebula-backups
+PGBACKREST_S3_URI_STYLE=path
+PGBACKREST_S3_VERIFY_TLS=y                   # TLS doğrulanır (aşağıda)
+PGBACKREST_S3_CA_FILE=/var/lib/nebula/backup-s3-tls/ca.crt
+RESTORE_TEST_NETWORK=nebula-prod-backup      # <COMPOSE_PROJECT_NAME>-backup
+```
+
+```bash
+sudo ./scripts/local-s3-init.sh                    # CA + sertifikat (SAN backup-s3), bucket qovluğu; idempotent
+sudo NEBULA_LOCAL_S3=1 ./scripts/gen-secrets.sh    # pgbackrest_s3_key / _secret təsadüfi yaradılır (REPLACE_ME varsa əvəz olunur)
+sudo ./scripts/preflight.sh                        # TLS faylları, sahiblik, bucket qovluğu, endpoint, RESTORE_TEST_NETWORK
+docker compose up -d --wait postgres               # backup-s3 də başlayır (depends_on: service_started)
+sudo ./scripts/backup.sh init && sudo ./scripts/backup.sh full
+```
+
+Sonra 2.5 (deploy) və 2.6 (timer-lər) dəyişməz. `RESTORE_TEST_NETWORK` `.env`-dədir, drop-in lazım deyil.
+
+**Dizayn qərarları:**
+
+- **Bir həqiqət mənbəyi:** `backup-s3`-ün root açarları pgBackRest-in oxuduğu eyni sir fayllarıdır (`pgbackrest_s3_key`, `pgbackrest_s3_key_secret`, compose secrets). versitygw açarları yalnız flag və ya env-dən oxuyur, ona görə image-in öz `sh`-i faylları oxuyub `exec`-dən dərhal əvvəl prosesin env-inə yükləyir: açarlar `.env`-də, compose faylında, komanda sətrində və `docker inspect`-də (`Config.Env`) görünmür. Konteyner daxilində `/proc/1/environ`-u yalnız həmin uid (10002) və root oxuya bilər.
+- **TLS doğrulanır** (`PGBACKREST_S3_VERIFY_TLS=n` lazım deyil): pgBackRest `repo1-storage-ca-file` seçimini environment-dən oxuyur (`PGBACKREST_REPO1_STORAGE_CA_FILE`), ona görə buraxılmış image yenidən qurulmur. `local-s3-init.sh` öz CA-sını yaradır, sertifikatı imzalayır və **CA açarını silir** (başqa heç nə imzalana bilməz). Rehearsal-da səhv CA ilə `[095] unable to verify certificate` alındı.
+- **Şəbəkə:** `backup-s3` yalnız `<project>-backup` şəbəkəsindədir (`internal: true`, yalnız postgres və restore-test konteyneri). Host-da port publish olunmur; edge, db, metrics, egress və `stack_web`-dən nə DNS adı, nə IP əlçatandır (rehearsal-da yoxlanılıb). Host-un özü (root namespace) konteyner IP-sinə çata bilər — hər konteyner kimi; açarsız heç nə edə bilməz.
+- **Davamlılıq:** `VGW_FSYNC=true` — hər obyekt diskə yazılmadan PUT təsdiqlənmir (təsdiqlənmiş WAL seqmenti host çöksə də itməməlidir).
+- **Hardening:** read-only root FS, `cap_drop: ALL`, `no-new-privileges`, uid 10002, 256M limit, healthcheck (`/health`), `init: true`, log rotasiyası. Bind mount-lar `create_host_path: false` ilə: qovluq yoxdursa konteyner başlamır (Docker onu root sahibliyi ilə yaratmır).
+- **`backup-s3` restartı:** async arxiv WAL-ı spool-da saxlayır; rehearsal-da yük altında restart və 20 s dayanma zamanı Postgres crash-restart etmədi (`init: true`), arxiv özü bərpa olundu.
+
+**Sertifikat:** 10 il etibarlıdır (yalnız daxili ad), `preflight.sh` bitməyə 30 gün qalmış FAIL verir. Yeniləmə:
+`sudo ./scripts/local-s3-init.sh --renew && docker compose up -d --force-recreate backup-s3 postgres` (postgres `ca.crt`-ni fayl kimi mount edir, köhnə inode-u görür).
+
+#### Disk istifadəsi və retention
+
+Retention `postgres/pgbackrest.conf`-dadır və dəyişmir: 4 full (həftəlik → ~4 həftə PITR), 7 diff; köhnə full silinəndə ondan əvvəlki WAL da silinir (`expire` hər backup-dan sonra). Repo zstd ilə sıxılır və şifrələnir.
+
+| Rehearsal (sintetik məlumat) | Ölçü |
+|---|---|
+| Klaster (nebula + keycloak, 2000–2500 tapşırıq) | 38–55 MB |
+| Bir full backup repo-da | 4.6–6.9 MB (~12%) |
+| WAL, 62 seqment (yük testi daxil) | 14 MB (median seqment ~115 KB, maks. 2.8 MB) |
+| Boş stack | ~1 seqment / 10 dəq |
+
+Gözlənilən: repo ≈ 5 × full (rotasiya zamanı müvəqqəti 5-ci) + diff-lər + ~5 həftəlik WAL. 1 GB-lıq baza üçün ~0.5–1.5 GB full-lar + gündə 50–200 MB sıxılmış WAL ≈ **cəmi 3–8 GB** — 228 GB-da problem deyil, amma disk **Docker və digər stack ilə ortaqdır**: `df -h /var/lib/nebula`, `du -sh /var/lib/nebula/backup-s3` (həftəlik) və disk alertini izləyin; `preflight.sh` 80%-dən sonra xəbərdarlıq edir. Böyük importdan və ya `VACUUM FULL`-dan sonra WAL müvəqqəti artır.
+
+#### Off-site S3-ə köçmə
+
+**Tövsiyə olunan yol: pgBackRest multi-repo (repo2)** — rehearsal-da yoxlanılıb. WAL köçmə boyu hər iki repo-ya gedir, PITR-də boşluq yaranmır; köhnə yerli repo yeni repo-da restore testi keçənə qədər toxunulmaz qalır. Eyni stanza, eyni şifrə (`pgbackrest_cipher_pass`): off-site repo sonra dəyişmədən repo1 olur. Bir stanza-ya iki **ayrı** Postgres yazmır, ona görə toqquşma yoxdur; iki ayrı konfiqurasiya ilə eyni stanza-nı paralel işlətməyin.
+
+1. Off-site bucket (versioning/Object Lock ilə, bölmə 4) və yalnız bu bucket üçün açar. Sir faylları (`0440 root:nebula-secrets`):
+   `/etc/nebula/secrets/pgbackrest_repo2_s3_key`, `/etc/nebula/secrets/pgbackrest_repo2_s3_key_secret`.
+2. `.env`:
+   ```bash
+   COMPOSE_FILE=compose.yaml:compose.shared-host.yaml:compose.local-s3.yaml:compose.repo2-offsite.yaml
+   PGBACKREST_REPO2_S3_ENDPOINT=<s3-endpoint>
+   PGBACKREST_REPO2_S3_REGION=<region>
+   PGBACKREST_REPO2_S3_BUCKET=<bucket>
+   PGBACKREST_REPO2_S3_URI_STYLE=host           # path: MinIO/Garage
+   PGBACKREST_REPO2_PATH=/nebula-prod
+   PGBACKREST_BACKUP_REPO=2                     # iki repo ilə backup --repo tələb edir; timer-lər yeni repo-ya yazır
+   ```
+   v0.1.0 image-inin wrapper-i yalnız repo1 açarlarını yükləyir; override repo-dakı yeni `postgres/nebula-pgbackrest`-i mount edir (image yenilənəndə həmin sətir silinir).
+3. ```bash
+   sudo ./scripts/preflight.sh
+   docker compose up -d --wait postgres          # repo2 env ilə yenidən yaranır
+   sudo ./scripts/backup.sh init                 # stanza-create: repo1 "already exists and is valid", repo2 yaradılır; check hər ikisini
+   sudo ./scripts/backup.sh full                 # repo2-də ilk full
+   sudo RESTORE_TEST_REPO=2 ./scripts/restore-test.sh   # yeni repo-dan bərpa (RESTORE_TEST_REPO2_NETWORK, default bridge)
+   ```
+   `stanza-upgrade` yalnız Postgres major versiyası dəyişəndə lazımdır; burada `stanza-create` kifayətdir.
+4. Bir neçə gün hər iki repo ilə işləyin (`backup.sh info` hər ikisini göstərir). Sonra **cut-over:** repo2 dəyərləri repo1-ə keçir:
+   ```bash
+   # sir faylları yerində (inode saxlanılır): off-site açarları pgbackrest_s3_key / _secret-ə
+   for k in key key_secret; do f=/etc/nebula/secrets/pgbackrest_s3_$k; chmod 0640 $f
+     cat /etc/nebula/secrets/pgbackrest_repo2_s3_$k > $f; chmod 0440 $f; done
+   # .env: COMPOSE_FILE=compose.yaml:compose.shared-host.yaml; PGBACKREST_S3_* = off-site dəyərləri,
+   #       PGBACKREST_S3_VERIFY_TLS=y, RESTORE_TEST_NETWORK=bridge (və ya silin);
+   #       NEBULA_LOCAL_S3, PGBACKREST_S3_CA_FILE, PGBACKREST_BACKUP_REPO, PGBACKREST_REPO2_* sətirlərini silin
+   sudo ./scripts/preflight.sh
+   docker compose up -d --wait --remove-orphans  # postgres yeni repo1 ilə; backup-s3 konteyneri silinir, qovluq qalır
+   sudo ./scripts/backup.sh check && sudo ./scripts/backup.sh incr && sudo ./scripts/restore-test.sh
+   ```
+5. Yerli repo qovluğunu (`/var/lib/nebula/backup-s3`, `backup-s3-tls`) ən azı bir retention dövrü (~4 həftə) saxlayın, sonra silin. Repo2 sir fayllarını silin.
+
+**Alternativ (multi-repo olmadan):** repo1-in endpoint və açarlarını birbaşa off-site-a dəyişin → `docker compose up -d --wait --remove-orphans` → `backup.sh init` (yeni boş repo-da `stanza-create`) → dərhal `backup.sh full` → `restore-test.sh`. Daha sadədir, amma kəsilmə ilə ilk full arasında PITR yalnız köhnə repo-dan (kəsilmə anına qədər) mümkündür; yeni repo restore testini keçməyibsə köhnə konfiqurasiyaya qayıdıb yenidən `backup.sh full` edin.

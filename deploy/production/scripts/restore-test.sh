@@ -7,6 +7,10 @@
 # Checks: recovery completes and promotes; schema version equals production; core tables are
 # non-empty when production's are; row counts within tolerance; Keycloak realm present.
 # Records the measured duration (actual RTO for the database) and data lag (actual RPO).
+#
+#   RESTORE_TEST_REPO=2 sudo -E ./scripts/restore-test.sh   # the second repository (compose.repo2-offsite.yaml)
+# The test container only ever sees one repository: repo2's settings and key files are mapped to
+# repo1 inside it (same stanza and cipher passphrase).
 # shellcheck source=lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 load_env
@@ -47,27 +51,54 @@ prod_schema="$(schema_version)"
 compose exec -T postgres nebula-pgbackrest --stanza="$stanza" check >/dev/null 2>&1 || fail "WAL archiving check failed (backup.sh check)"
 log "production: schema $prod_schema, $(for t in "${tables[@]}"; do printf '%s=%s ' "$t" "${prod[$t]}"; done)"
 
+# Repository under test: its connection settings, key files and network.
+case ${RESTORE_TEST_REPO:-1} in
+1)
+	s3_endpoint=$PGBACKREST_S3_ENDPOINT s3_region=$PGBACKREST_S3_REGION s3_bucket=$PGBACKREST_S3_BUCKET
+	s3_uri_style=${PGBACKREST_S3_URI_STYLE:-path} s3_path=${PGBACKREST_REPO_PATH:-/nebula}
+	s3_verify=${PGBACKREST_S3_VERIFY_TLS:-y} key_prefix=pgbackrest_s3 network=${RESTORE_TEST_NETWORK:-bridge}
+	# Optional private CA for the repository's TLS certificate (local S3: local-s3-init.sh's ca.crt).
+	ca_file=${PGBACKREST_S3_CA_FILE:-}
+	if [[ -z $ca_file ]] && local_s3_enabled; then ca_file=$STATE_DIR/backup-s3-tls/ca.crt; fi
+	;;
+2)
+	s3_endpoint=${PGBACKREST_REPO2_S3_ENDPOINT:?} s3_region=${PGBACKREST_REPO2_S3_REGION:?} s3_bucket=${PGBACKREST_REPO2_S3_BUCKET:?}
+	s3_uri_style=${PGBACKREST_REPO2_S3_URI_STYLE:-host} s3_path=${PGBACKREST_REPO2_PATH:-/nebula-prod}
+	s3_verify=${PGBACKREST_REPO2_S3_VERIFY_TLS:-y} key_prefix=pgbackrest_repo2_s3 network=${RESTORE_TEST_REPO2_NETWORK:-bridge}
+	ca_file=${PGBACKREST_REPO2_S3_CA_FILE:-}
+	;;
+*) die "RESTORE_TEST_REPO must be 1 or 2" ;;
+esac
+log "repository ${RESTORE_TEST_REPO:-1}: $s3_endpoint/$s3_bucket$s3_path (network $network)"
+ca_opts=()
+if [[ -n $ca_file ]]; then
+	[[ -r $ca_file ]] || fail "missing CA file $ca_file"
+	ca_opts=(-v "$ca_file:/etc/pgbackrest/backup-s3-ca.crt:ro" -e PGBACKREST_REPO1_STORAGE_CA_FILE=/etc/pgbackrest/backup-s3-ca.crt)
+fi
+
 docker volume create "$vol" >/dev/null
 # Same image as production. No production network: the default bridge only reaches S3
-# (override with RESTORE_TEST_NETWORK when the repository is only reachable on another network).
+# (override with RESTORE_TEST_NETWORK when the repository is only reachable on another network, e.g.
+# <project>-backup for the same-host backup-s3: internal, so the copy reaches nothing else).
 # archive_mode=off and --archive-mode=off: the restored copy can never push WAL into the repository.
 # --init: async archive-get workers are re-parented to PID 1, which must not be the postmaster.
 docker run -d --init --name "$name" --user 999:999 --group-add "${NEBULA_SECRETS_GID:-10001}" \
 	--read-only --cap-drop ALL --security-opt no-new-privileges:true \
-	--memory 2g --cpus 2 --network "${RESTORE_TEST_NETWORK:-bridge}" \
+	--memory 2g --cpus 2 --network "$network" \
 	--tmpfs /var/run/postgresql:size=1m,mode=1777 --tmpfs /tmp:size=256m,mode=1777 \
 	--tmpfs /var/spool/pgbackrest:size=1g,mode=1777 \
 	-v "$vol:/var/lib/postgresql" \
 	-v "$DEPLOY_DIR/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro" \
-	-v "$SECRETS_DIR/pgbackrest_s3_key:/run/secrets/pgbackrest_s3_key:ro" \
-	-v "$SECRETS_DIR/pgbackrest_s3_key_secret:/run/secrets/pgbackrest_s3_key_secret:ro" \
+	-v "$SECRETS_DIR/${key_prefix}_key:/run/secrets/pgbackrest_s3_key:ro" \
+	-v "$SECRETS_DIR/${key_prefix}_key_secret:/run/secrets/pgbackrest_s3_key_secret:ro" \
 	-v "$SECRETS_DIR/pgbackrest_cipher_pass:/run/secrets/pgbackrest_cipher_pass:ro" \
-	-e PGBACKREST_REPO1_S3_ENDPOINT="$PGBACKREST_S3_ENDPOINT" \
-	-e PGBACKREST_REPO1_S3_REGION="$PGBACKREST_S3_REGION" \
-	-e PGBACKREST_REPO1_S3_BUCKET="$PGBACKREST_S3_BUCKET" \
-	-e PGBACKREST_REPO1_S3_URI_STYLE="${PGBACKREST_S3_URI_STYLE:-path}" \
-	-e PGBACKREST_REPO1_PATH="${PGBACKREST_REPO_PATH:-/nebula}" \
-	-e PGBACKREST_REPO1_STORAGE_VERIFY_TLS="${PGBACKREST_S3_VERIFY_TLS:-y}" \
+	-e PGBACKREST_REPO1_S3_ENDPOINT="$s3_endpoint" \
+	-e PGBACKREST_REPO1_S3_REGION="$s3_region" \
+	-e PGBACKREST_REPO1_S3_BUCKET="$s3_bucket" \
+	-e PGBACKREST_REPO1_S3_URI_STYLE="$s3_uri_style" \
+	-e PGBACKREST_REPO1_PATH="$s3_path" \
+	-e PGBACKREST_REPO1_STORAGE_VERIFY_TLS="$s3_verify" \
+	"${ca_opts[@]}" \
 	--entrypoint bash \
 	"$POSTGRES_IMAGE" -c '
 		set -euo pipefail

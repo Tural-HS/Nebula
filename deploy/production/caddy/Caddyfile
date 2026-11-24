@@ -1,5 +1,11 @@
 # Nebula edge. Placeholders {$VAR} are substituted from the container environment at load time.
 # Validate: docker compose run --rm --no-deps caddy caddy validate --config /etc/caddy/Caddyfile
+#
+# Two modes, same rules (headers, CSP, /api proxy, /admin block):
+#   - default (dedicated host): this Caddy terminates TLS itself (ACME, HTTP->HTTPS redirect).
+#   - shared host (compose.shared-host.yaml): another Caddy on the host terminates TLS and proxies
+#     to this one over plain HTTP. NEBULA_SITE_SCHEME=http turns off ACME and the redirect (which
+#     would loop behind a TLS-terminating proxy); NEBULA_TRUSTED_PROXY_CIDRS names that proxy.
 {
 	email {$ACME_EMAIL}
 	acme_ca {$ACME_CA}
@@ -7,7 +13,11 @@
 	admin localhost:2019
 	metrics
 	servers {
-		# Clients connect directly: no upstream proxy is trusted, X-Forwarded-For is set from the TCP peer.
+		# Default: empty, clients connect directly and no upstream proxy is trusted ({client_ip} is the
+		# TCP peer). Shared host: the outer proxy's network; its X-Forwarded-For/-Proto are believed,
+		# right-most untrusted address first (strict), so a client cannot prepend a forged hop.
+		trusted_proxies static {$NEBULA_TRUSTED_PROXY_CIDRS}
+		trusted_proxies_strict
 		timeouts {
 			read_header 10s
 			idle 2m
@@ -34,7 +44,7 @@
 # ------------------------------------------------------------------------------------------------
 # Web UI + API (same origin: the SPA calls /api without CORS).
 # ------------------------------------------------------------------------------------------------
-{$NEBULA_HOST} {
+{$NEBULA_SITE_SCHEME:https}://{$NEBULA_HOST} {
 	import common_headers
 	encode zstd gzip
 	log
@@ -50,10 +60,21 @@
 	}
 
 	handle /api/* {
-		request_body {
-			max_size 25MB # spreadsheet imports
+		# Mattermost Boards archives may be 50 MiB (ADR-0020; Nebula's own limit is 50 MiB + 256 KiB of
+		# multipart framing). Everything else: 25 MB (attachments are 20 MiB by default).
+		# Limits nest (the smaller wins), so the two matchers must not overlap.
+		@imports path /api/v1/workspaces/*/projects/*/imports /api/v1/workspaces/*/projects/*/imports/preview
+		@other not path /api/v1/workspaces/*/projects/*/imports /api/v1/workspaces/*/projects/*/imports/preview
+		request_body @imports {
+			max_size 53MB
+		}
+		request_body @other {
+			max_size 25MB
 		}
 		reverse_proxy nebula:8080 {
+			# One hop, the resolved client: Nebula trusts only this Caddy and reads X-Forwarded-For right
+			# to left, so a trusted outer proxy's address must not be appended after the client's.
+			header_up X-Forwarded-For {client_ip}
 			# During a container restart (deploy), hold requests up to 15 s instead of failing.
 			lb_try_duration 15s
 			lb_try_interval 250ms
@@ -93,7 +114,7 @@
 # ------------------------------------------------------------------------------------------------
 # Identity provider (Keycloak). Separate origin: IdP cookies never share the app origin.
 # ------------------------------------------------------------------------------------------------
-{$NEBULA_AUTH_HOST} {
+{$NEBULA_SITE_SCHEME:https}://{$NEBULA_AUTH_HOST} {
 	import common_headers
 	encode zstd gzip
 	log
@@ -107,7 +128,10 @@
 	reverse_proxy keycloak:8080 {
 		lb_try_duration 10s
 		# Keycloak trusts X-Forwarded-* only from Caddy's fixed address (KC_PROXY_TRUSTED_ADDRESSES).
+		# The public origin is https in both modes (behind a shared-host proxy this hop is plain HTTP).
+		header_up X-Forwarded-Proto https
 		header_up X-Forwarded-Port 443
+		header_up X-Forwarded-For {client_ip}
 	}
 }
 

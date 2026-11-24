@@ -7,6 +7,8 @@
 #   sudo ./scripts/backup.sh check       # verifies WAL archiving end to end
 #
 # Scheduled by systemd/nebula-backup-*.timer. Writes $NEBULA_STATE_DIR/textfile/pgbackrest.prom.
+# With two repositories (compose.repo2-offsite.yaml) pgBackRest needs to know where a backup goes:
+# PGBACKREST_BACKUP_REPO=<n> in .env. WAL archiving always goes to every repository.
 # shellcheck source=lib.sh
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 load_env
@@ -15,6 +17,11 @@ cmd=${1:-}
 lock=1
 [[ ${2:-} == --no-lock ]] && lock=0
 stanza=${PGBACKREST_STANZA:-nebula}
+repo_opt=()
+if [[ -n ${PGBACKREST_BACKUP_REPO:-} ]]; then
+	[[ $PGBACKREST_BACKUP_REPO =~ ^[1-4]$ ]] || die "PGBACKREST_BACKUP_REPO must be 1-4"
+	repo_opt=(--repo="$PGBACKREST_BACKUP_REPO")
+fi
 
 pgbr() { compose exec -T postgres nebula-pgbackrest --stanza="$stanza" "$@"; }
 
@@ -57,8 +64,8 @@ info) pgbr info ;;
 full | diff | incr)
 	((lock)) && take_lock 3600
 	start=$(date +%s)
-	log "pgbackrest backup --type=$cmd"
-	if pgbr backup --type="$cmd"; then
+	log "pgbackrest backup --type=$cmd ${repo_opt[*]}"
+	if pgbr backup --type="$cmd" "${repo_opt[@]}"; then
 		emit_metrics 1 "$cmd" $(($(date +%s) - start))
 		pgbr info | tail -n 6 >&2
 		log "backup $cmd ok"

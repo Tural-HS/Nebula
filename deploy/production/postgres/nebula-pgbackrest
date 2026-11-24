@@ -15,4 +15,13 @@ load_secret PGBACKREST_REPO1_S3_KEY pgbackrest_s3_key
 load_secret PGBACKREST_REPO1_S3_KEY_SECRET pgbackrest_s3_key_secret
 load_secret PGBACKREST_REPO1_CIPHER_PASS pgbackrest_cipher_pass
 
+# Optional second repository (compose.repo2-offsite.yaml: migration from the same-host pilot target
+# to off-site S3, README "Pulsuz yerel backup (pilot)"). Same encryption passphrase as repo1, so the
+# repository can later become repo1 unchanged.
+if [[ -e /run/secrets/pgbackrest_repo2_s3_key ]]; then
+	load_secret PGBACKREST_REPO2_S3_KEY pgbackrest_repo2_s3_key
+	load_secret PGBACKREST_REPO2_S3_KEY_SECRET pgbackrest_repo2_s3_key_secret
+	load_secret PGBACKREST_REPO2_CIPHER_PASS pgbackrest_cipher_pass
+fi
+
 exec pgbackrest "$@"

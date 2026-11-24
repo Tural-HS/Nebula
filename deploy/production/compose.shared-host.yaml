@@ -1,0 +1,40 @@
+# Shared-host PILOT override: Nebula next to another Compose stack whose reverse proxy (Caddy)
+# already owns ports 80/443. Runbook: README.md, "Paylaşılan hostda pilot".
+#
+#   NEBULA_COMPOSE_OVERRIDE=/opt/nebula/deploy/production/compose.shared-host.yaml
+#
+#   client --TLS--> outer Caddy (other stack, network ${NEBULA_SHARED_PROXY_NETWORK})
+#                     --HTTP--> Nebula Caddy (alias ${NEBULA_SHARED_PROXY_ALIAS}:80) --> nebula / keycloak
+#
+# The outer proxy terminates TLS for NEBULA_HOST and NEBULA_AUTH_HOST (shared-host/outer-caddy.snippet).
+# Nebula's Caddy keeps every rule (CSP, /api, /admin block, headers) but serves plain HTTP: no ACME,
+# no HTTP->HTTPS redirect (it would loop), no published ports. Public URLs stay https everywhere
+# (NEBULA_PUBLIC_URL, OIDC issuer, KC_HOSTNAME), so nothing else changes.
+services:
+  caddy:
+    ports: !reset []
+    environment:
+      NEBULA_SITE_SCHEME: http
+      # Only the outer proxy's network may set X-Forwarded-For/-Proto. Nebula and Keycloak still
+      # trust only this Caddy's fixed address (NEBULA_CADDY_IP); it forwards the resolved client.
+      NEBULA_TRUSTED_PROXY_CIDRS: ${NEBULA_SHARED_PROXY_SUBNET:?set NEBULA_SHARED_PROXY_SUBNET (subnet of the outer proxy network)}
+    networks:
+      shared-proxy:
+        # The outer Caddy proxies to <alias>:80. Never add the public hostnames here: the other
+        # stack's containers would resolve them to Nebula's plain-HTTP listener.
+        aliases:
+          - ${NEBULA_SHARED_PROXY_ALIAS:-nebula-edge}
+
+  nebula:
+    # OIDC discovery and JWKS (https://NEBULA_AUTH_HOST) go through the outer proxy with its public
+    # certificate, verified: Nebula's Caddy no longer has a TLS listener. host-gateway is the host
+    # itself; the outer proxy's published 443 answers there. /etc/hosts wins over the edge-network
+    # aliases of Nebula's Caddy.
+    extra_hosts:
+      - "${NEBULA_HOST:?}:host-gateway"
+      - "${NEBULA_AUTH_HOST:?}:host-gateway"
+
+networks:
+  shared-proxy:
+    name: ${NEBULA_SHARED_PROXY_NETWORK:?set NEBULA_SHARED_PROXY_NETWORK (docker network of the outer proxy)}
+    external: true # owned by the other stack: never created or removed by Nebula

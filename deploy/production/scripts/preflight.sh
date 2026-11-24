@@ -42,6 +42,87 @@ if [[ -e $SECRETS_DIR/nebula.env ]]; then
 fi
 [[ ${NEBULA_SMTP_TLS:-starttls} =~ ^(starttls|tls)$ ]] || bad "NEBULA_SMTP_TLS must be starttls or tls in production"
 
+[[ "$(compose_files | head -n 1)" == "$DEPLOY_DIR/compose.yaml" ]] || bad "COMPOSE_FILE must start with compose.yaml"
+
+# Shared-host pilot (compose.shared-host.yaml, README "Paylaşılan hostda pilot").
+if compose_files | grep -q '/compose\.shared-host\.yaml$'; then
+	# Scripts and manual `docker compose` must see the same files: without the override a manual
+	# `up` recreates Caddy on the outer proxy's ports and Nebula without its IdP route.
+	[[ ${COMPOSE_FILE:-} == *compose.shared-host.yaml* ]] ||
+		bad "shared host: set COMPOSE_FILE=compose.yaml:compose.shared-host.yaml in .env (not only NEBULA_COMPOSE_OVERRIDE)"
+	net=${NEBULA_SHARED_PROXY_NETWORK:-} alias=${NEBULA_SHARED_PROXY_ALIAS:-nebula-edge}
+	if [[ -z $net ]]; then
+		bad "shared host: NEBULA_SHARED_PROXY_NETWORK is not set"
+	elif ! subnets="$(docker network inspect -f '{{range .IPAM.Config}}{{.Subnet}} {{end}}' "$net" 2>/dev/null)"; then
+		bad "shared host: docker network '$net' does not exist (is the outer proxy stack running?)"
+	else
+		# Nebula's Caddy believes X-Forwarded-For from exactly this subnet.
+		[[ " $subnets " == *" ${NEBULA_SHARED_PROXY_SUBNET:-unset} "* ]] ||
+			bad "shared host: NEBULA_SHARED_PROXY_SUBNET=${NEBULA_SHARED_PROXY_SUBNET:-} is not the subnet of '$net' ($subnets)"
+		# A second container answering to the alias would get a share of Nebula's traffic (DNS round robin).
+		for id in $(docker network inspect -f '{{range $id, $c := .Containers}}{{$id}} {{end}}' "$net"); do
+			[[ "$(docker inspect -f '{{index .Config.Labels "com.docker.compose.project"}}' "$id")" != "$PROJECT" ]] || continue
+			if docker inspect "$id" | jq -e --arg n "$net" --arg a "$alias" \
+				'.[0] | (.Name | ltrimstr("/")) as $name | .NetworkSettings.Networks[$n] | ([$name] + (.Aliases // []) + (.DNSNames // [])) | index($a) != null' >/dev/null; then
+				bad "shared host: another container on '$net' already answers to '$alias'"
+			fi
+		done
+	fi
+fi
+
+# Same-host pilot backup target (compose.local-s3.yaml, README "Pulsuz yerel backup (pilot)").
+if local_s3_enabled; then
+	local_s3_paths
+	[[ ${COMPOSE_FILE:-} == *compose.local-s3.yaml* ]] ||
+		bad "local S3: add compose.local-s3.yaml to COMPOSE_FILE in .env (NEBULA_LOCAL_S3=1 alone starts no backup-s3)"
+	[[ ${PGBACKREST_S3_ENDPOINT:-} =~ ^backup-s3(:[0-9]+)?$ ]] ||
+		bad "local S3: PGBACKREST_S3_ENDPOINT must be backup-s3:7070 (is '${PGBACKREST_S3_ENDPOINT:-}')"
+	[[ ${PGBACKREST_S3_URI_STYLE:-path} == path ]] || bad "local S3: PGBACKREST_S3_URI_STYLE must be path"
+	[[ ${PGBACKREST_S3_VERIFY_TLS:-y} == y ]] ||
+		bad "local S3: keep PGBACKREST_S3_VERIFY_TLS=y (the CA is local-s3-init.sh's ca.crt)"
+	[[ ${RESTORE_TEST_NETWORK:-} == "$PROJECT-backup" ]] ||
+		bad "local S3: RESTORE_TEST_NETWORK must be $PROJECT-backup (the restore test reaches backup-s3 only there)"
+	ca=${PGBACKREST_S3_CA_FILE:-$LOCAL_S3_TLS/ca.crt}
+	for f in "$ca" "$LOCAL_S3_TLS/tls.crt" "$LOCAL_S3_TLS/tls.key"; do
+		[[ -s $f ]] || bad "local S3: missing $f (run scripts/local-s3-init.sh)"
+	done
+	if [[ -s $LOCAL_S3_TLS/tls.crt && -s $ca ]]; then
+		openssl verify -CAfile "$ca" "$LOCAL_S3_TLS/tls.crt" >/dev/null 2>&1 ||
+			bad "local S3: $LOCAL_S3_TLS/tls.crt is not signed by $ca"
+		openssl x509 -noout -checkhost backup-s3 -in "$LOCAL_S3_TLS/tls.crt" | grep -q 'does match' ||
+			bad "local S3: tls.crt is not valid for the name backup-s3"
+		openssl x509 -noout -checkend $((30 * 86400)) -in "$LOCAL_S3_TLS/tls.crt" >/dev/null ||
+			bad "local S3: tls.crt expires within 30 days (local-s3-init.sh --renew)"
+	fi
+	if [[ -e $LOCAL_S3_TLS/tls.key ]]; then
+		[[ "$(stat -c %u:%a "$LOCAL_S3_TLS/tls.key")" == "$LOCAL_S3_UID:400" ]] ||
+			bad "local S3: $LOCAL_S3_TLS/tls.key must be owned by uid $LOCAL_S3_UID, mode 0400 (local-s3-init.sh)"
+	fi
+	bucket_dir="$LOCAL_S3_DATA/${PGBACKREST_S3_BUCKET:-}"
+	if [[ ! -d $bucket_dir ]]; then
+		bad "local S3: missing bucket directory $bucket_dir (run scripts/local-s3-init.sh)"
+	else
+		[[ "$(stat -c %u "$LOCAL_S3_DATA")" == "$LOCAL_S3_UID" && "$(stat -c %u "$bucket_dir")" == "$LOCAL_S3_UID" ]] ||
+			bad "local S3: $LOCAL_S3_DATA and $bucket_dir must be owned by uid $LOCAL_S3_UID"
+		# Same filesystem as the database: a full disk stops Postgres AND its backups.
+		avail_pct="$(df --output=pcent "$LOCAL_S3_DATA" | tail -n 1 | tr -dc '0-9')"
+		((avail_pct < 80)) || log "WARN: local S3: the filesystem of $LOCAL_S3_DATA is ${avail_pct}% full"
+	fi
+fi
+
+# Migration to off-site S3 with a second repository (compose.repo2-offsite.yaml).
+if compose_files | grep -q '/compose\.repo2-offsite\.yaml$'; then
+	for s in pgbackrest_repo2_s3_key pgbackrest_repo2_s3_key_secret; do
+		f="$SECRETS_DIR/$s"
+		[[ -s $f ]] || { bad "repo2: missing or empty secret $f"; continue; }
+		grep -q REPLACE_ME "$f" && bad "$f still contains REPLACE_ME"
+		mode="$(stat -c %a "$f")"
+		[[ $mode == 440 || $mode == 400 ]] || bad "$f must be mode 0440 (is $mode)"
+	done
+	[[ ${PGBACKREST_BACKUP_REPO:-} =~ ^[12]$ ]] ||
+		bad "repo2: set PGBACKREST_BACKUP_REPO=2 in .env (with two repositories pgBackRest needs --repo for backups)"
+fi
+
 compose config --quiet || bad "docker compose config failed"
 
 ((fail == 0)) || die "preflight failed"
