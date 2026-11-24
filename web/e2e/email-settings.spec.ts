@@ -13,7 +13,7 @@ test.beforeAll(async () => {
 test("admin points the workspace at Mailpit and the test email arrives", async ({ page }) => {
   const sender = `smtp-${Math.random().toString(36).slice(2, 8)}@example.com`; // unique per run: found by From in Mailpit
   await page.goto(`/w/${seed.ws}/settings/email`);
-  await expect(page.getByRole("status")).toContainText("Hazırda server konfiqurasiyası istifadə olunur");
+  await expect(page.getByRole("status").filter({ hasText: "Hazırda server konfiqurasiyası istifadə olunur" })).toBeVisible();
 
   // A preset fills host, port and encryption.
   await page.getByRole("button", { name: "Microsoft 365" }).click();
@@ -26,7 +26,7 @@ test("admin points the workspace at Mailpit and the test email arrives", async (
   await page.getByLabel(/^Port/).fill("1025");
   await page.getByLabel("Şifrələmə").selectOption("none");
   await page.getByRole("button", { name: "Yadda saxla" }).click();
-  await expect(page.getByRole("status")).toContainText("Bu workspace öz SMTP serverindən göndərir.");
+  await expect(page.getByRole("status").filter({ hasText: "Bu workspace öz SMTP serverindən göndərir." })).toBeVisible();
 
   await page.getByRole("button", { name: "Sınaq məktubu göndər" }).click();
   await expect(page.getByText(/ünvanına göndərildi \(workspace serveri\)/)).toBeVisible();
@@ -48,7 +48,7 @@ test("admin points the workspace at Mailpit and the test email arrives", async (
   // Back to the server configuration.
   page.once("dialog", (d) => void d.accept());
   await page.getByRole("button", { name: "Server konfiqurasiyasına qayıt" }).click();
-  await expect(page.getByRole("status")).toContainText("Hazırda server konfiqurasiyası istifadə olunur");
+  await expect(page.getByRole("status").filter({ hasText: "Hazırda server konfiqurasiyası istifadə olunur" })).toBeVisible();
 });
 
 test("a saved password is write-only", async ({ page }) => {
