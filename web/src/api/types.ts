@@ -111,6 +111,8 @@ export interface Item {
   parent?: ItemParent | null;
   /** Live subtasks; done counts done and canceled ones. */
   subtasks?: SubtaskSummary;
+  /** An open item the viewer can see blocks this one (ADR-0028); list responses only. */
+  blocked?: boolean;
   version: number;
   created_at: string;
   updated_at: string;

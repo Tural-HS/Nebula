@@ -58,8 +58,11 @@ func scanActivities(rows pgx.Rows, limit int) ([]Activity, int64, error) {
 	return out, next, nil
 }
 
-// ItemActivity returns an item's history (changes and comments), newest first.
-func (s *Store) ItemActivity(ctx context.Context, wsID, projectID uuid.UUID, number int64, before int64, limit int) ([]Activity, int64, error) {
+// ItemActivity returns an item's history (changes and comments), newest
+// first. Link events whose other item the viewer cannot see are left out
+// (ADR-0028), and the other item's current key and title are added to the
+// rest as data.other_item.
+func (s *Store) ItemActivity(ctx context.Context, wsID, projectID uuid.UUID, number int64, v Viewer, before int64, limit int) ([]Activity, int64, error) {
 	item, err := liveItem(ctx, s.pool, wsID, projectID, number)
 	if err != nil {
 		return nil, 0, err
@@ -67,11 +70,63 @@ func (s *Store) ItemActivity(ctx context.Context, wsID, projectID uuid.UUID, num
 	limit = min(max(limit, 1), maxActivityPage)
 	rows, err := s.pool.Query(ctx, activitySelect+`
 		WHERE e.workspace_id = $1 AND e.entity_type = 'item' AND e.entity_id = $2 AND ($3 = 0 OR e.id < $3)
-		ORDER BY e.id DESC LIMIT $4`, wsID, item.id, before, limit+1)
+		  AND e.action NOT LIKE 'watcher.%'
+		  AND (e.action NOT IN ('link.added', 'link.removed') OR EXISTS (
+		       SELECT 1 FROM items o JOIN projects op ON op.id = o.project_id
+		       WHERE o.workspace_id = $1 AND o.id = (e.payload->>'other_item_id')::uuid
+		         AND `+visibleProjectFor("op", "$5", "$6")+`))
+		ORDER BY e.id DESC LIMIT $4`, wsID, item.id, before, limit+1, v.UserID, RoleAtLeast(v.Role, RoleAdmin))
 	if err != nil {
 		return nil, 0, err
 	}
-	return scanActivities(rows, limit)
+	list, next, err := scanActivities(rows, limit)
+	if err != nil {
+		return nil, 0, err
+	}
+	return list, next, linkLabels(ctx, s.pool, wsID, list)
+}
+
+// linkLabels adds data.other_item {key, title} to link events, from the
+// item's current state (deleted items included: a removal still names it).
+func linkLabels(ctx context.Context, q querier, wsID uuid.UUID, list []Activity) error {
+	var ids []string
+	for _, a := range list {
+		if a.Action == "link.added" || a.Action == "link.removed" {
+			if id, ok := a.Data["other_item_id"].(string); ok {
+				ids = append(ids, id)
+			}
+		}
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	rows, err := q.Query(ctx, `SELECT i.id::text, p.key, i.number, i.title FROM items i JOIN projects p ON p.id = i.project_id
+		WHERE i.workspace_id = $1 AND i.id = ANY($2::uuid[])`, wsID, ids)
+	if err != nil {
+		return err
+	}
+	labels := map[string]map[string]any{}
+	for rows.Next() {
+		var id, key, title string
+		var n int64
+		if err := rows.Scan(&id, &key, &n, &title); err != nil {
+			rows.Close()
+			return err
+		}
+		labels[id] = map[string]any{"key": itemKey(key, n), "title": title}
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for _, a := range list {
+		if id, ok := a.Data["other_item_id"].(string); ok && (a.Action == "link.added" || a.Action == "link.removed") {
+			if l, ok := labels[id]; ok {
+				a.Data["other_item"] = l
+			}
+		}
+	}
+	return nil
 }
 
 // AuditLogParams filter the workspace audit log.

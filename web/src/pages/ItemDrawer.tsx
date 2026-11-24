@@ -9,8 +9,10 @@ import { Attachments } from "../components/Attachments";
 import { Comments } from "../components/Comments";
 import { DescriptionField } from "../components/DescriptionField";
 import { FieldEditor } from "../components/FieldEditor";
+import { LinksSection } from "../components/Links";
 import { ParentCrumb, SubtaskSection } from "../components/Subtasks";
 import { useToast } from "../components/toast-context";
+import { WatchControl } from "../components/Watchers";
 import { Avatar, Button, DueChip, ErrorState, Select, Spinner, StatusBadge, touchField } from "../components/ui";
 import { t } from "../i18n";
 import { cn } from "../lib/cn";
@@ -126,7 +128,8 @@ function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose }: {
         <span className="min-w-0 truncate font-mono text-sm text-zinc-500">
           {item.key} · {item.type.name}
         </span>
-        <div className="flex shrink-0 gap-2">
+        <div className="flex shrink-0 items-center gap-2">
+          <WatchControl ws={ws} project={project} n={item.number} isAdmin={isAdmin} />
           {canEdit && (
             <Button
               variant="ghost"
@@ -267,6 +270,8 @@ function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose }: {
 
         {/* One level only: a subtask has no subtasks of its own (ADR-0021). */}
         {!item.parent && <SubtaskSection ws={ws} project={project} item={item} canEdit={canEdit} />}
+
+        <LinksSection ws={ws} project={project} item={item} canEdit={canEdit} />
 
         {boundFields.length > 0 && (
           <section>

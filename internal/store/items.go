@@ -40,9 +40,12 @@ type Item struct {
 	Overdue     bool           `json:"overdue"`  // past due and not done/canceled (ADR-0009)
 	Parent      *ItemParent    `json:"parent"`   // nil for a top-level item (ADR-0021)
 	Subtasks    SubtaskSummary `json:"subtasks"`
-	Version     int            `json:"version"`
-	CreatedAt   time.Time      `json:"created_at"`
-	UpdatedAt   time.Time      `json:"updated_at"`
+	// Blocked: an open item the viewer can see blocks this one (ADR-0028).
+	// Only list responses fill it in; elsewhere it is omitted.
+	Blocked   *bool     `json:"blocked,omitempty"`
+	Version   int       `json:"version"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 const (
@@ -162,6 +165,10 @@ func createItemTx(ctx context.Context, tx pgx.Tx, p CreateItemParams, extra map[
 	if err != nil {
 		return Item{}, err
 	}
+	// The reporter and the assignee watch the item (ADR-0028).
+	if err := autoWatch(ctx, tx, p.WorkspaceID, id, reporter, item.AssigneeID); err != nil {
+		return Item{}, err
+	}
 	payload := createdPayload(item)
 	for k, v := range extra {
 		payload[k] = v
@@ -226,8 +233,13 @@ type ListItemsParams struct {
 	Sort         string            // SortNumber (default) or SortDue, see itemsort.go
 	ParentNumber *int64            // only subtasks of this item
 	TopLevel     bool              // only items without a parent
-	Limit        int
-	Cursor       *ItemCursor // continue after this position (nil = from the start)
+	// Viewer, when set, fills Item.Blocked for the page (one batched query)
+	// and is required by the Blocked filter: blockers in projects the viewer
+	// cannot see never count (ADR-0013).
+	Viewer  *Viewer
+	Blocked bool // only items with an open, visible blocker
+	Limit   int
+	Cursor  *ItemCursor // continue after this position (nil = from the start)
 }
 
 // ListItems returns one page of items in the requested order using keyset
@@ -264,6 +276,20 @@ func (s *Store) ListItems(ctx context.Context, p ListItemsParams) (items []Item,
 	if len(items) > p.Limit {
 		items = items[:p.Limit]
 		next = cursorAfter(p.Sort, items[len(items)-1])
+	}
+	if p.Viewer != nil {
+		ids := make([]uuid.UUID, len(items))
+		for i, it := range items {
+			ids[i] = it.ID
+		}
+		blocked, err := blockedItems(ctx, s.pool, p.WorkspaceID, ids, *p.Viewer)
+		if err != nil {
+			return nil, nil, err
+		}
+		for i := range items {
+			b := blocked[items[i].ID]
+			items[i].Blocked = &b
+		}
 	}
 	return items, next, nil
 }
@@ -321,6 +347,13 @@ func (s *Store) itemFilter(ctx context.Context, p ListItemsParams, withStatus bo
 	}
 	if p.TopLevel {
 		where = append(where, "i.parent_id IS NULL")
+	}
+	if p.Blocked {
+		if p.Viewer == nil {
+			return nil, nil, errors.New("blocked filter needs a viewer")
+		}
+		args = append(args, p.Viewer.UserID, RoleAtLeast(p.Viewer.Role, RoleAdmin))
+		where = append(where, blockedFilter("$"+strconv.Itoa(len(args)-1), "$"+strconv.Itoa(len(args))+"::boolean"))
 	}
 	if len(p.FieldFilters) > 0 {
 		conds, err := fieldFilterConditions(ctx, s.pool, p.WorkspaceID, p.FieldFilters)
@@ -565,6 +598,11 @@ func updateItemTx(ctx context.Context, tx pgx.Tx, p UpdateItemParams, in checked
 			return err
 		}
 		changed = true
+		if _, ok := changes["assignee_id"]; ok {
+			if err := autoWatch(ctx, tx, p.WorkspaceID, id, newAssignee); err != nil {
+				return err
+			}
+		}
 		payload := map[string]any{"changes": changes, "snapshot": Snapshot(item)}
 		maps.Copy(payload, extra)
 		return appendEvent(ctx, tx, p.WorkspaceID, p.ActorID, "item", id, "item.updated", payload)
@@ -636,6 +674,11 @@ func deleteItemTx(ctx context.Context, tx pgx.Tx, wsID, projectID uuid.UUID, num
 		return err
 	}
 	if err := appendEvent(ctx, tx, wsID, actorID, "item", id, "item.deleted", extra); err != nil {
+		return err
+	}
+	// A deleted item's links go with it (ADR-0028); the other side's history
+	// records link.removed.
+	if err := removeItemLinks(ctx, tx, wsID, actorID, id); err != nil {
 		return err
 	}
 	// Subtasks of a deleted item become top-level (ADR-0021), for single and

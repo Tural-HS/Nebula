@@ -17,6 +17,19 @@ function act(action: string, data: Record<string, unknown> = {}, extra: Partial<
 }
 
 suite("describe", () => {
+  it("renders link events with the other item's current key (ADR-0028)", () => {
+    expect(describe(act("link.added", { type: "blocked_by", other_item_id: "x", other_item: { key: "OPS-4", title: "T" } }), lookup)).toEqual([
+      { text: "əlaqə əlavə etdi: bloklanır OPS-4" },
+    ]);
+    expect(describe(act("link.removed", { type: "relates", other_item_id: "x", other_item: { key: "QA-2" } }), lookup)).toEqual([
+      { text: "əlaqəni sildi: əlaqəlidir QA-2" },
+    ]);
+    expect(describe(act("link.removed", { type: "relates", other_item_id: "x", reason: "item_deleted", other_item: { key: "QA-2" } }), lookup)).toEqual([
+      { text: "QA-2 silindiyi üçün əlaqə silindi" },
+    ]);
+    expect(describe(act("link.added", { type: "nonsense" }), lookup)).toEqual([{ text: "əlaqə əlavə etdi: ? ?" }]);
+  });
+
   it("renders a parent change with item keys (ADR-0021)", () => {
     expect(describe(act("item.updated", { changes: { parent: { from: "OPS-1", to: null } } }), lookup)).toEqual([
       { text: "əsas tapşırığı dəyişdi", from: "OPS-1", to: "—" },

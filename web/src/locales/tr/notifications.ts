@@ -15,5 +15,9 @@ export const tn = {
   assigned: "Size atandı",
   overdue: "Bitiş tarihi geçti",
   comment: (actor: string) => `${actor} yorum yazdı`,
+  statusChanged: (actor: string) => `${actor} durumu değiştirdi`,
+  assigneeChanged: (actor: string) => `${actor} atanan kişiyi değiştirdi`,
+  dueChanged: (actor: string) => `${actor} bitiş tarihini değiştirdi`,
+  linkAdded: (actor: string) => `${actor} bağlantı ekledi`,
   unread: "okunmamış",
 } satisfies Messages["notifications"];

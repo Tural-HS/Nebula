@@ -20,5 +20,9 @@ export const tn = {
   assigned: "Назначено вам",
   overdue: "Срок истёк",
   comment: (actor: string) => `${actor} оставил(а) комментарий`,
+  statusChanged: (actor: string) => `${actor} изменил(а) статус`,
+  assigneeChanged: (actor: string) => `${actor} сменил(а) исполнителя`,
+  dueChanged: (actor: string) => `${actor} изменил(а) срок`,
+  linkAdded: (actor: string) => `${actor} добавил(а) связь`,
   unread: "непрочитанное",
 } satisfies Messages["notifications"];

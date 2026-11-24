@@ -303,6 +303,14 @@ func (s *Store) CreateComment(ctx context.Context, wsID, projectID uuid.UUID, nu
 			}
 			ids = append(ids, p.id)
 		}
+		// Commenters and the people they mention watch the item (ADR-0028).
+		watch := []*uuid.UUID{&actorID}
+		for i := range ids {
+			watch = append(watch, &ids[i])
+		}
+		if err := autoWatch(ctx, tx, wsID, item.id, watch...); err != nil {
+			return err
+		}
 		if err := appendEvent(ctx, tx, wsID, actorID, "item", item.id, "comment.created",
 			map[string]any{"comment_id": id, "excerpt": excerpt(body, 200), "mentions": ids}); err != nil {
 			return err
@@ -378,6 +386,13 @@ func (s *Store) UpdateComment(ctx context.Context, wsID, projectID uuid.UUID, nu
 				}
 			}
 			if _, err := tx.Exec(ctx, `UPDATE comments SET body = $1 WHERE id = $2`, body, commentID); err != nil {
+				return err
+			}
+			watch := make([]*uuid.UUID, len(addedIDs))
+			for i := range addedIDs {
+				watch[i] = &addedIDs[i]
+			}
+			if err := autoWatch(ctx, tx, wsID, item.id, watch...); err != nil {
 				return err
 			}
 			if err := appendEvent(ctx, tx, wsID, actorID, "item", item.id, "comment.updated",

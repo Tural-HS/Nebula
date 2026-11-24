@@ -74,19 +74,14 @@ func TestSearchFoldMatchesSQL(t *testing.T) {
 	}
 }
 
-// The migration's backfill indexes existing data: run 00018 down, write data
-// without the triggers, run it up again.
+// The migration's backfill indexes existing data: write data, run the
+// migrations down to before 00018 (dropping the index), run them up again.
+// The data is written first, with the current code and schema: later
+// migrations may add tables the current store writes to.
 func TestSearchBackfill(t *testing.T) {
 	f := newSearchFixture(t)
 	ctx := context.Background()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	if err := database.Migrate(ctx, f.owner, "down", logger); err != nil {
-		t.Fatal(err)
-	}
-	var version int
-	if err := f.owner.QueryRow(ctx, `SELECT max(version_id) FROM goose_db_version WHERE is_applied`).Scan(&version); err != nil || version >= 18 {
-		t.Fatalf("down did not undo 00018 (now %d): %v", version, err)
-	}
 	for i, title := range []string{"Ödəniş gecikir", "Silinmiş ödəniş", "Başqa iş"} {
 		it, err := f.st.CreateItem(ctx, store.CreateItemParams{WorkspaceID: f.wsID, ProjectID: f.project, ActorID: f.userID, Title: title})
 		if err != nil {
@@ -100,6 +95,18 @@ func TestSearchBackfill(t *testing.T) {
 	}
 	if err := f.st.DeleteItem(ctx, f.wsID, f.project, 2, f.userID); err != nil {
 		t.Fatal(err)
+	}
+	for {
+		var version int
+		if err := f.owner.QueryRow(ctx, `SELECT max(version_id) FROM goose_db_version WHERE is_applied`).Scan(&version); err != nil {
+			t.Fatal(err)
+		}
+		if version < 18 {
+			break
+		}
+		if err := database.Migrate(ctx, f.owner, "down", logger); err != nil {
+			t.Fatal(err)
+		}
 	}
 	if err := database.Migrate(ctx, f.owner, "up", logger); err != nil {
 		t.Fatal(err)

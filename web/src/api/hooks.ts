@@ -305,6 +305,8 @@ function useInvalidateCollab(ws: string, project: string, n: number) {
   return () => {
     void qc.invalidateQueries({ queryKey: collabKeys.comments(ws, project, n) });
     void qc.invalidateQueries({ queryKey: collabKeys.activity(ws, project, n) });
+    // Commenting and mentioning make people watchers (ADR-0028).
+    void qc.invalidateQueries({ queryKey: [...keys.item(ws, project, n), "watchers"] });
   };
 }
 

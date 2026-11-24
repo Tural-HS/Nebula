@@ -2,7 +2,16 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api, path } from "./client";
 
-export type NotificationKind = "mention" | "assigned" | "overdue" | "comment";
+export type NotificationKind =
+  | "mention"
+  | "assigned"
+  | "overdue"
+  | "comment"
+  // Watchers (ADR-0028)
+  | "status_changed"
+  | "assignee_changed"
+  | "due_changed"
+  | "link_added";
 
 /** One entry of GET /me/notifications; item key and title are current. */
 export interface AppNotification {

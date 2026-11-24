@@ -27,6 +27,11 @@ describe("notificationText", () => {
     [{ kind: "overdue", actor_id: null, actor_name: null }, "Son tarixi keçdi: QA-12 Giriş xətası"],
     [{ kind: "comment" }, "Alice şərh yazdı: QA-12 Giriş xətası"],
     [{ kind: "comment", actor_name: null }, "Bir istifadəçi şərh yazdı: QA-12 Giriş xətası"],
+    // Watcher kinds (ADR-0028)
+    [{ kind: "status_changed" }, "Alice statusu dəyişdi: QA-12 Giriş xətası"],
+    [{ kind: "assignee_changed" }, "Alice icraçını dəyişdi: QA-12 Giriş xətası"],
+    [{ kind: "due_changed" }, "Alice son tarixi dəyişdi: QA-12 Giriş xətası"],
+    [{ kind: "link_added", actor_name: null }, "Bir istifadəçi əlaqə əlavə etdi: QA-12 Giriş xətası"],
   ] as const)("%o", (patch, want) => {
     expect(notificationText({ ...base, ...patch })).toBe(want);
   });

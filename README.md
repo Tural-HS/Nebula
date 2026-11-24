@@ -23,6 +23,7 @@ böyük həcmli məlumatlarda sürətli, tam fərdiləşdirilə bilən, öz serv
 - Mattermost Boards-dan keçid (azərbaycanca şablon, layihə şablonları, `.boardarchive` importu): [ADR-0020](docs/adr/0020-fintez-migration-kit.md), runbook: [docs/runbooks/mattermost-boards-migration.md](docs/runbooks/mattermost-boards-migration.md)
 - Alt tapşırıqlar (bir səviyyə, DB-də qorunur): [ADR-0021](docs/adr/0021-subtasks.md)
 - Təqvim, toplu və sətirdaxili redaktə: [ADR-0023](docs/adr/0023-calendar-bulk-inline.md)
+- Tapşırıq əlaqələri və izləyicilər: [ADR-0028](docs/adr/0028-item-links-and-watchers.md)
 - Yol xəritəsi: [docs/ROADMAP.md](docs/ROADMAP.md)
 
 ## Tələblər
