@@ -1,7 +1,8 @@
 // Four-eyes approvals UI (ADR-0026): the list badge, the drawer panel and
 // the request / reject dialogs. The server decides who may do what; the
 // buttons only follow its can_approve / can_cancel flags.
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router";
 
 import { useApprovalActions, useApprovals, type ApprovalRequest } from "../api/approvals";
 import { ApiError } from "../api/client";
@@ -81,8 +82,35 @@ export function RequestApprovalDialog({ ws, project, item, version, target, onCl
 }
 
 /** The drawer section: the open request with actions, then earlier ones. */
+/**
+ * ?focus=approval (the chat card link, ADR-0031) scrolls to the panel once the
+ * requests have loaded, then drops the parameter so a reload or a later
+ * drawer does not jump again. A query parameter rather than a #fragment: the
+ * sign-in redirect keeps only path and query (safeReturnPath).
+ */
+function useApprovalFocus(loaded: boolean) {
+  const [params, setParams] = useSearchParams();
+  const ref = useRef<HTMLElement>(null);
+  const wanted = params.get("focus") === "approval";
+  useEffect(() => {
+    if (!wanted || !loaded) return;
+    const el = ref.current;
+    if (el) {
+      el.scrollIntoView({ block: "start" });
+      el.focus({ preventScroll: true });
+    }
+    setParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete("focus");
+      return next;
+    }, { replace: true });
+  }, [wanted, loaded, setParams]);
+  return ref;
+}
+
 export function ApprovalPanel({ ws, project, item }: { ws: string; project: string; item: Item }) {
   const list = useApprovals(ws, project, item.number);
+  const focusRef = useApprovalFocus(!list.isPending);
   if (list.isPending) return item.approval ? <Spinner /> : null;
   if (list.isError) return <ErrorState error={list.error} />;
   if (list.data.length === 0) return null;
@@ -91,7 +119,7 @@ export function ApprovalPanel({ ws, project, item }: { ws: string; project: stri
   // requests are folded into the history.
   const [latest, ...rest] = list.data;
   return (
-    <section aria-labelledby="approval-heading" className="space-y-3">
+    <section ref={focusRef} id="approval" tabIndex={-1} aria-labelledby="approval-heading" className="scroll-mt-4 space-y-3 focus:outline-none">
       <h3 id="approval-heading" className="text-sm font-semibold">{tap.section}</h3>
       {latest && <RequestCard ws={ws} project={project} n={item.number} req={latest} />}
       {rest.length > 0 && (

@@ -15,6 +15,7 @@ import { ts as search } from "./search";
 import { ts as subtasks } from "./subtasks";
 import { tt as templates } from "./templates";
 import { tv as views } from "./views";
+import { twc as webhookChat } from "./webhookChat";
 import { tw as workdays } from "./workdays";
 
-export const az = { admin, approvals, attach, calendar, core, importer, invite, links, mobile, notifications, project, recur, search, subtasks, templates, views, workdays };
+export const az = { admin, approvals, attach, calendar, core, importer, invite, links, mobile, notifications, project, recur, search, subtasks, templates, views, webhookChat, workdays };

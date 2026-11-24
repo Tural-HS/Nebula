@@ -5,13 +5,39 @@ import { useProjects } from "../../api/hooks";
 import { Button, ErrorState, Input, Select, Spinner } from "../../components/ui";
 import { t } from "../../i18n";
 import { ta } from "../../i18n-admin";
+import { twc } from "../../i18n-webhook-chat";
 import { cn } from "../../lib/cn";
 import { formatRelative } from "../../lib/format";
-import { defaultEvents, looksLikeChatWebhook, WEBHOOK_FORMATS, type WebhookFormat } from "../../lib/webhooks";
+import { approvalsByWildcard, defaultEvents, looksLikeChatWebhook, sendsApprovals, WEBHOOK_FORMATS, withApprovals, type WebhookFormat } from "../../lib/webhooks";
 import { Card, SettingsLayout } from "./SettingsLayout";
 import { useFeedback } from "./useErrorToast";
 
 const parseEvents = (s: string) => s.split(",").map((x) => x.trim()).filter(Boolean);
+const joinEvents = (events: readonly string[]) => events.join(", ");
+
+/**
+ * "Send approval events" (ADR-0031): a shortcut for the approval.* pattern in
+ * the events list, which stays the single source of truth.
+ */
+function ApprovalToggle({ events, onChange }: { events: string; onChange: (events: string) => void }) {
+  const list = parseEvents(events);
+  const wildcard = approvalsByWildcard(list);
+  const on = sendsApprovals(list);
+  // Unticking must not leave an empty subscription (the server needs one pattern).
+  const locked = wildcard || (on && withApprovals(list, false).length === 0);
+  return (
+    <label className="flex items-center gap-1.5 text-xs" title={wildcard ? twc.coveredByWildcard : twc.approvalEventsHint}>
+      <input
+        type="checkbox"
+        className="accent-brand-600"
+        checked={on}
+        disabled={locked}
+        onChange={(e) => { onChange(joinEvents(withApprovals(list, e.target.checked))); }}
+      />
+      {twc.approvalEvents}
+    </label>
+  );
+}
 
 export function WebhooksPage() {
   return <SettingsLayout title={ta.nav.webhooks}>{(ws) => <Webhooks ws={ws} />}</SettingsLayout>;
@@ -104,10 +130,12 @@ function NewWebhook({ ws, onSecret }: { ws: string; onSecret: (s: string) => voi
           <span>{ta.events} <span className="text-zinc-400">({ta.eventsHint})</span></span>
           <Input required value={events} onChange={(e) => { setEvents(e.target.value); }} className="w-64" />
         </label>
+        <ApprovalToggle events={events} onChange={setEvents} />
         <ProjectFilter ws={ws} value={projects} onChange={setProjects} />
         <Button type="submit" variant="primary" disabled={adm.createWebhook.isPending}>{t.create}</Button>
       </form>
       {format === "slack" && <p className="mt-2 text-xs text-zinc-500">{ta.slackHint}</p>}
+      {format === "slack" && sendsApprovals(parseEvents(events)) && <p className="mt-1 text-xs text-zinc-500">{twc.approvalEventsHint}</p>}
       {suggestChat && (
         <p role="status" className="mt-2 flex flex-wrap items-center gap-2 text-xs text-amber-700 dark:text-amber-400">
           {ta.chatUrlDetected}
@@ -182,6 +210,13 @@ function WebhookCard({ ws, hook, onSecret }: { ws: string; hook: Webhook; onSecr
           onChange={(e) => { setEvents(e.target.value); }}
           onBlur={() => {
             if (events !== hook.events.join(", ")) adm.updateWebhook.mutate({ id: hook.id, body: { events: parseEvents(events) } }, { onSuccess: fb.ok(), onError: fb.fail });
+          }}
+        />
+        <ApprovalToggle
+          events={events}
+          onChange={(next) => {
+            setEvents(next);
+            adm.updateWebhook.mutate({ id: hook.id, body: { events: parseEvents(next) } }, { onSuccess: fb.ok(), onError: fb.fail });
           }}
         />
         <ProjectFilter

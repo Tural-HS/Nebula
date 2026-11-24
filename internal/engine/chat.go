@@ -18,9 +18,10 @@ import (
 // ChatMessage is the body of a Slack-compatible incoming webhook, which
 // Mattermost accepts unchanged.
 type ChatMessage struct {
-	Text     string `json:"text"`
-	Username string `json:"username,omitempty"`
-	IconURL  string `json:"icon_url,omitempty"`
+	Text        string           `json:"text"`
+	Username    string           `json:"username,omitempty"`
+	IconURL     string           `json:"icon_url,omitempty"`
+	Attachments []ChatAttachment `json:"attachments,omitempty"`
 }
 
 // ChatContext is everything RenderChat shows besides the event itself.
@@ -34,6 +35,10 @@ type ChatContext struct {
 	// PublicURL is the web UI base URL, for links to items that are not the
 	// event's own entity (digest entries). "" = no links.
 	PublicURL string
+	// Approvers who may still decide on an approval.requested event (display
+	// names, at most maxChatApprovers) and how many there are in all.
+	Approvers      []string
+	ApproversTotal int
 }
 
 const maxChatText = 3000 // well under Mattermost's 16k and Slack's 40k limits
@@ -393,6 +398,16 @@ func (e *Engine) chatContext(ctx context.Context, ev store.Event) (ChatContext, 
 		}
 	}
 	users = append(users, uuids(ev.Payload["mentions"])...)
+	if isApprovalEvent(ev.Action) {
+		if id, ok := uuidOf(ev.Payload["requested_by"]); ok {
+			users = append(users, id)
+		}
+		for _, k := range []string{"from_status_id", "to_status_id"} {
+			if id, ok := uuidOf(ev.Payload[k]); ok {
+				statuses = append(statuses, id)
+			}
+		}
+	}
 	if ex, ok := ev.Payload["excerpt"].(string); ok {
 		for _, m := range store.MentionRe.FindAllStringSubmatch(ex, 20) {
 			if id, err := uuid.Parse(m[1]); err == nil {
@@ -410,6 +425,13 @@ func (e *Engine) chatContext(ctx context.Context, ev store.Event) (ChatContext, 
 	}
 	if ev.ActorID != nil {
 		c.Actor = c.Users[*ev.ActorID]
+	}
+	if ev.Action == store.EventApprovalRequested {
+		if id, ok := uuidOf(ev.Payload["request_id"]); ok {
+			if c.Approvers, c.ApproversTotal, err = e.Store.PendingApprovers(ctx, ev.WorkspaceID, id, maxChatApprovers); err != nil {
+				return c, err
+			}
+		}
 	}
 	if ev.EntityType == "item" {
 		l, err := e.Store.ItemLabelByID(ctx, ev.WorkspaceID, ev.EntityID)
