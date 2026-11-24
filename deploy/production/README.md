@@ -61,6 +61,7 @@ Yaradır (`/etc/nebula/secrets`, qovluq 0750, hər sir bir fayl, `0440 root:nebu
 | `nebula_encryption_key` | `nebula` | webhook sirlərinin şifrələmə açarı (base64, 32 bayt) |
 | `nebula_encryption_keys_old` | `nebula` | boş; yalnız açar rotasiyası zamanı köhnə açarlar (vergüllə) |
 | `nebula_smtp_password` | `nebula` | boş = SMTP autentifikasiyası yoxdur |
+| `nebula_evidence_signing_key` | `nebula` | audit sübut paketlərinin Ed25519 imza açarı (base64, 32 bayt seed, ADR-0029); barmaq izi: Parametrlər → Audit log və ya `docker compose exec nebula /nebula evidence public-key` |
 | `pgbackrest_*`, `remote_write_password` | postgres / alloy | `REPLACE_ME` placeholder |
 
 Sonra əl ilə:
@@ -71,7 +72,9 @@ Sonra əl ilə:
 
 Nebula sirləri **yalnız fayl** kimi alır (`NEBULA_*_FILE` → `/run/secrets/...`): env-də, `docker inspect`-də və `/proc/<pid>/environ`-da görünmürlər. `NEBULA_DATABASE_URL` sir deyil (parolsuz), parol ayrıca fayldan gəlir.
 
-**Offline nüsxə (vacib):** `pgbackrest_cipher_pass` itərsə BÜTÜN backup-lar oxunmaz olur; `nebula_encryption_key` itərsə webhook sirləri açılmaz. Hər ikisini parol menecerinə / OpenBao-ya yazın.
+**Offline nüsxə (vacib):** `pgbackrest_cipher_pass` itərsə BÜTÜN backup-lar oxunmaz olur; `nebula_encryption_key` itərsə webhook sirləri açılmaz; `nebula_evidence_signing_key` itərsə köhnə paketlər yoxlanmağa davam edir, amma yeni paketlər başqa barmaq izi ilə imzalanır və auditorlara yeni barmaq izi ayrıca kanalla bildirilməlidir. Hamısını parol menecerinə / OpenBao-ya yazın.
+
+**Mövcud quraşdırmanın yenilənməsi (ADR-0029):** `sudo ./scripts/gen-secrets.sh` yalnız çatışmayan `nebula_evidence_signing_key` faylını yaradır (qalanlara toxunmur); onsuz `preflight.sh` deploy-u dayandırır. Açarın dəyişdirilməsi (rotasiya): faylı yerində yeni `openssl rand -base64 32` ilə yazın və `nebula`-nı yenidən yaradın; köhnə barmaq izini qeyd edin — köhnə paketlər `nebula evidence verify --key <köhnə barmaq izi>` ilə yoxlanır.
 
 Niyə 0600 yox, 0440 + qrup: Compose (Swarm olmadan) secret faylını host icazələri ilə bind-mount edir; non-root konteynerlər (postgres 999, keycloak 1000, nebula 65532, alloy) faylı oxumaq üçün `group_add` ilə `nebula-secrets` qrupuna qoşulur. Hər servis yalnız özünə verilən sirləri görür.
 
@@ -355,6 +358,8 @@ Sxemi də geri qaytarmaq lazımdırsa `--migrate-down-to N` Down hissələrini *
 | 00019 approvals | var | ⚠️ bütün təsdiq siyasətləri, sorğuları və qərarları (`approval_*`) və təsdiq bildirişləri silinir; təsdiq izi yalnız `events`-də (audit log) qalır. Gözləyən sorğusu olan tapşırıqlar kilidsiz qalır. **Kilidlər:** `notifications`-də qısa `ACCESS EXCLUSIVE` (kind CHECK yenidən yaradılır) |
 | 00020 working calendar | var | iş təqvimi (həftə sonu günləri, bayramlar, köçürmələr) silinir; iş günü seçimi (`work_day`) və ya köçürmə (`shift`) istifadə edən təkrarlanma varsa Down xəta ilə dayanır — əvvəlcə onları adi tarixə dəyişin və ya silin. **Kilidlər:** Up/Down qısa `ACCESS EXCLUSIVE` (`workspaces`, `recurrences`, `recurrence_runs`; `lock_timeout` 5 s), cədvəl yenidən yazılmır |
 | 00021 links and watchers | var | bütün tapşırıq əlaqələri (`item_links`), izləyicilər (`item_watchers`) və izləyici bildirişləri silinir; əlaqə hadisələri `events`-də qalır. **Kilidlər:** `notifications`-də qısa `ACCESS EXCLUSIVE` (kind CHECK yenidən yaradılır) |
+
+**Audit sübut ixracı (ADR-0029) miqrasiyasızdır** (00022 nömrəsi istifadə edilmədi): rollback yalnız image-dir. Köhnə image `NEBULA_EVIDENCE_SIGNING_KEY_FILE`-ı nəzərə almır, `evidence.exported` hadisələri audit log-da qalır; artıq verilmiş paketlər bu və sonrakı release-lərin `nebula evidence verify` əmri ilə yoxlanmağa davam edir.
 
 **ADR-0018-dən əvvəlki release-ə rollback:** köhnə image `*_FILE` sirləri oxumur və `nebula healthcheck` bilmir, yeni `compose.yaml` ilə işləmir; `rollback.sh` bunu yoxlayır və `.env`-i qaytarıb dayanır. Belə halda: `git -C /opt/nebula checkout <köhnə tag> -- deploy/production`, `nebula.env`-i bərpa edin (ondan `NEBULA_DATABASE_URL` `nebula` rolu ilə), sonra `rollback.sh`. `nebula_app` rolu və onun hüquqları qala bilər (zərərsizdir).
 

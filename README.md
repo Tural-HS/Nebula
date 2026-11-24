@@ -27,6 +27,7 @@ böyük həcmli məlumatlarda sürətli, tam fərdiləşdirilə bilən, öz serv
 - İş təqvimi (həftə sonu, bayramlar, köçürmələr) və iş gününə bağlı təkrarlanma: [ADR-0027](docs/adr/0027-working-day-calendar.md)
 - Tapşırıq əlaqələri və izləyicilər: [ADR-0028](docs/adr/0028-item-links-and-watchers.md)
 - Təsdiqlər Mattermost/Slack kanalında (kart və "Nebula-da aç", addım 2 dizaynı): [ADR-0031](docs/adr/0031-chat-approval-cards.md)
+- Audit sübut paketinin ixracı (imzalı ZIP, `nebula evidence verify`): [ADR-0029](docs/adr/0029-audit-evidence-export.md), auditor üçün runbook: [docs/runbooks/audit-evidence.md](docs/runbooks/audit-evidence.md)
 - Yol xəritəsi: [docs/ROADMAP.md](docs/ROADMAP.md)
 
 ## Tələblər
@@ -91,6 +92,8 @@ nebula rotate-secrets   saxlanılan secret-ləri cari açarla yenidən şifrəl�
 nebula migrate up       gözləyən miqrasiyaları tətbiq edir (advisory lock ilə, bir neçə replika üçün təhlükəsiz)
 nebula migrate down     son miqrasiyanı geri qaytarır
 nebula migrate status   miqrasiyaların vəziyyətini göstərir
+nebula evidence verify  audit sübut paketinin imzasını və fayllarını yoxlayır; konfiqurasiya və DB tələb etmir (ADR-0029)
+nebula evidence public-key  konfiqurasiya edilmiş imza açarının barmaq izini göstərir
 nebula version          build versiyasını göstərir
 ```
 

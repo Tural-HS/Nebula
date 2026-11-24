@@ -53,6 +53,10 @@ type Config struct {
 	// the database (one cheap query per process and interval, not per scrape).
 	JobMetricsInterval time.Duration
 	Attachments        Attachments
+	// EvidenceSigningKey is the base64 Ed25519 seed that signs audit evidence
+	// packages (ADR-0029). Empty: exports are disabled (production) or signed
+	// with a throwaway key (development).
+	EvidenceSigningKey string
 }
 
 // SMTP configures outgoing email. Empty Host disables email.
@@ -197,6 +201,13 @@ func Load(rawGetenv func(string) string) (Config, error) {
 	cfg.Attachments, err = loadAttachments(get, getenv, cfg.Env)
 	if err != nil {
 		errs = append(errs, err)
+	}
+
+	cfg.EvidenceSigningKey = get("NEBULA_EVIDENCE_SIGNING_KEY", "")
+	if k := cfg.EvidenceSigningKey; k != "" {
+		if b, err := base64.StdEncoding.DecodeString(k); err != nil || len(b) != 32 {
+			errs = append(errs, errors.New("NEBULA_EVIDENCE_SIGNING_KEY must be 32 bytes, base64 encoded (openssl rand -base64 32)"))
+		}
 	}
 
 	cfg.ShutdownTimeout = parseDuration(get("NEBULA_SHUTDOWN_TIMEOUT", "25s"), "NEBULA_SHUTDOWN_TIMEOUT", &errs)

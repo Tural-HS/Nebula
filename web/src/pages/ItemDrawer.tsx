@@ -9,6 +9,7 @@ import { ApprovalBadge, ApprovalPanel, RequestApprovalDialog } from "../componen
 import { Attachments } from "../components/Attachments";
 import { Comments } from "../components/Comments";
 import { DescriptionField } from "../components/DescriptionField";
+import { ItemEvidenceButton } from "../components/Evidence";
 import { FieldEditor } from "../components/FieldEditor";
 import { LinksSection } from "../components/Links";
 import { ParentCrumb, SubtaskSection } from "../components/Subtasks";
@@ -147,6 +148,7 @@ function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose }: {
         </span>
         <div className="flex shrink-0 items-center gap-2">
           <WatchControl ws={ws} project={project} n={item.number} isAdmin={isAdmin} />
+          {isAdmin && <ItemEvidenceButton ws={ws} project={project} n={item.number} />}
           {canEditContent && (
             <Button
               variant="ghost"

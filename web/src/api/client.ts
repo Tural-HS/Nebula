@@ -120,3 +120,22 @@ export async function apiBlob(path: string, fetchImpl: typeof fetch = fetch): Pr
   if (!res.ok) throw await parseError(res);
   return res.blob();
 }
+
+/**
+ * POSTs JSON and returns the binary response (evidence packages, ADR-0029)
+ * with its Content-Disposition, so the caller can keep the server's file name.
+ */
+export async function apiPostBlob(
+  path: string,
+  body: unknown,
+  fetchImpl: typeof fetch = fetch,
+): Promise<{ blob: Blob; disposition: string | null; headers: Headers }> {
+  if (!path.startsWith("/")) throw new Error("api path must start with /");
+  const headers: Record<string, string> = { Accept: "application/zip, application/json", "Content-Type": "application/json" };
+  const token = await tokenProvider();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetchImpl("/api/v1" + path, { method: "POST", headers, body: JSON.stringify(body), credentials: "omit" });
+  if (res.status === 401) onUnauthorized();
+  if (!res.ok) throw await parseError(res);
+  return { blob: await res.blob(), disposition: res.headers.get("Content-Disposition"), headers: res.headers };
+}
