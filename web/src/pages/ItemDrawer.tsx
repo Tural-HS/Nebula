@@ -143,11 +143,13 @@ function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose }: {
   return (
     <div className="flex flex-col">
       {/* Sticky, so closing never needs scrolling back up on a phone. */}
-      <div className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-zinc-200 bg-white px-4 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 md:px-5 md:py-3 dark:border-zinc-800 dark:bg-zinc-900">
-        <span className="min-w-0 truncate font-mono text-sm text-zinc-500">
+      {/* The close button has its own slot and the actions wrap, so a narrow
+          panel (tablet side panel) never pushes or covers close. */}
+      <div className="sticky top-0 z-10 flex items-start justify-between gap-2 border-b border-zinc-200 bg-white px-4 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 md:px-5 md:py-3 dark:border-zinc-800 dark:bg-zinc-900">
+        <span className="min-w-0 truncate self-center font-mono text-sm text-zinc-500">
           {item.key} · {item.type.name}
         </span>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2">
           <WatchControl ws={ws} project={project} n={item.number} isAdmin={isAdmin} />
           {isAdmin && <ItemEvidenceButton ws={ws} project={project} n={item.number} />}
           {canEditContent && (
@@ -168,10 +170,10 @@ function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose }: {
               {t.delete}
             </Button>
           )}
-          <Button variant="ghost" onClick={onClose} aria-label={t.close} className="min-h-11 min-w-11 text-lg md:text-sm">
-            ✕
-          </Button>
         </div>
+        <Button variant="ghost" onClick={onClose} aria-label={t.close} className="min-h-11 min-w-11 shrink-0 text-lg md:text-sm">
+          ✕
+        </Button>
       </div>
 
       <div className="space-y-5 p-4 md:p-5">

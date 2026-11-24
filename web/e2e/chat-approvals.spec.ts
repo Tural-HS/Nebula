@@ -41,7 +41,7 @@ test("chat webhooks send approval events by default; the toggle edits the events
   await expect(cardToggle).not.toBeChecked();
   await cardToggle.check();
   await expect.poll(async () => (await hooks(seed.ws))[0]?.events).toEqual(["approval.*", "comment.created", "item.*"]);
-  await expect(card.getByLabel("Hadisələr")).toHaveValue("comment.created, item.*, approval.*");
+  await expect(card.getByLabel("Hadisələr", { exact: true })).toHaveValue("comment.created, item.*, approval.*");
 });
 
 test("a '*' subscription already includes approvals and cannot untick them", async ({ page }) => {

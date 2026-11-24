@@ -49,14 +49,16 @@ export function Layout({ crumbs, actions, children }: { crumbs: Crumb[]; actions
         <div className="ml-auto flex shrink-0 items-center gap-2">
           {actions}
           <GlobalSearch />
-          {/* Requesters follow their intake-form submissions here (ADR-0032). */}
+          {/* Requesters follow their intake-form submissions here (ADR-0032).
+              Labels (this one and the user's name) only from xl: below that the
+              header with project actions overflows a 1024 px tablet. */}
           <Link
             to="/requests"
             aria-label={unseen > 0 ? `${tf.myRequests}: ${tf.unseen(unseen)}` : tf.myRequests}
             className="relative inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-sm text-zinc-700 hover:bg-zinc-100 pointer-coarse:min-h-11 dark:text-zinc-300 dark:hover:bg-zinc-800"
           >
             <span aria-hidden>📨</span>
-            <span className="hidden md:inline">{tf.myRequests}</span>
+            <span className="hidden xl:inline">{tf.myRequests}</span>
             {unseen > 0 && (
               <span aria-hidden className="absolute -top-0.5 -right-0.5 min-w-4 rounded-full bg-brand-600 px-1 text-center text-[10px] leading-4 font-semibold text-white">
                 {unseen > 99 ? "99+" : unseen}
@@ -68,7 +70,7 @@ export function Layout({ crumbs, actions, children }: { crumbs: Crumb[]; actions
           {me.data && (
             <span className="flex items-center gap-2 text-sm text-zinc-600 max-sm:hidden dark:text-zinc-400">
               <Avatar name={me.data.display_name} />
-              <span className="hidden whitespace-nowrap lg:inline">{me.data.display_name}</span>
+              <span className="hidden whitespace-nowrap xl:inline">{me.data.display_name}</span>
             </span>
           )}
           <Button variant="ghost" onClick={() => void logout()}>

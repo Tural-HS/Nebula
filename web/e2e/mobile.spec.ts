@@ -65,11 +65,15 @@ class Finger {
 async function expectNoHorizontalOverflow(page: Page) {
   await expect(page.locator("main")).toBeVisible();
   await expect(page.locator("main [role=status]").filter({ hasText: "Yüklənir" })).toHaveCount(0);
+  // Compare with the device width, not innerWidth: on a mobile viewport a
+  // too-wide page widens the layout viewport itself (innerWidth grows with
+  // it), so innerWidth alone hides the overflow.
+  const device = page.viewportSize()?.width ?? 0;
   await expect
-    .poll(() => page.evaluate(() => {
+    .poll(() => page.evaluate((w) => {
       const root = document.scrollingElement ?? document.documentElement;
-      return Math.max(root.scrollWidth, document.body.scrollWidth) - window.innerWidth;
-    }), { message: `horizontal overflow on ${page.url()}` })
+      return Math.max(root.scrollWidth, document.body.scrollWidth, window.innerWidth) - w;
+    }, device), { message: `horizontal overflow on ${page.url()}` })
     .toBeLessThanOrEqual(0);
 }
 

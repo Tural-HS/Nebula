@@ -16,7 +16,7 @@ test.beforeAll(async () => {
   seed = await seedWorkspace("member");
   const alice = await apiAs("alice");
   // A workspace without bob, with a private project and an "accounts" form.
-  outsiderWs = `${seed.ws}-x`;
+  outsiderWs = `${seed.ws}x`; // still matches the cleanup pattern e2e-<run>-<id>
   expect((await alice.post("workspaces", { data: { slug: outsiderWs, name: "Xəzinə " + run } })).status()).toBe(201);
   expect((await alice.post(`workspaces/${outsiderWs}/projects`, { data: { key: "SEC", name: "Xəzinədarlıq", visibility: "private" } })).status()).toBe(201);
   const f = await alice.post(`workspaces/${outsiderWs}/projects/SEC/forms`, {

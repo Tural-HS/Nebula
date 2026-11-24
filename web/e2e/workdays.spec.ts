@@ -28,9 +28,9 @@ test("admin manages weekend, holidays and the Azerbaijan fixed-date preset", asy
   const preset = page.getByRole("region", { name: "Azərbaycanın sabit tarixli bayramları" });
   await expect(preset.getByRole("note")).toContainText("Novruz, Ramazan və Qurban");
   await preset.getByRole("button", { name: `${String(YEAR)} ilinə əlavə et` }).click();
-  await expect(page.getByText("10 tarix əlavə edildi")).toBeVisible();
+  await expect(page.getByText("11 tarix əlavə edildi")).toBeVisible();
   await expect(days.getByRole("listitem", { name: /Yeni il bayramı/ })).toHaveCount(2);
-  await expect(days.getByText("10 / 60 tarix")).toBeVisible();
+  await expect(days.getByText("11 / 60 tarix")).toBeVisible();
   await preset.getByRole("button", { name: `${String(YEAR)} ilinə əlavə et` }).click();
   await expect(page.getByText("Yeni tarix yoxdur: hamısı artıq əlavə edilib.")).toBeVisible();
 

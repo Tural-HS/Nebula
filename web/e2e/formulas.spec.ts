@@ -23,12 +23,12 @@ test.describe("as admin", () => {
   test("create a formula with live validation, then see it in the table and drawer", async ({ page }) => {
     await page.goto(`/w/${seed.ws}/settings/fields`);
     const form = page.locator("form").filter({ has: page.getByRole("button", { name: "Yarat" }) });
-    await form.getByLabel("Ad").fill("Qalıq");
+    await form.getByLabel("Ad", { exact: true }).fill("Qalıq");
     await form.getByLabel(/Açar/).fill("remaining");
     await form.getByLabel("Tip").selectOption("formula");
 
     // A typo is reported with its position, before anything is saved.
-    const expr = form.getByLabel(/Düstur/);
+    const expr = form.getByRole("textbox", { name: /Düstur/ });
     await expr.fill("amount - pad");
     const status = form.getByTestId("formula-status");
     await expect(status).toContainText("Mövqe 10");
@@ -44,6 +44,8 @@ test.describe("as admin", () => {
 
     // Items written after the formula exists get their value on write.
     const alice = await apiAs("alice");
+    // The drawer shows the fields bound to the item type (ADR-0003), formulas included.
+    expect((await alice.put(`workspaces/${seed.ws}/item-types/task/fields/remaining`, { data: { position: 3 } })).status()).toBe(200);
     const items = `workspaces/${seed.ws}/projects/QA/items`;
     expect((await alice.post(items, { data: { title: "Lizinq", fields: { amount: 900, paid: 150 } } })).status()).toBe(201); // QA-2: 750
     expect((await alice.post(items, { data: { title: "Kredit", fields: { amount: 300.25, paid: 0.25 } } })).status()).toBe(201); // QA-3: 300
