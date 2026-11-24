@@ -42,6 +42,34 @@ if [[ -e $SECRETS_DIR/nebula.env ]]; then
 fi
 [[ ${NEBULA_SMTP_TLS:-starttls} =~ ^(starttls|tls)$ ]] || bad "NEBULA_SMTP_TLS must be starttls or tls in production"
 
+[[ "$(compose_files | head -n 1)" == "$DEPLOY_DIR/compose.yaml" ]] || bad "COMPOSE_FILE must start with compose.yaml"
+
+# Shared-host pilot (compose.shared-host.yaml, README "Paylaşılan hostda pilot").
+if compose_files | grep -q '/compose\.shared-host\.yaml$'; then
+	# Scripts and manual `docker compose` must see the same files: without the override a manual
+	# `up` recreates Caddy on the outer proxy's ports and Nebula without its IdP route.
+	[[ ${COMPOSE_FILE:-} == *compose.shared-host.yaml* ]] ||
+		bad "shared host: set COMPOSE_FILE=compose.yaml:compose.shared-host.yaml in .env (not only NEBULA_COMPOSE_OVERRIDE)"
+	net=${NEBULA_SHARED_PROXY_NETWORK:-} alias=${NEBULA_SHARED_PROXY_ALIAS:-nebula-edge}
+	if [[ -z $net ]]; then
+		bad "shared host: NEBULA_SHARED_PROXY_NETWORK is not set"
+	elif ! subnets="$(docker network inspect -f '{{range .IPAM.Config}}{{.Subnet}} {{end}}' "$net" 2>/dev/null)"; then
+		bad "shared host: docker network '$net' does not exist (is the outer proxy stack running?)"
+	else
+		# Nebula's Caddy believes X-Forwarded-For from exactly this subnet.
+		[[ " $subnets " == *" ${NEBULA_SHARED_PROXY_SUBNET:-unset} "* ]] ||
+			bad "shared host: NEBULA_SHARED_PROXY_SUBNET=${NEBULA_SHARED_PROXY_SUBNET:-} is not the subnet of '$net' ($subnets)"
+		# A second container answering to the alias would get a share of Nebula's traffic (DNS round robin).
+		for id in $(docker network inspect -f '{{range $id, $c := .Containers}}{{$id}} {{end}}' "$net"); do
+			[[ "$(docker inspect -f '{{index .Config.Labels "com.docker.compose.project"}}' "$id")" != "$PROJECT" ]] || continue
+			if docker inspect "$id" | jq -e --arg n "$net" --arg a "$alias" \
+				'.[0] | (.Name | ltrimstr("/")) as $name | .NetworkSettings.Networks[$n] | ([$name] + (.Aliases // []) + (.DNSNames // [])) | index($a) != null' >/dev/null; then
+				bad "shared host: another container on '$net' already answers to '$alias'"
+			fi
+		done
+	fi
+fi
+
 compose config --quiet || bad "docker compose config failed"
 
 ((fail == 0)) || die "preflight failed"

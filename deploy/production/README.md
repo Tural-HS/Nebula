@@ -16,6 +16,7 @@ Bütün əmrlər host-da `root` (və ya `sudo`) ilə, `/opt/nebula/deploy/produc
 | `scripts/` | `gen-secrets`, `preflight`, `deploy`, `rollback`, `db-roles`, `backup`, `restore`, `restore-test`, `container-info`, `keycloak-bootstrap-admin` |
 | `systemd/` | Backup, restore testi və container-info timer-ləri |
 | `host/` | `daemon.json`, sysctl, sshd, fail2ban nümunələri |
+| `compose.shared-host.yaml`, `shared-host/` | Yalnız pilot: başqa stack-in Caddy-si arxasında işləmək (bölmə 13) |
 
 ## 1. Host hazırlığı (Debian 13) — hardening checklist
 
@@ -400,8 +401,108 @@ Down-u olan amma data silən miqrasiyadan sonra, və ya Down-u olmayan (gələc�
 
 ```bash
 docker compose -f deploy/production/compose.yaml --env-file deploy/production/.env.example config --quiet
-docker run --rm -v "$PWD/deploy/production:/mnt:ro" -w /mnt koalaman/shellcheck:v0.11.0 -x scripts/*.sh postgres/nebula-pgbackrest postgres/initdb/*.sh keycloak/*.sh
+# glob-lar host-un shell-ində açılır, ona görə deploy/production qovluğundan:
+(cd deploy/production && docker run --rm -v "$PWD:/mnt:ro" -w /mnt koalaman/shellcheck:v0.11.0 -x scripts/*.sh postgres/nebula-pgbackrest postgres/initdb/*.sh keycloak/*.sh)
 go test ./internal/database -run RuntimeRole   # NEBULA_TEST_DATABASE_URL ilə: runtime rolu DDL edə bilmir
 ```
 
 Smoke test lazımdırsa: fərqli project adı (`COMPOSE_PROJECT_NAME=nebula-prodtest`), `NEBULA_BIND_ADDR=127.0.0.1`, yüksək portlar, ayrıca edge subnet; dev stack-ə (`nebula` project) toxunmayın və bitəndə `docker compose -p nebula-prodtest down -v` edin.
+
+## 13. Paylaşılan hostda pilot
+
+Host-da artıq başqa Docker Compose stack-i işləyir və onun Caddy-si 80/443-ü tutur. Nebula həmin Caddy-nin arxasında işləyir:
+xarici Caddy `NEBULA_HOST` və `NEBULA_AUTH_HOST` üçün TLS-i bitirir və sorğuları ortaq Docker şəbəkəsi üzərindən HTTP ilə Nebula-nın öz Caddy-sinə ötürür.
+Nebula Caddy-si bütün qaydalarını saxlayır (CSP, HSTS və digər header-lər, `/api` proxy, `/admin` bloku, body limitləri), ona görə tətbiqin davranışı bölmə 1–11 ilə eynidir.
+
+```
+brauzer ──TLS──▶ mövcud Caddy (80/443, şəbəkə stack_web) ──HTTP──▶ nebula-edge:80 (Nebula Caddy) ──▶ nebula / keycloak
+nebula (OIDC discovery, JWKS) ──host-gateway:443──▶ mövcud Caddy ──▶ … (TLS ictimai sertifikatla doğrulanır)
+```
+
+**Nə vaxt:** yalnız pilot və qısa müddətli sınaq üçün, ayrıca VPS hələ yoxdursa. Production ayrıca VPS-dədir (bölmə 1–11); köçmə aşağıda.
+
+| | Ayrıca VPS | Paylaşılan host |
+|---|---|---|
+| TLS, ACME, HTTP→HTTPS | Nebula Caddy | Mövcud Caddy |
+| Publish olunan portlar | Nebula Caddy 80/443 | Heç biri (yalnız Keycloak admin `127.0.0.1:8081`) |
+| Header-lər, CSP, `/api`, `/admin` bloku, body limitləri | Nebula Caddy | Nebula Caddy (dəyişməz) |
+| Müştəri IP-si | TCP peer | `X-Forwarded-For` yalnız `NEBULA_SHARED_PROXY_SUBNET`-dən |
+| Nebula → IdP (`https://NEBULA_AUTH_HOST`) | edge alias ilə Nebula Caddy | `host-gateway` → mövcud Caddy (ictimai sertifikat) |
+| `host/daemon.json`, sysctl, ufw | tətbiq olunur | **tətbiq olunmur** (mövcud stack-ə təsir edir) |
+
+Nebula tərəfi: `compose.shared-host.yaml` (override) Nebula Caddy-ni xarici şəbəkəyə (`NEBULA_SHARED_PROXY_NETWORK`) `NEBULA_SHARED_PROXY_ALIAS` (default `nebula-edge`) adı ilə qoşur, port publish etmir, `NEBULA_SITE_SCHEME=http` ilə Caddyfile-da ACME və redirect-i söndürür, `NEBULA_TRUSTED_PROXY_CIDRS` ilə xarici proxy-nin subnet-inə etibar edir. Nebula və Keycloak yenə yalnız Nebula Caddy-nin sabit ünvanına etibar edir; Caddy onlara həll olunmuş müştəri IP-sini bir hop kimi ötürür. Bütün ictimai URL-lər (`NEBULA_PUBLIC_URL`, OIDC issuer, `KC_HOSTNAME`) `https://` qalır.
+Caddyfile web image-ə bişirilmir (`./caddy/Caddyfile` mount olunur), ona görə bu rejim mövcud image-lərlə işləyir.
+
+### 13.1 Risklər
+
+- **Blast radius:** ictimai tətbiqlə eyni kernel, Docker daemon, disk və yaddaş. Birinin OOM-u, disk dolması, Docker restartı və ya upgrade-i hər ikisini dayandırır; bir konteynerdən host-a qaçış digərini də ələ keçirir. Hər iki stack-in sahibi və yeniləmə pəncərələri razılaşdırılmalıdır.
+- **Yaddaş:** rehearsal-da Nebula stack-i sabit ~1.5 GiB, pik ~1.9 GiB (Keycloak ~0.75–0.9 GiB, Alloy ~0.37, Postgres ~0.2–0.4, Nebula ~0.13–0.19, Caddy ~0.06), xarici Caddy ~20–30 MiB. Konteyner limitlərinin cəmi ~5.3 GiB-dir (Postgres 2G, Keycloak 1.5G, Nebula 1G, Alloy 512M, Caddy 256M): 8 GB-lıq hostda hamısı eyni anda limitə çatarsa yaddaş çatmaz. `free -m`-i və `NebulaMemoryPressure`/OOM alertlərini izləyin; swap 1–2 GB olsun.
+- **Mövcud Caddy ortaq nöqtədir:** onun konfiqurasiya xətası və ya restartı Nebula-nı da dayandırır, Nebula bloku isə səhv olarsa digər saytları da sındıra bilər. Ona görə həmişə əvvəlcə `caddy validate`, sonra `caddy reload` (restart yox).
+- **Ortaq şəbəkə:** `stack_web`-dəki hər konteyner Nebula Caddy-yə birbaşa HTTP ilə çata bilər və `X-Forwarded-For`-u saxtalaşdıra bilər (rate limit açarı, access log-dakı `client_ip`). Bütün subnet etibarlıdır, çünki xarici Caddy-nin IP-si sabit deyil. Autentifikasiya buna bağlı deyil (token tələb olunur). Pilot üçün qəbul edilən risk; o stack-in konteynerləri sizin nəzarətinizdədir.
+- **Host hardening yoxdur:** `host/daemon.json` (`icc: false`, `userland-proxy: false`, `live-restore`), sysctl və ufw dəyişiklikləri mövcud stack-ə təsir edir və `systemctl restart docker` hər iki stack-i dayandırır, ona görə tətbiq olunmur. Nebula servislərinin öz hardening-i (read-only FS, `cap_drop: ALL`, `no-new-privileges`, limitlər) qalır.
+- **Pinlənməmiş image:** mövcud stack-in `caddy:2-alpine` tag-i digest ilə pinlənməyib. `docker compose pull` gözlənilmədən yeni Caddy versiyası gətirə bilər, bu da Nebula-ya da təsir edər. Tövsiyə: onu digest ilə pinləyin (`caddy:2.11.4-alpine@sha256:…`, digest `docker buildx imagetools inspect caddy:2.11.4-alpine` ilə). Bu runbook həmin stack-in compose faylını dəyişmir.
+- **Host-un öz sorğuları:** host-dan `127.0.0.1:443`-ə gələn sorğular (məs. smoke test) Nebula log-unda xarici Caddy-nin IP-si ilə görünür (userland-proxy). Xaricdən gələn sorğularda real IP görünür.
+- **Monitorinq:** Alloy Nebula-nı yığır, mövcud Caddy-ni yox. İctimai prob (`blackbox`) xarici Caddy-dən keçir, yəni əsl istifadəçi yolunu ölçür.
+
+### 13.2 Quraşdırma
+
+Mövcud stack-in compose faylı dəyişdirilmir. Ona yalnız Caddyfile-a sayt bloku əlavə olunur və `caddy reload` edilir.
+
+1. **Yoxlama.** Mövcud Caddy-nin şəbəkəsi və subnet-i, boş portlar, yaddaş və disk:
+   ```bash
+   docker network inspect <stack_web> -f '{{range .IPAM.Config}}{{.Subnet}} {{end}}'   # məs. 172.19.0.0/16
+   docker network ls -q | xargs docker network inspect -f '{{.Name}} {{range .IPAM.Config}}{{.Subnet}} {{end}}'   # 172.30.10.0/24 boşdur?
+   ss -ltn | grep -E ':(8081)\b' || echo "8081 boşdur"
+   free -m; df -h /var/lib/docker
+   ```
+   Bölmə 1-dən yalnız bunlar: amd64, alətlər (`jq curl openssl util-linux git`), cosign, vaxt sinxronu. `daemon.json`, sysctl və ufw-ya toxunmayın.
+2. **DNS:** `NEBULA_HOST` və `NEBULA_AUTH_HOST` üçün A/AAAA qeydləri bu host-a (CAA: `0 issue "letsencrypt.org"`). Sertifikatı mövcud Caddy alır, ona görə DNS 4-cü addımdan əvvəl hazır olmalıdır.
+3. **Kod, `.env`, sirlər:** bölmə 2.1 və 2.2 eynidir. `.env`-də əlavə olaraq (nümunə `.env.example`-dadır):
+   ```bash
+   COMPOSE_FILE=compose.yaml:compose.shared-host.yaml   # skriptlər VƏ əl ilə docker compose eyni faylları görür
+   NEBULA_SHARED_PROXY_NETWORK=<stack_web>
+   NEBULA_SHARED_PROXY_SUBNET=<172.19.0.0/16>            # 1-ci addımdakı subnet
+   NEBULA_SHARED_PROXY_ALIAS=nebula-edge
+   ```
+   `NEBULA_HTTPS_PORT=443` qalsın (smoke test xarici Caddy-dən keçir). `ACME_EMAIL`/`ACME_CA` doldurulmalıdır, amma bu rejimdə istifadə olunmur. `NEBULA_BIND_ADDR`/`NEBULA_HTTP_PORT` nəzərə alınmır.
+   `COMPOSE_FILE` `.env`-də olmalıdır, təkcə `NEBULA_COMPOSE_OVERRIDE`-də yox: əks halda əl ilə `docker compose up` override olmadan Caddy-ni 80/443-də açmağa çalışar, Nebula isə IdP-yə yolunu itirər. `preflight.sh` bunu, şəbəkənin mövcudluğunu, subnet-i və alias-ın başqa konteynerdə olmadığını yoxlayır.
+   ```bash
+   sudo ./scripts/preflight.sh
+   ```
+4. **Mövcud Caddy-yə sayt bloku:** `shared-host/outer-caddy.snippet`-dəki nümunə hostnamelərini `NEBULA_HOST`/`NEBULA_AUTH_HOST` ilə əvəz edib onun Caddyfile-ının sonuna əlavə edin. Caddyfile çox vaxt tək fayl kimi mount olunur: faylı **yerində** dəyişin (`>>` ilə əlavə və ya `cat new > Caddyfile`). `sed -i` və bəzi redaktorlar yeni inode yaradır, onda konteyner köhnə faylı görür.
+   ```bash
+   cd /opt/stack
+   cp -p Caddyfile Caddyfile.bak.$(date +%F)
+   { echo; sed -e 's/auth\.nebula\.example\.com/<NEBULA_AUTH_HOST>/g' -e 's/nebula\.example\.com/<NEBULA_HOST>/g' \
+       /opt/nebula/deploy/production/shared-host/outer-caddy.snippet; } >> Caddyfile
+   docker compose exec <caddy> tail -n 5 /etc/caddy/Caddyfile                      # konteyner yeni məzmunu görür?
+   docker compose exec <caddy> caddy validate --config /etc/caddy/Caddyfile        # "Valid configuration"
+   docker compose exec <caddy> caddy reload --config /etc/caddy/Caddyfile          # restart yox
+   docker compose logs --since 2m <caddy> | grep -E 'certificate obtained|error'   # iki sertifikat
+   curl -sS -o /dev/null -w '%{http_code}\n' https://<mövcud sayt>/               # digər saytlar işləyir
+   ```
+   Bu anda Nebula hostnamelərində 502 normaldır (Nebula hələ yoxdur).
+5. **Baza, backup, deploy:** bölmə 2.4 və 2.5 eynidir (`deploy.sh … --verify`). Smoke test `127.0.0.1:443` üzərindən xarici Caddy-dən keçir (real TLS).
+6. **Timer-lər və admin:** bölmə 2.6 və 3 eynidir. `COMPOSE_FILE` `.env`-də olduğu üçün systemd drop-in lazım deyil.
+7. **Yoxlama:**
+   ```bash
+   curl -sS -o /dev/null -D - https://<NEBULA_HOST>/ | grep -iE 'strict-transport|content-security|x-frame'   # hər biri bir dəfə
+   docker compose logs --since 5m nebula | grep '"route":"/api/v1/me"' | tail -3   # client_ip = xarici müştəri IP-si, 172.19.x deyil
+   ```
+
+### 13.3 Rollback və pilotun dayandırılması
+
+- **Nebula release-ini geri qaytarmaq:** bölmə 9 eynidir; mövcud stack-ə toxunmur.
+- **Pilotu söndürmək** (məlumat qalır): `docker compose down` (volume-lar qalır; `stack_web` external-dır, silinmir). Sonra mövcud Caddyfile-dan Nebula blokunu silin (yerində, məs. `cp -p Caddyfile.bak.<tarix> /tmp/c && cat /tmp/c > Caddyfile`), `caddy validate`, `caddy reload`. Söndürülmüş Nebula-nın hostnamelərinə mövcud Caddy 502 qaytarır (HSTS ilə), digər saytlar işləməyə davam edir.
+- **Tam silmək:** yalnız son backup-ın (`backup.sh info`) və fayl backup-ının (bölmə 4.1) yoxlanmasından sonra: `docker compose down -v`, `/etc/nebula`, `/var/lib/nebula`.
+
+### 13.4 Ayrıca VPS-ə köçmə
+
+Bölmə 6-dakı "host tam itibsə" axını ilə (rehearsal-da yoxlanılıb), eyni image digest-ləri ilə:
+
+1. Yeni VPS: bölmə 1 tam (hardening daxil). `/opt/nebula`, `.env` (shared-host sətirlərini silin: `COMPOSE_FILE`, `NEBULA_SHARED_PROXY_*`), `/etc/nebula/secrets` (offline nüsxədən və ya OpenBao-dan, eyni dəyərlərlə).
+2. DNS TTL-ini bir gün əvvəl 300 s-ə endirin.
+3. Köhnə hostda yazmaları dayandırın və son vəziyyəti arxivləşdirin: `docker compose stop caddy nebula keycloak`, `sudo ./scripts/backup.sh incr`, `sudo ./scripts/backup.sh check`, faylları restic ilə (bölmə 4.1). Sonra `docker compose down`: **iki Postgres eyni pgBackRest stanza-sına eyni anda arxiv yazmamalıdır.**
+4. Yeni hostda: `docker compose up -d --wait postgres` → `sudo ./scripts/restore.sh` → attachments restic-dən → `sudo ./scripts/deploy.sh <eyni digest-lər> --verify`.
+5. DNS-i yeni IP-yə yönəldin; yeni Nebula Caddy sertifikatı özü alır (80/443 açıq olmalıdır). Yoxlama: login, `/api/v1/me`, `backup.sh check`, `restore-test.sh`.
+6. Köhnə hostda Nebula blokunu mövcud Caddyfile-dan silin (13.3), volume-ları bir müddət saxlayıb sonra silin.

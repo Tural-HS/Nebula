@@ -1,0 +1,37 @@
+# Nebula shared-host PILOT: site block for the EXISTING Caddy, the one that owns 80/443
+# (README "Paylaşılan hostda pilot"). Append it to that Caddyfile, then validate and reload:
+#   docker compose exec <caddy> caddy validate --config /etc/caddy/Caddyfile
+#   docker compose exec <caddy> caddy reload --config /etc/caddy/Caddyfile
+# No container is restarted. Replace the example hostnames with NEBULA_HOST and NEBULA_AUTH_HOST,
+# and nebula-edge with NEBULA_SHARED_PROXY_ALIAS if you changed it.
+#
+# This Caddy does TLS only (automatic HTTPS + HTTP->HTTPS redirect for these two names). Nebula's
+# own Caddy sets HSTS, CSP and the other security headers, routes /api and Keycloak, blocks /admin
+# and enforces the request body limits (25 MB; 53 MB for imports). Do not repeat any of that here:
+# a second CSP header would be enforced in addition to Nebula's, and a body limit here would
+# override Nebula's per-route ones. Nebula uses no WebSocket or SSE; plain proxying is enough.
+nebula.example.com, auth.nebula.example.com {
+	# Defaults are what Nebula needs: Host passed through unchanged, X-Forwarded-For = the TCP peer
+	# (this Caddy trusts no upstream, so a client cannot forge it), X-Forwarded-Proto = https,
+	# X-Forwarded-Host. Nebula's Caddy believes these only from this network's subnet.
+	reverse_proxy nebula-edge:80 {
+		# Nebula's Caddy restarts when its image changes: hold requests briefly instead of a 502.
+		lb_try_duration 10s
+		lb_try_interval 250ms
+		transport http {
+			dial_timeout 2s
+		}
+	}
+
+	header -Server
+
+	# This Caddy's own error responses (502 while Nebula is down or restarting) skip the handlers
+	# above; keep HSTS on them too. Nebula's responses carry its own HSTS header.
+	handle_errors {
+		header Strict-Transport-Security "max-age=63072000"
+		header -Server
+	}
+
+	# Access log with the real client address (Nebula logs it too, as client_ip).
+	log
+}

@@ -26,10 +26,26 @@ load_env() {
 	[[ $PROJECT != nebula ]] || die "COMPOSE_PROJECT_NAME=nebula is reserved for the dev stack"
 }
 
-# Optional site-specific override (e.g. different limits): NEBULA_COMPOSE_OVERRIDE=/path/override.yaml
+# Compose files, in order: COMPOSE_FILE from .env if set (the same list a manual `docker compose` in
+# this directory reads, e.g. compose.yaml:compose.shared-host.yaml), else compose.yaml; then the
+# optional site-specific overrides in NEBULA_COMPOSE_OVERRIDE (e.g. different limits). Both are
+# colon-separated; relative paths are relative to this directory.
+compose_files() {
+	local -a list extra
+	local f
+	IFS=: read -r -a list <<<"${COMPOSE_FILE:-compose.yaml}"
+	IFS=: read -r -a extra <<<"${NEBULA_COMPOSE_OVERRIDE:-}"
+	for f in "${list[@]}" "${extra[@]}"; do
+		[[ -n $f ]] || continue
+		[[ $f == /* ]] || f="$DEPLOY_DIR/$f"
+		printf '%s\n' "$f"
+	done
+}
+
 compose() {
-	local -a files=(-f "$DEPLOY_DIR/compose.yaml")
-	[[ -n ${NEBULA_COMPOSE_OVERRIDE:-} ]] && files+=(-f "$NEBULA_COMPOSE_OVERRIDE")
+	local -a files=()
+	local f
+	while IFS= read -r f; do files+=(-f "$f"); done < <(compose_files)
 	docker compose --project-directory "$DEPLOY_DIR" --env-file "$ENV_FILE" "${files[@]}" "$@"
 }
 
