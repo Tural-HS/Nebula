@@ -191,7 +191,17 @@ artırılmalıdır (brauzer keşi 30 gün).
    ssh -L 8081:127.0.0.1:8081 deploy@nebula.example.com
    ```
    brauzerdə `http://localhost:8081/admin/`. İctimai `https://auth.../admin` və `/realms/master` 404 qaytarır.
-3. `master` realm-də şəxsi admin yaradın, ona `admin` rolunu verin, **OTP-ni məcburi edin** (Required action: Configure OTP), çıxın, şəxsi admin ilə girin və `temp-admin`-i **silin**.
+   **Bir dəfə, konsola girməzdən əvvəl:** `master` realm-ın ünvanını tunelə yönəldin. Əks halda konsol
+   "Timeout when waiting for 3rd party check iframe message" xətası verir: yoxlama iframe-i ictimai
+   `https://NEBULA_AUTH_HOST/realms/master/...`-dən yüklənir, Caddy isə onu bağlayır (404). Parolu interaktiv soruşur:
+   ```bash
+   docker compose exec -it keycloak /opt/keycloak/bin/kcadm.sh update realms/master \
+     -s attributes.frontendUrl=http://localhost:8081 --no-config --server http://localhost:8080 --realm master --user temp-admin
+   ```
+   Bu yalnız `master` realm-a aiddir; `nebula` realm və istifadəçi girişi dəyişmir, `/realms/master` ictimai olaraq 404 qalır.
+   Tunel yerli `8081` portunu tələb edir (`KC_HOSTNAME_ADMIN`); kompüterinizdə bu port məşğuldursa (məs. yerli dev Keycloak),
+   əvvəlcə onu dayandırın. Bağlantı qırılanda tunel asılı qalmasın: `ssh -N -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -L …`.
+3. `master` realm-də şəxsi admin yaradın, ona `admin` rolunu verin, **OTP-ni məcburi edin** (Required user actions-da **yalnız** Configure OTP: Verify Email SMTP olmadan girişi bloklayır, WebAuthn təhlükəsizlik açarı istəyir), çıxın, şəxsi admin ilə girin və `temp-admin`-i **silin**.
 4. `nebula` realm → Realm settings → Email: SMTP (parol sıfırlama üçün); sonra istəsəniz "Forgot password"-u yandırın.
 5. İlk istifadəçi: `nebula` realm → Users → Add user (email, ad, `Email verified`), Credentials → müvəqqəti parol (`Temporary: on`) və ya "Send email: Update password". İstifadəçi ilk dəfə `https://nebula.example.com`-a daxil olur, workspace yaradır və onun sahibi olur. Digər istifadəçiləri workspace sahibi Nebula-da üzv kimi əlavə edir.
 
