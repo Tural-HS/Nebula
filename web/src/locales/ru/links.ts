@@ -32,7 +32,8 @@ export const tl = {
     removedByDelete: (key: string) => `связь удалена, потому что ${key} удалена`,
   },
   watch: "Следить",
-  unwatch: "Не следить",
+  /** Visible label while the viewer watches (a pressed toggle shows state, not an action). */
+  watching: "Вы следите",
   watchLabel: (watching: boolean, count: number) =>
     watching ? `Вы следите; ${watchers(count)}. Перестать следить` : `Следить; ${watchers(count)}`,
   watchers: "Наблюдатели",

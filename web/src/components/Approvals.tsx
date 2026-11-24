@@ -167,7 +167,6 @@ function RequestCard({ ws, project, n, req }: { ws: string; project: string; n: 
           <p className="text-xs text-zinc-500">
             {req.approvers.length > 0 ? `${tap.approvers}: ${req.approvers.map((a) => a.display_name).join(", ")}` : tap.noApprovers}
           </p>
-          <p className="text-xs text-amber-700 dark:text-amber-300">{tap.locked}</p>
           {(req.can_approve || req.can_cancel) && (
             <div className="flex flex-wrap gap-2">
               {req.can_approve && (

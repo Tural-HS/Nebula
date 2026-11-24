@@ -31,7 +31,8 @@ export const tl = {
     removedByDelete: (key: string) => `link removed because ${key} was deleted`,
   },
   watch: "Watch",
-  unwatch: "Unwatch",
+  /** Visible label while the viewer watches (a pressed toggle shows state, not an action). */
+  watching: "Watching",
   watchLabel: (watching: boolean, count: number) =>
     watching ? `You are watching; ${watchers(count)}. Stop watching` : `Watch; ${watchers(count)}`,
   watchers: "Watchers",

@@ -27,7 +27,8 @@ export const tl = {
     removedByDelete: (key: string) => `${key} silindiyi üçün əlaqə silindi`,
   },
   watch: "İzlə",
-  unwatch: "İzləmə",
+  /** Visible label while the viewer watches (a pressed toggle shows state, not an action). */
+  watching: "İzləyirsiniz",
   watchLabel: (watching: boolean, count: number) =>
     watching ? `Siz izləyirsiniz; ${String(count)} izləyən. İzləməni dayandır` : `İzlə; ${String(count)} izləyən`,
   watchers: "İzləyənlər",

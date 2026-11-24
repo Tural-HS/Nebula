@@ -65,7 +65,7 @@ export function WatchControl({ ws, project, n, isAdmin }: { ws: string; project:
         data-testid="watch-toggle"
       >
         <span aria-hidden>{watching ? "👁" : "◎"}</span>
-        <span className="text-xs">{watching ? tl.unwatch : tl.watch}</span>
+        <span className="text-xs">{watching ? tl.watching : tl.watch}</span>
       </Button>
       <Button
         variant="ghost"
