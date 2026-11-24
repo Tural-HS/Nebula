@@ -180,11 +180,12 @@ func (a *api) createWorkspace(w http.ResponseWriter, r *http.Request) {
 		Slug     string `json:"slug"`
 		Name     string `json:"name"`
 		Template string `json:"template"` // "en" (default), "az", "tr" or "ru"; ADR-0020, ADR-0025
+		Kind     string `json:"kind"`     // "general" (default), "finance", "it" or "hr"; ADR-0033
 	}
 	if !a.decode(w, r, &body) {
 		return
 	}
-	ws, err := a.store.CreateWorkspace(r.Context(), principal(r).UserID, body.Slug, body.Name, body.Template)
+	ws, err := a.store.CreateWorkspaceOfKind(r.Context(), principal(r).UserID, body.Slug, body.Name, body.Template, body.Kind)
 	if err != nil {
 		a.fail(w, r, err)
 		return

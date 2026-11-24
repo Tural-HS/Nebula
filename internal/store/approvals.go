@@ -139,6 +139,17 @@ func listApprovalPolicies(ctx context.Context, q querier, wsID uuid.UUID, only *
 
 // SetApprovalPolicy creates or replaces the policy guarding a status.
 func (s *Store) SetApprovalPolicy(ctx context.Context, wsID, actorID, workflowID, statusID uuid.UUID, in ApprovalPolicyInput) (Workflow, error) {
+	var out Workflow
+	err := s.inTx(ctx, func(tx pgx.Tx) error {
+		var err error
+		out, err = setApprovalPolicy(ctx, tx, wsID, actorID, workflowID, statusID, in)
+		return err
+	})
+	return out, err
+}
+
+// setApprovalPolicy is SetApprovalPolicy inside the caller's transaction (workspace kinds, ADR-0033).
+func setApprovalPolicy(ctx context.Context, tx pgx.Tx, wsID, actorID, workflowID, statusID uuid.UUID, in ApprovalPolicyInput) (Workflow, error) {
 	if in.MinApprovals < 1 || in.MinApprovals > maxMinApprovals {
 		return Workflow{}, invalid("min_approvals", "must be between 1 and %d", maxMinApprovals)
 	}
@@ -167,7 +178,7 @@ func (s *Store) SetApprovalPolicy(ctx context.Context, wsID, actorID, workflowID
 		return Workflow{}, invalid("min_approvals", "cannot exceed the number of approvers")
 	}
 	var wf Workflow
-	err := s.inTx(ctx, func(tx pgx.Tx) error {
+	err := func() error {
 		if err := lockWorkflow(ctx, tx, wsID, workflowID); err != nil {
 			return err
 		}
@@ -205,7 +216,7 @@ func (s *Store) SetApprovalPolicy(ctx context.Context, wsID, actorID, workflowID
 		}
 		wf, err = getWorkflow(ctx, tx, wsID, workflowID)
 		return err
-	})
+	}()
 	return wf, err
 }
 

@@ -82,9 +82,23 @@ const (
 // CreateWorkspace creates a workspace owned by owner and installs the default
 // template in the given language ("" means English, the historical default).
 func (s *Store) CreateWorkspace(ctx context.Context, owner uuid.UUID, slug, name, template string) (Workspace, error) {
+	return s.CreateWorkspaceOfKind(ctx, owner, slug, name, template, KindGeneral)
+}
+
+// CreateWorkspaceOfKind is CreateWorkspace with a team kind (ADR-0033): the
+// language template decides the names, the kind what is pre-configured. ""
+// means KindGeneral. Everything is created in one transaction.
+func (s *Store) CreateWorkspaceOfKind(ctx context.Context, owner uuid.UUID, slug, name, template, kind string) (Workspace, error) {
 	tpl, ok := workspaceTemplates[template]
 	if !ok {
 		return Workspace{}, invalid("template", "must be one of az, en, tr, ru")
+	}
+	if kind == "" {
+		kind = KindGeneral
+	}
+	spec, ok := workspaceKinds[kind]
+	if !ok {
+		return Workspace{}, invalid("kind", "must be one of %s", strings.Join(WorkspaceKinds(), ", "))
 	}
 	slug = strings.ToLower(strings.TrimSpace(slug))
 	if !slugRe.MatchString(slug) {
@@ -109,11 +123,26 @@ func (s *Store) CreateWorkspace(ctx context.Context, owner uuid.UUID, slug, name
 			ws.ID, owner); err != nil {
 			return err
 		}
-		if err := installDefaultTemplate(ctx, tx, ws.ID, tpl); err != nil {
+		lang := tpl.key
+		if spec.statuses != nil {
+			tpl = spec.localize(tpl, lang)
+		}
+		wf, err := installDefaultTemplate(ctx, tx, ws.ID, tpl)
+		if err != nil {
 			return err
 		}
-		return appendEvent(ctx, tx, ws.ID, owner, "workspace", ws.ID, "workspace.created",
-			map[string]any{"slug": slug, "name": name, "template": tpl.key})
+		payload := map[string]any{"slug": slug, "name": name, "template": lang}
+		if kind != KindGeneral {
+			payload["kind"] = kind
+		}
+		// workspace.created comes first: the kind's own events follow it.
+		if err := appendEvent(ctx, tx, ws.ID, owner, "workspace", ws.ID, "workspace.created", payload); err != nil {
+			return err
+		}
+		if kind == KindGeneral {
+			return nil
+		}
+		return installKind(ctx, tx, kindTarget{wsID: ws.ID, wsSlug: slug, owner: owner, lang: lang, workflow: wf}, spec)
 	})
 	return ws, err
 }
@@ -195,30 +224,39 @@ var templateRU = workspaceTemplate{
 	rules:     defaultRulesRU,
 }
 
+// installedWorkflow is the workflow a template created, with its status IDs
+// in template order.
+type installedWorkflow struct {
+	id       uuid.UUID
+	statuses []uuid.UUID
+}
+
 // installDefaultTemplate gives every new workspace a usable workflow and item types.
-func installDefaultTemplate(ctx context.Context, tx pgx.Tx, wsID uuid.UUID, tpl workspaceTemplate) error {
-	wfID := newID()
-	if _, err := tx.Exec(ctx, `INSERT INTO workflows (id, workspace_id, name) VALUES ($1, $2, $3)`, wfID, wsID, tpl.workflow); err != nil {
-		return err
+func installDefaultTemplate(ctx context.Context, tx pgx.Tx, wsID uuid.UUID, tpl workspaceTemplate) (installedWorkflow, error) {
+	wf := installedWorkflow{id: newID()}
+	if _, err := tx.Exec(ctx, `INSERT INTO workflows (id, workspace_id, name) VALUES ($1, $2, $3)`, wf.id, wsID, tpl.workflow); err != nil {
+		return wf, err
 	}
 	for i, st := range tpl.statuses {
+		id := newID()
 		if _, err := tx.Exec(ctx, `INSERT INTO statuses (id, workspace_id, workflow_id, name, category, position, is_initial)
-			VALUES ($1, $2, $3, $4, $5, $6, $7)`, newID(), wsID, wfID, st.name, st.category, i, st.initial); err != nil {
-			return err
+			VALUES ($1, $2, $3, $4, $5, $6, $7)`, id, wsID, wf.id, st.name, st.category, i, st.initial); err != nil {
+			return wf, err
 		}
+		wf.statuses = append(wf.statuses, id)
 	}
 	for _, it := range tpl.itemTypes {
 		if _, err := tx.Exec(ctx, `INSERT INTO item_types (id, workspace_id, workflow_id, key, name) VALUES ($1, $2, $3, $4, $5)`,
-			newID(), wsID, wfID, it[0], it[1]); err != nil {
-			return err
+			newID(), wsID, wf.id, it[0], it[1]); err != nil {
+			return wf, err
 		}
 	}
 	for _, r := range tpl.rules() {
 		if _, err := insertRule(ctx, tx, wsID, uuid.Nil, r); err != nil {
-			return err
+			return wf, err
 		}
 	}
-	return nil
+	return wf, nil
 }
 
 const workspaceSelect = `SELECT w.id, w.slug, w.name, m.role, w.created_at, w.timezone, w.overdue_digest_hour

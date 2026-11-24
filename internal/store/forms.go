@@ -292,8 +292,19 @@ func formEventPayload(projectID uuid.UUID, f Form) map[string]any {
 
 // CreateForm adds a form to a project.
 func (s *Store) CreateForm(ctx context.Context, wsID, projectID, actorID uuid.UUID, in FormInput) (Form, error) {
-	var f Form
+	var out Form
 	err := s.inTx(ctx, func(tx pgx.Tx) error {
+		var err error
+		out, err = createForm(ctx, tx, wsID, projectID, actorID, in)
+		return err
+	})
+	return out, err
+}
+
+// createForm is CreateForm inside the caller's transaction (workspace kinds, ADR-0033).
+func createForm(ctx context.Context, tx pgx.Tx, wsID, projectID, actorID uuid.UUID, in FormInput) (Form, error) {
+	var f Form
+	err := func() error {
 		cf, err := checkForm(ctx, tx, wsID, projectID, in)
 		if err != nil {
 			return err
@@ -326,7 +337,7 @@ func (s *Store) CreateForm(ctx context.Context, wsID, projectID, actorID uuid.UU
 			return err
 		}
 		return appendEvent(ctx, tx, wsID, actorID, "form", id, "form.created", formEventPayload(projectID, f))
-	})
+	}()
 	return f, err
 }
 

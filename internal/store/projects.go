@@ -69,6 +69,17 @@ type ProjectTemplate struct {
 // CreateProject creates a project in a workspace, optionally copying the
 // setup of another project (tpl).
 func (s *Store) CreateProject(ctx context.Context, wsID, actorID uuid.UUID, key, name string, description *string, visibility string, tpl ProjectTemplate) (Project, error) {
+	var out Project
+	err := s.inTx(ctx, func(tx pgx.Tx) error {
+		var err error
+		out, err = createProject(ctx, tx, wsID, actorID, key, name, description, visibility, tpl)
+		return err
+	})
+	return out, err
+}
+
+// createProject is CreateProject inside the caller's transaction (workspace kinds, ADR-0033).
+func createProject(ctx context.Context, tx pgx.Tx, wsID, actorID uuid.UUID, key, name string, description *string, visibility string, tpl ProjectTemplate) (Project, error) {
 	if visibility == "" {
 		visibility = "workspace"
 	}
@@ -89,7 +100,7 @@ func (s *Store) CreateProject(ctx context.Context, wsID, actorID uuid.UUID, key,
 	}
 
 	p := Project{ID: newID(), Key: key, Name: name, Description: description, Visibility: visibility}
-	err = s.inTx(ctx, func(tx pgx.Tx) error {
+	err = func() error {
 		err := tx.QueryRow(ctx, `INSERT INTO projects (id, workspace_id, key, name, description, visibility)
 			VALUES ($1, $2, $3, $4, $5, $6) RETURNING created_at, updated_at`,
 			p.ID, wsID, key, name, description, visibility).Scan(&p.CreatedAt, &p.UpdatedAt)
@@ -108,7 +119,7 @@ func (s *Store) CreateProject(ctx context.Context, wsID, actorID uuid.UUID, key,
 			payload["template"] = copied
 		}
 		return appendEvent(ctx, tx, wsID, actorID, "project", p.ID, "project.created", payload)
-	})
+	}()
 	return p, err
 }
 

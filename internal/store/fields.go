@@ -135,6 +135,17 @@ type CreateFieldParams struct {
 
 // CreateField adds a custom field definition to a workspace.
 func (s *Store) CreateField(ctx context.Context, p CreateFieldParams) (FieldDefinition, error) {
+	var out FieldDefinition
+	err := s.inTx(ctx, func(tx pgx.Tx) error {
+		var err error
+		out, err = createField(ctx, tx, p)
+		return err
+	})
+	return out, err
+}
+
+// createField is CreateField inside the caller's transaction (workspace kinds, ADR-0033).
+func createField(ctx context.Context, tx pgx.Tx, p CreateFieldParams) (FieldDefinition, error) {
 	key := strings.TrimSpace(p.Key)
 	if !fieldKeyRe.MatchString(key) {
 		return FieldDefinition{}, invalid("key", "must be 1-63 characters: lowercase letters, digits and underscores, starting with a letter")
@@ -163,7 +174,7 @@ func (s *Store) CreateField(ctx context.Context, p CreateFieldParams) (FieldDefi
 	}
 
 	var f FieldDefinition
-	err = s.inTx(ctx, func(tx pgx.Tx) error {
+	err = func() error {
 		if err := checkFieldLimit(ctx, tx, p.WorkspaceID); err != nil {
 			return err
 		}
@@ -198,7 +209,7 @@ func (s *Store) CreateField(ctx context.Context, p CreateFieldParams) (FieldDefi
 			}
 		}
 		return appendEvent(ctx, tx, p.WorkspaceID, p.ActorID, "field", f.ID, "field.created", payload)
-	})
+	}()
 	return f, err
 }
 
@@ -417,11 +428,23 @@ func (s *Store) UpdateField(ctx context.Context, p UpdateFieldParams) (FieldDefi
 // BindField attaches a field to an item type, or updates an existing binding.
 func (s *Store) BindField(ctx context.Context, wsID, actorID uuid.UUID, typeKey, fieldKey string,
 	required bool, position int) (ItemTypeField, error) {
+	var out ItemTypeField
+	err := s.inTx(ctx, func(tx pgx.Tx) error {
+		var err error
+		out, err = bindField(ctx, tx, wsID, actorID, typeKey, fieldKey, required, position)
+		return err
+	})
+	return out, err
+}
+
+// bindField is BindField inside the caller's transaction (workspace kinds, ADR-0033).
+func bindField(ctx context.Context, tx pgx.Tx, wsID, actorID uuid.UUID, typeKey, fieldKey string,
+	required bool, position int) (ItemTypeField, error) {
 	if position < 0 || position > 10000 {
 		return ItemTypeField{}, invalid("position", "must be between 0 and 10000")
 	}
 	b := ItemTypeField{Key: fieldKey, Required: required, Position: position}
-	err := s.inTx(ctx, func(tx pgx.Tx) error {
+	err := func() error {
 		typeID, fieldID, archived, err := resolveBinding(ctx, tx, wsID, typeKey, fieldKey)
 		if err != nil {
 			return err
@@ -446,7 +469,7 @@ func (s *Store) BindField(ctx context.Context, wsID, actorID uuid.UUID, typeKey,
 		}
 		return appendEvent(ctx, tx, wsID, actorID, "item_type", typeID, "item_type.field_bound",
 			map[string]any{"field": fieldKey, "required": required, "position": position})
-	})
+	}()
 	return b, err
 }
 

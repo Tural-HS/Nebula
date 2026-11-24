@@ -366,11 +366,22 @@ func AzOfficialYears() []int {
 // that already have an entry (the admin's own name, or a working-day
 // transfer) are left alone. Returns the added dates.
 func (s *Store) AddAzerbaijanFixedHolidays(ctx context.Context, wsID, actorID uuid.UUID, year int) ([]CalendarDay, error) {
+	var out []CalendarDay
+	err := s.inTx(ctx, func(tx pgx.Tx) error {
+		var err error
+		out, err = addAzerbaijanHolidays(ctx, tx, wsID, actorID, year)
+		return err
+	})
+	return out, err
+}
+
+// addAzerbaijanHolidays is AddAzerbaijanFixedHolidays inside the caller's transaction (workspace kinds, ADR-0033).
+func addAzerbaijanHolidays(ctx context.Context, tx pgx.Tx, wsID, actorID uuid.UUID, year int) ([]CalendarDay, error) {
 	if year < minCalendarYear || year > maxCalendarYear {
 		return nil, invalid("year", "must be between %d and %d", minCalendarYear, maxCalendarYear)
 	}
 	added := []CalendarDay{}
-	err := s.inTx(ctx, func(tx pgx.Tx) error {
+	err := func() error {
 		if _, err := lockCalendar(ctx, tx, wsID); err != nil {
 			return err
 		}
@@ -420,7 +431,7 @@ func (s *Store) AddAzerbaijanFixedHolidays(ctx context.Context, wsID, actorID uu
 			return err
 		}
 		return rescheduleRecurrences(ctx, tx, wsID, actorID)
-	})
+	}()
 	if err != nil {
 		return nil, err
 	}
