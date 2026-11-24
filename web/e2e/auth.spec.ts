@@ -38,9 +38,9 @@ test.describe("authentication", () => {
     await page.getByRole("button", { name: "Çıxış" }).click();
     // RP-initiated logout ends the IdP session and comes back to Nebula, which
     // then has to show the login form again (no silent re-login).
-    await expect(page.getByRole("textbox", { name: /username or email/i })).toBeVisible();
+    await expect(page.locator("#username")).toBeVisible();
     await page.goto("/");
-    await expect(page.getByRole("textbox", { name: /username or email/i })).toBeVisible();
+    await expect(page.locator("#username")).toBeVisible();
     await ctx.close();
   });
 });

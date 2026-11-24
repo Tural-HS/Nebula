@@ -16,9 +16,10 @@ export const authFile = (user: User) => `e2e/.auth/${user}.json`;
 
 /** Signs in through the real Keycloak form (Authorization Code + PKCE). */
 export async function signIn(page: Page, user: User): Promise<void> {
-  await page.getByRole("textbox", { name: /username or email/i }).fill(user);
-  await page.getByRole("textbox", { name: /^password$/i }).fill(USERS[user].password);
-  await page.getByRole("button", { name: /sign in/i }).click();
+  // Keycloak's field ids: the login page follows the UI language (ADR-0025).
+  await page.locator("#username").fill(user);
+  await page.locator("#password").fill(USERS[user].password);
+  await page.locator("#kc-login").click();
 }
 
 /** API client for test data setup, authenticated with a dev token. */

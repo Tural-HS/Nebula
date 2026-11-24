@@ -1,0 +1,51 @@
+// English strings for the calendar view, bulk editing and inline editing (ADR-0023).
+import type { Messages } from "../../i18n/locale";
+import { plural } from "../../i18n/plural";
+
+const items = (n: number) => `${String(n)} ${plural("en", n, { one: "item", other: "items" })}`;
+
+export const tc = {
+  viewCalendar: "Calendar",
+  prevMonth: "Previous month",
+  nextMonth: "Next month",
+  thisMonth: "This month",
+  weekdays: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+  weekdaysLong: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+  months: ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"],
+  more: (n: number) => `+${String(n)} more`,
+  dayItems: (day: string, n: number) => `${day}: ${items(n)}`,
+  noDue: "No due date",
+  noDueHint: "Drag an item onto a day to set its due date.",
+  noDueEmpty: "No items without a due date",
+  agendaEmpty: "No items due this month",
+  truncated: (n: number) => `Showing the first ${items(n)}; narrow it down with filters.`,
+  moved: (key: string, day: string) => `${key}: due ${day}`,
+  today: "Today",
+  loadMore: "Load more",
+  dragHint: "Press Space to pick up, arrow keys to move, Space to drop",
+
+  select: (key: string) => `Select ${key}`,
+  selectAll: "Select all",
+  selectAllCapped: (n: number) => `Select all (up to ${String(n)})`,
+  selected: (n: number) => `${String(n)} selected`,
+  clearSelection: "Clear selection",
+  bulkBar: "Actions for selected items",
+  setStatus: "Change status",
+  setAssignee: "Change assignee",
+  setDue: "Change due date",
+  clearDue: "Clear due date",
+  setField: "Field value",
+  fieldValue: "Value",
+  apply: "Apply",
+  bulkDelete: "Delete",
+  confirmBulkDelete: (n: number) => `Are you sure you want to delete ${items(n)}? This cannot be undone.`,
+  bulkDone: (n: number) => `${items(n)} updated`,
+  bulkDeleted: (n: number) => `${items(n)} deleted`,
+  bulkFailedTitle: "Nothing was changed",
+  bulkFailed: (n: number) => `${items(n)} ${n === 1 ? "has" : "have"} errors, so no changes were made:`,
+  bulkConflictHint: "Someone else changed some of these items. The list was refreshed; select them again and retry.",
+  bulkCap: (n: number) => `Up to ${items(n)} at a time`,
+
+  edit: (what: string, key: string) => `${key}: edit ${what}`,
+  saveFailed: "Change was not saved",
+} satisfies Messages["calendar"];

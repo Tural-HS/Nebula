@@ -1,6 +1,4 @@
-// Azerbaijani strings for the phone and tablet layout (ADR-0019).
-export const tm = {
-  moreActions: "Digər əməliyyatlar",
-  filtersSheet: "Filtrlər və görünüş",
-  viewSection: "Görünüş və sıralama",
-} as const;
+// UI strings in the active language (ADR-0025); the texts are in locales/<lang>/mobile.ts.
+import { messages } from "./i18n/locale";
+
+export const tm = messages().mobile;

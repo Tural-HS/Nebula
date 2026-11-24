@@ -2,10 +2,13 @@ import { useState, type SyntheticEvent } from "react";
 import { Link, useNavigate } from "react-router";
 
 import { useCreateWorkspace, useWorkspaces } from "../api/hooks";
+import { LanguageMenu } from "../components/LanguageMenu";
 import { Layout } from "../components/Layout";
 import { Button, Dialog, EmptyState, ErrorState, FieldError, Input, Label, Select, Spinner } from "../components/ui";
 import { t } from "../i18n";
+import { ta } from "../i18n-admin";
 import { tt } from "../i18n-templates";
+import { activeLocale, isLocale, LOCALES, type Locale } from "../i18n/locale";
 
 export function WorkspacesPage() {
   const q = useWorkspaces();
@@ -14,8 +17,9 @@ export function WorkspacesPage() {
     <Layout
       crumbs={[{ label: t.workspaces }]}
       actions={
-        <Button variant="primary" onClick={() => { setOpen(true); }}>
-          {t.newWorkspace}
+        <Button variant="primary" aria-label={t.newWorkspace} className="pointer-coarse:min-w-11" onClick={() => { setOpen(true); }}>
+          <span className="max-sm:hidden">{t.newWorkspace}</span>
+          <span aria-hidden className="text-lg leading-none sm:hidden">+</span>
         </Button>
       }
     >
@@ -35,12 +39,17 @@ export function WorkspacesPage() {
                     <span className="block font-medium">{w.name}</span>
                     <span className="text-xs text-zinc-500">{w.slug}</span>
                   </span>
-                  <span className="shrink-0 rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">{w.role}</span>
+                  <span className="shrink-0 rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">{ta.roles[w.role]}</span>
                 </Link>
               </li>
             ))}
           </ul>
         )}
+        {/* Phones: the header has no room for the language picker (ADR-0019, ADR-0025). */}
+        <p className="mt-6 flex items-center justify-end gap-2 text-sm text-zinc-500 sm:hidden">
+          <span aria-hidden>{t.language}</span>
+          <LanguageMenu className="h-11" />
+        </p>
       </div>
       <Dialog open={open} onClose={() => { setOpen(false); }} title={t.newWorkspace}>
         <CreateWorkspaceForm onDone={() => { setOpen(false); }} />
@@ -49,12 +58,21 @@ export function WorkspacesPage() {
   );
 }
 
+// Each template is named in its own language with its first statuses, so the
+// labels need no translation (ADR-0020, ADR-0025).
+const TEMPLATE_LABELS: Record<Locale, string> = {
+  az: "Azərbaycanca (Görüləcək → İcrada → Yoxlamada → Tamamlandı)",
+  en: "English (To Do → In Progress → Done)",
+  tr: "Türkçe (Yapılacak → Devam ediyor → İncelemede → Tamamlandı)",
+  ru: "Русский (К выполнению → В работе → На проверке → Готово)",
+};
+
 function CreateWorkspaceForm({ onDone }: { onDone: () => void }) {
   const create = useCreateWorkspace();
   const navigate = useNavigate();
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
-  const [template, setTemplate] = useState<"az" | "en">("az");
+  const [template, setTemplate] = useState<Locale>(activeLocale);
 
   const submit = (e: SyntheticEvent) => {
     e.preventDefault();
@@ -82,9 +100,12 @@ function CreateWorkspaceForm({ onDone }: { onDone: () => void }) {
       </div>
       <div>
         <Label htmlFor="ws-template">{tt.template}</Label>
-        <Select id="ws-template" value={template} onChange={(e) => { setTemplate(e.target.value === "en" ? "en" : "az"); }}>
-          <option value="az">{tt.templateAz}</option>
-          <option value="en">{tt.templateEn}</option>
+        <Select id="ws-template" value={template} onChange={(e) => { if (isLocale(e.target.value)) setTemplate(e.target.value); }}>
+          {LOCALES.map((l) => (
+            <option key={l} value={l} lang={l}>
+              {TEMPLATE_LABELS[l]}
+            </option>
+          ))}
         </Select>
         <p className="mt-1 text-xs text-zinc-500">{tt.templateHint}</p>
       </div>

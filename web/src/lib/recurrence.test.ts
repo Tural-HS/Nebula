@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { dayWithSuffix, describeSchedule, renderTitle } from "./recurrence";
+import { dayWithSuffix } from "../locales/az/recur";
+import { describeSchedule, renderTitle } from "./recurrence";
 
 const base = { every: 1, weekdays: [], month_day: null, month: null };
 
@@ -29,7 +30,7 @@ describe("dayWithSuffix", () => {
 
 describe("renderTitle", () => {
   it("matches the server's placeholders", () => {
-    expect(renderTitle("Paşayev Zaur — {{month}} {{year}} ({{date}})", "2026-12-09")).toBe("Paşayev Zaur — dekabr 2026 (09.12.2026)");
+    expect(renderTitle("Ofis icarəsi — {{month}} {{year}} ({{date}})", "2026-12-09")).toBe("Ofis icarəsi — dekabr 2026 (09.12.2026)");
     expect(renderTitle("Sabit", "2026-12-09")).toBe("Sabit");
   });
 });

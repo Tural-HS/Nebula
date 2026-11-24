@@ -4,6 +4,7 @@
 
 import type { DueFilter, ItemFilters, ItemSort } from "../api/hooks";
 import type { FieldDefinition, FieldValue, Member, SavedView, ViewConfig } from "../api/types";
+import { t } from "../i18n";
 import { tv } from "../i18n-views";
 import { formatDate, formatDateTime } from "./format";
 import type { GroupBy } from "./board";
@@ -207,7 +208,7 @@ export function formatFieldValue(def: FieldDefinition | undefined, v: FieldValue
     case "datetime":
       return typeof v === "string" ? formatDateTime(v) : String(v);
     case "boolean":
-      return v === true ? "Bəli" : v === false ? "Xeyr" : String(v);
+      return v === true ? t.yes : v === false ? t.no : String(v);
     case "select":
       return typeof v === "string" ? label(v) : String(v);
     case "multi_select":

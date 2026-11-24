@@ -184,8 +184,8 @@ function BulkFieldInput({ def, value, members, onChange, disabled }: {
       return (
         <Select aria-label={label} value={value} disabled={disabled} className="max-w-32" onChange={(e) => { onChange(e.target.value); }}>
           <option value="">—</option>
-          <option value="true">Bəli</option>
-          <option value="false">Xeyr</option>
+          <option value="true">{t.yes}</option>
+          <option value="false">{t.no}</option>
         </Select>
       );
     default:

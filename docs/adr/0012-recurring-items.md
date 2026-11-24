@@ -23,7 +23,7 @@ bir lövhədə 1777 kart, brauzerin çökməsi, sahə sinxronizasiyası üçün 
 | Yaratma eyni doğrulamadan keçir (`prepareItem`): tip, məcburi sahələr, workflow, icraçı üzvlüyü | Tək yaratma, idxal və təkrarlanma eyni qaydalara tabedir |
 | Qayda artıq etibarlı deyilsə (məs. sonradan məcburi edilmiş sahə, icraçı workspace-dən çıxıb), təkrarlanma **söndürülür**, `last_error` yazılır və `recurrence.failed` hadisəsi yaranır | Hər dəqiqə eyni xətanın təkrarlanması yoxdur; admin UI-da səbəbi görür, düzəldib yenidən aktivləşdirir |
 | Yaradılan tapşırıq adi `item.created` hadisəsidir (`source = 'system'`, payload-da `recurrence_id`) | Webhook-lar (Mattermost kanalına "yeni tapşırıq") və `item.created` qaydaları işləyir — FinTez-in səhər bildirişinin əvəzi |
-| Başlıq şablonu: `{{date}}` (gg.aa.iiii), `{{month}}` (azərbaycanca ay adı), `{{year}}` | "Paşayev Zaur — {{month}} ödənişi" → "Paşayev Zaur — noyabr ödənişi" |
+| Başlıq şablonu: `{{date}}` (gg.aa.iiii), `{{month}}` (azərbaycanca ay adı), `{{year}}` | "Ofis icarəsi — {{month}} ödənişi" → "Ofis icarəsi — noyabr ödənişi" |
 | İdarəetmə: admin+ (avtomatlaşdırma qaydaları kimi) | Avtomatik iş yaradan hər şey eyni rol səviyyəsindədir; layihə səviyyəsində rollar gələndə yenidən baxılacaq |
 | Limitlər: workspace başına 1000 təkrarlanma, gündəlik təkrarlanmada `interval ≥ 1` | Səhv konfiqurasiya ilə sonsuz iş yaradılmasının qarşısı |
 

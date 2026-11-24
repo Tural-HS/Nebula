@@ -17,6 +17,7 @@ böyük həcmli məlumatlarda sürətli, tam fərdiləşdirilə bilən, öz serv
 - Tətbiqdaxili bildirişlər: [ADR-0017](docs/adr/0017-in-app-notifications.md)
 - Fayl əlavələri və Markdown: [ADR-0022](docs/adr/0022-attachments-markdown.md)
 - Workspace üzrə axtarış: [ADR-0024](docs/adr/0024-search.md)
+- İnterfeys dilləri (AZ, EN, TR, RU): [ADR-0025](docs/adr/0025-ui-languages.md)
 - Production (tək VPS, Docker Compose): [ADR-0015](docs/adr/0015-production-compose-on-vps.md), runbook [deploy/production/README.md](deploy/production/README.md)
 - Production hardening (fayl sirləri, ayrı DB rolları, healthcheck, növbə metrikləri, Trivy): [ADR-0018](docs/adr/0018-production-hardening.md)
 - Mattermost Boards-dan keçid (azərbaycanca şablon, layihə şablonları, `.boardarchive` importu): [ADR-0020](docs/adr/0020-fintez-migration-kit.md), runbook: [docs/runbooks/mattermost-boards-migration.md](docs/runbooks/mattermost-boards-migration.md)

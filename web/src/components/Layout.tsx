@@ -6,6 +6,7 @@ import { useMe } from "../api/hooks";
 import { t } from "../i18n";
 import { cn } from "../lib/cn";
 import { GlobalSearch } from "./GlobalSearch";
+import { LanguageMenu } from "./LanguageMenu";
 import { NotificationBell } from "./NotificationBell";
 import { Avatar, Button } from "./ui";
 
@@ -46,6 +47,7 @@ export function Layout({ crumbs, actions, children }: { crumbs: Crumb[]; actions
           {actions}
           <GlobalSearch />
           <NotificationBell />
+          <LanguageMenu className="max-sm:hidden" />
           {me.data && (
             <span className="flex items-center gap-2 text-sm text-zinc-600 max-sm:hidden dark:text-zinc-400">
               <Avatar name={me.data.display_name} />

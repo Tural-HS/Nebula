@@ -81,11 +81,7 @@ export function checkFile(file: Pick<File, "name" | "size">, maxBytes = isBoards
   return null;
 }
 
-export function formatBytes(n: number): string {
-  if (n < 1024) return `${String(n)} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)} KB`;
-  return `${(n / (1024 * 1024)).toFixed(1).replace(".", ",")} MB`;
-}
+export { formatBytes } from "./format";
 
 /** Display label for a target: custom fields by their name, built-ins via the dictionary. */
 export function targetLabel(target: ImportTarget | undefined, builtin: Record<string, string>): string {

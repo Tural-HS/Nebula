@@ -385,35 +385,40 @@ func (s *Store) RuleByID(ctx context.Context, id uuid.UUID) (Rule, uuid.UUID, er
 
 // defaultRules notify assignees by email; installed with every new workspace.
 func defaultRules() []RuleInput {
-	notify := Action{
-		Type:    ActionSendEmail,
-		To:      []string{"assignee"},
-		Subject: "[{{item.key}}] Assigned to you: {{item.title}}",
-		Body:    "{{item.key}} \"{{item.title}}\" is now assigned to you.\n\nType: {{item.type}}\nStatus: {{item.status}}\n",
-	}
-	assigned := Condition{Field: "assignee", Op: "is_not_empty"}
-	return []RuleInput{
-		{Name: "Notify assignee on create", Trigger: TriggerItemCreated, Enabled: true,
-			Conditions: []Condition{assigned}, Actions: []Action{notify}},
-		{Name: "Notify assignee on reassignment", Trigger: TriggerItemUpdated, Enabled: true,
-			Conditions: []Condition{{Field: "changed", Op: "includes", Value: json.RawMessage(`"assignee_id"`)}, assigned},
-			Actions:    []Action{notify}},
-	}
+	return assigneeRules("Notify assignee on create", "Notify assignee on reassignment",
+		"[{{item.key}}] Assigned to you: {{item.title}}",
+		"{{item.key}} \"{{item.title}}\" is now assigned to you.\n\nType: {{item.type}}\nStatus: {{item.status}}\n")
 }
 
-// defaultRulesAZ are defaultRules with Azerbaijani names and email text.
+// defaultRulesAZ, defaultRulesTR and defaultRulesRU are defaultRules with names
+// and email text in the workspace template's language (ADR-0020, ADR-0025).
 func defaultRulesAZ() []RuleInput {
-	notify := Action{
-		Type:    ActionSendEmail,
-		To:      []string{"assignee"},
-		Subject: "[{{item.key}}] Sizə təyin edildi: {{item.title}}",
-		Body:    "{{item.key}} \"{{item.title}}\" sizə təyin edildi.\n\nNövü: {{item.type}}\nStatus: {{item.status}}\n",
-	}
+	return assigneeRules("Yaradılanda icraçıya bildir", "İcraçı dəyişəndə bildir",
+		"[{{item.key}}] Sizə təyin edildi: {{item.title}}",
+		"{{item.key}} \"{{item.title}}\" sizə təyin edildi.\n\nNövü: {{item.type}}\nStatus: {{item.status}}\n")
+}
+
+func defaultRulesTR() []RuleInput {
+	return assigneeRules("Oluşturulunca atanan kişiye bildir", "Atanan kişi değişince bildir",
+		"[{{item.key}}] Size atandı: {{item.title}}",
+		"{{item.key}} \"{{item.title}}\" size atandı.\n\nTür: {{item.type}}\nDurum: {{item.status}}\n")
+}
+
+func defaultRulesRU() []RuleInput {
+	return assigneeRules("Уведомить исполнителя при создании", "Уведомить исполнителя при переназначении",
+		"[{{item.key}}] Вам назначено: {{item.title}}",
+		"Вам назначено: {{item.key}} «{{item.title}}».\n\nТип: {{item.type}}\nСтатус: {{item.status}}\n")
+}
+
+// assigneeRules emails the assignee when an item is created with one and when
+// the assignee changes.
+func assigneeRules(onCreate, onReassign, subject, body string) []RuleInput {
+	notify := Action{Type: ActionSendEmail, To: []string{"assignee"}, Subject: subject, Body: body}
 	assigned := Condition{Field: "assignee", Op: "is_not_empty"}
 	return []RuleInput{
-		{Name: "Yaradılanda icraçıya bildir", Trigger: TriggerItemCreated, Enabled: true,
+		{Name: onCreate, Trigger: TriggerItemCreated, Enabled: true,
 			Conditions: []Condition{assigned}, Actions: []Action{notify}},
-		{Name: "İcraçı dəyişəndə bildir", Trigger: TriggerItemUpdated, Enabled: true,
+		{Name: onReassign, Trigger: TriggerItemUpdated, Enabled: true,
 			Conditions: []Condition{{Field: "changed", Op: "includes", Value: json.RawMessage(`"assignee_id"`)}, assigned},
 			Actions:    []Action{notify}},
 	}

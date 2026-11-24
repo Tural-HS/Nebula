@@ -1,6 +1,7 @@
 package server
 
 import (
+	"sort"
 	"strings"
 	"testing"
 )
@@ -42,6 +43,25 @@ func TestWorkspaceTemplates(t *testing.T) {
 	rules := e.must(200, "alice", "GET", "/api/v1/workspaces/fintez/automations", nil).Raw
 	if !strings.Contains(rules, "Yaradılanda icraçıya bildir") || !strings.Contains(rules, "Sizə təyin edildi") {
 		t.Fatalf("az rules: %s", rules)
+	}
+
+	// Turkish and Russian (ADR-0025): same layout, translated names and rules.
+	for _, c := range []struct{ tpl, tz, statuses, types, rule string }{
+		{"tr", "Europe/Istanbul", "Yapılacak,Devam ediyor,İncelemede,Tamamlandı,İptal edildi", "task=Görev,bug=Hata", "Size atandı"},
+		{"ru", "UTC", "К выполнению,В работе,На проверке,Готово,Отменено", "task=Задача,bug=Ошибка", "Вам назначено"},
+	} {
+		slug := "tpl-" + c.tpl
+		ws := e.must(201, "alice", "POST", "/api/v1/workspaces", map[string]any{"slug": slug, "name": c.tpl, "template": c.tpl}).Body
+		names, types := e.statusNames("alice", slug)
+		sort.Strings(types)
+		want := strings.Split(c.types, ",")
+		sort.Strings(want)
+		if ws["timezone"] != c.tz || strings.Join(names, ",") != c.statuses || strings.Join(types, ",") != strings.Join(want, ",") {
+			t.Fatalf("%s: %v %v %v", c.tpl, ws["timezone"], names, types)
+		}
+		if rules := e.must(200, "alice", "GET", "/api/v1/workspaces/"+slug+"/automations", nil).Raw; !strings.Contains(rules, c.rule) {
+			t.Fatalf("%s rules: %s", c.tpl, rules)
+		}
 	}
 
 	// Default and explicit English keep the historical template.

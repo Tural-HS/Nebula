@@ -9,10 +9,10 @@ import {
   type Attachment,
 } from "../api/attachments";
 import { ApiError } from "../api/client";
-import { formatBytes, ta } from "../i18n-attach";
+import { ta } from "../i18n-attach";
 import { t } from "../i18n";
 import { cn } from "../lib/cn";
-import { formatRelative } from "../lib/format";
+import { formatBytes, formatRelative } from "../lib/format";
 import { useToast } from "./toast-context";
 import { Button, ErrorState, Spinner } from "./ui";
 

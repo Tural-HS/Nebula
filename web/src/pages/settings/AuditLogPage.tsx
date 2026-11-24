@@ -34,7 +34,7 @@ function Audit({ ws }: { ws: string }) {
         }}
       >
         <Input value={filter} maxLength={100} placeholder={ta.auditFilter} onChange={(e) => { setFilter(e.target.value); }} className="max-w-sm" />
-        <Button type="submit">OK</Button>
+        <Button type="submit">{ta.auditApply}</Button>
       </form>
       {q.isPending ? (
         <Spinner />
@@ -45,7 +45,7 @@ function Audit({ ws }: { ws: string }) {
           <table className="w-full min-w-[40rem] text-left text-sm">
             <thead className="text-xs text-zinc-500">
               <tr className="border-b border-zinc-200 dark:border-zinc-800">
-                <th className="px-4 py-2">#</th><th>Vaxt</th><th>Kim</th><th>Hadisə</th><th>Məlumat</th>
+                <th className="px-4 py-2">#</th><th>{ta.auditCols.time}</th><th>{ta.auditCols.who}</th><th>{ta.auditCols.action}</th><th>{ta.auditCols.data}</th>
               </tr>
             </thead>
             <tbody>

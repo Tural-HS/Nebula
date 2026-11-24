@@ -1,0 +1,103 @@
+// Turkish strings for the spreadsheet import wizard.
+import type { Messages } from "../../i18n/locale";
+import type { FieldType } from "../../api/types";
+
+export const ti = {
+  importAction: "İçe aktar",
+  title: "Tablodan içe aktarma",
+  intro: "CSV (UTF-8), Excel (.xlsx) veya Mattermost Boards arşivinden (.boardarchive) görevleri bu projeye ekleyin. Dosya sunucuda yalnızca okunur, saklanmaz.",
+  steps: ["Dosya", "Sütunlar", "Doğrulama", "Sonuç"],
+  stepLabel: (n: number, of: number) => `Adım ${String(n)} / ${String(of)}`,
+
+  file: "Dosya",
+  chooseFile: "Dosya seçin",
+  fileHint: (maxMb: number, maxRows: number) =>
+    `.csv, .tsv, .xlsx veya .boardarchive; tablo en fazla ${String(maxMb)} MB, Boards arşivi 50 MB, ${maxRows.toLocaleString("tr-TR")} satır. Tabloda ilk satır başlıktır.`,
+  readFile: "Dosyayı oku",
+  reading: "Okunuyor…",
+  fileProblem: {
+    extension: "Bu dosya türü desteklenmiyor. .xlsx, CSV (UTF-8) veya .boardarchive seçin.",
+    size: "Dosya çok büyük (tablo 10 MB, Boards arşivi 50 MB). Dosyayı bölün.",
+    empty: "Dosya boş.",
+  },
+
+  sheet: "Sayfa",
+  board: "Board",
+  peopleTitle: "Mattermost kullanıcıları",
+  peopleHint: "Arşivde ad ve e-posta yok, yalnızca kullanıcı kimlikleri var. Kartlara bakarak her birini bir Nebula üyesiyle eşleştirin: sorumlu ve yorum yazarı olarak kullanılacak. Seçilmeyenler boş kalır.",
+  personLabel: (n: number, samples: string[]) => `${String(n)} kart: ${samples.join(", ")}${n > samples.length ? "…" : ""}`,
+  personNone: "— boş kalsın —",
+  personPrivateHint: "Gizli projede sorumlu, proje üyesi olmalıdır.",
+  summary: (rows: number, file: string) => `${file}: ${rows.toLocaleString("tr-TR")} satır`,
+  delimiter: (d: string) => `Ayırıcı: ${d === "\t" ? "sekme" : d}`,
+  defaultType: "Tür (sütunda belirtilmemişse)",
+  mappingTitle: "Sütunları alanlarla eşleştirin",
+  mappingHint: "Öneriler sütun adlarına göre dolduruldu. Eşleştirilmeyen sütunlar yok sayılır.",
+  column: "Sütun",
+  sample: "Örnek",
+  target: "Nebula alanı",
+  ignore: "— yok say —",
+  builtinGroup: "Temel",
+  fieldsGroup: "Özel alanlar",
+  missingTitle: "Başlık için bir sütun seçin.",
+  previewTitle: "İlk satırlar",
+  row: "Satır",
+  back: "Geri",
+  validate: "Doğrula",
+  validating: "Doğrulanıyor…",
+
+  reportOk: (n: number) => `${n.toLocaleString("tr-TR")} satırın tamamı geçerli. İçe aktarmaya hazır.`,
+  reportErrors: (rows: number, errors: number) =>
+    `${rows.toLocaleString("tr-TR")} satırda ${errors.toLocaleString("tr-TR")} hata var. Dosyayı düzeltin veya eşleştirmeyi değiştirin; hata varken hiçbir şey içe aktarılmaz.`,
+  truncated: (shown: number) => `İlk ${String(shown)} hata gösteriliyor.`,
+  errorsTable: "Satır hataları",
+  message: "Hata",
+  importNow: (n: number) => `${n.toLocaleString("tr-TR")} görevi içe aktar`,
+  importing: "İçe aktarılıyor…",
+  fixMapping: "Eşleştirmeye dön",
+
+  done: (n: number) => `${n.toLocaleString("tr-TR")} görev oluşturuldu`,
+  doneRange: (first: string, last: string) => `${first} – ${last}`,
+  openProject: "Projeye git",
+  importAnother: "Başka bir dosya içe aktar",
+  rejected: "İçe aktarma reddedildi: bazı satırlarda hata var, hiçbir şey yazılmadı.",
+  adminOnly: "İçe aktarma yalnızca yöneticiler içindir.",
+
+  builtin: {
+    title: "Başlık",
+    description: "Açıklama",
+    type: "Tür",
+    status: "Durum",
+    assignee: "Sorumlu (e-posta)",
+    due_date: "Bitiş tarihi",
+  } as Record<string, string>,
+
+  fieldType: {
+    text: "metin",
+    long_text: "uzun metin",
+    number: "sayı",
+    date: "tarih",
+    datetime: "tarih ve saat",
+    boolean: "evet/hayır",
+    select: "seçim",
+    multi_select: "çoklu seçim",
+    user: "kullanıcı (e-posta)",
+    url: "URL",
+    email: "e-posta",
+  } satisfies Record<FieldType, string>,
+
+  // Server error codes (ADR-0011) → messages.
+  errors: {
+    file_too_large: "Dosya çok büyük (sınır 10 MB, açılmış .xlsx için 64 MB).",
+    too_many_rows: "Tabloda 20.000'den fazla satır var. Dosyayı bölün.",
+    too_many_columns: "Tabloda 200'den fazla sütun var.",
+    cell_too_long: "Bir hücre 32.767 karakterden uzun.",
+    invalid_encoding: "Dosya UTF-8 değil. Excel'de «CSV UTF-8» olarak kaydedin.",
+    unsupported_format: "Bu biçim desteklenmiyor. .xlsx veya CSV (UTF-8) kullanın. Eski .xls ve şifreli dosyalar okunamaz.",
+    malformed_file: "Dosya okunamadı (bozuk veya hatalı biçim).",
+    empty_file: "Dosyada veri satırı yok.",
+    sheet_not_found: "Seçilen sayfa bulunamadı.",
+    timeout: "Dosyanın okunması çok uzun sürdü.",
+    import_busy: "Şu anda başka içe aktarmalar sürüyor. Biraz sonra tekrar deneyin.",
+  } as Record<string, string>,
+} satisfies Messages["importer"];

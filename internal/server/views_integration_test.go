@@ -358,7 +358,7 @@ func TestItemSums(t *testing.T) {
 	create := func(title string, fields map[string]any) {
 		e.must(201, "carol", "POST", items, map[string]any{"title": title, "fields": fields})
 	}
-	create("Paşayev ödəniş", map[string]any{"monthly": 100.5, "remaining": 1000, "plan": plan["Plan 2027"]})
+	create("Lizinq ödəniş", map[string]any{"monthly": 100.5, "remaining": 1000, "plan": plan["Plan 2027"]})
 	create("Əliyev ödəniş", map[string]any{"monthly": 200, "plan": plan["Plan 2027"]})
 	create("Kiçik", map[string]any{"monthly": 0.25, "plan": plan["Other"]})
 	create("Boş", map[string]any{})

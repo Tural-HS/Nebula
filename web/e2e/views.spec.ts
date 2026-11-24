@@ -13,7 +13,7 @@ test.beforeAll(async () => {
     const data = { title, due_date: due, fields: monthly === null ? {} : { monthly } };
     expect((await alice.post(`${ws}/projects/QA/items`, { data })).status()).toBe(201);
   };
-  await create("Paşayev ödəniş", 1200.5, "2026-12-09"); // QA-1
+  await create("Lizinq ödəniş", 1200.5, "2026-12-09"); // QA-1
   await create("Əliyev ödəniş", 800, "2026-11-30"); // QA-2
   await create("Tarixsiz iş", null); // QA-3
   await alice.dispose();
@@ -32,7 +32,7 @@ test.describe("as admin", () => {
     await page.keyboard.press("Escape");
     await expect(page).toHaveURL(/cols=/);
     await expect(page.getByRole("columnheader", { name: "Aylıq ödəniş" })).toBeVisible();
-    await expect(page.getByRole("row").filter({ hasText: "Paşayev ödəniş" })).toContainText("1 200,5");
+    await expect(page.getByRole("row").filter({ hasText: "Lizinq ödəniş" })).toContainText("1 200,5");
 
     // The total covers the whole filtered result, not only loaded rows.
     const total = page.getByRole("row", { name: "Cəmi" });

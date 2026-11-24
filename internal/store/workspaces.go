@@ -75,6 +75,8 @@ var slugRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{1,62}$`)
 const (
 	TemplateEnglish     = "en"
 	TemplateAzerbaijani = "az"
+	TemplateTurkish     = "tr"
+	TemplateRussian     = "ru"
 )
 
 // CreateWorkspace creates a workspace owned by owner and installs the default
@@ -82,7 +84,7 @@ const (
 func (s *Store) CreateWorkspace(ctx context.Context, owner uuid.UUID, slug, name, template string) (Workspace, error) {
 	tpl, ok := workspaceTemplates[template]
 	if !ok {
-		return Workspace{}, invalid("template", "must be en or az")
+		return Workspace{}, invalid("template", "must be one of az, en, tr, ru")
 	}
 	slug = strings.ToLower(strings.TrimSpace(slug))
 	if !slugRe.MatchString(slug) {
@@ -135,6 +137,7 @@ type workspaceTemplate struct {
 
 var workspaceTemplates = map[string]workspaceTemplate{
 	"": templateEN, TemplateEnglish: templateEN, TemplateAzerbaijani: templateAZ,
+	TemplateTurkish: templateTR, TemplateRussian: templateRU,
 }
 
 var templateEN = workspaceTemplate{
@@ -162,6 +165,34 @@ var templateAZ = workspaceTemplate{
 	},
 	itemTypes: [][2]string{{"task", "Tapşırıq"}, {"bug", "Xəta"}},
 	rules:     defaultRulesAZ,
+}
+
+// templateTR and templateRU follow the az layout (with a review column).
+// Timezones are a starting point; admins change them in Settings.
+var templateTR = workspaceTemplate{
+	key: TemplateTurkish, timezone: "Europe/Istanbul", workflow: "Varsayılan",
+	statuses: []templateStatus{
+		{"Yapılacak", "todo", true},
+		{"Devam ediyor", "in_progress", false},
+		{"İncelemede", "in_progress", false},
+		{"Tamamlandı", "done", false},
+		{"İptal edildi", "canceled", false},
+	},
+	itemTypes: [][2]string{{"task", "Görev"}, {"bug", "Hata"}},
+	rules:     defaultRulesTR,
+}
+
+var templateRU = workspaceTemplate{
+	key: TemplateRussian, timezone: "UTC", workflow: "Основной",
+	statuses: []templateStatus{
+		{"К выполнению", "todo", true},
+		{"В работе", "in_progress", false},
+		{"На проверке", "in_progress", false},
+		{"Готово", "done", false},
+		{"Отменено", "canceled", false},
+	},
+	itemTypes: [][2]string{{"task", "Задача"}, {"bug", "Ошибка"}},
+	rules:     defaultRulesRU,
 }
 
 // installDefaultTemplate gives every new workspace a usable workflow and item types.

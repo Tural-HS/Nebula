@@ -269,7 +269,7 @@ function ValueInput({ field, value, ctx, onChange }: { field: string; value: str
   if (field === "status_category") return pick(Object.entries(t.category));
   if (field === "assignee" || field === "reporter") return pick(ctx.members.map((m) => [m.user_id, m.display_name]));
   if (def && (def.type === "select" || def.type === "multi_select")) return pick((def.options.choices ?? []).filter((c) => !c.archived).map((c) => [c.id, c.label]));
-  if (def?.type === "boolean") return pick([["true", "Bəli"], ["false", "Xeyr"]]);
+  if (def?.type === "boolean") return pick([["true", t.yes], ["false", t.no]]);
   if (def?.type === "user") return pick(ctx.members.map((m) => [m.user_id, m.display_name]));
   return <Input aria-label={ta.value} value={value} className="w-56" onChange={(e) => { onChange(e.target.value); }} />;
 }

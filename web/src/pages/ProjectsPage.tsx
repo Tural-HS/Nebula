@@ -34,8 +34,9 @@ export function ProjectsPage() {
             {ta.settings}
           </Link>
           {canCreate && (
-            <Button variant="primary" onClick={() => { setOpen(true); }}>
-              {t.newProject}
+            <Button variant="primary" aria-label={t.newProject} className="pointer-coarse:min-w-11" onClick={() => { setOpen(true); }}>
+              <span className="max-sm:hidden">{t.newProject}</span>
+              <span aria-hidden className="text-lg leading-none sm:hidden">+</span>
             </Button>
           )}
         </>

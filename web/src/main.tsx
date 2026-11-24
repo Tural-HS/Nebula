@@ -1,26 +1,24 @@
-import { StrictMode } from "react";
-import { createRoot } from "react-dom/client";
-
-import { App } from "./App";
-import { AuthProvider } from "./auth/auth";
-import { createUserManager } from "./auth/oidc";
 import { loadConfig } from "./config";
+import { loadMessages, messages } from "./i18n/locale";
 import "./index.css";
 
-const root = createRoot(document.getElementById("root") ?? document.body);
+// The UI language is loaded before the app module (ADR-0025): dictionaries are
+// module constants, so nothing that reads them may be imported earlier.
+const root = document.getElementById("root") ?? document.body;
 
-loadConfig()
-  .then((cfg) => {
-    const manager = createUserManager(cfg);
-    root.render(
-      <StrictMode>
-        <AuthProvider manager={manager}>
-          <App />
-        </AuthProvider>
-      </StrictMode>,
-    );
+// The app chunk starts downloading as soon as the language is known, in
+// parallel with config.json.
+const app = loadMessages().then(() => import("./bootstrap"));
+
+Promise.all([loadConfig(), app])
+  .then(([cfg, { render }]) => {
+    render(root, cfg);
   })
   .catch((err: unknown) => {
     console.error(err);
-    root.render(<p style={{ padding: 24, fontFamily: "system-ui" }}>Nebula konfiqurasiyası yüklənmədi.</p>);
+    const p = document.createElement("p");
+    p.style.padding = "24px";
+    p.style.fontFamily = "system-ui";
+    p.textContent = messages().core.configFailed;
+    root.replaceChildren(p);
   });

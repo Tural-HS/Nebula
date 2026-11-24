@@ -71,7 +71,7 @@ func TestRecurrenceAPIValidationAndAccess(t *testing.T) {
 	}
 
 	rec := e.must(201, "alice", "POST", recPath, map[string]any{
-		"title": "Paşayev Zaur — {{month}} ödənişi", "freq": "monthly", "every": 1, "month_day": 9,
+		"title": "Ofis icarəsi — {{month}} ödənişi", "freq": "monthly", "every": 1, "month_day": 9,
 		"start_date": ymd(today), "lead_days": 3,
 	}).Body
 	if rec["enabled"] != true || rec["next_due"] == nil || len(rec["upcoming"].([]any)) != 5 || rec["type"].(map[string]any)["key"] != "task" {
@@ -80,7 +80,7 @@ func TestRecurrenceAPIValidationAndAccess(t *testing.T) {
 	id := rec["id"].(string)
 	e.must(200, "carol", "GET", recPath+"/"+id, nil)
 	off := e.must(200, "alice", "PUT", recPath+"/"+id, map[string]any{
-		"title": "Paşayev Zaur — {{month}} ödənişi", "freq": "monthly", "every": 1, "month_day": 9,
+		"title": "Ofis icarəsi — {{month}} ödənişi", "freq": "monthly", "every": 1, "month_day": 9,
 		"start_date": ymd(today), "enabled": false,
 	}).Body
 	if off["enabled"] != false {

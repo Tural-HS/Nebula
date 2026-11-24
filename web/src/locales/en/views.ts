@@ -1,0 +1,55 @@
+// English strings for saved views, table columns and totals (ADR-0014).
+import type { Messages } from "../../i18n/locale";
+import { plural } from "../../i18n/plural";
+
+export const tv = {
+  views: "View",
+  allItems: "All",
+  personal: "Personal",
+  shared: "Shared",
+  modified: "modified",
+  saveAs: "Save as view",
+  saveChanges: "Save changes",
+  rename: "Rename",
+  remove: "Delete view",
+  share: "Share with everyone",
+  unshare: "Stop sharing",
+  viewMenu: "View actions",
+  newViewTitle: "New view",
+  renameTitle: "View name",
+  viewName: "Name",
+  shareHint: "A shared view is visible to everyone who can see the project.",
+  confirmDelete: (name: string) => `Are you sure you want to delete the view "${name}"?`,
+  savedView: (name: string) => `"${name}" saved`,
+  viewMissing: "This view was not found or has not been shared with you.",
+
+  columns: "Columns",
+  columnsHint: "Columns to show in the table and their order",
+  moveLeft: "Move left",
+  moveRight: "Move right",
+  resetColumns: "Default columns",
+  sort: "Sort",
+  sortNumber: "Newest first",
+  sortDue: "By due date",
+  filters: "Filters",
+  statusFilter: "Statuses",
+  fieldFilter: (name: string) => name,
+  anyValue: "Any",
+  clearFilters: "Clear filters",
+  activeFilters: (n: number) => `Filters (${String(n)})`,
+
+  total: "Total",
+  totalHint: (count: number) => `${String(count)} ${plural("en", count, { one: "item has", other: "items have" })} a value (across all filtered results)`,
+  created: "Created",
+
+  col: {
+    key: "#",
+    title: "Title",
+    type: "Type",
+    status: "Status",
+    assignee: "Assignee",
+    due_date: "Due date",
+    created_at: "Created",
+    updated_at: "Updated",
+  },
+} satisfies Messages["views"];

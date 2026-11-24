@@ -1,21 +1,4 @@
-// Azerbaijani strings for workspace-wide search (ADR-0024).
-export const ts = {
-  open: "Axtar",
-  placeholder: "Tapşırıq, şərh və ya açar (QA-12) axtarın…",
-  dialogTitle: "Workspace-də axtarış",
-  inputLabel: "Axtarış sorğusu",
-  shortcut: (mac: boolean) => (mac ? "⌘K" : "Ctrl K"),
-  hint: "Ən azı 2 hərf yazın. ə, ö, ü, ş, ç, ğ, ı hərfsiz də tapılır: “odenis” → “ödəniş”.",
-  items: "Tapşırıqlar",
-  comments: "Şərhlər",
-  count: (shown: number, total: number) => (total > shown ? `${String(shown)} / ${String(total)}` : String(total)),
-  empty: "Heç nə tapılmadı.",
-  fuzzy: "Dəqiq uyğunluq yoxdur. Oxşar başlıqlar:",
-  keyMatch: "Açar",
-  commentBy: (author: string) => `${author} şərhi`,
-  someone: "Bir istifadəçi",
-  more: "Daha çox nəticə",
-  rateLimited: "Çox tez-tez axtarılır, bir az gözləyin…",
-  tooLong: "Sorğu çox uzundur (ən çoxu 200 simvol).",
-  navHint: "↑↓ seçin, Enter açın, Esc bağlayın",
-};
+// UI strings in the active language (ADR-0025); the texts are in locales/<lang>/search.ts.
+import { messages } from "./i18n/locale";
+
+export const ts = messages().search;

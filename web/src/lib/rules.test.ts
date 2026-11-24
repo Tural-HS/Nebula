@@ -36,6 +36,6 @@ describe("fieldValue", () => {
 
 describe("recipients", () => {
   it("splits and trims", () => {
-    expect(recipients("assignee, ops@kredagro.az ,")).toEqual(["assignee", "ops@kredagro.az"]);
+    expect(recipients("assignee, ops@example.com ,")).toEqual(["assignee", "ops@example.com"]);
   });
 });

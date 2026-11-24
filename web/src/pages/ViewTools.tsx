@@ -308,8 +308,8 @@ export function FilterPicker({ statuses, fields, status, values, onStatus, onFie
             <option value="">{tv.anyValue}</option>
             {f.type === "boolean" ? (
               <>
-                <option value="true">Bəli</option>
-                <option value="false">Xeyr</option>
+                <option value="true">{t.yes}</option>
+                <option value="false">{t.no}</option>
               </>
             ) : (
               (f.options.choices ?? []).map((c) => <option key={c.id} value={c.id}>{c.label}</option>)

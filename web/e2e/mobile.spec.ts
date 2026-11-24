@@ -266,3 +266,20 @@ test("no page scrolls sideways", async ({ page }) => {
     await expectNoHorizontalOverflow(page);
   }
 });
+
+test("the language picker is in the header from tablet width, on the workspace list on phones", async ({ page }) => {
+  await page.goto("/");
+  const header = page.getByRole("banner").getByLabel("Dil");
+  const list = page.getByRole("main").getByLabel("Dil");
+  if ((page.viewportSize()?.width ?? 0) < 640) {
+    await expect(header).toBeHidden();
+    await expect(list).toBeVisible();
+    expect((await list.boundingBox())?.height).toBeGreaterThanOrEqual(44); // touch target (ADR-0019)
+    const add = page.getByRole("button", { name: "Yeni workspace" });
+    await expect(add.getByText("+")).toBeVisible(); // long labels (ru) would push the header out
+    await expect(add.getByText("Yeni workspace")).toBeHidden();
+  } else {
+    await expect(header).toBeVisible();
+    await expect(list).toBeHidden();
+  }
+});

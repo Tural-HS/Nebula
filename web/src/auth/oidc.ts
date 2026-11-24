@@ -1,6 +1,7 @@
 import { InMemoryWebStorage, UserManager, WebStorageStateStore } from "oidc-client-ts";
 
 import type { AppConfig } from "../config";
+import { activeLocale } from "../i18n/locale";
 
 /*
  * OIDC Authorization Code flow with PKCE against the identity provider.
@@ -24,6 +25,7 @@ export function createUserManager(cfg: AppConfig): UserManager {
     userStore: new WebStorageStateStore({ store: new InMemoryWebStorage() }),
     automaticSilentRenew: true, // uses the refresh token before the access token expires
     monitorSession: false,
+    ui_locales: activeLocale(), // the login page follows the UI language (realm: internationalization on)
   });
 }
 

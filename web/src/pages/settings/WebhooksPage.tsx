@@ -223,7 +223,7 @@ function DeliveryLog({ ws, id }: { ws: string; id: string }) {
     <div className="mt-3 overflow-x-auto">
       <table className="w-full text-left text-xs">
         <thead className="text-zinc-500">
-          <tr><th className="py-1">#</th><th>HTTP</th><th>ms</th><th>try</th><th>error</th><th /></tr>
+          <tr><th className="py-1">#</th><th>HTTP</th><th>ms</th><th>{ta.deliveryCols.attempt}</th><th>{ta.deliveryCols.error}</th><th /></tr>
         </thead>
         <tbody>
           {q.data.map((d) => {

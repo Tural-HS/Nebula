@@ -154,6 +154,9 @@ Fayllar `/opt/nebula/deploy/production` yolunu nəzərdə tutur; başqa yoldursa
 
 Realm şablonunda (`keycloak/realm/nebula-realm.json`) **heç bir istifadəçi yoxdur**; `nebula-web` client-in redirect URI-ləri `https://${NEBULA_HOST}`-dan yaranır. Realm yalnız mövcud deyilsə import olunur — sonrakı dəyişikliklər admin konsolundan edilir (və ya realm yenidən yaradılır).
 
+> **Giriş səhifəsinin dili (ADR-0025):** realm 2026-11-24-dən əvvəl yaradılıbsa, interfeys dilləri üçün bir dəfə:
+> Admin konsol → Realm settings → Localization → *Internationalization* açın, dillər `az, en, tr, ru`, default `az`.
+
 1. Müvəqqəti admin (parolu interaktiv soruşur, heç yerdə saxlanmır):
    ```bash
    sudo ./scripts/keycloak-bootstrap-admin.sh temp-admin

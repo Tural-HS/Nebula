@@ -286,7 +286,7 @@ function RuleForm({ ws, project, rule, members, onDone }: { ws: string; project:
         </div>
         <p aria-live="polite" className="text-xs text-zinc-500">
           {describeSchedule(schedule)}
-          {preview.data && preview.data.length > 0 && <> · {tr.upcoming}: {preview.data.map(formatDate).join(", ")}</>}
+          {preview.data && preview.data.length > 0 && <> · {tr.upcoming}: {preview.data.map((d) => formatDate(d)).join(", ")}</>}
           {preview.isError && <span className="text-red-600"> · <FieldErrorText error={preview.error} /></span>}
         </p>
       </fieldset>

@@ -2,6 +2,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tansta
 
 import { api, path } from "./client";
 import type { ActivityPage, Comment, CommentPage, FieldDefinition, FieldSums, FieldValue, Item, ItemPage, ItemType, Me, Member, Project, ProjectMember, Status, Workspace } from "./types";
+import type { Locale } from "../i18n/locale";
 
 export const keys = {
   me: ["me"] as const,
@@ -248,7 +249,7 @@ export function useDeleteItem(ws: string, project: string) {
 export function useCreateWorkspace() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { slug: string; name: string; template?: "az" | "en" }) => api<Workspace>("POST", "/workspaces", body),
+    mutationFn: (body: { slug: string; name: string; template?: Locale }) => api<Workspace>("POST", "/workspaces", body),
     onSuccess: () => qc.invalidateQueries({ queryKey: keys.workspaces }),
   });
 }
