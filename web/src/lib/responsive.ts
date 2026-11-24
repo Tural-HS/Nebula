@@ -42,8 +42,8 @@ export function displayColumns(columns: readonly string[], compact: boolean): { 
 }
 
 /** How many filters the compact "Filtrlər" button stands for (search excluded: it stays visible). */
-export function activeFilterCount(s: Pick<PageState, "assignee" | "due" | "status" | "fields"> & { approval?: string }): number {
-  return (s.assignee ? 1 : 0) + (s.due ? 1 : 0) + (s.approval ? 1 : 0) + s.status.length + Object.keys(s.fields).length;
+export function activeFilterCount(s: Pick<PageState, "assignee" | "due" | "status" | "fields"> & { approval?: string; blocked?: boolean }): number {
+  return (s.assignee ? 1 : 0) + (s.due ? 1 : 0) + (s.approval ? 1 : 0) + (s.blocked ? 1 : 0) + s.status.length + Object.keys(s.fields).length;
 }
 
 /**

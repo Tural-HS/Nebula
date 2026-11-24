@@ -79,6 +79,7 @@ func (a *api) routes(r chi.Router) {
 			r.Get("/", a.getProject)
 			r.Get("/items", a.listItems)
 			r.Get("/items/counts", a.countItems)
+			r.Get("/items/queue-counts", a.queueCounts)
 			r.With(requireRole(store.RoleMember)).Post("/items", a.createItem)
 			r.Get("/items/{number}", a.getItem)
 			r.Get("/items/{number}/transitions", a.allowedStatuses)
@@ -381,6 +382,22 @@ func (a *api) countItems(w http.ResponseWriter, r *http.Request) {
 		total += n
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"by_status": byStatus, "total": total})
+}
+
+// queueCounts returns the quick-filter counts of the item list (ADR-0035) in
+// one request: the list's other filters apply, the presets replace assignee,
+// due, approval and blocked.
+func (a *api) queueCounts(w http.ResponseWriter, r *http.Request) {
+	p, ok := parseItemFilters(w, r)
+	if !ok {
+		return
+	}
+	counts, err := a.store.CountQueues(r.Context(), p)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, counts)
 }
 
 // parseItemFilters reads the item list query string, writing a 400 and

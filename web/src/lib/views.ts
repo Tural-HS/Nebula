@@ -27,6 +27,8 @@ export interface PageState {
   group: GroupBy;
   /** Pending approvals (ADR-0026). Part of the link, not of saved views. */
   approval: ApprovalFilter;
+  /** Only items with an open blocker (ADR-0028). Part of the link, not of saved views. */
+  blocked: boolean;
 }
 
 export type ApprovalFilter = "" | "pending" | "mine";
@@ -47,7 +49,7 @@ const FIELD_KEY = /^[a-z][a-z0-9_]{0,62}$/;
 const COLUMN = /^(key|title|type|status|assignee|due_date|created_at|updated_at|field\.[a-z][a-z0-9_]{0,62})$/;
 
 /** URL parameters that make up the page state (others, like item, are kept). */
-const STATE_PARAMS = ["view", "q", "assignee", "due", "status", "cols", "sort", "group", "approval"];
+const STATE_PARAMS = ["view", "q", "assignee", "due", "status", "cols", "sort", "group", "approval", "blocked"];
 
 export const isFieldColumn = (c: string) => c.startsWith("field.");
 export const fieldKey = (c: string) => c.slice("field.".length);
@@ -56,7 +58,7 @@ const splitList = (v: string | null) => (v ? v.split(",").map((s) => s.trim()).f
 const uniqSorted = (xs: string[]) => [...new Set(xs)].sort();
 
 export function emptyState(): PageState {
-  return { mode: "table", q: "", assignee: "", due: "", status: [], fields: {}, columns: [...DEFAULT_COLUMNS], sort: "number", group: "status", approval: "" };
+  return { mode: "table", q: "", assignee: "", due: "", status: [], fields: {}, columns: [...DEFAULT_COLUMNS], sort: "number", group: "status", approval: "", blocked: false };
 }
 
 /** Reads the page state from the URL, ignoring anything malformed. */
@@ -76,6 +78,7 @@ export function readState(p: URLSearchParams): PageState {
   s.sort = parseSort(p.get("sort"));
   if (p.get("group") === "category") s.group = "category";
   s.approval = APPROVAL.find((a) => a === p.get("approval")) ?? "";
+  s.blocked = p.get("blocked") === "true";
   return s;
 }
 
@@ -97,6 +100,7 @@ export function writeState(s: PageState, base: URLSearchParams = new URLSearchPa
   if (s.sort !== "number") p.set("sort", s.sort);
   if (s.group === "category") p.set("group", "category");
   if (s.approval) p.set("approval", s.approval);
+  if (s.blocked) p.set("blocked", "true");
   return p;
 }
 
@@ -139,7 +143,7 @@ export function viewFromState(s: PageState): { kind: Mode; config: ViewConfig } 
 
 /** The list filters for the API (the debounced search replaces s.q). */
 export function filtersOf(s: PageState, q: string): ItemFilters {
-  return { q, assignee: s.assignee, due: s.due, status: s.status, fields: s.fields, sort: s.sort, ...(s.approval ? { approval: s.approval } : {}) };
+  return { q, assignee: s.assignee, due: s.due, status: s.status, fields: s.fields, sort: s.sort, ...(s.approval ? { approval: s.approval } : {}), ...(s.blocked ? { blocked: true } : {}) };
 }
 
 /**

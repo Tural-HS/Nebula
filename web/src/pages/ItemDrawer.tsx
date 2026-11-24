@@ -22,7 +22,12 @@ import { tap } from "../i18n-approvals";
 import { approvalErrorCode, approvalErrorText, isLocked } from "../lib/approvals";
 import { cn } from "../lib/cn";
 import { formatDateTime } from "../lib/format";
-import { useKeyboardInset } from "../lib/responsive";
+import { useKeyboardInset, useMediaQuery } from "../lib/responsive";
+import { WorkflowSteps } from "../components/WorkflowSteps";
+import { tlg } from "../i18n-ledger";
+
+/** Width at which the panel stops being modal (Tailwind lg). */
+const WIDE = "(min-width: 1024px)";
 
 export function ItemDrawer({ ws, project, n, canEdit, isAdmin, onClose }: {
   ws: string; project: string; n: number; canEdit: boolean; isAdmin: boolean; onClose: () => void;
@@ -32,6 +37,10 @@ export function ItemDrawer({ ws, project, n, canEdit, isAdmin, onClose }: {
   // iOS does not shrink the layout for the on-screen keyboard: lift the
   // panel's bottom edge above it, then keep the focused field in view.
   const inset = useKeyboardInset();
+  // From lg the panel sits beside the table, which stays usable (ADR-0035):
+  // no dimming, and clicking another row switches the panel. Below lg it is
+  // a modal sheet over the list.
+  const wide = useMediaQuery(WIDE);
   useEffect(() => {
     const el = document.activeElement;
     if (inset > 0 && el instanceof HTMLElement && panel.current?.contains(el)) el.scrollIntoView({ block: "nearest" });
@@ -47,16 +56,17 @@ export function ItemDrawer({ ws, project, n, canEdit, isAdmin, onClose }: {
 
   return (
     <>
-      <div className="fixed inset-0 z-30 bg-zinc-950/20" onClick={onClose} aria-hidden />
-      {/* Full screen on phones, a side panel from md up. Safe-area padding
-          keeps content clear of the notch and the home indicator. */}
+      {!wide && <div className="fixed inset-0 z-30 bg-zinc-950/20" onClick={onClose} aria-hidden />}
+      {/* Full screen on phones, a side panel from md up, a wide panel beside
+          the table from lg. Safe-area padding keeps content clear of the
+          notch and the home indicator. */}
       <aside
         ref={panel}
         role="dialog"
-        aria-modal="true"
+        aria-modal={wide ? undefined : "true"}
         aria-label={item.data?.key ?? t.loading}
         style={inset > 0 ? { bottom: inset } : undefined}
-        className="fixed inset-y-0 right-0 z-40 flex w-full max-w-xl flex-col overflow-y-auto overscroll-contain bg-white pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] shadow-2xl md:pr-0 dark:bg-zinc-900"
+        className="@container fixed inset-y-0 right-0 z-40 flex w-full max-w-xl flex-col overflow-y-auto overscroll-contain bg-white pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] shadow-2xl md:pr-0 lg:w-(--drawer-w) lg:max-w-none lg:border-l lg:border-zinc-200 lg:shadow-xl dark:bg-zinc-900 dark:lg:border-zinc-800"
       >
         {item.isPending ? (
           <Spinner />
@@ -140,14 +150,17 @@ function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose }: {
     else save({ status_id: id });
   };
 
+  const workflow = type?.statuses ?? [];
+
   return (
     <div className="flex flex-col">
       {/* Sticky, so closing never needs scrolling back up on a phone. */}
       {/* The close button has its own slot and the actions wrap, so a narrow
           panel (tablet side panel) never pushes or covers close. */}
       <div className="sticky top-0 z-10 flex items-start justify-between gap-2 border-b border-zinc-200 bg-white px-4 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 md:px-5 md:py-3 dark:border-zinc-800 dark:bg-zinc-900">
-        <span className="min-w-0 truncate self-center font-mono text-sm text-zinc-500">
-          {item.key} · {item.type.name}
+        <span className="flex min-w-0 items-center gap-2 self-center text-sm">
+          <span className="shrink-0 font-medium text-zinc-500 tabular-nums">{item.key}</span>
+          <span className="truncate rounded bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-600 max-sm:hidden dark:bg-zinc-800 dark:text-zinc-300">{item.type.name}</span>
         </span>
         <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2">
           <WatchControl ws={ws} project={project} n={item.number} isAdmin={isAdmin} />
@@ -176,7 +189,10 @@ function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose }: {
         </Button>
       </div>
 
-      <div className="space-y-5 p-4 md:p-5">
+      {/* Title and workflow span the panel; below, content on the left and
+          the properties on the right once the panel is wide enough (a
+          container query), properties first in one column on phones (ADR-0035). */}
+      <div className="space-y-3 px-4 pt-4 md:px-5">
         {item.parent && <ParentCrumb parent={item.parent} canEdit={canEdit} onDetach={() => { save({ parent: null }); }} />}
         <textarea
           aria-label={t.title}
@@ -195,10 +211,14 @@ function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose }: {
               e.currentTarget.blur();
             }
           }}
-          className="w-full resize-none rounded-md bg-transparent text-xl font-semibold [overflow-wrap:anywhere] outline-none hover:bg-zinc-50 focus:bg-zinc-50 dark:hover:bg-zinc-800 dark:focus:bg-zinc-800"
+          className="w-full resize-none rounded-md bg-transparent text-xl leading-snug font-semibold tracking-tight [overflow-wrap:anywhere] outline-none hover:bg-zinc-50 focus:bg-zinc-50 dark:hover:bg-zinc-800 dark:focus:bg-zinc-800"
         />
+        <WorkflowSteps statuses={workflow} item={item} />
+      </div>
 
-        <dl className="grid grid-cols-[6.5rem_minmax(0,1fr)] items-center gap-x-3 gap-y-3 text-sm sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-x-4">
+      <div className="grid gap-5 p-4 md:p-5 @2xl:grid-cols-[minmax(0,1fr)_16.5rem] @2xl:gap-6">
+        <aside aria-label={tlg.details} className="space-y-4 rounded-lg bg-zinc-50 p-3 text-sm @2xl:col-start-2 @2xl:row-start-1 @2xl:self-start dark:bg-zinc-950/40">
+          <dl className="grid grid-cols-[6.5rem_minmax(0,1fr)] items-center gap-x-3 gap-y-3 @2xl:grid-cols-1 @2xl:gap-y-1 @2xl:[&>dd]:mb-2">
           <dt className="text-zinc-500">{t.status}</dt>
           <dd className="flex flex-wrap items-center gap-2">
             {canEditContent ? (
@@ -291,25 +311,12 @@ function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose }: {
 
           <dt className="text-zinc-500">{t.updated}</dt>
           <dd className="text-zinc-600 dark:text-zinc-400">{formatDateTime(item.updated_at)}</dd>
-        </dl>
+          </dl>
 
-        {locked && <p role="status" className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-200">{tap.locked}</p>}
-
-        <ApprovalPanel ws={ws} project={project} item={item} />
-
-        <DescriptionField value={item.description} canEdit={canEditContent} onSave={(v) => { save({ description: v }); }} />
-
-        {/* One level only: a subtask has no subtasks of its own (ADR-0021). */}
-        {!item.parent && <SubtaskSection ws={ws} project={project} item={item} canEdit={canEdit} />}
-
-        <LinksSection ws={ws} project={project} item={item} canEdit={canEdit} />
-
-        <RequestPanel ws={ws} project={project} n={item.number} canWrite={canEdit} />
-
-        {boundFields.length > 0 && (
-          <section>
-            <h3 className="mb-3 text-sm font-semibold">{t.customFields}</h3>
-            <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] items-center gap-x-3 gap-y-3 text-sm sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-x-4">
+          {boundFields.length > 0 && (
+            <section className="border-t border-zinc-200 pt-3 dark:border-zinc-800">
+              <h3 className="mb-3 text-xs font-semibold text-zinc-500">{t.customFields}</h3>
+              <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] items-center gap-x-3 gap-y-3 @2xl:grid-cols-1 @2xl:gap-y-1 @2xl:[&>div]:mb-2">
               {boundFields.map((b) => {
                 const def = defs.get(b.key);
                 if (!def) return null;
@@ -327,15 +334,31 @@ function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose }: {
                   </FieldRow>
                 );
               })}
-            </div>
-          </section>
-        )}
+              </div>
+            </section>
+          )}
+        </aside>
 
-        <Attachments ws={ws} project={project} n={item.number} meId={me.data?.id} canWrite={canEditContent} isAdmin={isAdmin} />
+        <div className="min-w-0 space-y-5 @2xl:col-start-1 @2xl:row-start-1">
+          {locked && <p role="status" className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-200">{tap.locked}</p>}
 
-        <RequestApprovalDialog ws={ws} project={project} item={item} version={() => version.current} target={approvalTarget} onClose={() => { setApprovalTarget(null); }} />
+          <ApprovalPanel ws={ws} project={project} item={item} />
 
-        <CollabTabs ws={ws} project={project} n={item.number} canWrite={canEdit} isAdmin={isAdmin} />
+          <DescriptionField value={item.description} canEdit={canEditContent} onSave={(v) => { save({ description: v }); }} />
+
+          {/* One level only: a subtask has no subtasks of its own (ADR-0021). */}
+          {!item.parent && <SubtaskSection ws={ws} project={project} item={item} canEdit={canEdit} />}
+
+          <LinksSection ws={ws} project={project} item={item} canEdit={canEdit} />
+
+          <RequestPanel ws={ws} project={project} n={item.number} canWrite={canEdit} />
+
+          <Attachments ws={ws} project={project} n={item.number} meId={me.data?.id} canWrite={canEditContent} isAdmin={isAdmin} />
+
+          <RequestApprovalDialog ws={ws} project={project} item={item} version={() => version.current} target={approvalTarget} onClose={() => { setApprovalTarget(null); }} />
+
+          <CollabTabs ws={ws} project={project} n={item.number} canWrite={canEdit} isAdmin={isAdmin} />
+        </div>
       </div>
     </div>
   );

@@ -63,6 +63,7 @@ test.describe("as admin", () => {
     await page.getByLabel("Görünüş", { exact: true }).selectOption({ label: "Plan 2027" });
     await expect(page.getByRole("columnheader", { name: "Aylıq ödəniş" })).toBeVisible();
     await expect(page).toHaveURL(/sort=due/);
+    await page.locator("summary", { hasText: /^Filtrlər/ }).click(); // the filter menu (ADR-0035)
     await page.getByLabel("Son tarix", { exact: true }).selectOption("none");
     await expect(page.getByText("dəyişdirilib")).toBeVisible();
     // Wait for the save itself, so a failure names the API status instead of

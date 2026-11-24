@@ -10,6 +10,7 @@ import { te as evidence } from "./evidence";
 import { tf as forms } from "./forms";
 import { ti as importer } from "./import";
 import { ti as invite } from "./invite";
+import { tlg as ledger } from "./ledger";
 import { tl as links } from "./links";
 import { tm as mobile } from "./mobile";
 import { tn as notifications } from "./notifications";
@@ -23,4 +24,4 @@ import { tv as views } from "./views";
 import { twc as webhookChat } from "./webhookChat";
 import { tw as workdays } from "./workdays";
 
-export const ru: Messages = { admin, approvals, attach, calendar, core, evidence, forms, formulas, importer, invite, links, mobile, notifications, project, recur, search, subtasks, templates, theme, views, webhookChat, workdays };
+export const ru: Messages = { admin, approvals, attach, calendar, core, evidence, forms, formulas, importer, invite, ledger, links, mobile, notifications, project, recur, search, subtasks, templates, theme, views, webhookChat, workdays };

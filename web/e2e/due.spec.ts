@@ -21,6 +21,8 @@ test("overdue items are marked and can be filtered", async ({ page }) => {
   await expect(late.getByLabel("Son tarix: 1 mar 2020 (gecikir)")).toBeVisible();
   await expect(page.getByRole("row").filter({ hasText: "Gələn il" }).getByLabel("Son tarix: 15 yan 2199")).toBeVisible();
 
+  // The list filters live in one menu (ADR-0035).
+  await page.locator("summary", { hasText: /^Filtrlər/ }).click();
   await page.getByLabel("Son tarix", { exact: true }).selectOption("overdue");
   await expect(page).toHaveURL(/due=overdue/);
   await expect(page.getByRole("row").filter({ hasText: "QA-" })).toHaveCount(1);

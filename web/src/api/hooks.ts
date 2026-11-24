@@ -1,4 +1,4 @@
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api, path } from "./client";
 import type { ActivityPage, Comment, CommentPage, FieldDefinition, FieldSums, FieldValue, Item, ItemPage, ItemType, Me, Member, Project, ProjectMember, TransitionTarget, Workspace } from "./types";
@@ -99,6 +99,8 @@ export interface ItemFilters {
   parent?: number;
   /** Pending approvals (ADR-0026): any open request, or ones the viewer may decide. */
   approval?: "" | "pending" | "mine";
+  /** Only items with an open blocker the viewer can see (ADR-0028). */
+  blocked?: boolean;
 }
 
 const PAGE_SIZE = 100;
@@ -115,6 +117,7 @@ export function itemsQueryString(f: ItemFilters, cursor: string | null): string 
   if (f.dueTo) p.set("due_to", f.dueTo);
   if (f.parent) p.set("parent", String(f.parent));
   if (f.approval) p.set("approval", f.approval);
+  if (f.blocked) p.set("blocked", "true");
   if (cursor) p.set("cursor", cursor);
   return p.toString();
 }
@@ -158,6 +161,31 @@ export const useItemCounts = (ws: string, project: string, filters: ItemFilters,
         path`/workspaces/${ws}/projects/${project}/items/counts` + "?" + itemsQueryString(filters, null),
       ),
   });
+
+/** Quick-filter counts (ADR-0035): one request for all presets. */
+export interface QueueCounts {
+  all: number;
+  mine: number;
+  overdue: number;
+  approval: number;
+  blocked: number;
+  week: number;
+}
+
+/**
+ * The list's search, status and field filters apply to every count; the
+ * presets set assignee, due, approval and blocked themselves, so those are
+ * left out of the request (and of the cache key).
+ */
+export const useQueueCounts = (ws: string, project: string, filters: ItemFilters, enabled = true) => {
+  const base: ItemFilters = { q: filters.q, assignee: "", ...(filters.status ? { status: filters.status } : {}), ...(filters.fields ? { fields: filters.fields } : {}) };
+  return useQuery({
+    enabled,
+    queryKey: [...keys.items(ws, project), "queue-counts", base],
+    queryFn: () => api<QueueCounts>("GET", path`/workspaces/${ws}/projects/${project}/items/queue-counts` + "?" + itemsQueryString(base, null)),
+    placeholderData: keepPreviousData,
+  });
+};
 
 /** Totals of number fields over every item matching the filters (the table's sum row). */
 export const useItemSums = (ws: string, project: string, filters: ItemFilters, fields: readonly string[]) =>

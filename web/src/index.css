@@ -28,6 +28,10 @@
 }
 
 @layer base {
+  :root {
+    /* Item panel width beside the table from lg (ADR-0035); the list reserves it. */
+    --drawer-w: min(60rem, 64vw);
+  }
   html,
   body,
   #root {

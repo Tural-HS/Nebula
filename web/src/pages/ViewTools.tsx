@@ -111,12 +111,12 @@ export function ViewSwitcher({ ws, project, views, active, dirty, state, isAdmin
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex shrink-0 items-center gap-2">
       <Select
         aria-label={tv.views}
         value={active?.id ?? ""}
         onChange={(e) => { onSelect(views.find((v) => v.id === e.target.value) ?? null); }}
-        className="max-w-56"
+        className="max-w-48"
       >
         <option value="">{tv.allItems}</option>
         {personal.length > 0 && (
@@ -130,7 +130,7 @@ export function ViewSwitcher({ ws, project, views, active, dirty, state, isAdmin
           </optgroup>
         )}
       </Select>
-      {active && dirty && <span className="text-xs text-amber-700 dark:text-amber-400">{tv.modified}</span>}
+      {active && dirty && <span className="text-xs whitespace-nowrap text-amber-700 dark:text-amber-400">{tv.modified}</span>}
       {active?.can_edit && dirty && (
         <Button
           variant="primary"
@@ -141,6 +141,7 @@ export function ViewSwitcher({ ws, project, views, active, dirty, state, isAdmin
         </Button>
       )}
       <Button
+        title={tv.saveAs}
         onClick={() => {
           setName("");
           setShared(false);
@@ -148,7 +149,9 @@ export function ViewSwitcher({ ws, project, views, active, dirty, state, isAdmin
           setDialog("create");
         }}
       >
-        {tv.saveAs}
+        {/* Tablet and small desktop: a "+" keeps the toolbar one row (ADR-0035); the name stays for screen readers. */}
+        <span aria-hidden className="hidden md:max-xl:inline">＋</span>
+        <span className="md:max-xl:sr-only">{tv.saveAs}</span>
       </Button>
       {active?.can_edit && (
         <Popover label={<span aria-hidden>⋯</span>} summaryLabel={tv.viewMenu}>

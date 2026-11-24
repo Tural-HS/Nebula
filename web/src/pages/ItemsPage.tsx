@@ -3,7 +3,7 @@ import { Link, useParams, useSearchParams } from "react-router";
 
 import { MAX_BULK, useOptimisticUpdate } from "../api/bulk";
 import { ApiError } from "../api/client";
-import { useAssignable, useFields, useItems, useItemSums, useItemTypes, useMembers, useProjects, useWorkspace, type DueFilter } from "../api/hooks";
+import { useAssignable, useFields, useItems, useItemSums, useItemTypes, useMembers, useProjects, useQueueCounts, useWorkspace, type DueFilter } from "../api/hooks";
 import { roleAtLeast, type Item, type SavedView, type Status } from "../api/types";
 import { useViews } from "../api/views";
 import { Layout } from "../components/Layout";
@@ -29,6 +29,9 @@ import { BulkBar } from "./BulkBar";
 import { ItemTable, type TableSelection } from "./ItemTable";
 import type { InlineEdit } from "../lib/inline";
 import { ColumnPicker, FilterPicker, Popover, ViewSwitcher } from "./ViewTools";
+import { FilterChips, QueueStrip } from "./ListTools";
+import { filterChips } from "../lib/filterChips";
+import { tlg } from "../i18n-ledger";
 
 // The board (drag and drop) and the item panel (comments, activity) load on
 // demand: the table needs neither for its first paint.
@@ -95,6 +98,7 @@ export function ItemsPage() {
   }, [columns, fields, state.sort]);
   const sumKeys = useMemo(() => (view === "table" ? sumFields(columns, fields) : []), [view, columns, fields]);
   const sums = useItemSums(ws, project, filters, sumKeys);
+  const queueCounts = useQueueCounts(ws, project, filters);
   const statuses = useMemo(() => {
     const seen = new Map<string, Status>();
     for (const it of types.data ?? []) for (const st of it.statuses) if (!seen.has(st.id)) seen.set(st.id, st);
@@ -264,6 +268,12 @@ export function ItemsPage() {
       <option value="mine">{tap.filter.mine}</option>
     </Select>
   );
+  const blockedCheck = (
+    <label className="flex items-center gap-2 text-sm pointer-coarse:min-h-11">
+      <input type="checkbox" className="size-4 accent-brand-600" checked={state.blocked} onChange={(e) => { applyState({ blocked: e.target.checked }); }} />
+      {tlg.blockedChip}
+    </label>
+  );
   const filterPicker = (inline: boolean) => (
     <FilterPicker
       inline={inline}
@@ -319,6 +329,20 @@ export function ItemsPage() {
     </div>
   );
   const readOnly = !canEdit && workspace.data ? <span className="text-xs text-zinc-500">{t.readOnly}</span> : null;
+  // Desktop and tablet (ADR-0035): every filter control in one menu, what is
+  // applied as chips beside it, so the toolbar stays one row.
+  const filtersMenu = (
+    <Popover label={filterCount > 0 ? tv.activeFilters(filterCount) : tv.filters}>
+      <div className="flex flex-col gap-3">
+        <SheetGroup label={t.assignee}>{assigneeSelect("w-full")}</SheetGroup>
+        <SheetGroup label={t.dueFilter}>{dueSelect("w-full")}</SheetGroup>
+        <SheetGroup label={tap.filter.label}>{approvalSelect("w-full")}</SheetGroup>
+        {blockedCheck}
+        {filterPicker(true)}
+      </div>
+    </Popover>
+  );
+  const chips = filterChips(state, statuses, fields, memberById);
 
   return (
     <Layout
@@ -359,6 +383,7 @@ export function ItemsPage() {
       }
     >
       <div className="flex h-full flex-col">
+        <QueueStrip state={state} counts={queueCounts.data} onPick={(patch) => { applyState(patch); }} />
         {compact ? (
           <div className="flex items-center gap-2 border-b border-zinc-200 bg-white px-3 py-2 dark:border-zinc-800 dark:bg-zinc-900">
             {searchBox("min-w-0 flex-1")}
@@ -371,18 +396,29 @@ export function ItemsPage() {
             {viewTabs}
           </div>
         ) : (
-          <div className="flex flex-wrap items-center gap-2 border-b border-zinc-200 bg-white px-4 py-2 dark:border-zinc-800 dark:bg-zinc-900">
-            {viewSwitcher}
-            {searchBox("max-w-64")}
-            {assigneeSelect("max-w-56")}
-            {dueSelect("max-w-48")}
-            {approvalSelect("max-w-56")}
-            {filterPicker(false)}
-            {view !== "calendar" && sortSelect("max-w-48")}
-            {view === "table" && columnPicker(false)}
-            {view === "board" && groupSelect("max-w-48")}
-            <div className="ml-auto">{viewTabs}</div>
-            {readOnly}
+          <div className="border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+            <div className="flex flex-wrap items-center gap-2 px-4 py-2">
+              {viewSwitcher}
+              {searchBox("w-44 min-w-32 xl:w-60")}
+              {filtersMenu}
+              <div className="ml-auto flex shrink-0 items-center gap-2">
+                {view !== "calendar" && sortSelect("max-w-44")}
+                {view === "table" && columnPicker(false)}
+                {view === "board" && groupSelect("max-w-44")}
+                {viewTabs}
+                {readOnly}
+              </div>
+            </div>
+            {/* What is applied, one click to remove; only while filters are on. */}
+            {chips.length > 0 && (
+              <div className="-mt-1 px-4 pb-2">
+                <FilterChips
+                  chips={chips}
+                  onClear={(patch) => { applyState(patch); }}
+                  onClearAll={() => { applyState({ assignee: "", due: "", approval: "", blocked: false, status: [], fields: {} }); }}
+                />
+              </div>
+            )}
           </div>
         )}
         {compact && (
@@ -392,6 +428,7 @@ export function ItemsPage() {
               <SheetGroup label={t.assignee}>{assigneeSelect("")}</SheetGroup>
               <SheetGroup label={t.dueFilter}>{dueSelect("")}</SheetGroup>
               <SheetGroup label={tap.filter.label}>{approvalSelect("")}</SheetGroup>
+              {blockedCheck}
               {filterPicker(true)}
               {view !== "calendar" && <SheetGroup label={tv.sort}>{sortSelect("")}</SheetGroup>}
               {view === "board" && <SheetGroup label={t.groupBy}>{groupSelect("")}</SheetGroup>}
@@ -414,7 +451,8 @@ export function ItemsPage() {
             onClear={() => { setSelected(new Set()); }}
           />
         )}
-        <div className="min-h-0 flex-1">
+        {/* From lg the item panel sits beside the list (ADR-0035): reserve its width. */}
+        <div className={cn("min-h-0 flex-1", openItem !== null && "lg:pr-(--drawer-w)")}>
           {view === "calendar" ? (
             <Suspense fallback={<Spinner />}>
               <CalendarView

@@ -1,6 +1,6 @@
 # ADR-0035: Rəng rejimi, workspace vurğu rəngi və tapşırıq siyahısı/panelinin yeni dizaynı
 
-- Status: Qaralama — rəng rejimi və vurğu rəngi (miqrasiya 00028) qəbul edilib; dizayn istiqamətinin seçimi gözləyir
+- Status: Qəbul edilib — rəng rejimi, vurğu rəngi (miqrasiya 00028) və "Ledger" dizaynı (B-dən iki elementlə)
 - Tarix: 2026-11-24
 
 ## Kontekst
@@ -51,7 +51,7 @@ Seçici "Ümumi" parametrlər səhifəsindədir (admin+) və seçimdə dərhal s
 millisaniyəlik `ACCESS EXCLUSIVE`, cədvəl yenidən yazılmır və skan edilmir; `lock_timeout` 5 s. Down: sütun silinir,
 yalnız vurğu seçimi itir (iz `events`-də qalır); köhnə image sütunu oxumur, hər iki sxemlə işləyir.
 
-## Tapşırıq siyahısı və panel — iki istiqamət (seçim gözləyir)
+## Tapşırıq siyahısı və panel — iki istiqamət
 
 Maketlər: `docs/design/round7/a-ledger.html`, `b-queue.html` (statik, sintetik məlumat; `?theme=dark`,
 `?view=list|drawer`). Ekran görüntüləri (1280 və 375 px, açıq və tünd) eyni qovluqdadır və repoya commit edilmir.
@@ -98,12 +98,30 @@ Fayllar: `a-desktop-light.png`, `a-desktop-light-drawer.png`, `a-desktop-dark.pn
 Fayllar: `b-desktop-light.png`, `b-desktop-light-drawer.png`, `b-desktop-dark.png`, `b-desktop-dark-drawer.png`,
 `b-phone-light.png`, `b-phone-light-drawer.png`, `b-phone-dark.png`, `b-phone-dark-drawer.png`.
 
-### Tövsiyə
+### Seçim
 
-**A**, B-dən iki elementlə: növbə saylarını (B) A-nın görünüş tablarının yanında kiçik rəqəmlər kimi və iş axını
-zolağını (B) A-nın panel başlığında. Səbəb: A mövcud virtual cədvəl, saxlanmış görünüşlər (ADR-0014) və toplu
-əməliyyatlar (ADR-0023) ilə birbaşa uyğundur, backend dəyişikliyi tələb etmir; B-nin qruplu ara cəmləri yeni API
-deməkdir. Son qərar istifadəçinindir.
+İstifadəçi **A ("Ledger")** istiqamətini əsas götürdü, B-dən iki element əlavə olundu: tez filtr sayları zolağı və
+paneldə iş axını addımları + təsdiq qutusu. Qruplu ara cəmlər (B) götürülmədi.
+
+## Qərar: həyata keçirilən dizayn
+
+| Qərar | Səbəb | Alternativ və niyə yox |
+|---|---|---|
+| Toolbar-ın üstündə **tez filtrlər zolağı**: Hamısı, Mənə təyin, Gecikmiş, Təsdiq gözləyir, Bloklanmış, Bu həftə bitir — hər biri say + düymə (`aria-pressed`); kliklə dörd ölçünü (icraçı, son tarix, təsdiq, bloklanma) birlikdə qoyur, axtarış/status/sahə filtrləri qalır | Back-office-in ilk sualı "nə yanır?" bir baxışda cavablanır; preset düymələri mövcud URL vəziyyətini (ADR-0014) yazır, ona görə link paylaşıla bilir | Hər preset üçün ayrıca select: köhnə problemi (çoxlu select) qaytarır |
+| Saylar **bir sorğu** ilə: `GET …/items/queue-counts` → `{all, mine, overdue, approval, blocked, week}`. Server siyahının filtr qurucusunu (`itemFilter`) hər preset üçün işlədir və 6 `count(*)`-u **bir pgx batch**-də (bir round trip) göndərir | Mövcud endpoint-lərlə 6 paralel sorğu: hər səhifə açılışında və hər dəyişiklikdən sonra 6 sorğu, istifadəçi rate limit-ini yeyir. Eyni filtr kodu → saylar siyahı ilə həmişə uyğundur (test yoxlayır), gizlilik (ADR-0013) və "görünən bloklayıcı" qaydası eynidir | `count(*) FILTER (WHERE …)` ilə tək SQL: filtr qurucusunu iki dəfə yazmaq lazım gələrdi |
+| `blocked=true` səhifə vəziyyətinə və linkə əlavə olundu (təsdiq filtri kimi saxlanmış görünüşə yazılmır) | "Bloklanmış" preset-i və çip üçün; API filtri (ADR-0028) artıq var idi | — |
+| Toolbar **bir sətir**: görünüş seçicisi, axtarış, **"Filtrlər" menyusu** (icraçı, son tarix, təsdiq, bloklanmış, statuslar, sahələr), sağda sıralama, sütunlar, rejim tabları. Tətbiq olunmuş filtrlər **silinə bilən çiplər** kimi ayrıca nazik sətirdə (yalnız filtr varsa) | Əvvəl 5–6 select bir sırada sınırdı. Menyu + çip: nə tətbiq olunduğu görünür, bir kliklə silinir | Selectləri toolbar-da saxlamaq: 1024 px-də sınır |
+| Cədvəl: siçan üçün 36 px sətir (toxunuşda 44 px qalır, ADR-0019), başlıqlar böyük hərfsiz, açar monospace deyil (`tabular-nums`), status = rəngli kvadrat + ad | Sıxlıq və oxunaqlıq; nişan-pill-lər sətirdə rəqabət aparmır | — |
+| Sətrin solunda **vəziyyət zolağı** (qırmızı gecikmə, kəhrəba təsdiq, ştrixli bloklanma; ən təcili qalib gəlir), `sticky` — sətir yana sürüşəndə də görünür; `aria-hidden` (məlumat Siqnal sütununda da var) | Siyahını yuxarıdan aşağı süzəndə problemli sətirlər rəngdən tapılır | Sətir fonunu rəngləmək: seçilmiş/hover vəziyyətləri ilə qarışır |
+| Nişanlar başlıqdan **"Siqnal" sütununa** keçdi (istifadəçi sütunu deyil, həmişə başlıqdan sonra): sabit yuvalar — təsdiq, bloklanma, alt tapşırıqlar; son tarix sütunu yoxdursa tarix də burada. Accessible adlar və `data-testid`-lər əvvəlki nişanlarla eynidir | Eyni siqnal hər sətirdə eyni yerdədir; başlıq yalnız başlıqdır | Başlıqda saxlamaq: problemin özü |
+| Panel: lg-dən (≥1024 px) **cədvəlin yanında** (en `min(60rem, 64vw)`), kölgə pərdəsi yoxdur, `aria-modal` yoxdur — başqa sətrə klik paneli dəyişir; cədvəl panelin enini boşaldır. lg-dən aşağı əvvəlki kimi modal; telefonda tam ekran | Maliyyəçi siyahı ilə detal arasında tez-tez keçir; table görünən qalır | Ayrı səhifə: siyahı konteksti itir |
+| Panelin içi: başlıq + **iş axını addımları** (workflow statusları sırası ilə, hazırkı `aria-current="step"`, açıq təsdiq varsa zolaq ştrixli və altında "Təsdiq 1/2, sonra: …"), sonra **iki sütun** — solda məzmun (təsdiq, təsvir, alt tapşırıqlar, əlaqələr, tələb, fayllar, şərhlər), sağda **xüsusiyyətlər** (status, icraçı, son tarix, müəllif, sahələr). Sütunlar container query ilə (`@2xl`, ≈672 px panel eni); dar paneldə və telefonda bir sütun, xüsusiyyətlər əvvəl | Məzmun oxunur, faktlar bir yerdə; tablet paneli dar olduğu üçün media query yox, container query | Tablar (B): bir baxışda hər şeyi göstərmir |
+| Addımlar "mövqedir", "tamamlanıb" deyil | İş axını istənilən keçidə icazə verə bilər | — |
+| Təsdiq qutusu: açıq sorğuda **kim təsdiqlədi** (yaşıl, ✓) və **kim gözlənilir** (server-in `approvers` siyahısı) avatarlarla. `Approvals.tsx`-də yalnız bir sətir dəyişdi (`ApproverRoster` komponenti) | approvals-plus branch-i həmin faylı dəyişir — konflikt minimal | — |
+| Sətirlər yeni `ledger` modulundadır (`locales/<dil>/ledger.ts`, `i18n-ledger.ts`, az/en/tr/ru) | ADR-0025 | — |
+
+**E2E:** `due`, `views`, `approvals` spec-ləri toolbar selectlərini birbaşa seçirdi — indi əvvəlcə "Filtrlər" menyusunu
+açırlar (etiketlər eynidir). Yeni `e2e/ledger.spec.ts`: saylar, preset, çip, Siqnal sütunu, panel yan-yana.
 
 ## Miqrasiya
 
@@ -120,7 +138,8 @@ C (bu ADR) = 00028.
 
 ## Açıq suallar
 
-- Dizayn istiqaməti: A, B və ya qarışıq (tövsiyə yuxarıda).
+- Qruplu ara cəmlər (B) — serverdə qrup üzrə `sums` lazımdır; tələb olsa ayrıca iş.
+- Panel açıqkən toolbar-ın sağ hissəsi panelin altında qalır (sıralama/sütunlar üçün panel bağlanmalıdır).
 - Şrift: `--font-sans` "Inter"-i göstərir, amma şrift yüklənmir (sistem şrifti işləyir). Rəqəmlər üçün self-host
   edilmiş şrift (məs. Inter və ya IBM Plex Sans, `tabular-nums` + `slashed-zero`) ayrıca qərar ola bilər — CSP
   `font-src 'self'` ilə uyğundur.

@@ -169,6 +169,9 @@ func TestApprovalFlow(t *testing.T) {
 	if got := e.must(200, "carol", "GET", items+"?approval=pending", nil).Body["items"].([]any); len(got) != 1 {
 		t.Fatalf("pending filter: %v", got)
 	}
+	if n := e.must(200, "carol", "GET", items+"/queue-counts", nil).Body["approval"]; n != 1.0 {
+		t.Fatalf("queue count of pending approvals: %v", n)
+	}
 	if r := e.call("carol", "GET", items+"?approval=bogus", nil); r.Status != 400 {
 		t.Fatalf("bad filter: %d", r.Status)
 	}
