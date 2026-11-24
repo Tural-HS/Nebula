@@ -73,8 +73,10 @@ CREATE TABLE approval_decisions (
 );
 CREATE INDEX approval_decisions_user_idx ON approval_decisions (user_id);
 
--- New in-app notification kinds (ADR-0017). NOT VALID + VALIDATE: no long
--- lock while existing rows are checked (they all satisfy the wider list).
+-- New in-app notification kinds (ADR-0017). goose runs this file in one
+-- transaction, so NOT VALID + VALIDATE does not shorten the ACCESS EXCLUSIVE
+-- lock on notifications (held until commit); the check is a cheap scan of a
+-- small table, and every existing row satisfies the wider list.
 ALTER TABLE notifications DROP CONSTRAINT IF EXISTS notifications_kind_check;
 ALTER TABLE notifications ADD CONSTRAINT notifications_kind_check CHECK (kind IN (
     'mention', 'assigned', 'overdue', 'comment',

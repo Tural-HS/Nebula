@@ -22,6 +22,14 @@ export function notificationLead(n: Pick<AppNotification, "kind" | "actor_name">
       return tap.notify.rejected(actor);
     case "approval_canceled":
       return tap.notify.canceled(actor);
+    case "status_changed":
+      return tn.statusChanged(actor);
+    case "assignee_changed":
+      return tn.assigneeChanged(actor);
+    case "due_changed":
+      return tn.dueChanged(actor);
+    case "link_added":
+      return tn.linkAdded(actor);
   }
 }
 

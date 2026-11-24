@@ -66,7 +66,9 @@ func TestNotifications(t *testing.T) {
 	if got := kinds(e.notes("bob", "")); !sameList(got, []string{"assigned:ACME-1"}) {
 		t.Fatalf("bob: %v", got)
 	}
-	if got := kinds(e.notes("carol", "")); !sameList(got, []string{"assigned:ACME-2"}) {
+	// carol reported ACME-2, so she watches it (ADR-0028): alice taking it
+	// over is an assignee change for her; her own self-assignment is nothing.
+	if got := kinds(e.notes("carol", "")); !sameList(got, []string{"assigned:ACME-2", "assignee_changed:ACME-2"}) {
 		t.Fatalf("carol (self-assignment must not notify): %v", got)
 	}
 	if got := e.notes("alice", ""); len(got) != 0 {
@@ -85,7 +87,7 @@ func TestNotifications(t *testing.T) {
 	if got := kinds(e.notes("bob", "")); !sameList(got, []string{"mention:ACME-1", "assigned:ACME-1"}) {
 		t.Fatalf("bob after mention (mention wins over comment): %v", got)
 	}
-	if got := kinds(e.notes("carol", "")); !sameList(got, []string{"comment:ACME-1", "assigned:ACME-2"}) {
+	if got := kinds(e.notes("carol", "")); !sameList(got, []string{"comment:ACME-1", "assigned:ACME-2", "assignee_changed:ACME-2"}) {
 		t.Fatalf("carol as reporter: %v", got)
 	}
 	if got := e.notes("alice", ""); len(got) != 0 {
@@ -99,7 +101,8 @@ func TestNotifications(t *testing.T) {
 	e.drain()
 	e.must(200, "carol", "PATCH", items+"/1/comments/"+c["id"].(string), map[string]any{"body": "Working on it!! " + mention(alice)})
 	e.drain()
-	if got := kinds(e.notes("alice", "")); !sameList(got, []string{"mention:ACME-1"}) {
+	// alice commented first, so she watches ACME-1 and hears of carol's comment.
+	if got := kinds(e.notes("alice", "")); !sameList(got, []string{"mention:ACME-1", "comment:ACME-1"}) {
 		t.Fatalf("alice after edit: %v", got)
 	}
 	if got := kinds(e.notes("bob", "")); !sameList(got, []string{"comment:ACME-1", "mention:ACME-1", "assigned:ACME-1"}) {
@@ -188,7 +191,7 @@ func TestNotifications(t *testing.T) {
 		if got := e.unread("bob"); got != 0 || len(e.notes("bob", "")) != 5 {
 			t.Fatalf("after read-all: unread %d", got)
 		}
-		if got := e.unread("carol"); got != 2 {
+		if got := e.unread("carol"); got != 3 {
 			t.Fatalf("read-all touched another user: carol %d", got)
 		}
 	})

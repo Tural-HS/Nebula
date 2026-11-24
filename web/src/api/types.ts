@@ -113,6 +113,8 @@ export interface Item {
   subtasks?: SubtaskSummary;
   /** The pending approval request (ADR-0026); null when none. */
   approval?: PendingApproval | null;
+  /** An open item the viewer can see blocks this one (ADR-0028); list responses only. */
+  blocked?: boolean;
   version: number;
   created_at: string;
   updated_at: string;

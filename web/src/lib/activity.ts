@@ -1,7 +1,9 @@
 import type { Activity } from "../api/types";
 import { t } from "../i18n";
 import { tap } from "../i18n-approvals";
+import { activeLocale } from "../i18n/locale";
 import { ta } from "../i18n-attach";
+import { tl } from "../i18n-links";
 import { ts } from "../i18n-subtasks";
 import { formatDate } from "./format";
 
@@ -63,6 +65,14 @@ export function describe(a: Activity, lookup: Lookup): Line[] {
       return [{ text: tap.act.canceled }];
     case "approval.applied":
       return [{ text: tap.act.applied, to: lookup.status(str(a.data.to_status_id)) ?? "?" }];
+    case "link.added":
+    case "link.removed": {
+      const other = a.data.other_item as { key?: unknown } | undefined;
+      const key = typeof other?.key === "string" ? other.key : "?";
+      const type = linkTypeName(a.data.type);
+      if (a.action === "link.removed" && a.data.reason === "item_deleted") return [{ text: tl.act.removedByDelete(key) }];
+      return [{ text: a.action === "link.added" ? tl.act.added(type, key) : tl.act.removed(type, key) }];
+    }
     case "item.updated": {
       const changes = (a.data.changes ?? {}) as Record<string, Change>;
       const lines: Line[] = [];
@@ -112,6 +122,12 @@ export function describe(a: Activity, lookup: Lookup): Line[] {
     default:
       return [{ text: t.act.other(a.action) }];
   }
+}
+
+function linkTypeName(v: unknown): string {
+  const types: Partial<Record<string, string>> = tl.types;
+  const name = typeof v === "string" ? types[v] : undefined;
+  return name ? name.toLocaleLowerCase(activeLocale()) : "?";
 }
 
 export function actorName(a: Activity): string {

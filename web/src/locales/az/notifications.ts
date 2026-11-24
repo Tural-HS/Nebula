@@ -13,5 +13,9 @@ export const tn = {
   assigned: "Sizə təyin edildi",
   overdue: "Son tarixi keçdi",
   comment: (actor: string) => `${actor} şərh yazdı`,
+  statusChanged: (actor: string) => `${actor} statusu dəyişdi`,
+  assigneeChanged: (actor: string) => `${actor} icraçını dəyişdi`,
+  dueChanged: (actor: string) => `${actor} son tarixi dəyişdi`,
+  linkAdded: (actor: string) => `${actor} əlaqə əlavə etdi`,
   unread: "oxunmamış",
 };

@@ -19,5 +19,9 @@ export const tn = {
   assigned: "Assigned to you",
   overdue: "Due date passed",
   comment: (actor: string) => `${actor} commented`,
+  statusChanged: (actor: string) => `${actor} changed the status`,
+  assigneeChanged: (actor: string) => `${actor} changed the assignee`,
+  dueChanged: (actor: string) => `${actor} changed the due date`,
+  linkAdded: (actor: string) => `${actor} added a link`,
   unread: "unread",
 } satisfies Messages["notifications"];

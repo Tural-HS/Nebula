@@ -6,6 +6,7 @@ import { tc as calendar } from "./calendar";
 import { t as core } from "./core";
 import { ti as importer } from "./import";
 import { ti as invite } from "./invite";
+import { tl as links } from "./links";
 import { tm as mobile } from "./mobile";
 import { tn as notifications } from "./notifications";
 import { tp as project } from "./project";
@@ -16,4 +17,4 @@ import { tt as templates } from "./templates";
 import { tv as views } from "./views";
 import { tw as workdays } from "./workdays";
 
-export const az = { admin, approvals, attach, calendar, core, importer, invite, mobile, notifications, project, recur, search, subtasks, templates, views, workdays };
+export const az = { admin, approvals, attach, calendar, core, importer, invite, links, mobile, notifications, project, recur, search, subtasks, templates, views, workdays };

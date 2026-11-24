@@ -10,6 +10,7 @@ import { keys, useColumnItems, useItemCounts, useItemTypes, useUpdateItem, type 
 import type { Item, Member, Status, StatusCategory } from "../api/types";
 import { useToast } from "../components/toast-context";
 import { ApprovalBadge } from "../components/Approvals";
+import { BlockedBadge } from "../components/Links";
 import { SubtaskBadge } from "../components/Subtasks";
 import { Avatar, DueChip, EmptyState, ErrorState, Spinner, StatusBadge } from "../components/ui";
 import { cn } from "../lib/cn";
@@ -266,6 +267,7 @@ function CardBody({ item, members, className, ref, ...rest }: HTMLAttributes<HTM
           {item.due_date && <DueChip date={item.due_date} overdue={item.overdue} />}
           <SubtaskBadge summary={item.subtasks} />
           <ApprovalBadge approval={item.approval} />
+          <BlockedBadge blocked={item.blocked} />
         </div>
       ) : null}
       <div className="mt-2 flex items-center justify-between gap-2">

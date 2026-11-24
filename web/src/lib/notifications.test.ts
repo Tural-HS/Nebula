@@ -31,6 +31,11 @@ describe("notificationText", () => {
     [{ kind: "approval_applied" }, "Təsdiq sorğunuz qəbul edildi: QA-12 Giriş xətası"],
     [{ kind: "approval_rejected" }, "Alice təsdiq sorğunuzu rədd etdi: QA-12 Giriş xətası"],
     [{ kind: "approval_canceled" }, "Alice təsdiq sorğunuzu ləğv etdi: QA-12 Giriş xətası"],
+    // Watcher kinds (ADR-0028)
+    [{ kind: "status_changed" }, "Alice statusu dəyişdi: QA-12 Giriş xətası"],
+    [{ kind: "assignee_changed" }, "Alice icraçını dəyişdi: QA-12 Giriş xətası"],
+    [{ kind: "due_changed" }, "Alice son tarixi dəyişdi: QA-12 Giriş xətası"],
+    [{ kind: "link_added", actor_name: null }, "Bir istifadəçi əlaqə əlavə etdi: QA-12 Giriş xətası"],
   ] as const)("%o", (patch, want) => {
     expect(notificationText({ ...base, ...patch })).toBe(want);
   });

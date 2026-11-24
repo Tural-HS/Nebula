@@ -191,7 +191,7 @@ func (a *api) itemActivity(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	list, next, err := a.store.ItemActivity(r.Context(), workspaceFrom(r).ID, projectFrom(r).ID, n, before, limit)
+	list, next, err := a.store.ItemActivity(r.Context(), workspaceFrom(r).ID, projectFrom(r).ID, n, viewer(r), before, limit)
 	if err != nil {
 		a.fail(w, r, err)
 		return

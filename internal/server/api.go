@@ -80,6 +80,7 @@ func (a *api) routes(r chi.Router) {
 			r.With(requireRole(store.RoleMember)).Patch("/items/{number}", a.updateItem)
 			r.With(requireRole(store.RoleMember)).Delete("/items/{number}", a.deleteItem)
 			a.itemCollabRoutes(r)
+			a.linkRoutes(r)
 			a.attachmentRoutes(r)
 			a.importRoutes(r)
 			a.recurrenceRoutes(r)
@@ -463,11 +464,21 @@ func parseItemFilters(w http.ResponseWriter, r *http.Request) (store.ListItemsPa
 	if !parseParentFilters(w, q, projectFrom(r).Key, &p) {
 		return store.ListItemsParams{}, false
 	}
-	switch v := q.Get("approval"); v {
+	v := viewer(r)
+	p.Viewer = &v
+	switch a := q.Get("approval"); a {
 	case "", "pending", "mine":
-		p.Approval, p.Viewer = v, viewer(r)
+		p.Approval = a
 	default:
 		writeError(w, http.StatusBadRequest, "bad_request", "approval must be pending or mine")
+		return store.ListItemsParams{}, false
+	}
+	switch q.Get("blocked") {
+	case "", "false":
+	case "true":
+		p.Blocked = true
+	default:
+		writeError(w, http.StatusBadRequest, "bad_request", "blocked must be true or false")
 		return store.ListItemsParams{}, false
 	}
 	switch v := q.Get("assignee"); v {

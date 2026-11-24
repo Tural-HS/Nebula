@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, type CSSProperties, type ReactNode } from "
 
 import type { FieldDefinition, FieldSums, Item, Member } from "../api/types";
 import { ApprovalBadge } from "../components/Approvals";
+import { BlockedBadge } from "../components/Links";
 import { SubtaskBadge } from "../components/Subtasks";
 import { tc } from "../i18n-calendar";
 import { inlineKind, type InlineEdit } from "../lib/inline";
@@ -137,6 +138,7 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
             <span className="truncate">{it.title}</span>
             <SubtaskBadge summary={it.subtasks} />
             <ApprovalBadge approval={it.approval} />
+            <BlockedBadge blocked={it.blocked} />
             {showDueInTitle && it.due_date && <DueChip date={it.due_date} overdue={it.overdue} />}
           </span>
         );

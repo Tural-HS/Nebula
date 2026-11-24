@@ -41,10 +41,13 @@ type Item struct {
 	Parent      *ItemParent    `json:"parent"`   // nil for a top-level item (ADR-0021)
 	Subtasks    SubtaskSummary `json:"subtasks"`
 	// Approval is the pending approval request (ADR-0026); nil when none.
-	Approval  *PendingApproval `json:"approval"`
-	Version   int              `json:"version"`
-	CreatedAt time.Time        `json:"created_at"`
-	UpdatedAt time.Time        `json:"updated_at"`
+	Approval *PendingApproval `json:"approval"`
+	// Blocked: an open item the viewer can see blocks this one (ADR-0028).
+	// Only list responses fill it in; elsewhere it is omitted.
+	Blocked   *bool     `json:"blocked,omitempty"`
+	Version   int       `json:"version"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 const (
@@ -177,6 +180,10 @@ func createItemTx(ctx context.Context, tx pgx.Tx, p CreateItemParams, extra map[
 	if err != nil {
 		return Item{}, err
 	}
+	// The reporter and the assignee watch the item (ADR-0028).
+	if err := autoWatch(ctx, tx, p.WorkspaceID, id, reporter, item.AssigneeID); err != nil {
+		return Item{}, err
+	}
 	payload := createdPayload(item)
 	for k, v := range extra {
 		payload[k] = v
@@ -242,9 +249,13 @@ type ListItemsParams struct {
 	ParentNumber *int64            // only subtasks of this item
 	TopLevel     bool              // only items without a parent
 	Approval     string            // "", "pending" (any open request) or "mine" (Viewer may decide), ADR-0026
-	Viewer       Viewer            // who is asking; used by Approval == "mine"
-	Limit        int
-	Cursor       *ItemCursor // continue after this position (nil = from the start)
+	// Viewer, when set, fills Item.Blocked for the page (one batched query)
+	// and is required by the Blocked and Approval == "mine" filters:
+	// blockers in projects the viewer cannot see never count (ADR-0013).
+	Viewer  *Viewer
+	Blocked bool // only items with an open, visible blocker
+	Limit   int
+	Cursor  *ItemCursor // continue after this position (nil = from the start)
 }
 
 // ListItems returns one page of items in the requested order using keyset
@@ -281,6 +292,20 @@ func (s *Store) ListItems(ctx context.Context, p ListItemsParams) (items []Item,
 	if len(items) > p.Limit {
 		items = items[:p.Limit]
 		next = cursorAfter(p.Sort, items[len(items)-1])
+	}
+	if p.Viewer != nil {
+		ids := make([]uuid.UUID, len(items))
+		for i, it := range items {
+			ids[i] = it.ID
+		}
+		blocked, err := blockedItems(ctx, s.pool, p.WorkspaceID, ids, *p.Viewer)
+		if err != nil {
+			return nil, nil, err
+		}
+		for i := range items {
+			b := blocked[items[i].ID]
+			items[i].Blocked = &b
+		}
 	}
 	return items, next, nil
 }
@@ -344,6 +369,9 @@ func (s *Store) itemFilter(ctx context.Context, p ListItemsParams, withStatus bo
 	case "pending":
 		where = append(where, "EXISTS (SELECT 1 FROM approval_requests far WHERE far.item_id = i.id AND far.state = 'pending')")
 	case "mine":
+		if p.Viewer == nil {
+			return nil, nil, errors.New("approval filter mine needs a viewer")
+		}
 		// Same eligibility as eligibleApproversSQL, minus project access: the
 		// list is already limited to a project the viewer can see.
 		args = append(args, p.Viewer.UserID, p.Viewer.Role)
@@ -354,6 +382,13 @@ func (s *Store) itemFilter(ctx context.Context, p ListItemsParams, withStatus bo
 			AND NOT EXISTS (SELECT 1 FROM approval_decisions fd WHERE fd.request_id = far.id AND fd.user_id = `+u+`))`)
 	default:
 		return nil, nil, invalid("approval", "must be pending or mine")
+	}
+	if p.Blocked {
+		if p.Viewer == nil {
+			return nil, nil, errors.New("blocked filter needs a viewer")
+		}
+		args = append(args, p.Viewer.UserID, RoleAtLeast(p.Viewer.Role, RoleAdmin))
+		where = append(where, blockedFilter("$"+strconv.Itoa(len(args)-1), "$"+strconv.Itoa(len(args))+"::boolean"))
 	}
 	if len(p.FieldFilters) > 0 {
 		conds, err := fieldFilterConditions(ctx, s.pool, p.WorkspaceID, p.FieldFilters)
@@ -619,6 +654,11 @@ func updateItemTx(ctx context.Context, tx pgx.Tx, p UpdateItemParams, in checked
 			return err
 		}
 		changed = true
+		if _, ok := changes["assignee_id"]; ok {
+			if err := autoWatch(ctx, tx, p.WorkspaceID, id, newAssignee); err != nil {
+				return err
+			}
+		}
 		payload := map[string]any{"changes": changes, "snapshot": Snapshot(item)}
 		maps.Copy(payload, extra)
 		return appendEvent(ctx, tx, p.WorkspaceID, p.ActorID, "item", id, "item.updated", payload)
@@ -695,6 +735,11 @@ func deleteItemTx(ctx context.Context, tx pgx.Tx, wsID, projectID uuid.UUID, num
 		return err
 	}
 	if err := appendEvent(ctx, tx, wsID, actorID, "item", id, "item.deleted", extra); err != nil {
+		return err
+	}
+	// A deleted item's links go with it (ADR-0028); the other side's history
+	// records link.removed.
+	if err := removeItemLinks(ctx, tx, wsID, actorID, id); err != nil {
 		return err
 	}
 	// Subtasks of a deleted item become top-level (ADR-0021), for single and

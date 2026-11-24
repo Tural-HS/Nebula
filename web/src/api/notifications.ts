@@ -3,8 +3,20 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, path } from "./client";
 
 export type NotificationKind =
-  | "mention" | "assigned" | "overdue" | "comment"
-  | "approval_requested" | "approval_applied" | "approval_rejected" | "approval_canceled";
+  | "mention"
+  | "assigned"
+  | "overdue"
+  | "comment"
+  // Approvals (ADR-0026)
+  | "approval_requested"
+  | "approval_applied"
+  | "approval_rejected"
+  | "approval_canceled"
+  // Watchers (ADR-0028)
+  | "status_changed"
+  | "assignee_changed"
+  | "due_changed"
+  | "link_added";
 
 /** One entry of GET /me/notifications; item key and title are current. */
 export interface AppNotification {

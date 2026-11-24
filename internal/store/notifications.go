@@ -12,12 +12,16 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// Notification kinds (ADR-0017).
+// Notification kinds (ADR-0017; approvals ADR-0026; watchers ADR-0028).
 const (
-	NotifyMention  = "mention"
-	NotifyAssigned = "assigned"
-	NotifyOverdue  = "overdue"
-	NotifyComment  = "comment"
+	NotifyMention         = "mention"
+	NotifyAssigned        = "assigned"
+	NotifyOverdue         = "overdue"
+	NotifyComment         = "comment"
+	NotifyStatusChanged   = "status_changed"
+	NotifyAssigneeChanged = "assignee_changed"
+	NotifyDueChanged      = "due_changed"
+	NotifyLinkAdded       = "link_added"
 	// Approvals (ADR-0026): to eligible approvers on a request, to the
 	// requester when it is applied, rejected or canceled by someone else.
 	NotifyApprovalRequested = "approval_requested"
@@ -36,6 +40,22 @@ const (
 	notificationPurgeBatch    = 10_000
 )
 
+// isBulk reports whether an event is part of a bulk edit (ADR-0023). Bulk
+// edits notify the new assignee as before, but never watchers: one bulk
+// status change of 500 items must not become 500 notifications per watcher.
+func isBulk(e Event) bool {
+	_, ok := e.Payload["bulk"]
+	return ok
+}
+
+// watchedChanges are the item.updated changes watchers hear about, in
+// priority order (one notification per person and event: the first wins).
+var watchedChanges = []struct{ change, kind string }{
+	{"status_id", NotifyStatusChanged},
+	{"assignee_id", NotifyAssigneeChanged},
+	{"due_date", NotifyDueChanged},
+}
+
 // notifiable reports whether an event can produce notifications, so FanOut
 // enqueues a notifications job only when there may be something to do.
 // Imported items never dispatch (ADR-0011), so they never notify either.
@@ -44,13 +64,22 @@ func notifiable(e Event) bool {
 		return false
 	}
 	switch e.Action {
-	case TriggerItemCreated, TriggerItemOverdue, "comment.created", "comment.updated",
+	case TriggerItemCreated, TriggerItemOverdue, "comment.created", "comment.updated", "link.added",
 		EventApprovalRequested, EventApprovalApplied, EventApprovalRejected, EventApprovalCanceled:
 		return true
 	case TriggerItemUpdated:
 		changes, _ := e.Payload["changes"].(map[string]any)
-		_, ok := changes["assignee_id"]
-		return ok
+		if _, ok := changes["assignee_id"]; ok {
+			return true
+		}
+		if isBulk(e) {
+			return false
+		}
+		for _, w := range watchedChanges {
+			if _, ok := changes[w.change]; ok {
+				return true
+			}
+		}
 	}
 	return false
 }
@@ -87,8 +116,9 @@ func payloadUUIDs(v any) []uuid.UUID {
 
 // CreateNotifications writes the in-app notifications for one event. It is
 // idempotent: (event_id, recipient_id) is unique, so a retried job inserts
-// nothing new. The actor is never notified, and every recipient must be an
-// active workspace member who can see the item's project right now.
+// nothing new. The actor is never notified, nobody gets two notifications
+// for one event, and every recipient must be an active workspace member who
+// can see the item's project right now (for link.added: both items).
 // It returns the number of notifications created.
 func (s *Store) CreateNotifications(ctx context.Context, e Event) (int, error) {
 	if !notifiable(e) {
@@ -118,6 +148,21 @@ func (s *Store) CreateNotifications(ctx context.Context, e Event) (int, error) {
 			}
 			want = append(want, recipient{id: *id, kind: kind})
 		}
+		var watchers []uuid.UUID
+		loadWatchers := func() error {
+			rows, err := tx.Query(ctx, `SELECT user_id FROM item_watchers WHERE item_id = $1 ORDER BY created_at, user_id`, e.EntityID)
+			if err != nil {
+				return err
+			}
+			watchers, err = pgx.CollectRows(rows, pgx.RowTo[uuid.UUID])
+			return err
+		}
+		addWatchers := func(kind string) {
+			for i := range watchers {
+				add(&watchers[i], kind)
+			}
+		}
+		var other *uuid.UUID // link.added: recipients must see the other item too
 		switch e.Action {
 		case TriggerItemCreated:
 			snap, _ := e.Payload["snapshot"].(map[string]any)
@@ -126,6 +171,16 @@ func (s *Store) CreateNotifications(ctx context.Context, e Event) (int, error) {
 			changes, _ := e.Payload["changes"].(map[string]any)
 			change, _ := changes["assignee_id"].(map[string]any)
 			add(payloadUUID(change["to"]), NotifyAssigned)
+			if !isBulk(e) {
+				if err := loadWatchers(); err != nil {
+					return err
+				}
+				for _, w := range watchedChanges {
+					if _, ok := changes[w.change]; ok {
+						addWatchers(w.kind)
+					}
+				}
+			}
 		case TriggerItemOverdue:
 			add(payloadUUID(e.Payload["assignee_id"]), NotifyOverdue)
 		case "comment.created":
@@ -136,10 +191,34 @@ func (s *Store) CreateNotifications(ctx context.Context, e Event) (int, error) {
 			}
 			add(assignee, NotifyComment)
 			add(reporter, NotifyComment)
+			if err := loadWatchers(); err != nil {
+				return err
+			}
+			addWatchers(NotifyComment)
 		case "comment.updated":
 			for _, id := range payloadUUIDs(e.Payload["mentions_added"]) {
 				add(&id, NotifyMention)
 			}
+		case "link.added":
+			if other = payloadUUID(e.Payload["other_item_id"]); other == nil {
+				return nil
+			}
+			if err := loadWatchers(); err != nil {
+				return err
+			}
+			if src, _ := e.Payload["source"].(bool); !src {
+				// Watchers of both items hear of the link once: on the source.
+				rows, err := tx.Query(ctx, `SELECT user_id FROM item_watchers WHERE item_id = $1`, *other)
+				if err != nil {
+					return err
+				}
+				both, err := pgx.CollectRows(rows, pgx.RowTo[uuid.UUID])
+				if err != nil {
+					return err
+				}
+				watchers = slices.DeleteFunc(watchers, func(id uuid.UUID) bool { return slices.Contains(both, id) })
+			}
+			addWatchers(NotifyLinkAdded)
 		case EventApprovalRequested:
 			if err := addApprovers(ctx, tx, e, projectID, add); err != nil {
 				return err
@@ -151,24 +230,33 @@ func (s *Store) CreateNotifications(ctx context.Context, e Event) (int, error) {
 		case EventApprovalCanceled:
 			add(payloadUUID(e.Payload["requested_by"]), NotifyApprovalCanceled)
 		}
-
-		for _, r := range want {
-			ok, err := canSeeProject(ctx, tx, e.WorkspaceID, projectID, r.id)
-			if err != nil {
-				return err
-			}
-			if !ok {
-				continue
-			}
-			tag, err := tx.Exec(ctx, `INSERT INTO notifications (workspace_id, recipient_id, event_id, kind, project_id, item_id, actor_id)
-				SELECT $1, u.id, $3, $4, $5, $6, $7 FROM users u WHERE u.id = $2 AND u.is_active
-				ON CONFLICT (event_id, recipient_id) DO NOTHING`,
-				e.WorkspaceID, r.id, e.ID, r.kind, projectID, e.EntityID, e.ActorID)
-			if err != nil {
-				return err
-			}
-			n += int(tag.RowsAffected())
+		if len(want) == 0 {
+			return nil
 		}
+
+		ids := make([]string, len(want))
+		kinds := make([]string, len(want))
+		for i, r := range want {
+			ids[i], kinds[i] = r.id.String(), r.kind
+		}
+		// One statement for every recipient: active member, sees the project
+		// (and, for a link, the other item's project) right now.
+		tag, err := tx.Exec(ctx, `INSERT INTO notifications (workspace_id, recipient_id, event_id, kind, project_id, item_id, actor_id)
+			SELECT $1, r.id, $2, r.kind, $3, $4, $5
+			FROM unnest($6::uuid[], $7::text[]) AS r (id, kind)
+			JOIN users u ON u.id = r.id AND u.is_active
+			JOIN workspace_members m ON m.workspace_id = $1 AND m.user_id = r.id
+			JOIN projects p ON p.workspace_id = $1 AND p.id = $3
+			WHERE `+visibleProjectFor("p", "r.id", "m.role IN ('admin', 'owner')")+`
+			  AND ($8::uuid IS NULL OR EXISTS (SELECT 1 FROM items o JOIN projects op ON op.id = o.project_id
+			       WHERE o.workspace_id = $1 AND o.id = $8 AND o.deleted_at IS NULL
+			         AND `+visibleProjectFor("op", "r.id", "m.role IN ('admin', 'owner')")+`))
+			ON CONFLICT (event_id, recipient_id) DO NOTHING`,
+			e.WorkspaceID, e.ID, projectID, e.EntityID, e.ActorID, ids, kinds, other)
+		if err != nil {
+			return err
+		}
+		n = int(tag.RowsAffected())
 		return nil
 	})
 	return n, err
