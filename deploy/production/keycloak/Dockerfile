@@ -37,6 +37,10 @@ RUN /opt/keycloak/bin/kc.sh build
 FROM quay.io/keycloak/keycloak:26.8.2@sha256:7e66a96e4739239070aeaf72e4c5decf0f7f682cfc725b9f7ea2b336eaba38b3
 COPY --from=builder /opt/keycloak/ /opt/keycloak/
 COPY --chmod=0755 nebula-entrypoint.sh /opt/keycloak/bin/nebula-entrypoint.sh
+# Nebula login theme (ADR-0036): CSS + images extending keycloak.v2. Themes are read at runtime,
+# not by `kc.sh build`, so it is copied after the build stage (a CSS change does not re-run the
+# build). Root-owned and read-only for uid 1000; production keeps Keycloak's theme cache on.
+COPY themes/nebula /opt/keycloak/themes/nebula
 USER 1000
 ENTRYPOINT ["/opt/keycloak/bin/nebula-entrypoint.sh"]
 CMD ["start", "--optimized"]

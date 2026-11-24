@@ -1,0 +1,453 @@
+/*
+ * Nebula login theme (ADR-0036). Loaded after keycloak.v2's patternfly.min.css and styles.css.
+ *
+ * Layout: from 900 px a two-pane page. The Keycloak header (#kc-header) becomes a full-height
+ * brand panel (gradient, large logo, "Nebula", tagline) and the form card sits on a clean
+ * surface on the right. Below 900 px the panel is a gradient band above the form. The panel's
+ * text comes from loginTitleHtml in messages/messages_<lang>.properties (no template overrides).
+ *
+ * PatternFly 5 declares its global tokens on :where(:root) and :where(.pf-v5-theme-dark), both
+ * with zero specificity, so plain :root / .pf-v5-theme-dark rules here win without !important.
+ * Dark mode: keycloak.v2's darkMode script toggles .pf-v5-theme-dark on <html> from
+ * prefers-color-scheme (theme.properties darkMode=true).
+ *
+ * Colours: brand scale from web/src/index.css (oklch -> sRGB hex). The primary teal is a more
+ * saturated step at brand-600's lightness (oklch 0.52 0.12 205) so the button reads as the brand
+ * colour, not grey-blue. WCAG 2.x:
+ *   white on primary #007b89 5.0:1, on hover #00657c 6.7:1; link #00657c on white 6.7:1;
+ *   dark-mode links brand-300 #80d0d9 on zinc-900 10.6:1; focus ring >= 3:1 on both surfaces.
+ * No fonts, images or scripts are loaded from anywhere but this theme.
+ */
+
+:root {
+  --nb-brand-100: #cdf4f6;
+  --nb-brand-200: #abe5eb;
+  --nb-brand-300: #80d0d9;
+  --nb-brand-400: #50b6c1;
+  --nb-brand-800: #15466a;
+  --nb-teal: #007b89;
+  --nb-teal-strong: #00657c;
+
+  --nb-font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  /* Light (default). */
+  --nb-page: #f4f4f5;            /* zinc-100: right pane / page */
+  --nb-surface: #ffffff;
+  --nb-surface-sunken: #f4f4f5;
+  --nb-border: #e4e4e7;          /* zinc-200 */
+  --nb-input-border: #d4d4d8;    /* zinc-300 */
+  --nb-input-underline: #a1a1aa; /* zinc-400 */
+  --nb-text: #18181b;            /* zinc-900 */
+  --nb-text-muted: #52525b;      /* zinc-600: 7.7:1 on white, 7.0:1 on zinc-100 */
+  --nb-primary: var(--nb-teal);
+  --nb-primary-hover: var(--nb-teal-strong);
+  --nb-on-primary: #ffffff;
+  --nb-link: var(--nb-teal-strong);
+  --nb-link-hover: var(--nb-brand-800);
+  --nb-focus: var(--nb-teal);    /* 5.0:1 on white */
+  --nb-focus-halo: rgb(0 123 137 / 0.22);
+  --nb-shadow: 0 1px 2px rgb(24 24 27 / 0.05), 0 12px 32px -16px rgb(19 25 59 / 0.25);
+
+  /* The brand panel looks the same in both modes: logo navy -> indigo -> teal, with soft glows
+     and (desktop only) a few "stars", all CSS gradients. The stars sit away from the centred
+     text; the phone band drops them because its text spans the band. */
+  --nb-panel-base:
+    radial-gradient(ellipse 70% 50% at 88% 100%, rgb(35 151 162 / 0.55), transparent 70%),
+    radial-gradient(ellipse 60% 45% at 0% 0%, rgb(76 70 170 / 0.45), transparent 70%),
+    radial-gradient(circle at 50% 42%, rgb(80 182 193 / 0.16), transparent 38%),
+    linear-gradient(160deg, #13193b 0%, #202955 42%, #15466a 74%, #105e77 100%);
+  --nb-panel-stars:
+    radial-gradient(1.5px 1.5px at 18% 24%, rgb(255 255 255 / 0.75), transparent),
+    radial-gradient(1px 1px at 72% 16%, rgb(255 255 255 / 0.6), transparent),
+    radial-gradient(1.5px 1.5px at 84% 58%, rgb(205 244 246 / 0.7), transparent),
+    radial-gradient(1px 1px at 30% 78%, rgb(255 255 255 / 0.55), transparent),
+    radial-gradient(1px 1px at 58% 88%, rgb(255 255 255 / 0.5), transparent),
+    radial-gradient(1px 1px at 10% 60%, rgb(205 244 246 / 0.55), transparent);
+
+  /* PatternFly globals. */
+  --pf-v5-global--FontFamily--text: var(--nb-font);
+  --pf-v5-global--FontFamily--text--vf: var(--nb-font);
+  --pf-v5-global--FontFamily--heading: var(--nb-font);
+  --pf-v5-global--FontFamily--heading--vf: var(--nb-font);
+  --pf-v5-global--primary-color--100: var(--nb-primary);
+  --pf-v5-global--primary-color--200: var(--nb-primary-hover);
+  --pf-v5-global--active-color--100: var(--nb-primary);
+  --pf-v5-global--link--Color: var(--nb-link);
+  --pf-v5-global--link--Color--hover: var(--nb-link-hover);
+  --pf-v5-global--link--Color--visited: var(--nb-link);
+  /* Context variants: .pf-v5-c-form-control (and .pf-v5-t-light) re-point primary/link at the
+     "--dark-*" values, .pf-v5-c-login__header/__footer at the "--light-*" ones. */
+  --pf-v5-global--primary-color--dark-100: var(--nb-primary);
+  --pf-v5-global--primary-color--light-100: var(--nb-brand-300);
+  --pf-v5-global--link--Color--dark: var(--nb-link);
+  --pf-v5-global--link--Color--dark--hover: var(--nb-link-hover);
+  --pf-v5-global--link--Color--light: var(--nb-brand-300);
+  --pf-v5-global--link--Color--light--hover: var(--nb-brand-200);
+  --pf-v5-global--BackgroundColor--100: var(--nb-surface);
+  --pf-v5-global--BackgroundColor--200: var(--nb-page);
+  --pf-v5-global--Color--100: var(--nb-text);
+  --pf-v5-global--Color--200: var(--nb-text-muted);
+  --pf-v5-global--BorderColor--100: var(--nb-border);
+
+  /* keycloak.v2 styles.css hooks: no Keycloak background art, no blue card stripe. */
+  --keycloak-bg-logo-url: none;
+  --keycloak-card-top-color: transparent;
+}
+
+.pf-v5-theme-dark {
+  --nb-page: #09090b;            /* zinc-950 */
+  --nb-surface: #18181b;         /* zinc-900, the app's dark card */
+  --nb-surface-sunken: #09090b;
+  --nb-border: #27272a;          /* zinc-800 */
+  --nb-input-border: #3f3f46;    /* zinc-700 */
+  --nb-input-underline: #71717a; /* zinc-500 */
+  --nb-text: #f4f4f5;            /* zinc-100 */
+  --nb-text-muted: #a1a1aa;      /* zinc-400: 7.2:1 on zinc-900, 7.8:1 on zinc-950 */
+  --nb-link: var(--nb-brand-300);
+  --nb-link-hover: var(--nb-brand-200);
+  --nb-focus: var(--nb-brand-400); /* 6.9:1 on zinc-900 */
+  --nb-focus-halo: rgb(80 182 193 / 0.25);
+  --nb-shadow: 0 1px 2px rgb(0 0 0 / 0.5), 0 16px 40px -20px rgb(0 0 0 / 0.8);
+
+  --pf-v5-global--link--Color: var(--nb-link);
+  --pf-v5-global--link--Color--hover: var(--nb-link-hover);
+  --pf-v5-global--link--Color--visited: var(--nb-link);
+  --pf-v5-global--primary-color--100: var(--nb-brand-400); /* input underline, secondary buttons */
+  --pf-v5-global--primary-color--200: var(--nb-brand-300);
+  --pf-v5-global--active-color--100: var(--nb-brand-400);
+  --pf-v5-global--primary-color--dark-100: var(--nb-brand-400);
+  --pf-v5-global--primary-color--light-100: var(--nb-brand-400);
+  --pf-v5-global--link--Color--dark: var(--nb-link);
+  --pf-v5-global--link--Color--dark--hover: var(--nb-link-hover);
+  --pf-v5-global--link--Color--light: var(--nb-link);
+  --pf-v5-global--link--Color--light--hover: var(--nb-link-hover);
+  --pf-v5-global--BackgroundColor--100: var(--nb-surface);
+  --pf-v5-global--BackgroundColor--200: var(--nb-page);
+  --pf-v5-global--BackgroundColor--300: var(--nb-surface);
+  --pf-v5-global--BackgroundColor--400: var(--nb-surface-sunken);
+  --pf-v5-global--Color--100: var(--nb-text);
+  --pf-v5-global--Color--200: var(--nb-text-muted);
+  --pf-v5-global--BorderColor--100: var(--nb-border);
+}
+
+/* ---- Page skeleton (all widths) --------------------------------------------------------- */
+
+.login-pf body {
+  margin: 0;
+  background: var(--nb-page);
+  color: var(--nb-text);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+.pf-v5-c-login {
+  --pf-v5-c-login__main--BackgroundColor: var(--nb-surface);
+  --pf-v5-c-login__main--BoxShadow: var(--nb-shadow);
+  display: block;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: 0;
+}
+
+/* keycloak.v2 and PatternFly give the container a fixed 34rem column, side padding and an xl
+   two-column grid of their own; replace all of it. The bottom padding reserves the line of the
+   realm caption (.nb-realm). */
+.pf-v5-c-login__container {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "header" "main";
+  align-content: start;
+  justify-items: center;
+  width: 100%;
+  max-width: none;
+  min-height: 100vh;
+  min-height: 100dvh;
+  margin: 0;
+  padding: 0 0 3rem;
+  column-gap: 0;
+}
+
+/* ---- Brand panel / band (#kc-header) ----------------------------------------------------- */
+
+#kc-header.pf-v5-c-login__header {
+  grid-area: header;
+  justify-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 2rem 1rem 2.25rem;
+  background: var(--nb-panel-base);
+  color: #ffffff;
+  overflow: hidden;
+}
+
+#kc-header-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 400;
+  line-height: 1.3;
+  letter-spacing: normal;
+  text-transform: none;
+  text-align: center;
+  color: #ffffff !important; /* keycloak.v2 sets its own colour with !important */
+}
+
+/* Logo mark, with a soft teal glow so the navy swirl stands off the navy panel. */
+#kc-header-wrapper::before {
+  content: "";
+  display: block;
+  flex: none;
+  width: 64px;
+  height: 64px;
+  background: url("../img/logo-mark.png") center / contain no-repeat;
+  filter: drop-shadow(0 0 18px rgb(80 182 193 / 0.45));
+}
+
+.nb-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.nb-brand-name {
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: #ffffff;
+}
+
+.nb-tagline {
+  max-width: 22rem;
+  font-size: 0.9375rem;
+  line-height: 1.4;
+  color: var(--nb-brand-100);
+}
+
+/* Realm display name: a small caption under the form, so dev and prod stay distinguishable.
+   The production realm is just "Nebula", which the panel already says. */
+.nb-realm {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 1rem;
+  padding: 0 1rem;
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+  text-align: center;
+  color: var(--nb-text-muted);
+}
+
+.nb-realm[title="Nebula"],
+.nb-realm[title=""] {
+  display: none;
+}
+
+/* ---- Form card --------------------------------------------------------------------------- */
+
+.pf-v5-c-login__main {
+  grid-area: main;
+  justify-self: center;
+  width: calc(100% - 1.5rem);
+  max-width: 28rem;
+  margin: 1rem 0 0;
+  border: 1px solid var(--nb-border);
+  border-radius: 14px;
+}
+
+.pf-v5-c-login__main-header {
+  border-top: 0;
+}
+
+/* keycloak.v2 splits title / language picker 70% / 30% from 768 px, which truncates
+   "Azərbaycan"; give the picker its natural width, capped for the long ru labels. */
+@media (min-width: 768px) {
+  div.pf-v5-c-login__main-header:has(.pf-v5-c-login__main-header-utilities) {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .pf-v5-c-login__main-header-utilities {
+    max-width: 11rem;
+  }
+}
+
+#kc-page-title.pf-v5-c-title {
+  font-size: 1.5rem;
+  font-weight: 650;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  color: var(--nb-text);
+}
+
+.pf-v5-c-form-control {
+  --pf-v5-c-form-control--BackgroundColor: var(--nb-surface);
+  --pf-v5-c-form-control--before--BorderTopColor: var(--nb-input-border);
+  --pf-v5-c-form-control--before--BorderRightColor: var(--nb-input-border);
+  --pf-v5-c-form-control--before--BorderLeftColor: var(--nb-input-border);
+  --pf-v5-c-form-control--after--BorderBottomColor: var(--nb-input-underline);
+  --pf-v5-c-form-control--m-readonly--BackgroundColor: var(--nb-surface-sunken);
+}
+
+.pf-v5-theme-dark .pf-v5-c-form-control {
+  --pf-v5-c-form-control--BackgroundColor: var(--nb-surface-sunken);
+}
+
+/* Teal frame around the whole field on focus (PatternFly only thickens the bottom line). */
+.pf-v5-c-form-control:focus-within {
+  --pf-v5-c-form-control--before--BorderTopColor: var(--nb-focus);
+  --pf-v5-c-form-control--before--BorderRightColor: var(--nb-focus);
+  --pf-v5-c-form-control--before--BorderLeftColor: var(--nb-focus);
+  box-shadow: 0 0 0 3px var(--nb-focus-halo);
+}
+
+.pf-v5-c-form-control > :is(input, select):focus-visible {
+  outline: none; /* the teal frame above is the focus indicator */
+}
+
+.pf-v5-c-button {
+  --pf-v5-c-button--BorderRadius: 8px;
+  --pf-v5-c-button--m-primary--BackgroundColor: var(--nb-primary);
+  --pf-v5-c-button--m-primary--Color: var(--nb-on-primary);
+  --pf-v5-c-button--m-primary--hover--BackgroundColor: var(--nb-primary-hover);
+  --pf-v5-c-button--m-primary--hover--Color: var(--nb-on-primary);
+  --pf-v5-c-button--m-primary--focus--BackgroundColor: var(--nb-primary-hover);
+  --pf-v5-c-button--m-primary--focus--Color: var(--nb-on-primary);
+  --pf-v5-c-button--m-primary--active--BackgroundColor: var(--nb-primary-hover);
+  --pf-v5-c-button--m-primary--active--Color: var(--nb-on-primary);
+  --pf-v5-c-button--m-link--Color: var(--nb-link);
+  --pf-v5-c-button--m-link--hover--Color: var(--nb-link-hover);
+  --pf-v5-c-button--m-link--focus--Color: var(--nb-link-hover);
+  --pf-v5-c-button--m-link--active--Color: var(--nb-link-hover);
+}
+
+.pf-v5-c-button.pf-m-primary {
+  min-height: 2.75rem;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgb(0 101 124 / 0.35);
+}
+
+/* One visible focus ring everywhere, as in the app (outline-brand-500). */
+:focus-visible {
+  outline: 2px solid var(--nb-focus);
+  outline-offset: 2px;
+}
+
+/* Logout confirmation (base template markup): the question sits directly on the button. */
+#kc-logout-confirm .instruction {
+  margin-block-end: 1.5rem;
+}
+
+/* Inline alerts: keep PatternFly's status colours (AA in both modes), only soften the frame. */
+.pf-v5-c-alert.pf-m-inline {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* ---- Phones ------------------------------------------------------------------------------ */
+
+@media (max-width: 575.98px) {
+  .pf-v5-c-login__main-header {
+    padding-block-start: 1.5rem;
+  }
+
+  .pf-v5-c-login__main-header,
+  .pf-v5-c-login__main-body,
+  .pf-v5-c-login__main-footer {
+    padding-inline: 1.25rem;
+  }
+
+  /* Band: logo beside the name, tagline under the name; keeps the form above the fold. */
+  #kc-header.pf-v5-c-login__header {
+    padding: 1.5rem 1rem 1.75rem;
+  }
+
+  #kc-header-wrapper {
+    flex-direction: row;
+    justify-content: center;
+    gap: 0.875rem;
+  }
+
+  #kc-header-wrapper::before {
+    width: 52px;
+    height: 52px;
+  }
+
+  .nb-brand {
+    align-items: flex-start;
+    gap: 0.125rem;
+    text-align: start;
+  }
+
+  .nb-brand-name {
+    font-size: 1.75rem;
+  }
+
+  .nb-tagline {
+    font-size: 0.875rem;
+  }
+}
+
+/* ---- Two panes (>= 900 px) --------------------------------------------------------------- */
+
+@media (min-width: 900px) {
+  .pf-v5-c-login__container {
+    grid-template-columns: minmax(0, 42fr) minmax(0, 58fr);
+    grid-template-areas: "header main";
+    align-content: stretch;
+    align-items: center;
+    padding: 0;
+  }
+
+  #kc-header.pf-v5-c-login__header {
+    align-self: stretch;
+    padding: 3rem 2.5rem;
+    background: var(--nb-panel-stars), var(--nb-panel-base);
+  }
+
+  #kc-header-wrapper {
+    gap: 1.5rem;
+  }
+
+  #kc-header-wrapper::before {
+    width: 112px;
+    height: 112px;
+    filter: drop-shadow(0 0 28px rgb(80 182 193 / 0.5));
+  }
+
+  .nb-brand {
+    gap: 0.75rem;
+  }
+
+  .nb-brand-name {
+    font-size: 3.25rem;
+    letter-spacing: -0.03em;
+  }
+
+  .nb-tagline {
+    font-size: 1.125rem;
+  }
+
+  .pf-v5-c-login__main {
+    align-self: center; /* PatternFly: start */
+    width: calc(100% - 4rem);
+    max-width: 30rem;
+    margin: 3rem 0;
+  }
+
+  /* Caption under the card, centred in the right pane (clear of the panel edge). */
+  .nb-realm {
+    left: calc(42% + 1rem);
+    right: 1rem;
+    bottom: 1.5rem;
+    padding: 0;
+  }
+}
