@@ -137,6 +137,17 @@ type ViewInput struct {
 // CreateView saves a new view owned by the caller. Any reader of the project
 // may save personal views; sharing one requires admin.
 func (s *Store) CreateView(ctx context.Context, v ViewCaller, in ViewInput) (View, error) {
+	var out View
+	err := s.inTx(ctx, func(tx pgx.Tx) error {
+		var err error
+		out, err = createView(ctx, tx, v, in)
+		return err
+	})
+	return out, err
+}
+
+// createView is CreateView inside the caller's transaction (workspace kinds, ADR-0033).
+func createView(ctx context.Context, tx pgx.Tx, v ViewCaller, in ViewInput) (View, error) {
 	view := View{ID: newID(), ProjectID: v.ProjectID, OwnerID: v.UserID, Kind: ViewTable}
 	if in.Kind.Set && !in.Kind.Null {
 		view.Kind = in.Kind.Value
@@ -155,7 +166,7 @@ func (s *Store) CreateView(ctx context.Context, v ViewCaller, in ViewInput) (Vie
 		return View{}, ErrForbidden
 	}
 
-	err := s.inTx(ctx, func(tx pgx.Tx) error {
+	err := func() error {
 		if err := validateView(ctx, tx, v, &view); err != nil {
 			return err
 		}
@@ -183,7 +194,7 @@ func (s *Store) CreateView(ctx context.Context, v ViewCaller, in ViewInput) (Vie
 			return appendEvent(ctx, tx, v.WorkspaceID, v.UserID, "view", view.ID, "view.created", viewPayload(view))
 		}
 		return nil
-	})
+	}()
 	if err != nil {
 		return View{}, err
 	}

@@ -9,6 +9,7 @@ import { te as evidence } from "./evidence";
 import { tf as forms } from "./forms";
 import { ti as importer } from "./import";
 import { ti as invite } from "./invite";
+import { tk as kinds } from "./kinds";
 import { tl as links } from "./links";
 import { tm as mobile } from "./mobile";
 import { tn as notifications } from "./notifications";
@@ -21,4 +22,4 @@ import { tv as views } from "./views";
 import { twc as webhookChat } from "./webhookChat";
 import { tw as workdays } from "./workdays";
 
-export const az = { admin, approvals, attach, calendar, core, evidence, forms, formulas, importer, invite, links, mobile, notifications, project, recur, search, subtasks, templates, views, webhookChat, workdays };
+export const az = { admin, approvals, attach, calendar, core, evidence, forms, formulas, importer, invite, kinds, links, mobile, notifications, project, recur, search, subtasks, templates, views, webhookChat, workdays };

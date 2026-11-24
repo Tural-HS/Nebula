@@ -7,8 +7,10 @@ import { Layout } from "../components/Layout";
 import { Button, Dialog, EmptyState, ErrorState, FieldError, Input, Label, Select, Spinner } from "../components/ui";
 import { t } from "../i18n";
 import { ta } from "../i18n-admin";
+import { tk } from "../i18n-kinds";
 import { tt } from "../i18n-templates";
 import { activeLocale, isLocale, LOCALES, type Locale } from "../i18n/locale";
+import { createWorkspaceBody, isWorkspaceKind, kindNotes, WORKSPACE_KINDS, type WorkspaceKind } from "../lib/workspaceKinds";
 
 export function WorkspacesPage() {
   const q = useWorkspaces();
@@ -73,11 +75,13 @@ function CreateWorkspaceForm({ onDone }: { onDone: () => void }) {
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [template, setTemplate] = useState<Locale>(activeLocale);
+  const [kind, setKind] = useState<WorkspaceKind>("general");
+  const notes = kindNotes(kind, template);
 
   const submit = (e: SyntheticEvent) => {
     e.preventDefault();
     create.mutate(
-      { name, slug, template },
+      createWorkspaceBody({ name, slug, template, kind }),
       {
         onSuccess: (w) => {
           onDone();
@@ -109,6 +113,34 @@ function CreateWorkspaceForm({ onDone }: { onDone: () => void }) {
         </Select>
         <p className="mt-1 text-xs text-zinc-500">{tt.templateHint}</p>
       </div>
+      {/* Team kind (ADR-0033): one column of cards on phones, two from sm up. */}
+      <fieldset>
+        <legend className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-400">{tk.kind}</legend>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {WORKSPACE_KINDS.map((k) => (
+            <label
+              key={k}
+              className="flex cursor-pointer gap-2 rounded-lg p-3 ring-1 ring-zinc-200 has-[:checked]:bg-indigo-50 has-[:checked]:ring-2 has-[:checked]:ring-indigo-500 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-indigo-500 dark:ring-zinc-700 dark:has-[:checked]:bg-indigo-950/40"
+            >
+              <input
+                type="radio"
+                name="ws-kind"
+                value={k}
+                checked={kind === k}
+                onChange={(e) => { if (isWorkspaceKind(e.target.value)) setKind(e.target.value); }}
+                className="mt-0.5 size-4 shrink-0 accent-indigo-600"
+              />
+              <span className="min-w-0 [overflow-wrap:anywhere]">
+                <span className="block text-sm font-medium">{tk.names[k]}</span>
+                <span className="block text-xs text-zinc-500">{tk.descriptions[k]}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+        {notes.approval && <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">{tk.approvalNote}</p>}
+        {notes.calendar && <p className="mt-1 text-xs text-zinc-500">{tk.calendarNote}</p>}
+        <p className="mt-1 text-xs text-zinc-500">{tk.kindHint}</p>
+      </fieldset>
       <FieldError error={create.error} />
       <div className="flex justify-end gap-2">
         <Button onClick={onDone}>{t.cancel}</Button>
