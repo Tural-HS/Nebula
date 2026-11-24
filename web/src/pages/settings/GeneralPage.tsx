@@ -6,6 +6,9 @@ import type { Workspace } from "../../api/types";
 import { Button, Input, Select, Spinner } from "../../components/ui";
 import { t } from "../../i18n";
 import { ta } from "../../i18n-admin";
+import { tth } from "../../i18n-theme";
+import { ACCENT_SCALES, ACCENTS, DEFAULT_ACCENT, isAccent, type Accent } from "../../lib/accent";
+import { cn } from "../../lib/cn";
 import { Card, SettingsLayout } from "./SettingsLayout";
 import { useFeedback } from "./useErrorToast";
 
@@ -27,7 +30,55 @@ export function GeneralPage() {
 function General({ ws }: { ws: string }) {
   const workspace = useWorkspace(ws);
   if (!workspace.data) return <Spinner />;
-  return <GeneralForm key={workspace.data.id} ws={ws} workspace={workspace.data} />;
+  return (
+    <div className="space-y-4">
+      <GeneralForm key={workspace.data.id} ws={ws} workspace={workspace.data} />
+      {/* Shown once the API returns the field (migration pending, ADR-0035). */}
+      {workspace.data.accent !== undefined && <AccentPicker ws={ws} accent={workspace.data.accent} />}
+    </div>
+  );
+}
+
+/** Curated, contrast-checked accents (lib/accent.ts); saved on pick. */
+function AccentPicker({ ws, accent }: { ws: string; accent: string | null }) {
+  const adm = useAdminApi(ws);
+  const fb = useFeedback();
+  const current: Accent = isAccent(accent) ? accent : DEFAULT_ACCENT;
+  return (
+    <Card>
+      <fieldset disabled={adm.updateWorkspace.isPending}>
+        <legend className="text-sm font-medium">{tth.accent}</legend>
+        <p className="mt-1 text-xs text-zinc-500">{tth.accentHint}</p>
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {ACCENTS.map((a) => (
+            <label
+              key={a}
+              className={cn(
+                "flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-2 text-sm ring-1 ring-zinc-200 has-[:checked]:ring-2 has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-brand-500 pointer-coarse:min-h-11 dark:ring-zinc-700",
+                a === current && "ring-zinc-900 dark:ring-zinc-100",
+              )}
+            >
+              <input
+                type="radio"
+                name="accent"
+                value={a}
+                checked={a === current}
+                className="sr-only"
+                onChange={() => {
+                  adm.updateWorkspace.mutate({ accent: a === DEFAULT_ACCENT ? null : a }, { onSuccess: fb.ok(tth.accentSaved), onError: fb.fail });
+                }}
+              />
+              <span aria-hidden className="flex shrink-0 overflow-hidden rounded-full ring-1 ring-black/10">
+                <span className="size-4" style={{ background: ACCENT_SCALES[a][600] }} />
+                <span className="size-4" style={{ background: ACCENT_SCALES[a][300] }} />
+              </span>
+              <span className="min-w-0 truncate">{tth.accents[a]}</span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+    </Card>
+  );
 }
 
 function GeneralForm({ ws, workspace }: { ws: string; workspace: Workspace }) {

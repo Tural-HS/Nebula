@@ -10,6 +10,7 @@ import { cn } from "../lib/cn";
 import { GlobalSearch } from "./GlobalSearch";
 import { LanguageMenu } from "./LanguageMenu";
 import { NotificationBell } from "./NotificationBell";
+import { ThemeMenu } from "./ThemeMenu";
 import { Avatar, Button } from "./ui";
 
 export interface Crumb {
@@ -67,6 +68,8 @@ export function Layout({ crumbs, actions, children }: { crumbs: Crumb[]; actions
           </Link>
           <NotificationBell />
           <LanguageMenu className="max-sm:hidden" />
+          {/* Only from xl: a 1024 px tablet header is full (ADR-0019); smaller screens pick it on the workspace list. */}
+          <ThemeMenu className="max-xl:hidden" />
           {me.data && (
             <span className="flex items-center gap-2 text-sm text-zinc-600 max-sm:hidden dark:text-zinc-400">
               <Avatar name={me.data.display_name} />

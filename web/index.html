@@ -12,6 +12,9 @@
     <meta name="theme-color" content="#16788b" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#18181b" media="(prefers-color-scheme: dark)" />
     <title>Nebula</title>
+    <!-- Applies the stored colour theme before the first paint (ADR-0035).
+         Same-origin classic script: the CSP allows no inline code. -->
+    <script src="/theme-init.js"></script>
   </head>
   <body>
     <div id="root"></div>

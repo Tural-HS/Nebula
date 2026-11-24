@@ -1,10 +1,14 @@
 import { loadConfig } from "./config";
 import { loadMessages, messages } from "./i18n/locale";
 import "./index.css";
+import { startTheme } from "./lib/theme";
 
 // The UI language is loaded before the app module (ADR-0025): dictionaries are
 // module constants, so nothing that reads them may be imported earlier.
 const root = document.getElementById("root") ?? document.body;
+
+// theme-init.js already set the class; this follows OS and other-tab changes.
+startTheme();
 
 // The app chunk starts downloading as soon as the language is known, in
 // parallel with config.json.

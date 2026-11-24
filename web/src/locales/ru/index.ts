@@ -18,8 +18,9 @@ import { tr as recur } from "./recur";
 import { ts as search } from "./search";
 import { ts as subtasks } from "./subtasks";
 import { tt as templates } from "./templates";
+import { tth as theme } from "./theme";
 import { tv as views } from "./views";
 import { twc as webhookChat } from "./webhookChat";
 import { tw as workdays } from "./workdays";
 
-export const ru: Messages = { admin, approvals, attach, calendar, core, evidence, forms, formulas, importer, invite, links, mobile, notifications, project, recur, search, subtasks, templates, views, webhookChat, workdays };
+export const ru: Messages = { admin, approvals, attach, calendar, core, evidence, forms, formulas, importer, invite, links, mobile, notifications, project, recur, search, subtasks, templates, theme, views, webhookChat, workdays };
