@@ -49,6 +49,7 @@ describe("page state in the URL", () => {
       columns: ["key", "title", "field.monthly"],
       sort: "due" as const,
       group: "category" as const,
+      approval: "mine" as const,
     };
     const p = writeState(s, new URLSearchParams("item=7&saved=x&view=table&field.gone=1"));
     expect(p.get("item")).toBe("7");
@@ -65,7 +66,7 @@ describe("page state in the URL", () => {
   });
 
   it("ignores malformed values", () => {
-    const s = readState(new URLSearchParams("view=list&assignee=<script>&due=never&status=nope," + S1 + "&cols=title,salary,field.Bad,field.ok&sort=x&group=y&field.BAD=1"));
+    const s = readState(new URLSearchParams("view=list&assignee=<script>&due=never&status=nope," + S1 + "&cols=title,salary,field.Bad,field.ok&sort=x&group=y&field.BAD=1&approval=all"));
     expect(s).toEqual({ ...emptyState(), status: [S1], columns: ["title", "field.ok"] });
   });
 
@@ -98,6 +99,7 @@ describe("saved views", () => {
   it("builds the API filters with the debounced query", () => {
     const s = { ...emptyState(), q: "typed", status: [S1], fields: { plan: "c1" }, sort: "due" as const };
     expect(filtersOf(s, "debounced")).toEqual({ q: "debounced", assignee: "", due: "", status: [S1], fields: { plan: "c1" }, sort: "due" });
+    expect(filtersOf({ ...s, approval: "pending" }, "x").approval).toBe("pending");
   });
 });
 

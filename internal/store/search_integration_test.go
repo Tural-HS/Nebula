@@ -74,32 +74,44 @@ func TestSearchFoldMatchesSQL(t *testing.T) {
 	}
 }
 
-// The migration's backfill indexes existing data: run 00018 down, write data
-// without the triggers, run it up again.
+// The migration's backfill indexes existing data: roll back to before 00018
+// (later migrations first), write data without the triggers, migrate up
+// again. Rows are written with plain SQL: the store's queries follow the
+// latest schema, which does not exist while rolled back.
 func TestSearchBackfill(t *testing.T) {
 	f := newSearchFixture(t)
 	ctx := context.Background()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	if err := database.Migrate(ctx, f.owner, "down", logger); err != nil {
-		t.Fatal(err)
+	version := 0
+	for range 20 {
+		if err := f.owner.QueryRow(ctx, `SELECT max(version_id) FROM goose_db_version WHERE is_applied`).Scan(&version); err != nil {
+			t.Fatal(err)
+		}
+		if version < 18 {
+			break
+		}
+		if err := database.Migrate(ctx, f.owner, "down", logger); err != nil {
+			t.Fatal(err)
+		}
 	}
-	var version int
-	if err := f.owner.QueryRow(ctx, `SELECT max(version_id) FROM goose_db_version WHERE is_applied`).Scan(&version); err != nil || version >= 18 {
-		t.Fatalf("down did not undo 00018 (now %d): %v", version, err)
+	if version >= 18 {
+		t.Fatalf("down did not undo 00018 (now %d)", version)
 	}
 	for i, title := range []string{"Ödəniş gecikir", "Silinmiş ödəniş", "Başqa iş"} {
-		it, err := f.st.CreateItem(ctx, store.CreateItemParams{WorkspaceID: f.wsID, ProjectID: f.project, ActorID: f.userID, Title: title})
-		if err != nil {
+		var itemID uuid.UUID
+		if err := f.owner.QueryRow(ctx, `INSERT INTO items (workspace_id, project_id, item_type_id, status_id, number, title, reporter_id, deleted_at)
+			SELECT $1, $2, t.id, s.id, $3::bigint, $4, $5, CASE WHEN $3::bigint = 2 THEN now() END
+			FROM item_types t JOIN statuses s ON s.workflow_id = t.workflow_id
+			WHERE t.workspace_id = $1 AND t.key = 'task' ORDER BY s.is_initial DESC, s.position LIMIT 1
+			RETURNING id`, f.wsID, f.project, i+1, title, f.userID).Scan(&itemID); err != nil {
 			t.Fatal(err)
 		}
 		if i == 2 {
-			if _, err := f.st.CreateComment(ctx, f.wsID, f.project, it.Number, f.userID, "ödənişlə bağlı qeyd"); err != nil {
+			if _, err := f.owner.Exec(ctx, `INSERT INTO comments (workspace_id, item_id, author_id, body) VALUES ($1, $2, $3, $4)`,
+				f.wsID, itemID, f.userID, "ödənişlə bağlı qeyd"); err != nil {
 				t.Fatal(err)
 			}
 		}
-	}
-	if err := f.st.DeleteItem(ctx, f.wsID, f.project, 2, f.userID); err != nil {
-		t.Fatal(err)
 	}
 	if err := database.Migrate(ctx, f.owner, "up", logger); err != nil {
 		t.Fatal(err)

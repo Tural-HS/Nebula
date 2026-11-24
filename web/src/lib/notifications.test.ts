@@ -27,6 +27,10 @@ describe("notificationText", () => {
     [{ kind: "overdue", actor_id: null, actor_name: null }, "Son tarixi keçdi: QA-12 Giriş xətası"],
     [{ kind: "comment" }, "Alice şərh yazdı: QA-12 Giriş xətası"],
     [{ kind: "comment", actor_name: null }, "Bir istifadəçi şərh yazdı: QA-12 Giriş xətası"],
+    [{ kind: "approval_requested" }, "Alice təsdiqinizi gözləyir: QA-12 Giriş xətası"],
+    [{ kind: "approval_applied" }, "Təsdiq sorğunuz qəbul edildi: QA-12 Giriş xətası"],
+    [{ kind: "approval_rejected" }, "Alice təsdiq sorğunuzu rədd etdi: QA-12 Giriş xətası"],
+    [{ kind: "approval_canceled" }, "Alice təsdiq sorğunuzu ləğv etdi: QA-12 Giriş xətası"],
   ] as const)("%o", (patch, want) => {
     expect(notificationText({ ...base, ...patch })).toBe(want);
   });

@@ -18,6 +18,12 @@ const (
 	NotifyAssigned = "assigned"
 	NotifyOverdue  = "overdue"
 	NotifyComment  = "comment"
+	// Approvals (ADR-0026): to eligible approvers on a request, to the
+	// requester when it is applied, rejected or canceled by someone else.
+	NotifyApprovalRequested = "approval_requested"
+	NotifyApprovalApplied   = "approval_applied"
+	NotifyApprovalRejected  = "approval_rejected"
+	NotifyApprovalCanceled  = "approval_canceled"
 )
 
 const (
@@ -38,7 +44,8 @@ func notifiable(e Event) bool {
 		return false
 	}
 	switch e.Action {
-	case TriggerItemCreated, TriggerItemOverdue, "comment.created", "comment.updated":
+	case TriggerItemCreated, TriggerItemOverdue, "comment.created", "comment.updated",
+		EventApprovalRequested, EventApprovalApplied, EventApprovalRejected, EventApprovalCanceled:
 		return true
 	case TriggerItemUpdated:
 		changes, _ := e.Payload["changes"].(map[string]any)
@@ -133,6 +140,16 @@ func (s *Store) CreateNotifications(ctx context.Context, e Event) (int, error) {
 			for _, id := range payloadUUIDs(e.Payload["mentions_added"]) {
 				add(&id, NotifyMention)
 			}
+		case EventApprovalRequested:
+			if err := addApprovers(ctx, tx, e, projectID, add); err != nil {
+				return err
+			}
+		case EventApprovalApplied:
+			add(payloadUUID(e.Payload["requested_by"]), NotifyApprovalApplied)
+		case EventApprovalRejected:
+			add(payloadUUID(e.Payload["requested_by"]), NotifyApprovalRejected)
+		case EventApprovalCanceled:
+			add(payloadUUID(e.Payload["requested_by"]), NotifyApprovalCanceled)
 		}
 
 		for _, r := range want {
@@ -155,6 +172,36 @@ func (s *Store) CreateNotifications(ctx context.Context, e Event) (int, error) {
 		return nil
 	})
 	return n, err
+}
+
+// addApprovers adds the people who may decide on a new approval request,
+// from the request's policy snapshot (at most maxApproverNotifyees). Project
+// access is part of eligibility and checked again by the caller.
+func addApprovers(ctx context.Context, tx pgx.Tx, e Event, projectID uuid.UUID, add func(*uuid.UUID, string)) error {
+	reqID := payloadUUID(e.Payload["request_id"])
+	if reqID == nil {
+		return nil
+	}
+	var r approvalRow
+	err := tx.QueryRow(ctx, `SELECT id, requested_by, approver_roles, approver_user_ids, state FROM approval_requests
+		WHERE id = $1 AND item_id = $2`, *reqID, e.EntityID).Scan(&r.id, &r.requestedBy, &r.roles, &r.users, &r.state)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if r.state != ApprovalPending {
+		return nil // decided before the job ran: nothing to ask for
+	}
+	people, err := eligibleApprovers(ctx, tx, e.WorkspaceID, projectID, r, maxApproverNotifyees)
+	if err != nil {
+		return err
+	}
+	for _, p := range people {
+		add(&p.ID, NotifyApprovalRequested)
+	}
+	return nil
 }
 
 // Notification is one entry of a user's notification list, with everything

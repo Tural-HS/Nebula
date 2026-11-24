@@ -1,5 +1,6 @@
 // Azerbaijani: the default language and the source of truth for the others.
 import { ta as admin } from "./admin";
+import { tap as approvals } from "./approvals";
 import { ta as attach } from "./attach";
 import { tc as calendar } from "./calendar";
 import { t as core } from "./core";
@@ -14,4 +15,4 @@ import { ts as subtasks } from "./subtasks";
 import { tt as templates } from "./templates";
 import { tv as views } from "./views";
 
-export const az = { admin, attach, calendar, core, importer, invite, mobile, notifications, project, recur, search, subtasks, templates, views };
+export const az = { admin, approvals, attach, calendar, core, importer, invite, mobile, notifications, project, recur, search, subtasks, templates, views };

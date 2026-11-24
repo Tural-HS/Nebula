@@ -23,6 +23,7 @@ böyük həcmli məlumatlarda sürətli, tam fərdiləşdirilə bilən, öz serv
 - Mattermost Boards-dan keçid (azərbaycanca şablon, layihə şablonları, `.boardarchive` importu): [ADR-0020](docs/adr/0020-fintez-migration-kit.md), runbook: [docs/runbooks/mattermost-boards-migration.md](docs/runbooks/mattermost-boards-migration.md)
 - Alt tapşırıqlar (bir səviyyə, DB-də qorunur): [ADR-0021](docs/adr/0021-subtasks.md)
 - Təqvim, toplu və sətirdaxili redaktə: [ADR-0023](docs/adr/0023-calendar-bulk-inline.md)
+- Status keçidlərində "dörd göz" təsdiqi (hazırlayan öz işini təsdiqləyə bilməz, N təsdiq): [ADR-0026](docs/adr/0026-four-eyes-approvals.md)
 - Yol xəritəsi: [docs/ROADMAP.md](docs/ROADMAP.md)
 
 ## Tələblər
@@ -166,7 +167,7 @@ Bütün `/api/v1` endpoint-ləri (`/version` istisna olmaqla) `Authorization: Be
 | `POST, DELETE .../{ws}/workflows/{id}/transitions[/{tid}]` | Status keçidi əlavə etmək / silmək | admin+ |
 | `POST .../{ws}/workflows/{id}/statuses` | Status əlavə etmək | admin+ |
 | `PATCH, DELETE .../{ws}/workflows/{id}/statuses/{statusID}` | Status dəyişmək / silmək | admin+ |
-| `GET .../projects/{KEY}/items` | Siyahı: `limit`, `cursor`, `q`, `status`, `assignee=me\|none\|{id}`, `field.<açar>=<dəyər>`, `due`, `sort=number\|due` (kursor sıralamaya bağlıdır), `parent=<nömrə\|açar>`, `top_level=true` (ADR-0021) | guest+ |
+| `GET .../projects/{KEY}/items` | Siyahı: `limit`, `cursor`, `q`, `status`, `assignee=me\|none\|{id}`, `field.<açar>=<dəyər>`, `due`, `sort=number\|due` (kursor sıralamaya bağlıdır), `parent=<nömrə\|açar>`, `top_level=true` (ADR-0021), `approval=pending\|mine` (ADR-0026) | guest+ |
 | `GET .../projects/{KEY}/items/sums?fields=a,b` | Rəqəm sahələrinin bütün filtrlənmiş nəticə üzrə cəmi və sayı (siyahının eyni filtrləri, ən çox 10 sahə) | guest+ |
 | `GET, POST .../projects/{KEY}/views` | Saxlanılan görünüşlər (öz şəxsiləri + ümumilər) / yaratmaq (`shared: true` admin+) | guest+ |
 | `GET, PATCH, DELETE .../projects/{KEY}/views/{id}` | Oxumaq / dəyişmək / silmək (şəxsi: sahibi; ümumi: sahibi və ya admin+) | guest+ |
@@ -174,7 +175,10 @@ Bütün `/api/v1` endpoint-ləri (`/version` istisna olmaqla) `Authorization: Be
 | `POST .../projects/{KEY}/imports/preview` | CSV/xlsx önbaxışı (multipart `file`, `sheet`): vərəqlər, başlıqlar, ilk 20 sətir, təklif olunan uyğunlaşdırma | admin+ |
 | `POST .../projects/{KEY}/imports[?dry_run=true]` | İdxal (multipart `file`, `sheet`, `mapping`): hamısı və ya heç nə; `dry_run` yalnız yoxlayır | admin+ |
 | `GET, PATCH, DELETE .../items/{number}` | Oxumaq / `version` ilə qismən yeniləmək / soft delete | guest+ / member+ |
-| `GET .../items/{number}/transitions` | Növbəti mümkün statuslar | guest+ |
+| `GET .../items/{number}/transitions` | Növbəti mümkün statuslar (`requires_approval`: təsdiq tələb edir, ADR-0026) | guest+ |
+| `GET, POST .../items/{number}/approvals` | Təsdiq sorğuları / qorunan statusa keçid üçün sorğu (`to_status_id`, `version`, `comment`) | guest+ / member+ |
+| `POST .../items/{number}/approvals/{id}/approve\|reject\|cancel` | Təsdiqlə (`comment`), rədd et (`reason` məcburi), ləğv et (sorğunu göndərən və ya admin) | member+ |
+| `PUT, DELETE .../{ws}/workflows/{id}/statuses/{sid}/approval-policy` | Statusa daxil olmaq üçün təsdiq siyasəti (`min_approvals`, `approver_roles`, `approver_user_ids`) | admin+ |
 | `GET, POST .../items/{number}/comments` | Şərhlər (`cursor`, `limit`) / yazmaq; `<@user-id>` ilə qeydetmə | guest+ / member+ |
 | `PATCH, DELETE .../items/{number}/comments/{id}` | Redaktə (yalnız müəllif) / silmə (müəllif və ya admin) | member+ |
 | `GET, POST .../items/{number}/attachments` | Fayllar və limitlər / yükləmə (`multipart/form-data`: `file`, istəyə bağlı `comment_id`) | guest+ / member+ |

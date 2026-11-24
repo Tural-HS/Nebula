@@ -77,6 +77,18 @@ func RenderChat(ev store.Event, c ChatContext) string {
 		lines = append(lines, fmt.Sprintf("⏰ %s%s — %s", ref, title, overdueTail(ev.Payload)))
 	case "workspace.overdue_digest":
 		return c.overdueDigest(ev)
+	case store.EventApprovalRequested:
+		lines = append(lines, fmt.Sprintf("🔏 %s %s%s üçün təsdiq istədi (%s/%s)", who, ref, title,
+			count(ev.Payload["approvals"]), count(ev.Payload["min_approvals"])))
+	case store.EventApprovalApproved:
+		lines = append(lines, fmt.Sprintf("👍 %s %s%s tapşırığını təsdiqlədi (%s/%s)", who, ref, title,
+			count(ev.Payload["approvals"]), count(ev.Payload["min_approvals"])))
+	case store.EventApprovalRejected:
+		lines = append(lines, fmt.Sprintf("⛔ %s %s%s tapşırığını rədd etdi: %s", who, ref, title, quote(str(ev.Payload["reason"]))))
+	case store.EventApprovalCanceled:
+		lines = append(lines, fmt.Sprintf("↩️ %s %s%s üçün təsdiq sorğusunu ləğv etdi", who, ref, title))
+	case store.EventApprovalApplied:
+		lines = append(lines, fmt.Sprintf("✅ %s%s təsdiqləndi və statusu dəyişdi — %s", ref, title, who))
 	default:
 		subject := ref + title
 		if subject == "" {
@@ -206,6 +218,15 @@ func azDate(iso string) string {
 func str(v any) string {
 	s, _ := v.(string)
 	return s
+}
+
+// count formats a small JSON number (decoded as float64), "?" if absent.
+func count(v any) string {
+	f, ok := v.(float64)
+	if !ok {
+		return "?"
+	}
+	return strconv.Itoa(int(f))
 }
 
 // itemRef returns the (linked) item key and the quoted title, each with a

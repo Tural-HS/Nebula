@@ -1,0 +1,73 @@
+// Russian strings for four-eyes approvals (ADR-0026).
+import type { Messages } from "../../i18n/locale";
+import { plural } from "../../i18n/plural";
+
+const approvalsGen = (n: number) => plural("ru", n, { one: "одобрения", few: "одобрений", many: "одобрений", other: "одобрения" });
+const approvalsNom = (n: number) => plural("ru", n, { one: "одобрение", few: "одобрения", many: "одобрений", other: "одобрения" });
+
+export const tap = {
+  section: "Согласование",
+  badge: (approvals: number, min: number) => `Ждёт согласования: ${String(approvals)}/${String(min)}`,
+  state: { pending: "Ожидает", approved: "Согласовано", rejected: "Отклонено", canceled: "Отменено" },
+  progress: (approvals: number, min: number) => `${String(approvals)} из ${String(min)} ${approvalsGen(min)}`,
+  requiresApproval: "требует согласования",
+  requestTitle: (status: string) => `Запросить согласование для «${status}»`,
+  requestHint: "Статус пока не меняется. Пока согласующие не решат, статус, заголовок, описание, поля и файлы заблокированы. Автор запроса не может согласовать его сам.",
+  comment: "Комментарий (необязательно)",
+  request: "Запросить согласование",
+  requested: "Запрос на согласование отправлен",
+  requestedBy: (name: string) => `Запросил(а): ${name}`,
+  approvers: "Могут согласовать",
+  noApprovers: "Никто не может согласовать этот запрос. Администратор должен изменить политику, либо запрос нужно отменить.",
+  approve: "Согласовать",
+  reject: "Отклонить",
+  cancel: "Отменить запрос",
+  rejectTitle: "Причина отклонения",
+  reason: "Причина",
+  reasonRequired: "Причина обязательна.",
+  approvedToast: "Согласовано",
+  rejectedToast: "Отклонено",
+  canceledToast: "Запрос отменён",
+  confirmCancel: "Отменить запрос на согласование?",
+  decided: { approve: "согласовал(а)", reject: "отклонил(а)" },
+  history: "Предыдущие запросы",
+  locked: "Ожидает согласования: статус, заголовок, описание, поля и файлы заблокированы.",
+  closedBy: (name: string) => `Закрыл(а): ${name}`,
+  errors: {
+    approval_pending: "Задача ждёт согласования: изменение заблокировано, пока запрос не закрыт.",
+    approval_required: "Переход в этот статус требует согласования.",
+    self_approval: "Нельзя согласовать или отклонить собственный запрос.",
+    not_an_approver: "Вы не являетесь согласующим этого запроса.",
+    already_decided: "Вы уже приняли решение.",
+    approval_closed: "Этот запрос уже закрыт.",
+  } as Record<string, string>,
+  filter: { label: "Согласование", all: "Согласование: все", pending: "Ждут согласования", mine: "Ждут моего согласования" },
+  act: {
+    requested: "запросил(а) согласование",
+    approved: (approvals: number, min: number) => `согласовал(а) (${String(approvals)}/${String(min)})`,
+    rejected: "отклонил(а) запрос на согласование",
+    canceled: "отменил(а) запрос на согласование",
+    applied: "согласование завершено, статус изменён",
+  },
+  notify: {
+    requested: (actor: string) => `${actor} ждёт вашего согласования`,
+    applied: "Ваш запрос на согласование одобрен",
+    rejected: (actor: string) => `${actor} отклонил(а) ваш запрос на согласование`,
+    canceled: (actor: string) => `${actor} отменил(а) ваш запрос на согласование`,
+  },
+  settings: {
+    title: "Политики согласования",
+    hint: "Задача переходит в статус только после указанного числа одобрений. Автор запроса никогда не считается согласующим.",
+    none: "Нет статусов, требующих согласования.",
+    status: "Статус",
+    min: "Минимум одобрений",
+    roles: "Роли",
+    users: "Конкретные пользователи",
+    add: "Добавить политику",
+    save: "Сохранить",
+    remove: "Удалить политику",
+    summary: (min: number) => `Нужно ${String(min)} ${approvalsNom(min)}`,
+    needApprovers: "Выберите хотя бы одну роль или пользователя.",
+    tooFew: "Минимум одобрений не может превышать число выбранных пользователей.",
+  },
+} satisfies Messages["approvals"];

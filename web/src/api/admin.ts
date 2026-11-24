@@ -27,6 +27,24 @@ export interface Workflow {
   enforce_transitions: boolean;
   statuses: WorkflowStatus[];
   transitions: Transition[];
+  /** Statuses that need approval to enter (ADR-0026). */
+  approval_policies?: ApprovalPolicy[];
+}
+
+export type ApproverRole = "member" | "admin" | "owner";
+
+export interface ApprovalPolicy {
+  id: string;
+  status_id: string;
+  min_approvals: number;
+  approver_roles: ApproverRole[];
+  approver_user_ids: string[];
+}
+
+export interface ApprovalPolicyInput {
+  min_approvals: number;
+  approver_roles: ApproverRole[];
+  approver_user_ids: string[];
 }
 
 export interface Webhook {
@@ -222,6 +240,15 @@ export function useAdminApi(ws: string) {
     addTransition: useAdminMutation(
       (v: { wf: string; name: string; from_status_id: string | null; to_status_id: string }) =>
         api<Workflow>("POST", base + path`/workflows/${v.wf}/transitions`, { name: v.name, from_status_id: v.from_status_id, to_status_id: v.to_status_id }),
+      [wf],
+    ),
+    setApprovalPolicy: useAdminMutation(
+      (v: { wf: string; status: string; body: ApprovalPolicyInput }) =>
+        api<Workflow>("PUT", base + path`/workflows/${v.wf}/statuses/${v.status}/approval-policy`, v.body),
+      [wf],
+    ),
+    deleteApprovalPolicy: useAdminMutation(
+      (v: { wf: string; status: string }) => api<Workflow>("DELETE", base + path`/workflows/${v.wf}/statuses/${v.status}/approval-policy`),
       [wf],
     ),
     deleteTransition: useAdminMutation(

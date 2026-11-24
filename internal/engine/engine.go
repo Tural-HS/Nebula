@@ -457,6 +457,13 @@ func (e *Engine) runAutomation(ctx context.Context, j store.Job) error {
 			log.Warn("automation action rejected", "field", ve.Field, "reason", ve.Message)
 			return worker.Permanent(err)
 		}
+		// Approvals (ADR-0026): a rule can neither enter a guarded status
+		// nor edit an item locked by a pending request. Retrying won't help.
+		var ce *store.ConflictError
+		if errors.As(err, &ce) && (ce.Code == "approval_required" || ce.Code == "approval_pending") {
+			log.Warn("automation action rejected", "code", ce.Code)
+			return worker.Permanent(err)
+		}
 		return err
 	}
 

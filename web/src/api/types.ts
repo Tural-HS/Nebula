@@ -111,6 +111,8 @@ export interface Item {
   parent?: ItemParent | null;
   /** Live subtasks; done counts done and canceled ones. */
   subtasks?: SubtaskSummary;
+  /** The pending approval request (ADR-0026); null when none. */
+  approval?: PendingApproval | null;
   version: number;
   created_at: string;
   updated_at: string;
@@ -206,4 +208,18 @@ export interface ItemParent {
 export interface SubtaskSummary {
   count: number;
   done: number;
+}
+
+/** Summary of an item's open approval request (ADR-0026). */
+export interface PendingApproval {
+  id: string;
+  to_status: Status;
+  requested_by: string;
+  approvals: number;
+  min_approvals: number;
+}
+
+/** A status the item can move to next; requires_approval means via a request. */
+export interface TransitionTarget extends Status {
+  requires_approval?: boolean;
 }

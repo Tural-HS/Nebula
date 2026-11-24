@@ -12,6 +12,7 @@ import { Button, Dialog, EmptyState, ErrorState, Input, Select, Spinner } from "
 import { tv } from "../i18n-views";
 import { cn } from "../lib/cn";
 import { t } from "../i18n";
+import { tap } from "../i18n-approvals";
 import { tp } from "../i18n-project";
 import { tr } from "../i18n-recur";
 import { ti } from "../i18n-import";
@@ -248,6 +249,13 @@ export function ItemsPage() {
       <option value="none">{t.dueNone}</option>
     </Select>
   );
+  const approvalSelect = (className: string) => (
+    <Select aria-label={tap.filter.label} value={state.approval} onChange={(e) => { applyState({ approval: e.target.value === "pending" || e.target.value === "mine" ? e.target.value : "" }); }} className={className}>
+      <option value="">{tap.filter.all}</option>
+      <option value="pending">{tap.filter.pending}</option>
+      <option value="mine">{tap.filter.mine}</option>
+    </Select>
+  );
   const filterPicker = (inline: boolean) => (
     <FilterPicker
       inline={inline}
@@ -353,6 +361,7 @@ export function ItemsPage() {
             {searchBox("max-w-64")}
             {assigneeSelect("max-w-56")}
             {dueSelect("max-w-48")}
+            {approvalSelect("max-w-56")}
             {filterPicker(false)}
             {view !== "calendar" && sortSelect("max-w-48")}
             {view === "table" && columnPicker(false)}
@@ -367,6 +376,7 @@ export function ItemsPage() {
               <SheetGroup label={tv.views}>{viewSwitcher}</SheetGroup>
               <SheetGroup label={t.assignee}>{assigneeSelect("")}</SheetGroup>
               <SheetGroup label={t.dueFilter}>{dueSelect("")}</SheetGroup>
+              <SheetGroup label={tap.filter.label}>{approvalSelect("")}</SheetGroup>
               {filterPicker(true)}
               {view !== "calendar" && <SheetGroup label={tv.sort}>{sortSelect("")}</SheetGroup>}
               {view === "board" && <SheetGroup label={t.groupBy}>{groupSelect("")}</SheetGroup>}

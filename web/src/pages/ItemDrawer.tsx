@@ -5,6 +5,7 @@ import { ApiError } from "../api/client";
 import { keys, useAssignable, useDeleteItem, useMe, useFields, useItem, useItemTypes, useMembers, useTransitions, useUpdateItem, type ItemPatch } from "../api/hooks";
 import type { FieldValue, Item } from "../api/types";
 import { ActivityFeed } from "../components/ActivityFeed";
+import { ApprovalBadge, ApprovalPanel, RequestApprovalDialog } from "../components/Approvals";
 import { Attachments } from "../components/Attachments";
 import { Comments } from "../components/Comments";
 import { DescriptionField } from "../components/DescriptionField";
@@ -13,6 +14,8 @@ import { ParentCrumb, SubtaskSection } from "../components/Subtasks";
 import { useToast } from "../components/toast-context";
 import { Avatar, Button, DueChip, ErrorState, Select, Spinner, StatusBadge, touchField } from "../components/ui";
 import { t } from "../i18n";
+import { tap } from "../i18n-approvals";
+import { approvalErrorCode, approvalErrorText, isLocked } from "../lib/approvals";
 import { cn } from "../lib/cn";
 import { formatDateTime } from "../lib/format";
 import { useKeyboardInset } from "../lib/responsive";
@@ -92,7 +95,11 @@ function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose }: {
   }, [item.version]);
 
   const onSaveError = (err: unknown) => {
-    if (err instanceof ApiError && err.isConflict) {
+    if (approvalErrorCode(err)) {
+      // Locked by a pending request, or a guarded move (ADR-0026).
+      toast("error", approvalErrorText(err));
+      void qc.invalidateQueries({ queryKey: keys.item(ws, project, item.number) });
+    } else if (err instanceof ApiError && err.isConflict) {
       toast("error", t.conflict);
       void qc.invalidateQueries({ queryKey: keys.item(ws, project, item.number) });
     } else if (err instanceof ApiError && err.field === "status_id") {
@@ -118,6 +125,16 @@ function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose }: {
   const boundFields = [...(type?.fields ?? [])].sort((a, b) => a.position - b.position);
   const defs = new Map((fields.data ?? []).map((f) => [f.key, f]));
   const statusOptions = [item.status, ...(transitions.data ?? [])];
+  // While approval is pending the content approvers sign off on is frozen.
+  const locked = isLocked(item);
+  const canEditContent = canEdit && !locked;
+  const [approvalTarget, setApprovalTarget] = useState<{ id: string; name: string } | null>(null);
+  const changeStatus = (id: string) => {
+    if (id === item.status.id) return;
+    const target = transitions.data?.find((s) => s.id === id);
+    if (target?.requires_approval) setApprovalTarget({ id: target.id, name: target.name });
+    else save({ status_id: id });
+  };
 
   return (
     <div className="flex flex-col">
@@ -127,7 +144,7 @@ function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose }: {
           {item.key} · {item.type.name}
         </span>
         <div className="flex shrink-0 gap-2">
-          {canEdit && (
+          {canEditContent && (
             <Button
               variant="ghost"
               className="text-red-600"
@@ -156,7 +173,7 @@ function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose }: {
         <textarea
           aria-label={t.title}
           value={title}
-          disabled={!canEdit}
+          disabled={!canEditContent}
           rows={1}
           maxLength={500}
           onChange={(e) => { setTitle(e.target.value); }}
@@ -175,22 +192,27 @@ function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose }: {
 
         <dl className="grid grid-cols-[6.5rem_minmax(0,1fr)] items-center gap-x-3 gap-y-3 text-sm sm:grid-cols-[8rem_minmax(0,1fr)] sm:gap-x-4">
           <dt className="text-zinc-500">{t.status}</dt>
-          <dd>
-            {canEdit ? (
+          <dd className="flex flex-wrap items-center gap-2">
+            {canEditContent ? (
               <Select
                 aria-label={t.status}
                 value={item.status.id}
-                onChange={(e) => { if (e.target.value !== item.status.id) save({ status_id: e.target.value }); }}
+                onChange={(e) => { changeStatus(e.target.value); }}
                 className="max-w-56"
               >
                 {statusOptions.map((s) => (
                   <option key={s.id} value={s.id}>
-                    {s.name}
+                    {"requires_approval" in s && s.requires_approval ? `${s.name} (${tap.requiresApproval})` : s.name}
                   </option>
                 ))}
               </Select>
             ) : (
               <StatusBadge name={item.status.name} category={item.status.category} />
+            )}
+            {item.approval && (
+              <span className="flex items-center gap-1 text-xs text-amber-700 dark:text-amber-300">
+                <ApprovalBadge approval={item.approval} /> → {item.approval.to_status.name}
+              </span>
             )}
           </dd>
 
@@ -263,7 +285,11 @@ function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose }: {
           <dd className="text-zinc-600 dark:text-zinc-400">{formatDateTime(item.updated_at)}</dd>
         </dl>
 
-        <DescriptionField value={item.description} canEdit={canEdit} onSave={(v) => { save({ description: v }); }} />
+        {locked && <p role="status" className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-200">{tap.locked}</p>}
+
+        <ApprovalPanel ws={ws} project={project} item={item} />
+
+        <DescriptionField value={item.description} canEdit={canEditContent} onSave={(v) => { save({ description: v }); }} />
 
         {/* One level only: a subtask has no subtasks of its own (ADR-0021). */}
         {!item.parent && <SubtaskSection ws={ws} project={project} item={item} canEdit={canEdit} />}
@@ -283,7 +309,7 @@ function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose }: {
                       def={def}
                       value={item.fields[b.key]}
                       members={members.data ?? []}
-                      disabled={!canEdit || def.archived}
+                      disabled={!canEditContent || def.archived}
                       onCommit={(v: FieldValue) => { save({ fields: { [b.key]: v } }); }}
                     />
                   </FieldRow>
@@ -293,7 +319,9 @@ function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose }: {
           </section>
         )}
 
-        <Attachments ws={ws} project={project} n={item.number} meId={me.data?.id} canWrite={canEdit} isAdmin={isAdmin} />
+        <Attachments ws={ws} project={project} n={item.number} meId={me.data?.id} canWrite={canEditContent} isAdmin={isAdmin} />
+
+        <RequestApprovalDialog ws={ws} project={project} item={item} version={() => version.current} target={approvalTarget} onClose={() => { setApprovalTarget(null); }} />
 
         <CollabTabs ws={ws} project={project} n={item.number} canWrite={canEdit} isAdmin={isAdmin} />
       </div>

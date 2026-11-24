@@ -23,6 +23,7 @@ func (a *api) configRoutes(r chi.Router) {
 	admin.Post("/workflows/{workflowID}/statuses", a.addStatus)
 	admin.Patch("/workflows/{workflowID}/statuses/{statusID}", a.updateStatus)
 	admin.Delete("/workflows/{workflowID}/statuses/{statusID}", a.deleteStatus)
+	a.approvalPolicyRoutes(admin)
 
 	admin.Post("/item-types", a.createItemType)
 	r.Route("/item-types/{type}", func(r chi.Router) {

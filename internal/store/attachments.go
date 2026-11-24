@@ -73,6 +73,14 @@ func (s *Store) CheckAttachmentTarget(ctx context.Context, wsID, projectID uuid.
 	if err != nil {
 		return err
 	}
+	if commentID == nil {
+		// Item files are what approvers sign off on (ADR-0026).
+		if id, err := pendingApprovalID(ctx, s.pool, item.id); err != nil {
+			return err
+		} else if id != nil {
+			return errApprovalPending()
+		}
+	}
 	return checkCommentTarget(ctx, s.pool, wsID, item, commentID, actorID, false)
 }
 
@@ -150,6 +158,11 @@ func (s *Store) CreateAttachment(ctx context.Context, p CreateAttachmentParams) 
 		}
 		if err := checkCommentTarget(ctx, tx, p.WorkspaceID, item, p.CommentID, p.ActorID, true); err != nil {
 			return err
+		}
+		if p.CommentID == nil {
+			if err := requireNoPendingApproval(ctx, tx, item.id); err != nil {
+				return err
+			}
 		}
 		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended('nebula.attachments:' || $1::text, 0))`,
 			p.WorkspaceID); err != nil {
@@ -231,10 +244,10 @@ func (s *Store) DeleteAttachment(ctx context.Context, wsID, projectID uuid.UUID,
 		if err != nil {
 			return err
 		}
-		var uploader *uuid.UUID
+		var uploader, commentID *uuid.UUID
 		var name string
-		err = tx.QueryRow(ctx, `SELECT uploader_id, filename FROM attachments
-			WHERE id = $1 AND workspace_id = $2 AND item_id = $3 FOR UPDATE`, id, wsID, item.id).Scan(&uploader, &name)
+		err = tx.QueryRow(ctx, `SELECT uploader_id, filename, comment_id FROM attachments
+			WHERE id = $1 AND workspace_id = $2 AND item_id = $3 FOR UPDATE`, id, wsID, item.id).Scan(&uploader, &name, &commentID)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrNotFound
 		}
@@ -243,6 +256,11 @@ func (s *Store) DeleteAttachment(ctx context.Context, wsID, projectID uuid.UUID,
 		}
 		if (uploader == nil || *uploader != actorID) && !RoleAtLeast(actorRole, RoleAdmin) {
 			return ErrForbidden
+		}
+		if commentID == nil {
+			if err := requireNoPendingApproval(ctx, tx, item.id); err != nil {
+				return err
+			}
 		}
 		if _, err := tx.Exec(ctx, `DELETE FROM attachments WHERE id = $1`, id); err != nil {
 			return err
