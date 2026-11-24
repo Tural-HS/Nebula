@@ -14,7 +14,7 @@ import { DueChip } from "./ui";
 // Links, Subtasks), which the board and the panel keep using.
 // ---------------------------------------------------------------------------
 
-const SLOT = "inline-flex h-5 items-center justify-center rounded text-[11px] leading-none whitespace-nowrap tabular-nums";
+const SLOT = "inline-flex h-5 items-center justify-center rounded text-2xs leading-none whitespace-nowrap tabular-nums";
 
 /**
  * The row's signals. In the table they sit in fixed slots so columns line up;
@@ -34,6 +34,7 @@ export function SignalCell({ item, withDue, inline = false }: { item: Item; with
         {a && p && (
           <span
             title={`${tap.badge(p.done, p.min)} → ${a.to_status.name}${due ? ` · ${due}` : ""}`}
+            role="img"
             aria-label={due ? `${tap.badge(p.done, p.min)}, ${due}` : tap.badge(p.done, p.min)}
             data-testid="approval-badge"
             data-overdue={overdue || undefined}
@@ -54,6 +55,7 @@ export function SignalCell({ item, withDue, inline = false }: { item: Item; with
         {item.blocked && (
           <span
             title={tl.blockedTitle}
+            role="img"
             aria-label={tl.blockedTitle}
             data-testid="blocked-badge"
             className={cn(SLOT, inline ? "px-1" : "w-full", "bg-red-50 text-red-700 ring-1 ring-red-200 dark:bg-red-950 dark:text-red-300 dark:ring-red-900")}
@@ -66,6 +68,7 @@ export function SignalCell({ item, withDue, inline = false }: { item: Item; with
         {sub && (
           <span
             title={ts.badge(sub.done, sub.count)}
+            role="img"
             aria-label={ts.badge(sub.done, sub.count)}
             className={cn(
               SLOT,
@@ -93,7 +96,7 @@ const DOT: Record<StatusCategory, string> = {
 /** A quieter status for dense rows: a square in the category colour and the name. */
 export function StatusText({ name, category }: { name: string; category: StatusCategory }) {
   return (
-    <span className={cn("flex min-w-0 items-center gap-1.5", category === "canceled" && "text-zinc-500 line-through")}>
+    <span className={cn("flex min-w-0 items-center gap-1.5", category === "canceled" && "text-zinc-500 dark:text-zinc-400 line-through")}>
       <span aria-hidden className={cn("size-2 shrink-0 rounded-[2px]", DOT[category])} />
       <span className="truncate">{name}</span>
     </span>

@@ -72,13 +72,13 @@ export function ProjectsPage() {
                   <span className="flex items-center justify-between gap-2">
                     <span className="font-mono text-xs text-brand-600 dark:text-brand-100">{p.key}</span>
                     {p.visibility === "private" && (
-                      <span title={tp.privateHint} className="rounded bg-zinc-100 px-1.5 py-0.5 text-[11px] text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+                      <span title={tp.privateHint} className="rounded bg-zinc-100 px-1.5 py-0.5 text-2xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
                         🔒 {tp.private}
                       </span>
                     )}
                   </span>
                   <span className="mt-1 block font-medium [overflow-wrap:anywhere]">{p.name}</span>
-                  {p.description && <span className="mt-1 line-clamp-2 block text-sm [overflow-wrap:anywhere] text-zinc-500">{p.description}</span>}
+                  {p.description && <span className="mt-1 line-clamp-2 block text-sm [overflow-wrap:anywhere] text-zinc-500 dark:text-zinc-400">{p.description}</span>}
                 </Link>
               </li>
             ))}
@@ -124,13 +124,13 @@ function CreateProjectForm({ ws, onDone }: { ws: string; onDone: () => void }) {
       <div>
         <Label htmlFor="p-key">{t.projectKey}</Label>
         <Input id="p-key" value={key} onChange={(e) => { setKey(e.target.value.toUpperCase()); }} required pattern="[A-Z][A-Z0-9]{1,9}" />
-        <p className="mt-1 text-xs text-zinc-500">{t.projectKeyHint}</p>
+        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{t.projectKeyHint}</p>
       </div>
       <label className="flex items-start gap-2 text-sm">
         <input type="checkbox" className="mt-0.5 accent-brand-600" checked={isPrivate} onChange={(e) => { setPrivate(e.target.checked); }} />
         <span>
           🔒 {tp.privateProject}
-          <span className="block text-xs text-zinc-500">{tp.privateHint}</span>
+          <span className="block text-xs text-zinc-500 dark:text-zinc-400">{tp.privateHint}</span>
         </span>
       </label>
       {(projects.data?.length ?? 0) > 0 && (
@@ -147,7 +147,7 @@ function CreateProjectForm({ ws, onDone }: { ws: string; onDone: () => void }) {
           </Select>
           {from && (
             <fieldset className="mt-2 space-y-1">
-              <legend className="text-xs text-zinc-500">{tt.projectTemplateHint}</legend>
+              <legend className="text-xs text-zinc-500 dark:text-zinc-400">{tt.projectTemplateHint}</legend>
               {(["members", "recurrences", "views"] as const).map((k) => (
                 <label key={k} className="flex items-center gap-2 text-sm pointer-coarse:min-h-11">
                   <input type="checkbox" className="accent-brand-600" checked={copy[k]} onChange={(e) => { setCopy({ ...copy, [k]: e.target.checked }); }} />

@@ -76,7 +76,7 @@ export function DescriptionField({ value, canEdit, onSave }: { value: string | n
       ) : value ? (
         <Markdown source={value} />
       ) : (
-        <p className="text-sm text-zinc-500">{ta.noDescription}</p>
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">{ta.noDescription}</p>
       )}
     </div>
   );

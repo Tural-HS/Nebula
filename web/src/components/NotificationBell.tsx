@@ -102,7 +102,7 @@ export function NotificationBell() {
         {badge && (
           <span
             aria-hidden
-            className="absolute -top-0.5 -right-0.5 min-w-4 rounded-full bg-red-600 px-1 text-center text-[10px] leading-4 font-semibold text-white"
+            className="absolute -top-0.5 -right-0.5 min-w-4 rounded-full bg-red-600 px-1 text-center text-2xs leading-4 font-semibold text-white"
           >
             {badge}
           </span>
@@ -170,7 +170,7 @@ function NotificationRow({ n, onOpen }: { n: AppNotification; onOpen: () => void
         data-notification
         onClick={onOpen}
         className={cn(
-          "flex gap-2 px-3 py-2.5 text-sm focus-visible:bg-zinc-100 focus-visible:outline-none hover:bg-zinc-50 dark:hover:bg-zinc-800 dark:focus-visible:bg-zinc-800",
+          "flex gap-2 px-3 py-2.5 text-sm focus-visible:bg-zinc-100 focus-visible:-outline-offset-2 hover:bg-zinc-50 dark:hover:bg-zinc-800 dark:focus-visible:bg-zinc-800",
           !n.read && "bg-brand-50/60 dark:bg-brand-950/40",
         )}
       >
@@ -181,9 +181,9 @@ function NotificationRow({ n, onOpen }: { n: AppNotification; onOpen: () => void
         <span className="min-w-0 flex-1">
           <span className={cn("block text-zinc-800 dark:text-zinc-200", !n.read && "font-medium")}>
             {!n.read && <span className="sr-only">{tn.unread}: </span>}
-            {notificationLead(n)}: <span className="font-mono text-xs text-zinc-500">{n.item_key}</span> {n.item_title}
+            {notificationLead(n)}: <span className="font-mono text-xs text-zinc-500 dark:text-zinc-400">{n.item_key}</span> {n.item_title}
           </span>
-          <span className="mt-0.5 block text-xs text-zinc-500">
+          <span className="mt-0.5 block text-xs text-zinc-500 dark:text-zinc-400">
             {n.workspace_name} · <time dateTime={n.created_at} title={formatDateTime(n.created_at)}>{formatRelative(n.created_at)}</time>
           </span>
         </span>

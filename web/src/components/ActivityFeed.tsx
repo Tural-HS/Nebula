@@ -19,7 +19,7 @@ export function ActivityFeed({ ws, project, n }: { ws: string; project: string; 
   if (q.isPending) return <Spinner />;
   if (q.isError) return <ErrorState error={q.error} onRetry={() => void q.refetch()} />;
   const list = flattenBy(q.data.pages, (p) => p.activity, (a) => a.id);
-  if (list.length === 0) return <p className="text-sm text-zinc-500">{t.noActivity}</p>;
+  if (list.length === 0) return <p className="text-sm text-zinc-500 dark:text-zinc-400">{t.noActivity}</p>;
 
   return (
     <div>
@@ -37,14 +37,14 @@ export function ActivityFeed({ ws, project, n }: { ws: string; project: string; 
                     {line.from !== undefined && (
                       <span>
                         {": "}
-                        <span className="text-zinc-500 line-through decoration-zinc-400">{line.from}</span>
+                        <span className="text-zinc-500 dark:text-zinc-400 line-through decoration-zinc-400">{line.from}</span>
                         {" → "}
                         <span className="font-medium">{line.to}</span>
                       </span>
                     )}
                   </p>
                 ))}
-                <p className="text-xs text-zinc-400" title={formatDateTime(a.occurred_at)}>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400" title={formatDateTime(a.occurred_at)}>
                   {formatRelative(a.occurred_at)}
                 </p>
               </div>

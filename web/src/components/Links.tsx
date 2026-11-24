@@ -23,7 +23,7 @@ export function BlockedBadge({ blocked, className }: { blocked?: boolean; classN
       aria-label={tl.blockedTitle}
       data-testid="blocked-badge"
       className={cn(
-        "inline-flex shrink-0 items-center gap-1 rounded bg-red-50 px-1.5 py-0.5 text-[11px] whitespace-nowrap text-red-700 ring-1 ring-red-200 dark:bg-red-950 dark:text-red-300 dark:ring-red-900",
+        "inline-flex shrink-0 items-center gap-1 rounded bg-red-50 px-1.5 py-0.5 text-2xs whitespace-nowrap text-red-700 ring-1 ring-red-200 dark:bg-red-950 dark:text-red-300 dark:ring-red-900",
         className,
       )}
     >
@@ -66,12 +66,12 @@ export function LinksSection({ ws, project, item, canEdit }: { ws: string; proje
       ) : links.isError ? (
         <ErrorState error={links.error} onRetry={() => void links.refetch()} />
       ) : list.length === 0 ? (
-        <p className="text-sm text-zinc-500">{tl.empty}</p>
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">{tl.empty}</p>
       ) : (
         <div className="space-y-3">
           {groupLinks(list).map((g) => (
             <div key={g.type}>
-              <h4 className="mb-1 text-xs font-medium text-zinc-500">{tl.types[g.type]}</h4>
+              <h4 className="mb-1 text-xs font-medium text-zinc-500 dark:text-zinc-400">{tl.types[g.type]}</h4>
               <ul className="divide-y divide-zinc-100 rounded-md ring-1 ring-zinc-200 dark:divide-zinc-800 dark:ring-zinc-800">
                 {g.links.map((l) => {
                   const closed = isClosed(l.item.status.category);
@@ -81,8 +81,8 @@ export function LinksSection({ ws, project, item, canEdit }: { ws: string; proje
                         to={linkedItemHref(ws, l)}
                         className="flex min-w-0 flex-1 items-center gap-2 px-3 py-2 text-sm hover:bg-zinc-50 pointer-coarse:min-h-11 dark:hover:bg-zinc-800"
                       >
-                        <span className="shrink-0 font-mono text-xs text-zinc-500">{l.item.key}</span>
-                        <span className={cn("min-w-0 flex-1 truncate", closed && "text-zinc-500 line-through")}>
+                        <span className="shrink-0 font-mono text-xs text-zinc-500 dark:text-zinc-400">{l.item.key}</span>
+                        <span className={cn("min-w-0 flex-1 truncate", closed && "text-zinc-500 dark:text-zinc-400 line-through")}>
                           {l.item.title}
                           {closed && <span className="sr-only"> ({tl.closed})</span>}
                         </span>
@@ -94,7 +94,7 @@ export function LinksSection({ ws, project, item, canEdit }: { ws: string; proje
                           aria-label={tl.remove(l.item.key)}
                           title={tl.remove(l.item.key)}
                           disabled={remove.isPending}
-                          className="min-h-11 min-w-11 shrink-0 text-zinc-500 md:min-h-0 md:min-w-0"
+                          className="min-h-11 min-w-11 shrink-0 text-zinc-500 dark:text-zinc-400 md:min-h-0 md:min-w-0"
                           onClick={() => {
                             remove.mutate(l.id, {
                               onError: (err) => { toast("error", err instanceof ApiError ? err.message : tl.exists); },
@@ -188,7 +188,7 @@ function AddLinkForm({ ws, project, item, onDone }: { ws: string; project: strin
         ) : search.isError ? (
           <ErrorState error={search.error} />
         ) : candidates.length === 0 ? (
-          <p className="text-sm text-zinc-500">{tl.noResults}</p>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">{tl.noResults}</p>
         ) : (
           <ul aria-label={tl.search} className="divide-y divide-zinc-100 dark:divide-zinc-800">
             {candidates.map((h) => (
@@ -199,8 +199,8 @@ function AddLinkForm({ ws, project, item, onDone }: { ws: string; project: strin
                   onClick={() => { pick(h.item_key); }}
                   className="flex w-full min-w-0 items-center gap-2 px-2 py-2 text-left text-sm hover:bg-zinc-50 pointer-coarse:min-h-11 dark:hover:bg-zinc-800"
                 >
-                  <span className="shrink-0 font-mono text-xs text-zinc-500">{h.item_key}</span>
-                  <span className={cn("min-w-0 flex-1 truncate", isClosed(h.status_category) && "text-zinc-500 line-through")}>
+                  <span className="shrink-0 font-mono text-xs text-zinc-500 dark:text-zinc-400">{h.item_key}</span>
+                  <span className={cn("min-w-0 flex-1 truncate", isClosed(h.status_category) && "text-zinc-500 dark:text-zinc-400 line-through")}>
                     {h.item_title}
                   </span>
                   <StatusBadge name={h.status_name} category={h.status_category} />

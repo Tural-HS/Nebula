@@ -53,11 +53,11 @@ export function GlobalSearch() {
         aria-haspopup="dialog"
         aria-keyshortcuts="Meta+K Control+K"
         aria-label={ts.open}
-        className="inline-flex h-8 items-center gap-2 rounded-md px-2 text-sm text-zinc-500 ring-1 ring-zinc-200 hover:bg-zinc-50 hover:text-zinc-800 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none pointer-coarse:min-h-11 pointer-coarse:min-w-11 max-sm:justify-center max-sm:ring-0 dark:ring-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+        className="inline-flex h-8 items-center gap-2 rounded-md px-2 text-sm text-zinc-500 dark:text-zinc-400 ring-1 ring-zinc-200 hover:bg-zinc-50 hover:text-zinc-800 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none pointer-coarse:min-h-11 pointer-coarse:min-w-11 max-sm:justify-center max-sm:ring-0 dark:ring-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
       >
         <SearchIcon />
         <span className="max-sm:hidden">{ts.open}</span>
-        <kbd className="rounded bg-zinc-100 px-1 font-sans text-[11px] text-zinc-500 max-lg:hidden dark:bg-zinc-800">{ts.shortcut(isMac)}</kbd>
+        <kbd className="rounded bg-zinc-100 px-1 font-sans text-2xs text-zinc-500 dark:text-zinc-400 max-lg:hidden dark:bg-zinc-800">{ts.shortcut(isMac)}</kbd>
       </button>
       <SearchDialog
         ws={ws}
@@ -183,7 +183,7 @@ function SearchDialog({ ws, open, onClose }: { ws: string; open: boolean; onClos
           <h2 id={titleId} className="sr-only">
             {ts.dialogTitle}
           </h2>
-          <div className="flex items-center gap-2 border-b border-zinc-200 px-3 dark:border-zinc-800">
+          <div className="flex items-center gap-2 border-b border-zinc-200 px-3 focus-within:ring-2 focus-within:ring-brand-500 focus-within:ring-inset dark:border-zinc-800">
             <SearchIcon className="size-5 shrink-0 text-zinc-400" />
             <input
               ref={inputRef}
@@ -203,13 +203,13 @@ function SearchDialog({ ws, open, onClose }: { ws: string; open: boolean; onClos
               value={query}
               onChange={(e) => { setQuery(e.target.value); }}
               onKeyDown={onKeyDown}
-              className={cn("h-12 min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-zinc-400 sm:text-sm", touchField)}
+              className={cn("h-12 min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-zinc-500 sm:text-sm dark:placeholder:text-zinc-400", touchField)}
             />
-            {search.isFetching && searchable && <span className="size-4 shrink-0 animate-spin rounded-full border-2 border-zinc-300 border-t-brand-600" aria-hidden />}
+            {search.isFetching && searchable && <span className="size-4 shrink-0 animate-spin rounded-full motion-reduce:animate-none border-2 border-zinc-300 border-t-brand-600" aria-hidden />}
             <button
               type="button"
               onClick={onClose}
-              className="shrink-0 rounded px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-100 pointer-coarse:min-h-11 dark:hover:bg-zinc-800"
+              className="shrink-0 rounded px-2 py-1 text-sm text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 pointer-coarse:min-h-11 dark:hover:bg-zinc-800"
             >
               <span className="sm:hidden">{t.close}</span>
               <kbd className="font-sans text-xs max-sm:hidden">Esc</kbd>
@@ -220,7 +220,7 @@ function SearchDialog({ ws, open, onClose }: { ws: string; open: boolean; onClos
             {tooLong ? (
               <p className="p-4 text-sm text-red-600 dark:text-red-400">{ts.tooLong}</p>
             ) : !searchable ? (
-              <p id={`${ids}-hint`} className="p-4 text-sm text-zinc-500">
+              <p id={`${ids}-hint`} className="p-4 text-sm text-zinc-500 dark:text-zinc-400">
                 {ts.hint}
               </p>
             ) : rateLimited ? (
@@ -230,14 +230,14 @@ function SearchDialog({ ws, open, onClose }: { ws: string; open: boolean; onClos
             ) : search.isError && hits.length === 0 ? (
               <ErrorState error={search.error} onRetry={() => void search.refetch()} />
             ) : ordered.length === 0 ? (
-              <p className="p-4 text-sm text-zinc-500">{ts.empty}</p>
+              <p className="p-4 text-sm text-zinc-500 dark:text-zinc-400">{ts.empty}</p>
             ) : (
               <div id={listId} role="listbox" aria-label={ts.dialogTitle} className="py-1">
-                {fuzzy && <p className="px-4 pt-2 pb-1 text-xs text-zinc-500">{ts.fuzzy}</p>}
+                {fuzzy && <p className="px-4 pt-2 pb-1 text-xs text-zinc-500 dark:text-zinc-400">{ts.fuzzy}</p>}
                 {(["items", "comments"] as const).map((g) =>
                   groups[g].length === 0 ? null : (
                     <div key={g} role="group" aria-labelledby={`${ids}-${g}`}>
-                      <div id={`${ids}-${g}`} className="flex items-center justify-between px-4 pt-3 pb-1 text-xs font-semibold tracking-wide text-zinc-500 uppercase">
+                      <div id={`${ids}-${g}`} className="flex items-center justify-between px-4 pt-3 pb-1 text-xs font-semibold tracking-wide text-zinc-500 dark:text-zinc-400 uppercase">
                         <span>{g === "items" ? ts.items : ts.comments}</span>
                         <span className="font-normal normal-case">{ts.count(groups[g].length, counts ? (g === "items" ? counts.items : counts.comments) : groups[g].length)}</span>
                       </div>
@@ -272,7 +272,7 @@ function SearchDialog({ ws, open, onClose }: { ws: string; open: boolean; onClos
               </div>
             )}
           </div>
-          <div className="flex items-center justify-between gap-2 border-t border-zinc-200 px-4 py-2 text-xs text-zinc-500 dark:border-zinc-800">
+          <div className="flex items-center justify-between gap-2 border-t border-zinc-200 px-4 py-2 text-xs text-zinc-500 dark:text-zinc-400 dark:border-zinc-800">
             <span role="status" aria-live="polite">
               {status}
             </span>
@@ -316,12 +316,12 @@ function HitRow({ id, hit, active, onHover, onOpen }: { id: string; hit: SearchH
       )}
     >
       <div className="flex min-w-0 items-center gap-2 text-sm">
-        <span className="shrink-0 font-mono text-xs text-zinc-500">{hit.item_key}</span>
+        <span className="shrink-0 font-mono text-xs text-zinc-500 dark:text-zinc-400">{hit.item_key}</span>
         <span className={cn("min-w-0 flex-1 truncate", comment ? "text-zinc-600 dark:text-zinc-400" : "font-medium")}>
           <Highlighted segments={hit.title} />
         </span>
         {hit.match === "key" && (
-          <span className="shrink-0 rounded bg-brand-100 px-1.5 text-[11px] font-medium text-brand-800 dark:bg-brand-900 dark:text-brand-100">{ts.keyMatch}</span>
+          <span className="shrink-0 rounded bg-brand-100 px-1.5 text-2xs font-medium text-brand-800 dark:bg-brand-900 dark:text-brand-100">{ts.keyMatch}</span>
         )}
         {!comment && (
           <span className="shrink-0 max-sm:hidden">
@@ -330,7 +330,7 @@ function HitRow({ id, hit, active, onHover, onOpen }: { id: string; hit: SearchH
         )}
       </div>
       {comment && (
-        <div className="mt-0.5 text-xs text-zinc-500">{ts.commentBy(hit.author?.display_name ?? ts.someone)}</div>
+        <div className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">{ts.commentBy(hit.author?.display_name ?? ts.someone)}</div>
       )}
       {hit.snippet && hit.snippet.length > 0 && (
         <p className="mt-0.5 line-clamp-2 text-xs text-zinc-600 dark:text-zinc-400">

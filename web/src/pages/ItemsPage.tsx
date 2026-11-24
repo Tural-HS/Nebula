@@ -48,6 +48,13 @@ function useDebounced<T>(value: T, ms: number): T {
   return v;
 }
 
+const VIEW_ICON = { table: "☰", board: "▥", calendar: "📅" } as const;
+
+/** Every filter back to "any" (search and view settings stay). */
+function clearFilters(): Partial<PageState> {
+  return { assignee: "", due: "", approval: "", blocked: false, status: [], fields: {} };
+}
+
 export function ItemsPage() {
   const { ws = "", project = "" } = useParams();
   const [params, setParams] = useSearchParams();
@@ -323,25 +330,30 @@ export function ItemsPage() {
     </Select>
   );
   const viewTabs = (
-    <div role="tablist" aria-label="view" className="inline-flex shrink-0 rounded-md ring-1 ring-zinc-300 dark:ring-zinc-700">
+    // A segmented control: toggle buttons in a labelled group. Tab roles
+    // promised arrow keys and a tab panel that were not there.
+    <div role="group" aria-label={t.viewMode} className="inline-flex shrink-0 rounded-md ring-1 ring-zinc-300 dark:ring-zinc-700">
       {(["table", "board", "calendar"] as const).map((v) => (
         <button
           key={v}
-          role="tab"
           type="button"
-          aria-selected={view === v}
+          aria-pressed={view === v}
+          title={v === "table" ? t.viewTable : v === "board" ? t.viewBoard : tc.viewCalendar}
           onClick={() => { applyState({ mode: v }); }}
           className={cn(
             "px-3 py-1.5 text-sm first:rounded-l-md last:rounded-r-md pointer-coarse:min-h-11 max-md:px-2.5",
             view === v ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900" : "text-zinc-600 dark:text-zinc-300",
           )}
         >
-          {v === "table" ? t.viewTable : v === "board" ? t.viewBoard : tc.viewCalendar}
+          {/* Phones: a symbol, so search, filters and the switch keep one row
+              in every language; the name stays for screen readers and as a tooltip. */}
+          <span aria-hidden className="sm:hidden">{VIEW_ICON[v]}</span>
+          <span className="max-sm:sr-only">{v === "table" ? t.viewTable : v === "board" ? t.viewBoard : tc.viewCalendar}</span>
         </button>
       ))}
     </div>
   );
-  const readOnly = !canEdit && workspace.data ? <span className="text-xs text-zinc-500">{t.readOnly}</span> : null;
+  const readOnly = !canEdit && workspace.data ? <span className="text-xs text-zinc-500 dark:text-zinc-400">{t.readOnly}</span> : null;
   // Desktop and tablet (ADR-0035): every filter control in one menu, what is
   // applied as chips beside it, so the toolbar stays one row.
   const filtersMenu = (
@@ -403,7 +415,7 @@ export function ItemsPage() {
             <Button aria-haspopup="dialog" onClick={() => { setSheet(true); }} className="shrink-0">
               {tv.filters}
               {filterCount > 0 && (
-                <span className="rounded-full bg-brand-600 px-1.5 text-[11px] text-white tabular-nums">{filterCount}</span>
+                <span className="rounded-full bg-brand-600 px-1.5 text-2xs text-white tabular-nums">{filterCount}</span>
               )}
             </Button>
             {viewTabs}
@@ -428,7 +440,7 @@ export function ItemsPage() {
                 <FilterChips
                   chips={chips}
                   onClear={(patch) => { applyState(patch); }}
-                  onClearAll={() => { applyState({ assignee: "", due: "", approval: "", blocked: false, status: [], fields: {} }); }}
+                  onClearAll={() => { applyState(clearFilters()); }}
                 />
               </div>
             )}
@@ -498,7 +510,16 @@ export function ItemsPage() {
           ) : items.isError ? (
             <ErrorState error={items.error} onRetry={() => void items.refetch()} />
           ) : all.length === 0 ? (
-            <EmptyState>{t.noItems}</EmptyState>
+            <EmptyState>
+              {filterCount > 0 || state.q ? (
+                <>
+                  <p>{t.noItemsFiltered}</p>
+                  <Button className="mt-3" onClick={() => { applyState({ ...clearFilters(), q: "" }); }}>{tlg.clearFilters}</Button>
+                </>
+              ) : (
+                <p>{t.noItemsYet}</p>
+              )}
+            </EmptyState>
           ) : (
             <ItemTable
               items={all}

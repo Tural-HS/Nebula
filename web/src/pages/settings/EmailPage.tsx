@@ -35,7 +35,7 @@ function StatusNote({ view }: { view: EmailSettingsView }) {
   return (
     <p role="status" className="rounded-lg bg-zinc-100 p-3 text-sm text-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
       {text}
-      {s?.updated_by_name && <span className="mt-1 block text-xs text-zinc-500">{tem.updated(s.updated_by_name, formatDateTime(s.updated_at))}</span>}
+      {s?.updated_by_name && <span className="mt-1 block text-xs text-zinc-500 dark:text-zinc-400">{tem.updated(s.updated_by_name, formatDateTime(s.updated_at))}</span>}
     </p>
   );
 }
@@ -45,7 +45,7 @@ function Field({ label, hint, children }: { label: ReactNode; hint?: string; chi
     <label className="block text-sm">
       <span className="mb-1 block text-zinc-600 dark:text-zinc-400">{label}</span>
       {children}
-      {hint && <span className="mt-1 block text-xs text-zinc-500">{hint}</span>}
+      {hint && <span className="mt-1 block text-xs text-zinc-500 dark:text-zinc-400">{hint}</span>}
     </label>
   );
 }
@@ -80,7 +80,7 @@ function SettingsForm({ ws, view }: { ws: string; view: EmailSettingsView }) {
               </Button>
             ))}
           </div>
-          {preset && <p className="mt-2 text-xs text-zinc-500">{tem.presetHints[preset]}</p>}
+          {preset && <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">{tem.presetHints[preset]}</p>}
         </fieldset>
 
         <Field label={tem.from} hint={tem.fromHint}>
@@ -110,7 +110,7 @@ function SettingsForm({ ws, view }: { ws: string; view: EmailSettingsView }) {
           <input type="checkbox" className="mt-0.5 accent-brand-600 pointer-coarse:size-5" checked={form.enabled} onChange={(e) => { set({ enabled: e.target.checked }); }} />
           <span>
             {tem.enabled}
-            <span className="block text-xs text-zinc-500">{tem.enabledHint}</span>
+            <span className="block text-xs text-zinc-500 dark:text-zinc-400">{tem.enabledHint}</span>
           </span>
         </label>
 
@@ -144,7 +144,7 @@ function PasswordField({ form, hadPassword, set }: { form: EmailForm; hadPasswor
       <div className="text-sm">
         <span className="mb-1 block text-zinc-600 dark:text-zinc-400">{tem.password}</span>
         <div className="flex flex-wrap items-center gap-2">
-          <span className={form.passwordAction === "clear" ? "text-zinc-400 line-through" : ""}>{tem.passwordSaved}</span>
+          <span className={form.passwordAction === "clear" ? "text-zinc-500 dark:text-zinc-400 line-through" : ""}>{tem.passwordSaved}</span>
           <Button type="button" onClick={() => { set({ passwordAction: "set", password: "" }); }}>{tem.passwordChange}</Button>
           {form.passwordAction === "keep"
             ? <Button type="button" onClick={() => { set({ passwordAction: "clear" }); }}>{tem.passwordClear}</Button>
@@ -170,7 +170,7 @@ function TestCard({ ws }: { ws: string }) {
   return (
     <Card label={tem.testTitle}>
       <h2 className="text-sm font-medium">{tem.testTitle}</h2>
-      <p className="mt-1 mb-3 text-xs text-zinc-500">{tem.testHint}</p>
+      <p className="mt-1 mb-3 text-xs text-zinc-500 dark:text-zinc-400">{tem.testHint}</p>
       <form
         className="flex max-w-xl flex-col gap-2 sm:flex-row sm:items-end"
         onSubmit={(e) => {

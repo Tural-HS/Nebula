@@ -85,7 +85,7 @@ export function WatchControl({ ws, project, n, isAdmin }: { ws: string; project:
         >
           <p className="mb-2 font-semibold">{tl.watchers}</p>
           {count === 0 ? (
-            <p className="text-zinc-500">{tl.noWatchers}</p>
+            <p className="text-zinc-500 dark:text-zinc-400">{tl.noWatchers}</p>
           ) : (
             <ul className="max-h-60 space-y-1 overflow-y-auto">
               {data?.watchers.map((w) => (
@@ -97,7 +97,7 @@ export function WatchControl({ ws, project, n, isAdmin }: { ws: string; project:
                       variant="ghost"
                       aria-label={tl.removeWatcher(w.display_name)}
                       title={tl.removeWatcher(w.display_name)}
-                      className="text-xs text-zinc-500"
+                      className="text-xs text-zinc-500 dark:text-zinc-400"
                       onClick={() => { change(w.id, false); }}
                     >
                       ✕

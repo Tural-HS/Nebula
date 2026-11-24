@@ -154,7 +154,7 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
   const cell = (it: Item, col: string): ReactNode => {
     switch (col) {
       case "key":
-        return <span className="text-xs text-zinc-500 tabular-nums">{it.key}</span>;
+        return <span className="text-xs text-zinc-500 dark:text-zinc-400 tabular-nums">{it.key}</span>;
       case "title": {
         const title = (
           <span className="flex min-w-0 items-center gap-2">
@@ -163,7 +163,7 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
         );
         return keyInTitle ? (
           <span className="flex min-w-0 flex-col leading-tight">
-            <span className="flex min-w-0 items-center gap-1.5 overflow-hidden text-[11px] text-zinc-500 tabular-nums">
+            <span className="flex min-w-0 items-center gap-1.5 overflow-hidden text-2xs text-zinc-500 dark:text-zinc-400 tabular-nums">
               <span className="shrink-0">{it.key}</span>
               <SignalCell item={it} withDue inline /* the due column is off-screen on phones */ />
             </span>
@@ -188,7 +188,7 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
       case "created_at":
       case "updated_at": {
         const v = col === "created_at" ? it.created_at : it.updated_at;
-        return <span className="text-xs text-zinc-500" title={formatDateTime(v)}>{formatRelative(v)}</span>;
+        return <span className="text-xs text-zinc-500 dark:text-zinc-400" title={formatDateTime(v)}>{formatRelative(v)}</span>;
       }
     }
     const def = fields.get(fieldKey(col));
@@ -206,10 +206,10 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
   };
 
   return (
-    <div ref={scrollRef} className="h-full overflow-auto" role="table" aria-rowcount={items.length}>
-      <div role="row" style={grid} className={cn(ROW, "sticky top-0 z-[2] h-8 border-b border-zinc-200 bg-zinc-50 text-xs font-medium text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950")}>
+    <div ref={scrollRef} className="h-full scroll-pt-8 scroll-pb-10 overflow-auto" role="table" aria-rowcount={items.length}>
+      <div role="row" style={grid} className={cn(ROW, "sticky top-0 z-[2] h-8 border-b border-zinc-200 bg-zinc-50 text-xs font-medium text-zinc-500 dark:text-zinc-400 dark:border-zinc-800 dark:bg-zinc-950")}>
         {columns.map((c, i) => (
-          <span key={c} role="columnheader" title={c === SIGNALS ? tlg.signalsHint : undefined} className={cn("truncate", numeric(c) && "text-right", i === 0 && STICKY_LEFT, i === 0 && STICKY_EDGE, i === 0 && select && "flex items-center gap-3")}>
+          <span key={c} role="columnheader" title={c === SIGNALS ? tlg.signalsHint : header(c)} className={cn("truncate", numeric(c) && "text-right", i === 0 && STICKY_LEFT, i === 0 && STICKY_EDGE, i === 0 && select && "flex items-center gap-3")}>
             {i === 0 && select && (
               <input
                 type="checkbox"
@@ -242,18 +242,29 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
                 </span>
               )}
               {it && plainRows ? (
-                <button
-                  type="button"
-                  onClick={() => { onOpen(it.number); }}
+                // Touch and compact rows: the cells stay cells (a button's
+                // children are presentational, which flattened the table into
+                // one long name). The title is the keyboard's button; a tap
+                // anywhere else on the row opens the item too.
+                <div
                   style={grid}
-                  className={cn(ROW, "h-full w-full border-b border-zinc-100 text-left text-sm tabular-nums hover:bg-zinc-100/70 dark:border-zinc-800/60 dark:hover:bg-zinc-800/60")}
+                  onClick={(e) => {
+                    if (!(e.target as HTMLElement).closest("button, a")) onOpen(it.number);
+                  }}
+                  className={cn(ROW, "h-full w-full cursor-pointer border-b border-zinc-100 text-left text-sm tabular-nums hover:bg-zinc-100/70 dark:border-zinc-800/60 dark:hover:bg-zinc-800/60")}
                 >
                   {columns.map((c, i) => (
                     <span key={c} role="cell" className={cn("min-w-0", i === 0 && STICKY_LEFT, i === 0 && STICKY_EDGE)}>
-                      {cell(it, c)}
+                      {c === "title" ? (
+                        <button type="button" className="flex min-w-0 text-left" onClick={() => { onOpen(it.number); }}>
+                          {cell(it, c)}
+                        </button>
+                      ) : (
+                        cell(it, c)
+                      )}
                     </span>
                   ))}
-                </button>
+                </div>
               ) : it ? (
                 // Desktop: the title opens the item (a button, so the
                 // keyboard reaches it), editable cells edit in place, and a
@@ -299,7 +310,7 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
                   })}
                 </div>
               ) : (
-                <div className="px-4 py-3 text-sm text-zinc-500">{t.loadingMore}</div>
+                <div className="px-4 py-3 text-sm text-zinc-500 dark:text-zinc-400">{t.loadingMore}</div>
               )}
             </div>
           );
@@ -332,7 +343,7 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
 }
 
 function AssigneeCell({ id, members }: { id: string | null; members: Map<string, Member> }) {
-  if (!id) return <span className="text-zinc-400">{t.unassigned}</span>;
+  if (!id) return <span className="text-zinc-500 dark:text-zinc-400">{t.unassigned}</span>;
   const name = members.get(id)?.display_name ?? "…";
   return (
     <>

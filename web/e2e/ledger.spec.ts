@@ -25,10 +25,10 @@ test("quick filters show counts, filter the list and become removable chips", as
   await expect(queues.getByRole("button", { name: "Hamısı: 3" })).toHaveAttribute("aria-pressed", "true");
   await expect(queues.getByRole("button", { name: "Mənə təyin: 1" })).toBeVisible();
 
-  await queues.getByRole("button", { name: "Gecikmiş: 1" }).click();
+  await queues.getByRole("button", { name: "Gecikən: 1" }).click();
   await expect(page).toHaveURL(/due=overdue/);
   await expect(page.getByRole("row").filter({ hasText: "QA-" })).toHaveCount(1);
-  await expect(queues.getByRole("button", { name: "Gecikmiş: 1" })).toHaveAttribute("aria-pressed", "true");
+  await expect(queues.getByRole("button", { name: "Gecikən: 1" })).toHaveAttribute("aria-pressed", "true");
 
   // The applied filter is a chip; removing it shows everything again.
   const chips = page.getByRole("list", { name: "Aktiv filtrlər" });

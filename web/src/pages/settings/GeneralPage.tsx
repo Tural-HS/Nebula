@@ -48,7 +48,7 @@ function AccentPicker({ ws, accent }: { ws: string; accent: string | null }) {
     <Card>
       <fieldset disabled={adm.updateWorkspace.isPending}>
         <legend className="text-sm font-medium">{tth.accent}</legend>
-        <p className="mt-1 text-xs text-zinc-500">{tth.accentHint}</p>
+        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{tth.accentHint}</p>
         <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
           {ACCENTS.map((a) => (
             <label
@@ -109,7 +109,7 @@ function GeneralForm({ ws, workspace }: { ws: string; workspace: Workspace }) {
           <Select value={timezone} onChange={(e) => { setTimezone(e.target.value); }}>
             {timeZones(workspace.timezone).map((z) => <option key={z} value={z}>{z}</option>)}
           </Select>
-          <span className="mt-1 block text-xs text-zinc-500">{ta.general.timezoneHint}</span>
+          <span className="mt-1 block text-xs text-zinc-500 dark:text-zinc-400">{ta.general.timezoneHint}</span>
         </label>
         <label className="block text-sm">
           <span className="mb-1 block text-zinc-600 dark:text-zinc-400">{ta.general.digestHour}</span>
@@ -119,7 +119,7 @@ function GeneralForm({ ws, workspace }: { ws: string; workspace: Workspace }) {
               <option key={h} value={String(h)}>{String(h).padStart(2, "0")}:00</option>
             ))}
           </Select>
-          <span className="mt-1 block text-xs text-zinc-500">{ta.general.digestHint}</span>
+          <span className="mt-1 block text-xs text-zinc-500 dark:text-zinc-400">{ta.general.digestHint}</span>
         </label>
         <Button type="submit" variant="primary" disabled={adm.updateWorkspace.isPending}>{t.save}</Button>
       </form>

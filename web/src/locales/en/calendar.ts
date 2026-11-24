@@ -38,7 +38,9 @@ export const tc = {
   fieldValue: "Value",
   apply: "Apply",
   bulkDelete: "Delete",
-  confirmBulkDelete: (n: number) => `Are you sure you want to delete ${items(n)}? This cannot be undone.`,
+  confirmBulkDelete: (n: number) => `The selected ${items(n)}, their comments and files will be deleted. This cannot be undone.`,
+  bulkDeleteTitle: (n: number) => `Delete ${items(n)}?`,
+  bulkDeleteAction: (n: number) => `Delete ${items(n)}`,
   bulkDone: (n: number) => `${items(n)} updated`,
   bulkDeleted: (n: number) => `${items(n)} deleted`,
   bulkFailedTitle: "Nothing was changed",
@@ -47,5 +49,6 @@ export const tc = {
   bulkCap: (n: number) => `Up to ${items(n)} at a time`,
 
   edit: (what: string, key: string) => `${key}: edit ${what}`,
+  invalidNumber: (what: string) => `${what}: enter a number, e.g. 1250.50. The value was not changed.`,
   saveFailed: "Change was not saved",
 } satisfies Messages["calendar"];

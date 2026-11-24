@@ -49,7 +49,7 @@ function NewWorkflow({ ws }: { ws: string }) {
           );
         }}
       >
-        <label className="text-xs text-zinc-500">
+        <label className="text-xs text-zinc-500 dark:text-zinc-400">
           {ta.newWorkflow}
           <Input required maxLength={200} value={name} onChange={(e) => { setName(e.target.value); }} className="w-64" />
         </label>
@@ -98,11 +98,11 @@ function WorkflowCard({ ws, wf }: { ws: string; wf: Workflow }) {
 
       <div className="grid gap-6 lg:grid-cols-2">
         <section>
-          <h3 className="mb-2 text-xs font-semibold tracking-wide text-zinc-500 uppercase">{ta.statuses}</h3>
+          <h3 className="mb-2 text-xs font-semibold tracking-wide text-zinc-500 dark:text-zinc-400 uppercase">{ta.statuses}</h3>
           <ul className="space-y-1.5">
             {wf.statuses.map((s, i) => (
               <li key={s.id} className="flex flex-wrap items-center gap-2 text-sm">
-                <span className="flex flex-col text-[10px] leading-none text-zinc-400">
+                <span className="flex flex-col text-2xs leading-none text-zinc-400">
                   <button type="button" aria-label="up" disabled={i === 0} onClick={() => void move(i, -1)} className="disabled:opacity-30">▲</button>
                   <button type="button" aria-label="down" disabled={i === wf.statuses.length - 1} onClick={() => void move(i, 1)} className="disabled:opacity-30">▼</button>
                 </span>
@@ -146,7 +146,7 @@ function WorkflowCard({ ws, wf }: { ws: string; wf: Workflow }) {
         </section>
 
         <section>
-          <h3 className="mb-2 text-xs font-semibold tracking-wide text-zinc-500 uppercase">{ta.transitions}</h3>
+          <h3 className="mb-2 text-xs font-semibold tracking-wide text-zinc-500 dark:text-zinc-400 uppercase">{ta.transitions}</h3>
           <label className="mb-1 flex items-center gap-2 text-sm">
             <input
               type="checkbox"
@@ -156,15 +156,15 @@ function WorkflowCard({ ws, wf }: { ws: string; wf: Workflow }) {
             />
             {ta.enforce}
           </label>
-          <p className="mb-3 text-xs text-zinc-500">{ta.enforceHint}</p>
-          {wf.transitions.length === 0 && <p className="text-xs text-zinc-400">{ta.noTransitions}</p>}
+          <p className="mb-3 text-xs text-zinc-500 dark:text-zinc-400">{ta.enforceHint}</p>
+          {wf.transitions.length === 0 && <p className="text-xs text-zinc-500 dark:text-zinc-400">{ta.noTransitions}</p>}
           <ul className="space-y-1">
             {wf.transitions.map((tr) => (
               <li key={tr.id} className="flex flex-wrap items-center gap-2 text-sm">
-                <span>{tr.from_status_id ? statusName.get(tr.from_status_id) : <em className="text-zinc-500">{ta.anyStatus}</em>}</span>
+                <span>{tr.from_status_id ? statusName.get(tr.from_status_id) : <em className="text-zinc-500 dark:text-zinc-400">{ta.anyStatus}</em>}</span>
                 <span className="text-zinc-400">→</span>
                 <span className="font-medium">{statusName.get(tr.to_status_id)}</span>
-                <span className="text-xs text-zinc-500">({tr.name})</span>
+                <span className="text-xs text-zinc-500 dark:text-zinc-400">({tr.name})</span>
                 <Button variant="ghost" className="ml-auto px-1.5 py-0.5 text-xs text-red-600" onClick={() => { adm.deleteTransition.mutate({ wf: wf.id, id: tr.id }, { onSuccess: fb.ok(), onError: fb.fail }); }}>
                   {t.delete}
                 </Button>
@@ -201,9 +201,9 @@ function WorkflowCard({ ws, wf }: { ws: string; wf: Workflow }) {
 function ApprovalPolicies({ ws, wf }: { ws: string; wf: Workflow }) {
   return (
     <section className="mt-6 border-t border-zinc-200 pt-4 dark:border-zinc-800" aria-label={`${wf.name}: ${tap.settings.title}`}>
-      <h3 className="mb-1 text-xs font-semibold tracking-wide text-zinc-500 uppercase">{tap.settings.title}</h3>
-      <p className="mb-3 text-xs text-zinc-500">{tap.settings.hint}</p>
-      {(wf.approval_policies ?? []).length === 0 && <p className="mb-2 text-xs text-zinc-400">{tap.settings.none}</p>}
+      <h3 className="mb-1 text-xs font-semibold tracking-wide text-zinc-500 dark:text-zinc-400 uppercase">{tap.settings.title}</h3>
+      <p className="mb-3 text-xs text-zinc-500 dark:text-zinc-400">{tap.settings.hint}</p>
+      {(wf.approval_policies ?? []).length === 0 && <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400">{tap.settings.none}</p>}
       <ul className="space-y-1.5">
         {wf.statuses.map((st) => (
           <PolicyRow key={st.id + (policyFor(wf.approval_policies, st.id)?.id ?? "")} ws={ws} wf={wf} status={st} policy={policyFor(wf.approval_policies, st.id)} />
@@ -243,7 +243,7 @@ function PolicyRow({ ws, wf, status, policy }: { ws: string; wf: Workflow; statu
               {policy.reapprove_on_change ? ` · ♻️ ${tai.settings.summaryReapprove}` : ""}
             </span>
           ) : (
-            <span className="text-xs text-zinc-400">—</span>
+            <span className="text-xs text-zinc-500 dark:text-zinc-400">—</span>
           )}
         </summary>
         <form
@@ -254,7 +254,7 @@ function PolicyRow({ ws, wf, status, policy }: { ws: string; wf: Workflow; statu
             adm.setApprovalPolicy.mutate({ wf: wf.id, status: status.id, body }, { onSuccess: fb.ok(), onError: fb.fail });
           }}
         >
-          <label className="flex items-center gap-2 text-xs text-zinc-500">
+          <label className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
             {tap.settings.min}
             <Input
               type="number"
@@ -266,7 +266,7 @@ function PolicyRow({ ws, wf, status, policy }: { ws: string; wf: Workflow; statu
             />
           </label>
           <fieldset>
-            <legend className="mb-1 text-xs text-zinc-500">{tap.settings.roles}</legend>
+            <legend className="mb-1 text-xs text-zinc-500 dark:text-zinc-400">{tap.settings.roles}</legend>
             <div className="flex flex-wrap gap-3">
               {APPROVER_ROLES.map((r) => (
                 <label key={r} className="flex items-center gap-1.5 pointer-coarse:min-h-11">
@@ -277,7 +277,7 @@ function PolicyRow({ ws, wf, status, policy }: { ws: string; wf: Workflow; statu
             </div>
           </fieldset>
           <fieldset>
-            <legend className="mb-1 text-xs text-zinc-500">{tap.settings.users}</legend>
+            <legend className="mb-1 text-xs text-zinc-500 dark:text-zinc-400">{tap.settings.users}</legend>
             <div className="flex max-h-40 flex-wrap gap-x-3 gap-y-1 overflow-y-auto">
               {eligible.map((m) => (
                 <label key={m.user_id} className="flex items-center gap-1.5 pointer-coarse:min-h-11">

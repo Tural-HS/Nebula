@@ -92,7 +92,7 @@ function Settings({ ws, project }: { ws: string; project: Project }) {
       {project.visibility === "private" && <Members ws={ws} project={project} />}
       <section aria-labelledby="ps-forms" className="space-y-2 rounded-xl bg-white p-4 ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-800">
         <h2 id="ps-forms" className="text-sm font-semibold">{tf.section}</h2>
-        <p className="text-xs text-zinc-500">{tf.sectionHint}</p>
+        <p className="text-xs text-zinc-500 dark:text-zinc-400">{tf.sectionHint}</p>
         <Link to={`/w/${encodeURIComponent(ws)}/p/${encodeURIComponent(project.key)}/forms`} className="inline-flex rounded-md px-3 py-1.5 text-sm font-medium ring-1 ring-zinc-300 hover:bg-zinc-50 pointer-coarse:min-h-11 dark:ring-zinc-700 dark:hover:bg-zinc-800">
           {tf.manage}
         </Link>
@@ -128,16 +128,16 @@ function Members({ ws, project }: { ws: string; project: Project }) {
   return (
     <section aria-label={tp.members} className="space-y-3 rounded-xl bg-white p-4 ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-800">
       <h2 className="text-sm font-semibold">{tp.members}</h2>
-      <p className="text-xs text-zinc-500">{tp.membersHint}</p>
+      <p className="text-xs text-zinc-500 dark:text-zinc-400">{tp.membersHint}</p>
       {members.data.length === 0 ? (
-        <p className="text-sm text-zinc-500">{tp.noMembers}</p>
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">{tp.noMembers}</p>
       ) : (
         <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
           {members.data.map((m) => (
             <li key={m.user_id} className="flex items-center gap-3 py-2 text-sm">
               <Avatar name={m.display_name} />
               <span className="min-w-0 flex-1">
-                {m.display_name} <span className="text-xs text-zinc-500">{m.email} · {ta.roles[m.role]}</span>
+                {m.display_name} <span className="text-xs text-zinc-500 dark:text-zinc-400">{m.email} · {ta.roles[m.role]}</span>
               </span>
               <Button variant="ghost" className="text-red-600" onClick={() => { remove.mutate(m.user_id); }} aria-label={`${tp.remove}: ${m.display_name}`}>
                 {tp.remove}

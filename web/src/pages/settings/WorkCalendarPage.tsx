@@ -77,7 +77,7 @@ function WeekendCard({ ws, initial }: { ws: string; initial: number[] }) {
           );
         })}
       </div>
-      <p className="mt-2 text-xs text-zinc-500">{tw.weekendHint}</p>
+      <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">{tw.weekendHint}</p>
       <Button
         variant="primary"
         className="mt-3"
@@ -119,9 +119,9 @@ function DayList({ ws, year, days, weekend }: { ws: string; year: number; days: 
 
   return (
     <>
-      <p className="mb-2 text-xs text-zinc-500">{tw.count(days.length, MAX_DAYS_PER_YEAR)}</p>
+      <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400">{tw.count(days.length, MAX_DAYS_PER_YEAR)}</p>
       {days.length === 0 ? (
-        <p className="rounded-lg bg-zinc-50 p-3 text-sm text-zinc-500 dark:bg-zinc-950">{tw.empty(year)}</p>
+        <p className="rounded-lg bg-zinc-50 p-3 text-sm text-zinc-500 dark:text-zinc-400 dark:bg-zinc-950">{tw.empty(year)}</p>
       ) : (
         <ul className="divide-y divide-zinc-200 dark:divide-zinc-800" aria-label={tw.days}>
           {days.map((d) => {
@@ -131,14 +131,14 @@ function DayList({ ws, year, days, weekend }: { ws: string; year: number; days: 
               <li key={d.date} aria-label={`${formatDate(d.date)}: ${d.name}`} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-sm">
                 <span className="w-36 shrink-0 tabular-nums">
                   {formatDate(d.date)}
-                  <span className="block text-xs text-zinc-500">{tc.weekdaysLong[(wd + 6) % 7]}</span>
+                  <span className="block text-xs text-zinc-500 dark:text-zinc-400">{tc.weekdaysLong[(wd + 6) % 7]}</span>
                 </span>
                 <span className={cn("rounded px-1.5 py-0.5 text-xs font-medium", d.kind === "holiday" ? "bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-100" : "bg-emerald-100 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-100")}>
                   {tw.kindShort[d.kind]}
                 </span>
                 <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">
                   {d.name}
-                  {plainWeekend && <span className="ml-1 text-xs text-zinc-500">({tw.onWeekend})</span>}
+                  {plainWeekend && <span className="ml-1 text-xs text-zinc-500 dark:text-zinc-400">({tw.onWeekend})</span>}
                 </span>
                 <Button
                   variant="ghost"

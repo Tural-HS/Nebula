@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import { ApiError } from "../api/client";
 import { keys, useAssignable, useDeleteItem, useMe, useFields, useItem, useItemTypes, useMembers, useTransitions, useUpdateItem, type ItemPatch } from "../api/hooks";
@@ -16,7 +16,7 @@ import { RequestPanel } from "../components/RequestPanel";
 import { ParentCrumb, SubtaskSection } from "../components/Subtasks";
 import { useToast } from "../components/toast-context";
 import { WatchControl } from "../components/Watchers";
-import { Avatar, Button, DueChip, ErrorState, Select, Spinner, StatusBadge, touchField } from "../components/ui";
+import { Avatar, Button, Dialog, DueChip, ErrorState, Select, Spinner, StatusBadge, touchField } from "../components/ui";
 import { t } from "../i18n";
 import { tap } from "../i18n-approvals";
 import { approvalErrorCode, approvalErrorText, isLocked } from "../lib/approvals";
@@ -48,11 +48,36 @@ export function ItemDrawer({ ws, project, n, canEdit, isAdmin, onClose }: {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      // A dialog opened from the panel (confirm, approval request, search)
+      // handles its own Esc; only the top layer closes.
+      if (e.key === "Escape" && !e.defaultPrevented && !document.querySelector("dialog[open]")) onClose();
     };
     window.addEventListener("keydown", onKey);
     return () => { window.removeEventListener("keydown", onKey); };
   }, [onClose]);
+
+  // Below lg the panel is modal (WCAG 2.4.3): focus moves into it on open,
+  // Tab stays inside, and focus returns to what opened it (the row) on close.
+  useEffect(() => {
+    if (wide) return;
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    panel.current?.focus({ preventScroll: true });
+    const trap = (e: KeyboardEvent) => {
+      const root = panel.current;
+      if (e.key !== "Tab" || !root || document.querySelector("dialog[open]")) return;
+      const els = [...root.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((el) => el.offsetParent !== null);
+      const first = els[0], last = els.at(-1);
+      if (!first || !last) return;
+      const active = document.activeElement;
+      if (e.shiftKey && (active === first || active === root)) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && (active === last || !root.contains(active))) { e.preventDefault(); first.focus(); }
+    };
+    document.addEventListener("keydown", trap);
+    return () => {
+      document.removeEventListener("keydown", trap);
+      if (opener?.isConnected) opener.focus({ preventScroll: true });
+    };
+  }, [wide]);
 
   return (
     <>
@@ -65,18 +90,41 @@ export function ItemDrawer({ ws, project, n, canEdit, isAdmin, onClose }: {
         role="dialog"
         aria-modal={wide ? undefined : "true"}
         aria-label={item.data?.key ?? t.loading}
+        tabIndex={-1}
         style={inset > 0 ? { bottom: inset } : undefined}
         className="@container fixed inset-y-0 right-0 z-40 flex w-full max-w-xl flex-col overflow-y-auto overscroll-contain bg-white pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] shadow-2xl md:pr-0 lg:w-(--drawer-w) lg:max-w-none lg:border-l lg:border-zinc-200 lg:shadow-xl dark:bg-zinc-900 dark:lg:border-zinc-800"
       >
-        {item.isPending ? (
-          <Spinner />
-        ) : item.isError ? (
-          <ErrorState error={item.error} />
+        {item.isPending || item.isError ? (
+          <>
+            {/* Close is always reachable, also when loading fails (on a phone
+                the panel covers the screen and there is no Esc key). */}
+            <div className="sticky top-0 flex justify-end border-b border-zinc-200 bg-white px-4 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 md:px-5 md:py-3 dark:border-zinc-800 dark:bg-zinc-900">
+              <CloseButton onClose={onClose} />
+            </div>
+            {item.isPending ? (
+              <Spinner />
+            ) : (
+              <ErrorState
+                error={item.error}
+                onRetry={item.error instanceof ApiError && item.error.status === 404 ? undefined : () => { void item.refetch(); }}
+              />
+            )}
+          </>
         ) : (
           <ItemDetails key={item.data.id} ws={ws} project={project} item={item.data} canEdit={canEdit} isAdmin={isAdmin} onClose={onClose} />
         )}
       </aside>
     </>
+  );
+}
+
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])';
+
+function CloseButton({ onClose }: { onClose: () => void }) {
+  return (
+    <Button variant="ghost" onClick={onClose} aria-label={t.close} title={t.close} className="min-h-11 min-w-11 shrink-0 text-lg md:text-sm">
+      <span aria-hidden>✕</span>
+    </Button>
   );
 }
 
@@ -94,6 +142,7 @@ function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose }: {
   const transitions = useTransitions(ws, project, item.number);
   const me = useMe();
   const [title, setTitle] = useState(item.title);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [due, setDue] = useState(item.due_date ?? "");
 
   const memberName = (id: string | null) => (id ? (members.data?.find((m) => m.user_id === id)?.display_name ?? "…") : null);
@@ -159,35 +208,42 @@ function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose }: {
           panel (tablet side panel) never pushes or covers close. */}
       <div className="sticky top-0 z-10 flex items-start justify-between gap-2 border-b border-zinc-200 bg-white px-4 pt-[max(0.5rem,env(safe-area-inset-top))] pb-2 md:px-5 md:py-3 dark:border-zinc-800 dark:bg-zinc-900">
         <span className="flex min-w-0 items-center gap-2 self-center text-sm">
-          <span className="shrink-0 font-medium text-zinc-500 tabular-nums">{item.key}</span>
+          <span className="shrink-0 font-medium text-zinc-500 dark:text-zinc-400 tabular-nums">{item.key}</span>
           <span className="truncate rounded bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-600 max-sm:hidden dark:bg-zinc-800 dark:text-zinc-300">{item.type.name}</span>
         </span>
         <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2">
           <WatchControl ws={ws} project={project} n={item.number} isAdmin={isAdmin} />
           {isAdmin && <ItemEvidenceButton ws={ws} project={project} n={item.number} />}
           {canEditContent && (
-            <Button
-              variant="ghost"
-              className="text-red-600"
-              onClick={() => {
-                if (!window.confirm(t.confirmDelete)) return;
-                del.mutate(item.number, {
-                  onSuccess: () => {
-                    toast("success", t.deleted);
-                    onClose();
-                  },
-                  onError: () => { toast("error", t.errorGeneric); },
-                });
-              }}
-            >
+            <Button variant="dangerGhost" onClick={() => { setConfirmDelete(true); }}>
               {t.delete}
             </Button>
           )}
         </div>
-        <Button variant="ghost" onClick={onClose} aria-label={t.close} className="min-h-11 min-w-11 shrink-0 text-lg md:text-sm">
-          ✕
-        </Button>
+        <CloseButton onClose={onClose} />
       </div>
+      <Dialog open={confirmDelete} onClose={() => { setConfirmDelete(false); }} title={t.deleteItemTitle(item.key)}>
+        <p className="text-sm text-zinc-600 dark:text-zinc-300">{t.deleteItemBody}</p>
+        <div className="mt-5 flex flex-wrap justify-end gap-2">
+          <Button onClick={() => { setConfirmDelete(false); }}>{t.cancel}</Button>
+          <Button
+            variant="danger"
+            disabled={del.isPending}
+            onClick={() => {
+              del.mutate(item.number, {
+                onSuccess: () => {
+                  setConfirmDelete(false);
+                  toast("success", t.deleted);
+                  onClose();
+                },
+                onError: () => { toast("error", t.errorGeneric); },
+              });
+            }}
+          >
+            {t.deleteItemAction(item.key)}
+          </Button>
+        </div>
+      </Dialog>
 
       {/* Title and workflow span the panel; below, content on the left and
           the properties on the right once the panel is wide enough (a
@@ -211,7 +267,7 @@ function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose }: {
               e.currentTarget.blur();
             }
           }}
-          className="w-full resize-none rounded-md bg-transparent text-xl leading-snug font-semibold tracking-tight [overflow-wrap:anywhere] outline-none hover:bg-zinc-50 focus:bg-zinc-50 dark:hover:bg-zinc-800 dark:focus:bg-zinc-800"
+          className="w-full resize-none rounded-md bg-transparent text-xl leading-snug font-semibold tracking-tight [overflow-wrap:anywhere] hover:bg-zinc-50 focus:bg-zinc-50 dark:hover:bg-zinc-800 dark:focus:bg-zinc-800"
         />
         <WorkflowSteps statuses={workflow} item={item} />
       </div>
@@ -219,7 +275,7 @@ function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose }: {
       <div className="grid gap-5 p-4 md:p-5 @2xl:grid-cols-[minmax(0,1fr)_16.5rem] @2xl:gap-6">
         <aside aria-label={tlg.details} className="space-y-4 rounded-lg bg-zinc-50 p-3 text-sm @2xl:col-start-2 @2xl:row-start-1 @2xl:self-start dark:bg-zinc-950/40">
           <dl className="grid grid-cols-[6.5rem_minmax(0,1fr)] items-center gap-x-3 gap-y-3 @2xl:grid-cols-1 @2xl:gap-y-1 @2xl:[&>dd]:mb-2">
-          <dt className="text-zinc-500">{t.status}</dt>
+          <dt className="text-zinc-500 dark:text-zinc-400">{t.status}</dt>
           <dd className="flex flex-wrap items-center gap-2">
             {canEditContent ? (
               <Select
@@ -244,7 +300,7 @@ function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose }: {
             )}
           </dd>
 
-          <dt className="text-zinc-500">{t.assignee}</dt>
+          <dt className="text-zinc-500 dark:text-zinc-400">{t.assignee}</dt>
           <dd>
             {canEdit ? (
               <Select
@@ -265,7 +321,7 @@ function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose }: {
             )}
           </dd>
 
-          <dt className="text-zinc-500">
+          <dt className="text-zinc-500 dark:text-zinc-400">
             <label htmlFor="item-due">{t.dueDate}</label>
           </dt>
           <dd className="flex flex-wrap items-center gap-2">
@@ -285,7 +341,7 @@ function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose }: {
                   }}
                   className={cn(
                     touchField,
-                    "rounded-md bg-white px-2 py-1 text-sm ring-1 ring-zinc-300 focus:ring-2 focus:ring-brand-500 dark:bg-zinc-900 dark:ring-zinc-700",
+                    "rounded-md bg-white px-2 py-1 text-sm ring-1 ring-zinc-500 focus:ring-2 focus:ring-brand-500 dark:bg-zinc-900",
                     item.overdue && "text-red-700 ring-red-300 dark:text-red-300",
                   )}
                 />
@@ -303,19 +359,19 @@ function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose }: {
             )}
           </dd>
 
-          <dt className="text-zinc-500">{t.reporter}</dt>
+          <dt className="text-zinc-500 dark:text-zinc-400">{t.reporter}</dt>
           <dd className="flex items-center gap-2">
             {item.reporter_id && <Avatar name={memberName(item.reporter_id) ?? "?"} />}
             {memberName(item.reporter_id) ?? "—"}
           </dd>
 
-          <dt className="text-zinc-500">{t.updated}</dt>
+          <dt className="text-zinc-500 dark:text-zinc-400">{t.updated}</dt>
           <dd className="text-zinc-600 dark:text-zinc-400">{formatDateTime(item.updated_at)}</dd>
           </dl>
 
           {boundFields.length > 0 && (
             <section className="border-t border-zinc-200 pt-3 dark:border-zinc-800">
-              <h3 className="mb-3 text-xs font-semibold text-zinc-500">{t.customFields}</h3>
+              <h3 className="mb-3 text-xs font-semibold text-zinc-500 dark:text-zinc-400">{t.customFields}</h3>
               <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] items-center gap-x-3 gap-y-3 @2xl:grid-cols-1 @2xl:gap-y-1 @2xl:[&>div]:mb-2">
               {boundFields.map((b) => {
                 const def = defs.get(b.key);
@@ -367,7 +423,7 @@ function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose }: {
 function FieldRow({ id, label, children }: { id: string; label: string; children: React.ReactNode }) {
   return (
     <>
-      <label htmlFor={id} className="text-zinc-500">
+      <label htmlFor={id} className="text-zinc-500 dark:text-zinc-400">
         {label}
       </label>
       <div>{children}</div>
@@ -375,35 +431,53 @@ function FieldRow({ id, label, children }: { id: string; label: string; children
   );
 }
 
+const TABS = ["comments", "activity"] as const;
+
 function CollabTabs({ ws, project, n, canWrite, isAdmin }: { ws: string; project: string; n: number; canWrite: boolean; isAdmin: boolean }) {
-  const [tab, setTab] = useState<"comments" | "activity">("comments");
+  const [tab, setTab] = useState<(typeof TABS)[number]>("comments");
+  const base = useId();
   const members = useMembers(ws);
   const mentionable = useAssignable(ws, project);
   const me = useMe();
   return (
     <section className="border-t border-zinc-200 pt-4 dark:border-zinc-800">
-      <div role="tablist" className="mb-4 flex gap-4 text-sm">
-        {(["comments", "activity"] as const).map((x) => (
+      <div role="tablist" aria-label={tlg.collab} className="mb-4 flex gap-4 text-sm">
+        {TABS.map((x) => (
           <button
             key={x}
+            id={`${base}-tab-${x}`}
             type="button"
             role="tab"
             aria-selected={tab === x}
+            aria-controls={`${base}-panel`}
+            tabIndex={tab === x ? 0 : -1}
             onClick={() => { setTab(x); }}
+            onKeyDown={(e) => {
+              // Tabs pattern: arrows move between tabs, Home/End to the ends.
+              const i = TABS.indexOf(x);
+              const next = e.key === "ArrowRight" ? TABS[(i + 1) % TABS.length] : e.key === "ArrowLeft" ? TABS[(i + TABS.length - 1) % TABS.length]
+                : e.key === "Home" ? TABS[0] : e.key === "End" ? TABS[TABS.length - 1] : undefined;
+              if (!next) return;
+              e.preventDefault();
+              setTab(next);
+              document.getElementById(`${base}-tab-${next}`)?.focus();
+            }}
             className={
               "-mb-px border-b-2 pb-1.5 font-medium pointer-coarse:min-h-11 " +
-              (tab === x ? "border-brand-600 text-zinc-900 dark:text-zinc-100" : "border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200")
+              (tab === x ? "border-brand-600 text-zinc-900 dark:text-zinc-100" : "border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200")
             }
           >
             {x === "comments" ? t.comments : t.activity}
           </button>
         ))}
       </div>
-      {tab === "comments" ? (
-        <Comments ws={ws} project={project} n={n} members={members.data ?? []} mentionable={mentionable} meId={me.data?.id} canWrite={canWrite} isAdmin={isAdmin} />
-      ) : (
-        <ActivityFeed ws={ws} project={project} n={n} />
-      )}
+      <div role="tabpanel" id={`${base}-panel`} aria-labelledby={`${base}-tab-${tab}`}>
+        {tab === "comments" ? (
+          <Comments ws={ws} project={project} n={n} members={members.data ?? []} mentionable={mentionable} meId={me.data?.id} canWrite={canWrite} isAdmin={isAdmin} />
+        ) : (
+          <ActivityFeed ws={ws} project={project} n={n} />
+        )}
+      </div>
     </section>
   );
 }

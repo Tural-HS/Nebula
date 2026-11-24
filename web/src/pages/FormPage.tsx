@@ -134,7 +134,7 @@ function FillIn({ form, maxFileBytes }: { form: PublicForm; maxFileBytes: number
     >
       <header className="space-y-2">
         <h1 id="form-title" className="text-xl font-semibold">{form.title}</h1>
-        <p className="text-xs text-zinc-500">{tf.sentTo(form.workspace)}</p>
+        <p className="text-xs text-zinc-500 dark:text-zinc-400">{tf.sentTo(form.workspace)}</p>
         {form.intro && <p className="text-sm whitespace-pre-line text-zinc-700 dark:text-zinc-300">{form.intro}</p>}
       </header>
 
@@ -196,13 +196,13 @@ function FillIn({ form, maxFileBytes }: { form: PublicForm; maxFileBytes: number
                 className="block w-full text-sm file:mr-3 file:rounded-md file:border-0 file:bg-zinc-100 file:px-3 file:py-2 dark:file:bg-zinc-800"
                 onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }}
               />
-              <p id="ff-files-hint" className="mt-1 text-xs text-zinc-500">{tf.filesHint(form.max_files, formatBytes(maxFileBytes))}</p>
+              <p id="ff-files-hint" className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{tf.filesHint(form.max_files, formatBytes(maxFileBytes))}</p>
               {files.length > 0 && (
                 <ul className="mt-2 divide-y divide-zinc-100 text-sm dark:divide-zinc-800">
                   {files.map((f, i) => (
                     <li key={`${f.name}-${String(i)}`} className="flex items-center gap-2 py-1.5">
                       <span className="min-w-0 flex-1 truncate">{f.name}</span>
-                      <span className="text-xs text-zinc-500 tabular-nums">{formatBytes(f.size)}</span>
+                      <span className="text-xs text-zinc-500 dark:text-zinc-400 tabular-nums">{formatBytes(f.size)}</span>
                       <Button variant="ghost" aria-label={tf.removeFile(f.name)} onClick={() => { setFiles(files.filter((_, j) => j !== i)); }}>✕</Button>
                     </li>
                   ))}

@@ -33,7 +33,7 @@ function Members({ ws }: { ws: string }) {
 
   return (
     <div className="space-y-4">
-      <p className="text-xs text-zinc-500">{ta.roleHelp}</p>
+      <p className="text-xs text-zinc-500 dark:text-zinc-400">{ta.roleHelp}</p>
       {isAdmin && (
         <Card>
           <form
@@ -44,7 +44,7 @@ function Members({ ws }: { ws: string }) {
             }}
           >
             <div className="min-w-56 flex-1">
-              <label htmlFor="m-email" className="mb-1 block text-xs text-zinc-500">{ta.email}</label>
+              <label htmlFor="m-email" className="mb-1 block text-xs text-zinc-500 dark:text-zinc-400">{ta.email}</label>
               <Input id="m-email" type="email" required value={email} onChange={(e) => { setEmail(e.target.value); }} />
             </div>
             <Select aria-label="role" value={role} onChange={(e) => { setRole(e.target.value as Role); }} className="w-36">
@@ -59,7 +59,7 @@ function Members({ ws }: { ws: string }) {
               {ta.addDirectly}
             </Button>
           </form>
-          <p className="mt-2 text-xs text-zinc-500">{ta.memberHint}</p>
+          <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">{ta.memberHint}</p>
         </Card>
       )}
       {isAdmin && invitations.data && invitations.data.length > 0 && (
@@ -69,7 +69,7 @@ function Members({ ws }: { ws: string }) {
             {invitations.data.map((inv) => (
               <li key={inv.id} className="flex flex-wrap items-center gap-3 py-2 text-sm">
                 <span className="min-w-0 flex-1 truncate">{inv.email}</span>
-                <span className="text-xs text-zinc-500">
+                <span className="text-xs text-zinc-500 dark:text-zinc-400">
                   {ta.roles[inv.role]} · {ta.expires} {formatDateTime(inv.expires_at)}
                 </span>
                 <Button variant="ghost" onClick={() => { adm.resendInvite.mutate(inv.id, { onSuccess: fb.ok(ta.resent), onError: fb.fail }); }}>
@@ -96,8 +96,8 @@ function Members({ ws }: { ws: string }) {
               <li key={m.user_id} className="flex flex-wrap items-center gap-3 px-4 py-3">
                 <Avatar name={m.display_name} size="md" />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{m.display_name}{self && <span className="text-zinc-500"> ({ta.you})</span>}</p>
-                  <p className="truncate text-xs text-zinc-500">{m.email}</p>
+                  <p className="truncate text-sm font-medium">{m.display_name}{self && <span className="text-zinc-500 dark:text-zinc-400"> ({ta.you})</span>}</p>
+                  <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">{m.email}</p>
                 </div>
                 {canChange ? (
                   <Select

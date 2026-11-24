@@ -53,7 +53,7 @@ test.describe("calendar", () => {
   test("month grid: placement, +N more, open, navigate", async ({ page }) => {
     await page.goto(`${seed.url}?view=calendar&cal=${MONTH}`);
     await expect(page.getByTestId("calendar-month")).toHaveText("Mart 2031");
-    await expect(page.getByRole("tab", { name: "Təqvim" })).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByRole("button", { name: "Təqvim" })).toHaveAttribute("aria-pressed", "true");
     // Monday first: the first cell is Monday 24 February.
     await expect(page.getByRole("gridcell").first()).toHaveAttribute("data-day", "2031-02-24");
     await expect(day(page, "2031-03-10")).toContainText("Mart hesabatı");

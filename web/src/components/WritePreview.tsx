@@ -25,7 +25,7 @@ export function WritePreview({ preview, people, children }: { preview: string; p
             onClick={() => { setTab(x); }}
             className={
               "-mb-px border-b-2 pb-1 font-medium pointer-coarse:min-h-11 " +
-              (tab === x ? "border-brand-600 text-zinc-900 dark:text-zinc-100" : "border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200")
+              (tab === x ? "border-brand-600 text-zinc-900 dark:text-zinc-100" : "border-transparent text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200")
             }
           >
             {x === "write" ? ta.write : ta.previewTab}
@@ -34,7 +34,7 @@ export function WritePreview({ preview, people, children }: { preview: string; p
       </div>
       <div role="tabpanel" id={`${id}-panel-write`} aria-labelledby={`${id}-write`} hidden={tab !== "write"}>
         {children}
-        <p className="mt-1 text-xs text-zinc-500 max-md:hidden">{ta.markdownHint}</p>
+        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400 max-md:hidden">{ta.markdownHint}</p>
       </div>
       {tab === "preview" && (
         <div
@@ -43,7 +43,7 @@ export function WritePreview({ preview, people, children }: { preview: string; p
           aria-labelledby={`${id}-preview`}
           className="min-h-20 rounded-md px-3 py-2 ring-1 ring-zinc-200 dark:ring-zinc-800"
         >
-          {preview.trim() ? <Markdown source={preview} people={people} /> : <p className="text-sm text-zinc-500">{ta.nothingToPreview}</p>}
+          {preview.trim() ? <Markdown source={preview} people={people} /> : <p className="text-sm text-zinc-500 dark:text-zinc-400">{ta.nothingToPreview}</p>}
         </div>
       )}
     </div>

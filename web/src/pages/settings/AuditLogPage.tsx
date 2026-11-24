@@ -45,7 +45,7 @@ function Audit({ ws }: { ws: string }) {
       ) : (
         <Card className="overflow-x-auto p-0">
           <table className="w-full min-w-[40rem] text-left text-sm">
-            <thead className="text-xs text-zinc-500">
+            <thead className="text-xs text-zinc-500 dark:text-zinc-400">
               <tr className="border-b border-zinc-200 dark:border-zinc-800">
                 <th className="px-4 py-2">#</th><th>{ta.auditCols.time}</th><th>{ta.auditCols.who}</th><th>{ta.auditCols.action}</th><th>{ta.auditCols.data}</th>
               </tr>
@@ -53,11 +53,11 @@ function Audit({ ws }: { ws: string }) {
             <tbody>
               {q.data.activity.map((a) => (
                 <tr key={a.id} className="border-b border-zinc-100 align-top dark:border-zinc-800/60">
-                  <td className="px-4 py-2 font-mono text-xs text-zinc-500">{a.id}</td>
+                  <td className="px-4 py-2 font-mono text-xs text-zinc-500 dark:text-zinc-400">{a.id}</td>
                   <td className="py-2 text-xs whitespace-nowrap">{formatDateTime(a.occurred_at)}</td>
                   <td className="py-2 text-xs">{actorName(a)}</td>
                   <td className="py-2"><code className="text-xs">{a.action}</code></td>
-                  <td className="py-2 pr-4 font-mono text-[11px] break-all text-zinc-500">{summary(a.data)}</td>
+                  <td className="py-2 pr-4 font-mono text-2xs break-all text-zinc-500 dark:text-zinc-400">{summary(a.data)}</td>
                 </tr>
               ))}
             </tbody>

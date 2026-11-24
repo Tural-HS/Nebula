@@ -58,7 +58,7 @@ export function ImportPage() {
       <div className="h-full overflow-y-auto">
         <div className="mx-auto max-w-5xl p-4 md:p-6">
           <h1 className="text-lg font-semibold">{ti.title}</h1>
-          <p className="mt-1 mb-6 text-sm text-zinc-500">{ti.intro}</p>
+          <p className="mt-1 mb-6 text-sm text-zinc-500 dark:text-zinc-400">{ti.intro}</p>
           {body}
         </div>
       </div>
@@ -80,7 +80,7 @@ function StepIndicator({ step }: { step: Step }) {
               ? "bg-brand-600 text-white ring-brand-600"
               : i < current
                 ? "text-brand-700 ring-brand-200 dark:text-brand-100 dark:ring-brand-700"
-                : "text-zinc-500 ring-zinc-200 dark:ring-zinc-700",
+                : "text-zinc-500 dark:text-zinc-400 ring-zinc-200 dark:ring-zinc-700",
           )}
         >
           {String(i + 1)}. {label}
@@ -235,7 +235,7 @@ function UploadStep({ file, problem, pending, error, onFile, onSubmit }: {
         onChange={(e) => { onFile(e.target.files?.[0] ?? null); }}
         className="block w-full text-sm file:mr-3 file:rounded-md file:border-0 file:bg-zinc-100 file:px-3 file:py-1.5 file:text-sm file:font-medium dark:file:bg-zinc-800"
       />
-      <p id={`${id}-hint`} className="mt-2 text-xs text-zinc-500">
+      <p id={`${id}-hint`} className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
         {ti.fileHint(MAX_UPLOAD_BYTES / (1024 * 1024), 20_000)}
       </p>
       {problem && <Problem>{problem}</Problem>}
@@ -295,7 +295,7 @@ function MapStep(props: {
       <div className="flex flex-wrap items-end gap-4 rounded-xl bg-white p-4 ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-800">
         <p className="text-sm text-zinc-600 dark:text-zinc-300">
           {ti.summary(preview.row_count, preview.file_name)}
-          {delimiter && <span className="ml-2 text-zinc-500">· {delimiter}</span>}
+          {delimiter && <span className="ml-2 text-zinc-500 dark:text-zinc-400">· {delimiter}</span>}
         </p>
         {preview.sheets.length > 1 && (
           <div className="min-w-[min(12rem,100%)]">
@@ -324,11 +324,11 @@ function MapStep(props: {
       <section aria-labelledby={`${id}-map`} className="rounded-xl bg-white ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-800">
         <header className="border-b border-zinc-200 p-4 dark:border-zinc-800">
           <h2 id={`${id}-map`} className="font-medium">{ti.mappingTitle}</h2>
-          <p className="mt-1 text-xs text-zinc-500">{ti.mappingHint}</p>
+          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{ti.mappingHint}</p>
         </header>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="text-left text-xs text-zinc-500">
+            <thead className="text-left text-xs text-zinc-500 dark:text-zinc-400">
               <tr>
                 <th scope="col" className="px-4 py-2 font-medium">{ti.column}</th>
                 <th scope="col" className="px-4 py-2 font-medium max-sm:hidden">{ti.sample}</th>
@@ -341,7 +341,7 @@ function MapStep(props: {
                 return (
                   <tr key={col} className="border-t border-zinc-100 dark:border-zinc-800">
                     <th scope="row" className="px-4 py-2 text-left font-medium">{label}</th>
-                    <td className="max-w-xs truncate px-4 py-2 text-zinc-500 max-sm:hidden" title={sampleValues(preview.rows, col).join(" · ")}>
+                    <td className="max-w-xs truncate px-4 py-2 text-zinc-500 dark:text-zinc-400 max-sm:hidden" title={sampleValues(preview.rows, col).join(" · ")}>
                       {sampleValues(preview.rows, col).join(" · ") || "—"}
                     </td>
                     <td className="px-4 py-2">
@@ -392,8 +392,8 @@ function PeopleMapping({ people, value, onChange, members }: {
     <section aria-labelledby={`${id}-people`} className="rounded-xl bg-white ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-800">
       <header className="border-b border-zinc-200 p-4 dark:border-zinc-800">
         <h2 id={`${id}-people`} className="font-medium">{ti.peopleTitle}</h2>
-        <p className="mt-1 text-xs text-zinc-500">{ti.peopleHint}</p>
-        <p className="mt-1 text-xs text-zinc-500">{ti.personPrivateHint}</p>
+        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{ti.peopleHint}</p>
+        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{ti.personPrivateHint}</p>
       </header>
       <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
         {people.map((p, i) => {
@@ -402,7 +402,7 @@ function PeopleMapping({ people, value, onChange, members }: {
             <li key={p.id} className="flex flex-wrap items-center gap-3 px-4 py-2 text-sm">
               <label htmlFor={`${id}-p-${String(i)}`} className="min-w-0 flex-1 text-zinc-700 dark:text-zinc-300">
                 <span className="block truncate" title={label}>{label}</span>
-                <span className="font-mono text-xs text-zinc-400">{p.id}</span>
+                <span className="font-mono text-xs text-zinc-500 dark:text-zinc-400">{p.id}</span>
               </label>
               <Select
                 id={`${id}-p-${String(i)}`}
@@ -431,7 +431,7 @@ function PreviewTable({ preview }: { preview: ImportPreview }) {
       <h2 id={id} className="border-b border-zinc-200 p-4 font-medium dark:border-zinc-800">{ti.previewTitle}</h2>
       <div className="overflow-x-auto">
         <table className="w-full text-xs">
-          <thead className="text-left text-zinc-500">
+          <thead className="text-left text-zinc-500 dark:text-zinc-400">
             <tr>
               <th scope="col" className="px-3 py-2 font-medium">{ti.row}</th>
               {preview.headers.map((h, i) => (
@@ -442,7 +442,7 @@ function PreviewTable({ preview }: { preview: ImportPreview }) {
           <tbody>
             {preview.rows.map((r) => (
               <tr key={r.row} className="border-t border-zinc-100 dark:border-zinc-800">
-                <td className="px-3 py-1.5 text-zinc-500 tabular-nums">{r.row}</td>
+                <td className="px-3 py-1.5 text-zinc-500 dark:text-zinc-400 tabular-nums">{r.row}</td>
                 {r.cells.map((c, i) => (
                   <td key={i} className="max-w-48 truncate px-3 py-1.5" title={c}>{c}</td>
                 ))}
@@ -483,7 +483,7 @@ function ReportStep({ report, preview, pending, error, onBack, onImport }: {
           <h2 id={id} className="border-b border-zinc-200 p-4 font-medium dark:border-zinc-800">{ti.errorsTable}</h2>
           <div className="max-h-96 overflow-auto">
             <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-white text-left text-xs text-zinc-500 dark:bg-zinc-900">
+              <thead className="sticky top-0 bg-white text-left text-xs text-zinc-500 dark:text-zinc-400 dark:bg-zinc-900">
                 <tr>
                   <th scope="col" className="px-4 py-2 font-medium">{ti.row}</th>
                   <th scope="col" className="px-4 py-2 font-medium">{ti.column}</th>

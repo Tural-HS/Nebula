@@ -40,7 +40,7 @@ export function RecurringPage() {
       <div className="h-full overflow-y-auto">
         <div className="mx-auto max-w-5xl p-4 md:p-6">
           <h1 className="text-lg font-semibold">{tr.title}</h1>
-          <p className="mt-1 mb-6 max-w-3xl text-sm text-zinc-500">{tr.intro}</p>
+          <p className="mt-1 mb-6 max-w-3xl text-sm text-zinc-500 dark:text-zinc-400">{tr.intro}</p>
           {body}
         </div>
       </div>
@@ -60,7 +60,7 @@ function Rules({ ws, project, isAdmin }: { ws: string; project: string; isAdmin:
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
-        {!isAdmin && <p className="text-xs text-zinc-500">{tr.adminOnlyEdit}</p>}
+        {!isAdmin && <p className="text-xs text-zinc-500 dark:text-zinc-400">{tr.adminOnlyEdit}</p>}
         {isAdmin && <Button variant="primary" className="ml-auto" onClick={() => { setEditing("new"); }}>{tr.newRule}</Button>}
       </div>
       {rules.data.length === 0 ? (
@@ -93,12 +93,12 @@ function RuleRow({ rule, assignee, isAdmin, onEdit, ws, project }: {
         <div className="min-w-0 flex-1">
           <p className="font-medium [overflow-wrap:anywhere]">{rule.title}</p>
           {rule.next_due && rule.title.includes("{{") && (
-            <p className="text-sm text-zinc-500">→ {renderTitle(rule.title, rule.next_due)}</p>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">→ {renderTitle(rule.title, rule.next_due)}</p>
           )}
           <p className="mt-0.5 text-sm text-zinc-600 dark:text-zinc-400">
             {describeSchedule(rule)} · {rule.type.name}
           </p>
-          {state && <p className={cn("mt-1 text-xs font-medium", rule.last_error ? "text-red-700 dark:text-red-300" : "text-zinc-500")}>{state}{rule.last_error ? `: ${rule.last_error}` : ""}</p>}
+          {state && <p className={cn("mt-1 text-xs font-medium", rule.last_error ? "text-red-700 dark:text-red-300" : "text-zinc-500 dark:text-zinc-400")}>{state}{rule.last_error ? `: ${rule.last_error}` : ""}</p>}
         </div>
         {assignee && <span className="flex items-center gap-1.5 text-sm"><Avatar name={assignee.display_name} />{assignee.display_name}</span>}
         {isAdmin && (
@@ -117,7 +117,7 @@ function RuleRow({ rule, assignee, isAdmin, onEdit, ws, project }: {
         )}
       </div>
       {rule.enabled && rule.upcoming.length > 0 && (
-        <p className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-zinc-500">
+        <p className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
           <span>{tr.upcoming}:</span>
           {rule.upcoming.map((d, i) => (
             <span key={d} className={cn("rounded px-1.5 py-0.5 tabular-nums", i === 0 ? "bg-brand-50 font-medium text-brand-700 dark:bg-brand-700/30 dark:text-brand-100" : "bg-zinc-100 dark:bg-zinc-800")}>
@@ -197,7 +197,7 @@ function RuleForm({ ws, project, rule, members, onDone }: { ws: string; project:
       <div>
         <Label htmlFor="rec-title">{tr.titleLabel}</Label>
         <Input id="rec-title" required maxLength={500} value={title} onChange={(e) => { setTitle(e.target.value); }} autoFocus />
-        <p className="mt-1 text-xs text-zinc-500">{tr.titleHint}</p>
+        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{tr.titleHint}</p>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
@@ -238,7 +238,7 @@ function RuleForm({ ws, project, rule, members, onDone }: { ws: string; project:
             <Label htmlFor="rec-every">{tr.every}</Label>
             <div className="flex items-center gap-2">
               <Input id="rec-every" type="number" min={1} max={366} value={every} onChange={(e) => { setEvery(e.target.value); }} className="w-20" />
-              <span className="text-sm text-zinc-500">{tr.everyUnit[freq]}</span>
+              <span className="text-sm text-zinc-500 dark:text-zinc-400">{tr.everyUnit[freq]}</span>
             </div>
           </div>
         </div>
@@ -302,7 +302,7 @@ function RuleForm({ ws, project, rule, members, onDone }: { ws: string; project:
             </Select>
           </div>
         )}
-        {(byWorkDay || shift !== "none") && <p className="text-xs text-zinc-500">{tw.calendarHint}</p>}
+        {(byWorkDay || shift !== "none") && <p className="text-xs text-zinc-500 dark:text-zinc-400">{tw.calendarHint}</p>}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           <div>
             <Label htmlFor="rec-start">{tr.start}</Label>
@@ -317,7 +317,7 @@ function RuleForm({ ws, project, rule, members, onDone }: { ws: string; project:
             <Input id="rec-lead" type="number" min={0} max={365} value={lead} onChange={(e) => { setLead(e.target.value); }} />
           </div>
         </div>
-        <p aria-live="polite" className="text-xs text-zinc-500">
+        <p aria-live="polite" className="text-xs text-zinc-500 dark:text-zinc-400">
           {describeSchedule(schedule)}
           {preview.data && preview.data.length > 0 && <> · {tr.upcoming}: {preview.data.map((d) => formatDate(d)).join(", ")}</>}
           {preview.isError && <span className="text-red-600"> · <FieldErrorText error={preview.error} /></span>}

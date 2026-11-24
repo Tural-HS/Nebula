@@ -11,6 +11,7 @@ import { GlobalSearch } from "./GlobalSearch";
 import { LanguageMenu } from "./LanguageMenu";
 import { NotificationBell } from "./NotificationBell";
 import { ThemeMenu } from "./ThemeMenu";
+import { Popover } from "../pages/ViewTools";
 import { Avatar, Button } from "./ui";
 
 export interface Crumb {
@@ -26,12 +27,14 @@ export function Layout({ crumbs, actions, children }: { crumbs: Crumb[]; actions
     <div className="flex h-full flex-col">
       {/* Phones (ADR-0019): no app name, avatar or upper crumbs, so the
           header fits 375 px; safe-area padding clears notches in landscape. */}
-      <header className="flex min-h-12 shrink-0 items-center gap-2 border-b border-zinc-200 bg-white pt-[env(safe-area-inset-top)] pr-[max(0.75rem,env(safe-area-inset-right))] pl-[max(0.75rem,env(safe-area-inset-left))] sm:gap-3 sm:pr-[max(1rem,env(safe-area-inset-right))] sm:pl-[max(1rem,env(safe-area-inset-left))] dark:border-zinc-800 dark:bg-zinc-900">
+      <header className="flex min-h-12 shrink-0 items-center gap-2 border-b max-sm:flex-wrap max-sm:gap-y-0 border-zinc-200 bg-white pt-[env(safe-area-inset-top)] pr-[max(0.75rem,env(safe-area-inset-right))] pl-[max(0.75rem,env(safe-area-inset-left))] sm:gap-3 sm:pr-[max(1rem,env(safe-area-inset-right))] sm:pl-[max(1rem,env(safe-area-inset-left))] dark:border-zinc-800 dark:bg-zinc-900">
         <Link to="/" aria-label={t.appName} className="flex shrink-0 items-center gap-2 font-semibold text-brand-900 dark:text-zinc-50">
           <img src="/logo-mark.png" alt="" className="size-7" />
           <span className="hidden sm:inline">{t.appName}</span>
         </Link>
-        <nav aria-label="breadcrumb" className="flex min-w-0 items-center gap-1.5 text-sm text-zinc-500">
+        {/* Phones: the crumbs take their own line under the buttons, so the page
+            name is never squeezed to nothing (320 px, long translations). */}
+        <nav aria-label="breadcrumb" className="flex min-w-0 items-center gap-1.5 text-sm text-zinc-500 max-sm:order-last max-sm:basis-full max-sm:pb-2 dark:text-zinc-400">
           {crumbs.map((c, i) => (
             <span key={`${c.label}-${String(i)}`} className={cn("flex min-w-0 items-center gap-1.5", i < crumbs.length - 2 && "max-sm:hidden")}>
               <span aria-hidden>/</span>
@@ -47,7 +50,7 @@ export function Layout({ crumbs, actions, children }: { crumbs: Crumb[]; actions
             </span>
           ))}
         </nav>
-        <div className="ml-auto flex shrink-0 items-center gap-2">
+        <div className="ml-auto flex shrink-0 items-center gap-2 max-sm:gap-1">
           {actions}
           <GlobalSearch />
           {/* Requesters follow their intake-form submissions here (ADR-0032).
@@ -56,12 +59,12 @@ export function Layout({ crumbs, actions, children }: { crumbs: Crumb[]; actions
           <Link
             to="/requests"
             aria-label={unseen > 0 ? `${tf.myRequests}: ${tf.unseen(unseen)}` : tf.myRequests}
-            className="relative inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-sm text-zinc-700 hover:bg-zinc-100 pointer-coarse:min-h-11 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            className="relative inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-sm text-zinc-700 hover:bg-zinc-100 max-sm:hidden pointer-coarse:min-h-11 dark:text-zinc-300 dark:hover:bg-zinc-800"
           >
             <span aria-hidden>📨</span>
             <span className="hidden xl:inline">{tf.myRequests}</span>
             {unseen > 0 && (
-              <span aria-hidden className="absolute -top-0.5 -right-0.5 min-w-4 rounded-full bg-brand-600 px-1 text-center text-[10px] leading-4 font-semibold text-white">
+              <span aria-hidden className="absolute -top-0.5 -right-0.5 min-w-4 rounded-full bg-brand-600 px-1 text-center text-2xs leading-4 font-semibold text-white">
                 {unseen > 99 ? "99+" : unseen}
               </span>
             )}
@@ -76,9 +79,32 @@ export function Layout({ crumbs, actions, children }: { crumbs: Crumb[]; actions
               <span className="hidden whitespace-nowrap xl:inline">{me.data.display_name}</span>
             </span>
           )}
-          <Button variant="ghost" onClick={() => void logout()}>
+          <Button variant="ghost" className="max-sm:hidden" onClick={() => void logout()}>
             {t.signOut}
           </Button>
+          {/* Phones (320 px): requests, language, theme and sign-out share one
+              account menu, so the header keeps the page title visible. */}
+          <span className="sm:hidden">
+            <Popover
+              align="right"
+              summaryLabel={unseen > 0 ? `${t.account}: ${tf.unseen(unseen)}` : t.account}
+              label={me.data ? <Avatar name={me.data.display_name} /> : <span aria-hidden>👤</span>}
+            >
+              <div className="flex flex-col gap-3">
+                {me.data && <p className="font-medium [overflow-wrap:anywhere]">{me.data.display_name}</p>}
+                <Link to="/requests" className="inline-flex items-center gap-2 rounded-md py-1.5 hover:underline pointer-coarse:min-h-11">
+                  <span aria-hidden>📨</span>
+                  {tf.myRequests}
+                  {unseen > 0 && <span className="rounded-full bg-brand-600 px-1.5 text-2xs font-semibold text-white">{tf.unseen(unseen)}</span>}
+                </Link>
+                <LanguageMenu />
+                <ThemeMenu />
+                <Button className="self-start" onClick={() => void logout()}>
+                  {t.signOut}
+                </Button>
+              </div>
+            </Popover>
+          </span>
         </div>
       </header>
       <main className="min-h-0 flex-1">{children}</main>

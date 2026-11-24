@@ -12,10 +12,10 @@ import { Avatar } from "./ui";
 export function ApproverRoster({ req }: { req: ApprovalRequest }) {
   const approved = req.decisions.filter((d) => d.decision === "approve").map((d) => d.user);
   const waiting = req.approvers.filter((a) => !req.decisions.some((d) => d.user.id === a.id));
-  if (approved.length === 0 && waiting.length === 0) return <p className="text-xs text-zinc-500">{tap.noApprovers}</p>;
+  if (approved.length === 0 && waiting.length === 0) return <p className="text-xs text-zinc-500 dark:text-zinc-400">{tap.noApprovers}</p>;
   return (
     <div className="text-xs">
-      <p className="mb-1.5 text-zinc-500">{tap.approvers}</p>
+      <p className="mb-1.5 text-zinc-500 dark:text-zinc-400">{tap.approvers}</p>
       <ul className="flex flex-wrap gap-1.5">
         {approved.map((u) => (
           <Person key={u.id} name={u.display_name} done />
@@ -40,7 +40,7 @@ function Person({ name, done }: { name: string; done: boolean }) {
     >
       <Avatar name={name} />
       <span className="font-medium">{name}</span>
-      <span className={done ? "" : "text-zinc-400 dark:text-zinc-500"}>
+      <span className={done ? "" : "text-zinc-500 dark:text-zinc-400"}>
         <span aria-hidden>{done ? "✓ " : ""}</span>
         {done ? tlg.approvedBy : tlg.waitingFor}
       </span>

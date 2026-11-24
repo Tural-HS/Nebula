@@ -64,7 +64,7 @@ function Automations({ ws }: { ws: string }) {
               {r.enabled ? ta.enabled : ta.disabled}
             </label>
             <span className="font-medium">{r.name}</span>
-            <span className="text-xs text-zinc-500">
+            <span className="text-xs text-zinc-500 dark:text-zinc-400">
               {ta.triggers[r.trigger]} · {r.conditions.length} / {r.actions.map((a) => ta.actionTypes[a.type]).join(", ")}
             </span>
             <span className="ml-auto flex gap-2">
@@ -150,11 +150,11 @@ function RuleEditor({ ws, ctx, rule, onDone }: { ws: string; ctx: Ctx; rule: Rul
   return (
     <Card className="space-y-4 ring-2 ring-brand-500">
       <div className="flex flex-wrap gap-3">
-        <label className="text-xs text-zinc-500">
+        <label className="text-xs text-zinc-500 dark:text-zinc-400">
           {t.name}
           <Input required maxLength={200} value={name} onChange={(e) => { setName(e.target.value); }} className="w-64" />
         </label>
-        <label className="text-xs text-zinc-500">
+        <label className="text-xs text-zinc-500 dark:text-zinc-400">
           {ta.trigger}
           <Select value={trigger} onChange={(e) => { setTrigger(e.target.value as Rule["trigger"]); }} className="w-56">
             {Object.entries(ta.triggers).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
@@ -163,8 +163,8 @@ function RuleEditor({ ws, ctx, rule, onDone }: { ws: string; ctx: Ctx; rule: Rul
       </div>
 
       <section>
-        <h3 className="mb-2 text-xs font-semibold text-zinc-500">{ta.conditions}</h3>
-        {conds.length === 0 && <p className="mb-2 text-xs text-zinc-400">{ta.noConditions}</p>}
+        <h3 className="mb-2 text-xs font-semibold text-zinc-500 dark:text-zinc-400">{ta.conditions}</h3>
+        {conds.length === 0 && <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400">{ta.noConditions}</p>}
         <div className="space-y-2">
           {conds.map((c, i) => (
             <div key={i} className="flex flex-wrap items-center gap-2">
@@ -197,7 +197,7 @@ function RuleEditor({ ws, ctx, rule, onDone }: { ws: string; ctx: Ctx; rule: Rul
       </section>
 
       <section>
-        <h3 className="mb-2 text-xs font-semibold text-zinc-500">{ta.ruleActions}</h3>
+        <h3 className="mb-2 text-xs font-semibold text-zinc-500 dark:text-zinc-400">{ta.ruleActions}</h3>
         <div className="space-y-3">
           {acts.map((a, i) => (
             <div key={i} className="flex flex-wrap items-start gap-2 rounded-lg bg-zinc-50 p-2 dark:bg-zinc-950">
@@ -237,7 +237,7 @@ function RuleEditor({ ws, ctx, rule, onDone }: { ws: string; ctx: Ctx; rule: Rul
                     onChange={(e) => { setActs(update(acts, i, { body: e.target.value })); }}
                     className="w-full rounded-md bg-white px-2.5 py-1.5 text-sm ring-1 ring-zinc-300 dark:bg-zinc-900 dark:ring-zinc-700"
                   />
-                  <p className="text-xs text-zinc-500">{ta.templateHint}</p>
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">{ta.templateHint}</p>
                 </div>
               )}
               <Button variant="ghost" disabled={acts.length === 1} onClick={() => { setActs(acts.filter((_, j) => j !== i)); }}>×</Button>

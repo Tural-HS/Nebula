@@ -75,7 +75,7 @@ export function HomePage() {
           {body}
           {/* Phones: the header has no room for the language picker (ADR-0019, ADR-0025);
               below xl it has none for the theme picker either (ADR-0035). */}
-          <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-2 text-sm text-zinc-500 xl:hidden">
+          <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-2 text-sm text-zinc-500 dark:text-zinc-400 xl:hidden">
             <label className="flex items-center gap-2">
               <span>{tth.theme}</span>
               <ThemeMenu labelled className="h-11 pointer-fine:h-8" />
@@ -114,7 +114,7 @@ const COUNTER_TONE: Record<string, string> = {
 
 function CounterStrip({ home, active }: { home: Home; active: HomeShow | null }) {
   return (
-    <nav aria-label={thm.counters} className="-mx-4 overflow-x-auto overscroll-x-contain px-4 [scrollbar-width:none] md:mx-0 md:px-0">
+    <nav aria-label={thm.counters} className="-mx-4 overflow-x-auto overscroll-x-contain px-4 [scrollbar-width:thin] md:mx-0 md:px-0">
       <ul className="flex gap-2 md:grid md:grid-cols-4 md:gap-3">
         {COUNTERS.map((c) => {
           const n = home.counters[c.key];
@@ -131,7 +131,7 @@ function CounterStrip({ home, active }: { home: Home; active: HomeShow | null })
                   on && "ring-2 ring-brand-600 hover:ring-brand-600 dark:ring-brand-400 dark:hover:ring-brand-400",
                 )}
               >
-                <span aria-hidden className={cn("text-2xl leading-8 font-semibold tracking-tight tabular-nums", n ? COUNTER_TONE[c.key] ?? "text-zinc-900 dark:text-zinc-50" : "text-zinc-400 dark:text-zinc-500")}>
+                <span aria-hidden className={cn("text-2xl leading-8 font-semibold tracking-tight tabular-nums", n ? COUNTER_TONE[c.key] ?? "text-zinc-900 dark:text-zinc-50" : "text-zinc-500 dark:text-zinc-400")}>
                   {n}
                 </span>
                 <span aria-hidden className="text-xs whitespace-nowrap text-zinc-500 dark:text-zinc-400">{thm.counter[c.key]}</span>
@@ -198,7 +198,7 @@ function ItemRow({ it }: { it: HomeItem }) {
         className="flex min-w-0 flex-col gap-1 py-2.5 pr-3 pl-4 hover:bg-zinc-50 sm:flex-row sm:items-center sm:gap-3 dark:hover:bg-zinc-800/50"
       >
         <span className="flex min-w-0 flex-1 items-center gap-2">
-          <span className="shrink-0 font-mono text-xs text-zinc-500">{it.key}</span>
+          <span className="shrink-0 font-mono text-xs text-zinc-500 dark:text-zinc-400">{it.key}</span>
           <span className="min-w-0 flex-1 truncate text-sm font-medium">{it.title}</span>
         </span>
         <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-500 sm:flex-nowrap sm:justify-end dark:text-zinc-400">
@@ -237,7 +237,7 @@ function Attention({ home }: { home: Home }) {
         {thm.attention}
       </SectionTitle>
       {home.items.length === 0 ? (
-        <p className={cn(listBox, "p-4 text-sm text-zinc-500")}>{thm.listEmpty}</p>
+        <p className={cn(listBox, "p-4 text-sm text-zinc-500 dark:text-zinc-400")}>{thm.listEmpty}</p>
       ) : (
         <ul data-testid="home-attention" className={listBox}>
           {home.items.map((it) => <ItemRow key={`${it.workspace.slug}/${it.key}`} it={it} />)}
@@ -250,21 +250,21 @@ function Attention({ home }: { home: Home }) {
 function FullList({ show, home, loading }: { show: HomeShow; home: Home; loading: boolean }) {
   return (
     <section aria-labelledby="home-list" className="min-w-0">
-      <Link to="/" className="mb-2 inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-900 pointer-coarse:min-h-11 dark:hover:text-zinc-100">
+      <Link to="/" className="mb-2 inline-flex items-center gap-1 text-sm text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 pointer-coarse:min-h-11 dark:hover:text-zinc-100">
         <span aria-hidden>←</span> {thm.back}
       </Link>
       <h2 id="home-list" className="text-lg font-semibold">{thm.list[show]}</h2>
-      <p className="mb-3 text-sm text-zinc-500">{thm.listHint}</p>
+      <p className="mb-3 text-sm text-zinc-500 dark:text-zinc-400">{thm.listHint}</p>
       {loading ? (
         <Spinner />
       ) : home.items.length === 0 ? (
-        <p className={cn(listBox, "p-4 text-sm text-zinc-500")}>{thm.listEmpty}</p>
+        <p className={cn(listBox, "p-4 text-sm text-zinc-500 dark:text-zinc-400")}>{thm.listEmpty}</p>
       ) : (
         <>
           <ul data-testid="home-list" className={listBox}>
             {home.items.map((it) => <ItemRow key={`${it.workspace.slug}/${it.key}`} it={it} />)}
           </ul>
-          {home.total > home.items.length && <p className="mt-2 text-xs text-zinc-500">{thm.truncated(home.items.length, home.total)}</p>}
+          {home.total > home.items.length && <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">{thm.truncated(home.items.length, home.total)}</p>}
         </>
       )}
     </section>
@@ -276,10 +276,10 @@ function Calm({ home }: { home: Home }) {
   return (
     <section aria-labelledby="home-calm" data-testid="home-calm" className="min-w-0 rounded-xl bg-white p-5 ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-800">
       <h2 id="home-calm" className="font-semibold">{thm.calm}</h2>
-      <p className="mt-1 text-sm text-zinc-500">{thm.calmHint}</p>
+      <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{thm.calmHint}</p>
       {home.recent_projects.length > 0 && (
         <>
-          <h3 className="mt-4 mb-1 text-xs font-medium tracking-wide text-zinc-500 uppercase">{thm.recentProjects}</h3>
+          <h3 className="mt-4 mb-1 text-xs font-medium tracking-wide text-zinc-500 dark:text-zinc-400 uppercase">{thm.recentProjects}</h3>
           <ul className="flex flex-wrap gap-2">
             {home.recent_projects.map((p) => (
               <li key={`${p.workspace.slug}/${p.project.key}`}>
@@ -294,7 +294,7 @@ function Calm({ home }: { home: Home }) {
           </ul>
         </>
       )}
-      <p className="mt-4 text-sm text-zinc-500">
+      <p className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">
         {thm.searchHint(ts.shortcut(isMac))}
       </p>
     </section>
@@ -305,8 +305,8 @@ function NoWorkspaces({ onCreate }: { onCreate: () => void }) {
   return (
     <section aria-labelledby="home-none" data-testid="home-no-workspaces" className="mx-auto max-w-xl rounded-xl bg-white p-6 text-center ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-800">
       <h2 id="home-none" className="text-base font-semibold">{thm.noWorkspaces}</h2>
-      <p className="mt-2 text-sm text-zinc-500">{thm.invitedHint}</p>
-      <p className="mt-4 text-sm text-zinc-500">{thm.createHint}</p>
+      <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{thm.invitedHint}</p>
+      <p className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">{thm.createHint}</p>
       <Button variant="primary" className="mt-3 pointer-coarse:min-h-11" onClick={onCreate}>{thm.createCta}</Button>
     </section>
   );
@@ -331,7 +331,7 @@ function NotificationsPanel() {
       {q.isPending ? (
         <Spinner />
       ) : list.length === 0 ? (
-        <p className={cn(panelBox, "p-3 text-zinc-500")}>{thm.noNotifications}</p>
+        <p className={cn(panelBox, "p-3 text-zinc-500 dark:text-zinc-400")}>{thm.noNotifications}</p>
       ) : (
         <ul className={panelBox}>
           {list.map((n) => (
@@ -341,7 +341,7 @@ function NotificationsPanel() {
                   <span aria-hidden className={cn("mt-1.5 size-1.5 shrink-0 rounded-full", n.read ? "bg-transparent" : "bg-brand-600")} />
                   <span className="min-w-0">
                     <span className={cn("line-clamp-2 [overflow-wrap:anywhere]", !n.read && "font-medium")}>{notificationText(n)}</span>
-                    <span className="block text-xs text-zinc-500" title={formatDateTime(n.created_at)}>{n.workspace_name} · {formatRelative(n.created_at)}</span>
+                    <span className="block text-xs text-zinc-500 dark:text-zinc-400" title={formatDateTime(n.created_at)}>{n.workspace_name} · {formatRelative(n.created_at)}</span>
                   </span>
                 </span>
               </Link>
@@ -375,7 +375,7 @@ function RequestsPanel() {
           <li key={r.id}>
             <Link to={`/requests/${encodeURIComponent(r.id)}`} className={panelLink}>
               <span className="flex min-w-0 items-center gap-2">
-                <span className="shrink-0 font-mono text-xs text-zinc-500">{r.key}</span>
+                <span className="shrink-0 font-mono text-xs text-zinc-500 dark:text-zinc-400">{r.key}</span>
                 <span className={cn("min-w-0 flex-1 truncate", r.unseen && "font-medium")}>{r.title}</span>
                 {r.status && <StatusBadge name={r.status.name} category={r.status.category} />}
               </span>
@@ -400,11 +400,11 @@ function WatchingPanel({ home }: { home: Home }) {
               className={panelLink}
             >
               <span className="flex min-w-0 items-center gap-2">
-                <span className="shrink-0 font-mono text-xs text-zinc-500">{w.key}</span>
+                <span className="shrink-0 font-mono text-xs text-zinc-500 dark:text-zinc-400">{w.key}</span>
                 <span className="min-w-0 flex-1 truncate">{w.title}</span>
                 <StatusBadge name={w.status.name} category={w.status.category} />
               </span>
-              <span className="mt-0.5 flex items-center gap-2 text-xs text-zinc-500">
+              <span className="mt-0.5 flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
                 <Where project={w.project.name} workspace={w.workspace} />
                 <span className="shrink-0" title={formatDateTime(w.updated_at)}>· {formatRelative(w.updated_at)}</span>
               </span>
@@ -440,16 +440,16 @@ function WorkspaceCard({ w }: { w: HomeWorkspace }) {
         <span className="flex min-w-0 items-start justify-between gap-2">
           <span className="min-w-0 [overflow-wrap:anywhere]">
             <span className="block font-medium">{w.name}</span>
-            <span className="block text-xs text-zinc-500">{w.slug} · {thm.card.projects(w.projects)}</span>
+            <span className="block text-xs text-zinc-500 dark:text-zinc-400">{w.slug} · {thm.card.projects(w.projects)}</span>
           </span>
           <span className="shrink-0 rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">{ta.roles[w.role]}</span>
         </span>
-        <span className="flex flex-wrap gap-x-3 gap-y-1 text-xs" aria-label={thm.card.stats(w.assigned, w.overdue, w.approvals)}>
+        <span className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
           <Stat n={w.assigned} label={thm.card.assigned} />
           <Stat n={w.overdue} label={thm.card.overdue} tone="text-red-700 dark:text-red-400" />
           <Stat n={w.approvals} label={thm.card.approvals} tone="text-amber-700 dark:text-amber-400" />
         </span>
-        <span className="mt-auto text-xs text-zinc-500" title={w.last_activity ? formatDateTime(w.last_activity) : undefined}>
+        <span className="mt-auto text-xs text-zinc-500 dark:text-zinc-400" title={w.last_activity ? formatDateTime(w.last_activity) : undefined}>
           {w.last_activity ? thm.card.lastActivity(formatRelative(w.last_activity)) : thm.card.noActivity}
         </span>
       </Link>
@@ -460,7 +460,7 @@ function WorkspaceCard({ w }: { w: HomeWorkspace }) {
 function Stat({ n, label, tone }: { n: number; label: string; tone?: string }) {
   return (
     <span aria-hidden className="whitespace-nowrap text-zinc-500 dark:text-zinc-400">
-      <span className={cn("font-semibold tabular-nums", n ? tone ?? "text-zinc-900 dark:text-zinc-100" : "text-zinc-400 dark:text-zinc-500")}>{n}</span> {label}
+      <span className={cn("font-semibold tabular-nums", n ? tone ?? "text-zinc-900 dark:text-zinc-100" : "text-zinc-500 dark:text-zinc-400")}>{n}</span> {label}
     </span>
   );
 }

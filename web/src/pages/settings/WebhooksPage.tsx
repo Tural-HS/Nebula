@@ -108,13 +108,13 @@ function NewWebhook({ ws, onSecret }: { ws: string; onSecret: (s: string) => voi
           });
         }}
       >
-        <label className="flex flex-col gap-1 text-xs text-zinc-500">
+        <label className="flex flex-col gap-1 text-xs text-zinc-500 dark:text-zinc-400">
           {ta.format}
           <Select value={format} onChange={(e) => { chooseFormat(e.target.value as WebhookFormat); }} className="w-52">
             {WEBHOOK_FORMATS.map((f) => <option key={f} value={f}>{ta.formats[f]}</option>)}
           </Select>
         </label>
-        <label className="flex min-w-[min(16rem,100%)] flex-1 flex-col gap-1 text-xs text-zinc-500">
+        <label className="flex min-w-[min(16rem,100%)] flex-1 flex-col gap-1 text-xs text-zinc-500 dark:text-zinc-400">
           {ta.url}
           <Input
             required
@@ -126,16 +126,16 @@ function NewWebhook({ ws, onSecret }: { ws: string; onSecret: (s: string) => voi
             onChange={(e) => { setUrl(e.target.value); }}
           />
         </label>
-        <label className="flex flex-col gap-1 text-xs text-zinc-500">
-          <span>{ta.events} <span className="text-zinc-400">({ta.eventsHint})</span></span>
+        <label className="flex flex-col gap-1 text-xs text-zinc-500 dark:text-zinc-400">
+          <span>{ta.events} <span className="text-zinc-500 dark:text-zinc-400">({ta.eventsHint})</span></span>
           <Input required value={events} onChange={(e) => { setEvents(e.target.value); }} className="w-64" />
         </label>
         <ApprovalToggle events={events} onChange={setEvents} />
         <ProjectFilter ws={ws} value={projects} onChange={setProjects} />
         <Button type="submit" variant="primary" disabled={adm.createWebhook.isPending}>{t.create}</Button>
       </form>
-      {format === "slack" && <p className="mt-2 text-xs text-zinc-500">{ta.slackHint}</p>}
-      {format === "slack" && sendsApprovals(parseEvents(events)) && <p className="mt-1 text-xs text-zinc-500">{twc.approvalEventsHint}</p>}
+      {format === "slack" && <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">{ta.slackHint}</p>}
+      {format === "slack" && sendsApprovals(parseEvents(events)) && <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{twc.approvalEventsHint}</p>}
       {suggestChat && (
         <p role="status" className="mt-2 flex flex-wrap items-center gap-2 text-xs text-amber-700 dark:text-amber-400">
           {ta.chatUrlDetected}
@@ -165,10 +165,10 @@ function ProjectFilter({ ws, value, onChange }: { ws: string; value: string[]; o
               checked={value.includes(p.id)}
               onChange={(e) => { onChange(e.target.checked ? [...value, p.id] : value.filter((x) => x !== p.id)); }}
             />
-            <span className="font-mono text-zinc-500">{p.key}</span> {p.name} {p.visibility === "private" && "🔒"}
+            <span className="font-mono text-zinc-500 dark:text-zinc-400">{p.key}</span> {p.name} {p.visibility === "private" && "🔒"}
           </label>
         ))}
-        <p className="border-t border-zinc-100 pt-1.5 text-zinc-500 dark:border-zinc-800">{ta.webhookProjects.hint}</p>
+        <p className="border-t border-zinc-100 pt-1.5 text-zinc-500 dark:text-zinc-400 dark:border-zinc-800">{ta.webhookProjects.hint}</p>
       </div>
     </details>
   );
@@ -253,11 +253,11 @@ function DeliveryLog({ ws, id }: { ws: string; id: string }) {
   const q = useDeliveries(ws, id);
   if (q.isPending) return <Spinner />;
   if (q.isError) return <ErrorState error={q.error} />;
-  if (q.data.length === 0) return <p className="mt-3 text-xs text-zinc-500">{ta.noDeliveries}</p>;
+  if (q.data.length === 0) return <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">{ta.noDeliveries}</p>;
   return (
     <div className="mt-3 overflow-x-auto">
       <table className="w-full text-left text-xs">
-        <thead className="text-zinc-500">
+        <thead className="text-zinc-500 dark:text-zinc-400">
           <tr><th className="py-1">#</th><th>HTTP</th><th>ms</th><th>{ta.deliveryCols.attempt}</th><th>{ta.deliveryCols.error}</th><th /></tr>
         </thead>
         <tbody>
@@ -269,8 +269,8 @@ function DeliveryLog({ ws, id }: { ws: string; id: string }) {
                 <td className={ok ? "text-emerald-600" : "text-red-600"}>{d.status_code ?? "—"}</td>
                 <td>{d.duration_ms}</td>
                 <td>{d.attempt}</td>
-                <td className="max-w-64 truncate text-zinc-500" title={d.error ?? ""}>{d.error ?? ""}</td>
-                <td className="text-zinc-500">{formatRelative(d.delivered_at)}</td>
+                <td className="max-w-64 truncate text-zinc-500 dark:text-zinc-400" title={d.error ?? ""}>{d.error ?? ""}</td>
+                <td className="text-zinc-500 dark:text-zinc-400">{formatRelative(d.delivered_at)}</td>
               </tr>
             );
           })}

@@ -90,11 +90,11 @@ test("counters match the API and the list puts overdue, approval, this week in o
   await expect(counters.getByRole("link", { name: `Gecikən: ${String(api.counters.overdue)}` })).toBeVisible();
   await expect(counters.getByRole("link", { name: `Təsdiqimi gözləyən: ${String(api.counters.approvals)}` })).toBeVisible();
   await expect(counters.getByRole("link", { name: `Bu həftə bitir: ${String(api.counters.week)}` })).toBeVisible();
-  await expect(counters.getByRole("link", { name: `Mənə təyin olunan: ${String(api.counters.assigned)}` })).toBeVisible();
+  await expect(counters.getByRole("link", { name: `Mənə təyin: ${String(api.counters.assigned)}` })).toBeVisible();
 
   // The full list has every row, so our three are all on it.
   await page.goto("/?show=attention");
-  await expect(page.getByRole("heading", { name: "Diqqət tələb edən bütün işlər" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Diqqət tələb edən bütün tapşırıqlar" })).toBeVisible();
   const all = page.getByTestId("home-list").getByTestId("home-row");
   await expect(row(page, titles.week)).toBeVisible();
   const texts = await all.allTextContents();
@@ -131,7 +131,7 @@ test("rows open the item drawer in their project; counters open their list", asy
   await page.goto("/");
   await page.getByRole("navigation", { name: "Sayğaclar" }).getByRole("link", { name: /^Gecikən:/ }).click();
   await expect(page).toHaveURL(/\/\?show=overdue$/);
-  await expect(page.getByRole("heading", { name: "Gecikən işlərim" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Gecikən tapşırıqlarım" })).toBeVisible();
   await expect(row(page, titles.overdue)).toBeVisible();
   await expect(row(page, titles.week)).toHaveCount(0);
   await page.getByRole("link", { name: "Mənim işlərim" }).last().click();
@@ -162,7 +162,7 @@ test("empty states: no workspace yet, and nothing that needs attention", async (
   };
   await page.route(isHome, (r) => r.fulfill({ json: calm }));
   await page.reload();
-  await expect(page.getByTestId("home-calm")).toContainText("Hazırda diqqətinizi tələb edən iş yoxdur");
+  await expect(page.getByTestId("home-calm")).toContainText("Hazırda diqqətinizi tələb edən tapşırıq yoxdur");
   await page.getByTestId("home-calm").getByRole("link", { name: /Keyfiyyət · E2E Ev A/ }).click();
   await expect(page).toHaveURL(new RegExp(`/w/${wsA}/p/QA`));
 });
