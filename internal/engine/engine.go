@@ -263,7 +263,7 @@ func (e *Engine) webhookBody(ctx context.Context, target store.DeliveryTarget, e
 		if err != nil {
 			return nil, err
 		}
-		msg := ChatMessage{Text: RenderChat(ev, c), Username: "Nebula"}
+		msg := RenderChatMessage(ev, c)
 		if e.PublicURL != "" {
 			msg.IconURL = e.PublicURL + "/logo-mark.png"
 		}
