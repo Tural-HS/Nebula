@@ -257,6 +257,7 @@ test("no page scrolls sideways", async ({ page }) => {
   const ws = `/w/${seed.ws}`;
   const pages = [
     "/",
+    "/?show=assigned", // the home page's full list (ADR-0037)
     ws,
     project,
     project + "?view=board",
@@ -271,7 +272,7 @@ test("no page scrolls sideways", async ({ page }) => {
   }
 });
 
-test("the language picker is in the header from tablet width, on the workspace list on phones", async ({ page }) => {
+test("the language picker is in the header from tablet width, on the home page on phones", async ({ page }) => {
   await page.goto("/");
   const header = page.getByRole("banner").getByLabel("Dil");
   const list = page.getByRole("main").getByLabel("Dil");

@@ -1,71 +1,32 @@
 import { useState, type SyntheticEvent } from "react";
-import { Link, useNavigate } from "react-router";
+import { useNavigate } from "react-router";
 
-import { useCreateWorkspace, useWorkspaces } from "../api/hooks";
-import { LanguageMenu } from "../components/LanguageMenu";
-import { ThemeMenu } from "../components/ThemeMenu";
-import { Layout } from "../components/Layout";
-import { Button, Dialog, EmptyState, ErrorState, FieldError, Input, Label, Select, Spinner } from "../components/ui";
+import { useCreateWorkspace } from "../api/hooks";
+import { Button, Dialog, FieldError, Input, Label, Select } from "./ui";
 import { t } from "../i18n";
-import { ta } from "../i18n-admin";
 import { tk } from "../i18n-kinds";
 import { tt } from "../i18n-templates";
-import { tth } from "../i18n-theme";
 import { activeLocale, isLocale, LOCALES, type Locale } from "../i18n/locale";
 import { createWorkspaceBody, isWorkspaceKind, kindNotes, WORKSPACE_KINDS, type WorkspaceKind } from "../lib/workspaceKinds";
 
-export function WorkspacesPage() {
-  const q = useWorkspaces();
-  const [open, setOpen] = useState(false);
+// Creating a workspace with a template and a team kind (ADR-0020, ADR-0033),
+// from the home page header or its empty state (ADR-0037).
+
+/** The header button: "+" on phones, so a long label never pushes the header out (ADR-0019). */
+export function NewWorkspaceButton({ onClick }: { onClick: () => void }) {
   return (
-    <Layout
-      crumbs={[{ label: t.workspaces }]}
-      actions={
-        <Button variant="primary" aria-label={t.newWorkspace} className="pointer-coarse:min-w-11" onClick={() => { setOpen(true); }}>
-          <span className="max-sm:hidden">{t.newWorkspace}</span>
-          <span aria-hidden className="text-lg leading-none sm:hidden">+</span>
-        </Button>
-      }
-    >
-      <div className="mx-auto max-w-3xl p-4 md:p-6">
-        {q.isPending ? (
-          <Spinner />
-        ) : q.isError ? (
-          <ErrorState error={q.error} onRetry={() => void q.refetch()} />
-        ) : q.data.length === 0 ? (
-          <EmptyState>{t.noWorkspaces}</EmptyState>
-        ) : (
-          <ul className="divide-y divide-zinc-200 overflow-hidden rounded-xl bg-white ring-1 ring-zinc-200 dark:divide-zinc-800 dark:bg-zinc-900 dark:ring-zinc-800">
-            {q.data.map((w) => (
-              <li key={w.id}>
-                <Link to={`/w/${encodeURIComponent(w.slug)}`} className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-zinc-50 dark:hover:bg-zinc-800">
-                  <span className="min-w-0 [overflow-wrap:anywhere]">
-                    <span className="block font-medium">{w.name}</span>
-                    <span className="text-xs text-zinc-500">{w.slug}</span>
-                  </span>
-                  <span className="shrink-0 rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">{ta.roles[w.role]}</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-        {/* Phones: the header has no room for the language picker (ADR-0019, ADR-0025);
-            below xl it has none for the theme picker either (ADR-0035). */}
-        <div className="mt-6 flex flex-wrap items-center justify-end gap-x-4 gap-y-2 text-sm text-zinc-500 xl:hidden">
-          <label className="flex items-center gap-2">
-            <span>{tth.theme}</span>
-            <ThemeMenu labelled className="h-11 pointer-fine:h-8" />
-          </label>
-          <span className="flex items-center gap-2 sm:hidden">
-            <span aria-hidden>{t.language}</span>
-            <LanguageMenu className="h-11" />
-          </span>
-        </div>
-      </div>
-      <Dialog open={open} onClose={() => { setOpen(false); }} title={t.newWorkspace}>
-        <CreateWorkspaceForm onDone={() => { setOpen(false); }} />
-      </Dialog>
-    </Layout>
+    <Button variant="primary" aria-label={t.newWorkspace} className="pointer-coarse:min-w-11" onClick={onClick}>
+      <span className="max-sm:hidden">{t.newWorkspace}</span>
+      <span aria-hidden className="text-lg leading-none sm:hidden">+</span>
+    </Button>
+  );
+}
+
+export function CreateWorkspaceDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  return (
+    <Dialog open={open} onClose={onClose} title={t.newWorkspace}>
+      <CreateWorkspaceForm onDone={onClose} />
+    </Dialog>
   );
 }
 
