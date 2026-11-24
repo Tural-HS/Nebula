@@ -42,6 +42,9 @@ var DefaultSMTPPorts = []int{25, 465, 587, 2525}
 
 const maxSMTPPasswordLen = 1024
 
+// maxSMTPAddressLen matches the CHECK on from_address and reply_to (migration 00030).
+const maxSMTPAddressLen = 400
+
 // EmailSettings is a workspace's SMTP configuration as the API returns it:
 // the password is never included, only whether one is stored.
 type EmailSettings struct {
@@ -189,7 +192,11 @@ func (p *SaveEmailSettingsParams) validate() error {
 	if err != nil {
 		return invalid("from_address", "must be an email address like \"Team <noreply@example.com>\"")
 	}
-	p.FromAddress = from.String()
+	// The stored form is re-encoded (a non-ASCII display name becomes an
+	// RFC 2047 word), so the length is checked after encoding.
+	if p.FromAddress = from.String(); len(p.FromAddress) > maxSMTPAddressLen {
+		return invalid("from_address", "is too long (shorten the display name)")
+	}
 	if p.ReplyTo != nil {
 		rt := strings.TrimSpace(*p.ReplyTo)
 		if rt == "" {
@@ -200,6 +207,9 @@ func (p *SaveEmailSettingsParams) validate() error {
 				return invalid("reply_to", "must be an email address")
 			}
 			s := a.String()
+			if len(s) > maxSMTPAddressLen {
+				return invalid("reply_to", "is too long (shorten the display name)")
+			}
 			p.ReplyTo = &s
 		}
 	}
@@ -256,6 +266,14 @@ func (s *Store) SaveEmailSettings(ctx context.Context, p SaveEmailSettingsParams
 		}
 		if p.TLSMode == SMTPTLSNone && !p.Password.Set && cur.PasswordSet {
 			return invalid("tls_mode", "credentials are never sent without TLS; clear the password or use starttls or tls")
+		}
+		// A kept password stays bound to the server and account it was
+		// entered for: otherwise an admin (or a stolen admin session) could
+		// point the stored secret at a server they control and read it from
+		// the AUTH exchange of a test send.
+		if exists && cur.PasswordSet && !p.Password.Set &&
+			(cur.Host != p.Host || cur.Port != p.Port || cur.TLSMode != p.TLSMode || cur.Username != p.Username) {
+			return invalid("password", "must be entered again when the server, port, encryption or username changes")
 		}
 		var changed []string
 		mark := func(name string, differs bool) {
@@ -329,8 +347,9 @@ func (s *Store) DeleteEmailSettings(ctx context.Context, wsID, actorID uuid.UUID
 }
 
 // EmailTransport returns the workspace's settings with the decrypted password
-// (ErrNotFound: none stored). The caller decides what a disabled row means.
-func (s *Store) EmailTransport(ctx context.Context, wsID uuid.UUID) (EmailTransport, error) {
+// (ErrNotFound: none stored). A disabled row comes back without its password
+// unless includeDisabled is set; the caller decides what disabled means.
+func (s *Store) EmailTransport(ctx context.Context, wsID uuid.UUID, includeDisabled bool) (EmailTransport, error) {
 	var (
 		t       EmailTransport
 		sealed  []byte
@@ -348,7 +367,10 @@ func (s *Store) EmailTransport(ctx context.Context, wsID uuid.UUID) (EmailTransp
 	if replyTo != nil {
 		t.ReplyTo = *replyTo
 	}
-	if sealed != nil {
+	// A disabled row is not decrypted unless asked for (test sends): mail
+	// then goes through the instance even when the stored password can no
+	// longer be opened (e.g. after a lost key), as the admin intended.
+	if sealed != nil && (t.Enabled || includeDisabled) {
 		if s.box == nil {
 			return t, errors.New("email settings require NEBULA_ENCRYPTION_KEY")
 		}

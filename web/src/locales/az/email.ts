@@ -39,6 +39,7 @@ export const tem = {
     port: (ports: string) => `Bu serverdə icazəli portlar: ${ports}`,
     tls_mode: "Şifrələməsiz SMTP bu serverdə qadağandır",
     credentials_without_tls: "İstifadəçi adı və parol şifrələməsiz göndərilmir",
+    password_required: "Server, port, şifrələmə və ya istifadəçi adı dəyişəndə parolu yenidən daxil edin (\"Dəyiş\")",
   },
   testTitle: "Sınaq məktubu",
   testHint: "Boş saxlasanız, məktub sizin ünvanınıza gedir. Başqa ünvan yalnız workspace üzvünün emaili ola bilər.",

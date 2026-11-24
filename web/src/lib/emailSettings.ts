@@ -134,11 +134,21 @@ export function toInput(f: EmailForm, hadPassword: boolean): EmailSettingsInput 
   return body;
 }
 
-export type FormProblem = "port" | "tls_mode" | "credentials_without_tls";
+export type FormProblem = "port" | "tls_mode" | "credentials_without_tls" | "password_required";
+
+/** True when the server, port, encryption or username differs from the saved
+ *  settings: a stored password is bound to those (the server refuses to keep
+ *  it, so it cannot be sent to another server). */
+export function serverChanged(f: EmailForm, saved: EmailSettings | null): boolean {
+  if (!saved) return false;
+  return f.host.trim().toLowerCase().replace(/\.$/, "") !== saved.host || Number(f.port) !== saved.port ||
+    f.tls_mode !== saved.tls_mode || f.username.trim() !== saved.username;
+}
 
 /** Client-side checks mirroring the server, for early feedback only. */
-export function formProblems(f: EmailForm, policy: EmailPolicy, hadPassword: boolean): FormProblem[] {
+export function formProblems(f: EmailForm, policy: EmailPolicy, hadPassword: boolean, saved: EmailSettings | null = null): FormProblem[] {
   const out: FormProblem[] = [];
+  if (hadPassword && f.passwordAction === "keep" && serverChanged(f, saved)) out.push("password_required");
   const port = Number(f.port);
   if (!Number.isInteger(port) || !policy.ports.includes(port)) out.push("port");
   if (f.tls_mode === "none") {

@@ -153,16 +153,38 @@ func TestEmailSettingsPasswordAndAudit(t *testing.T) {
 	if len(raw) == 0 || bytes.Contains(raw, []byte(smtpSecret)) {
 		t.Fatalf("password stored in clear: %q", raw)
 	}
-	if tr, err := e.st.EmailTransport(t.Context(), ws); err != nil || tr.Password != smtpSecret {
+	if tr, err := e.st.EmailTransport(t.Context(), ws, true); err != nil || tr.Password != smtpSecret {
 		t.Fatalf("decrypt: %v %q", err, tr.Password)
 	}
 
-	// Omitted password: kept. Explicit null: cleared.
-	keep := e.must(200, "alice", "PUT", emailBase, settingsBody("mail.example.com", 465, "tls", map[string]any{"username": "finance@example.com"}))
+	// A kept password is bound to its server and account: changing any of
+	// them without re-entering it would let an admin send the stored secret
+	// to a server they control (AUTH during a test send).
+	for name, body := range map[string]map[string]any{
+		"host":     settingsBody("mx.attacker.example", 587, "starttls", map[string]any{"username": "finance@example.com"}),
+		"port":     settingsBody("mail.example.com", 465, "starttls", map[string]any{"username": "finance@example.com"}),
+		"tls_mode": settingsBody("mail.example.com", 587, "tls", map[string]any{"username": "finance@example.com"}),
+		"username": settingsBody("mail.example.com", 587, "starttls", map[string]any{"username": "other@example.com"}),
+	} {
+		r := e.must(422, "alice", "PUT", emailBase, body)
+		if !strings.Contains(r.Raw, "password") {
+			t.Fatalf("%s change without password: %s", name, r.Raw)
+		}
+	}
+	if s := e.must(200, "alice", "GET", emailBase, nil).Body["settings"].(map[string]any); s["host"] != "mail.example.com" {
+		t.Fatalf("rejected PUT changed the settings: %v", s)
+	}
+	// With the password entered again the move is allowed.
+	e.must(200, "alice", "PUT", emailBase, settingsBody("mail.example.com", 465, "tls",
+		map[string]any{"username": "finance@example.com", "password": smtpSecret}))
+
+	// Omitted password: kept (only From changes). Explicit null: cleared.
+	keep := e.must(200, "alice", "PUT", emailBase, settingsBody("mail.example.com", 465, "tls",
+		map[string]any{"username": "finance@example.com", "from_address": "Acme Treasury <treasury@example.com>"}))
 	if keep.Body["settings"].(map[string]any)["password_set"] != true {
 		t.Fatalf("omitted password was not kept: %s", keep.Raw)
 	}
-	if tr, _ := e.st.EmailTransport(t.Context(), ws); tr.Password != smtpSecret {
+	if tr, _ := e.st.EmailTransport(t.Context(), ws, true); tr.Password != smtpSecret {
 		t.Fatal("password changed although omitted")
 	}
 	cleared := e.must(200, "alice", "PUT", emailBase, settingsBody("mail.example.com", 465, "tls", map[string]any{"password": nil}))
@@ -222,6 +244,10 @@ func TestEmailSettingsValidationAndSSRF(t *testing.T) {
 		{"bad from", settingsBody("mail.example.com", 587, "starttls", map[string]any{"from_address": "not an address"}), "from_address"},
 		{"from header injection", settingsBody("mail.example.com", 587, "starttls", map[string]any{"from_address": "a@example.com\r\nBcc: x@example.com"}), "from_address"},
 		{"bad reply-to", settingsBody("mail.example.com", 587, "starttls", map[string]any{"reply_to": "nope"}), "reply_to"},
+		// 130 Cyrillic letters fit the 400-character input limit but grow past
+		// the column limit once RFC 2047 encoded: 422, not a CHECK violation.
+		{"encoded from too long", settingsBody("mail.example.com", 587, "starttls", map[string]any{"from_address": strings.Repeat("Ж", 130) + " <a@example.com>"}), "from_address"},
+		{"encoded reply-to too long", settingsBody("mail.example.com", 587, "starttls", map[string]any{"reply_to": strings.Repeat("Ж", 130) + " <a@example.com>"}), "reply_to"},
 		{"password with newline", settingsBody("mail.example.com", 587, "starttls", map[string]any{"password": "a\r\nb"}), "password"},
 	}
 	for _, c := range cases {
@@ -402,10 +428,10 @@ func TestEmailPasswordKeyRotation(t *testing.T) {
 		t.Fatalf("re-encrypt: %d %v", n, err)
 	}
 	onlyNew, _ := secretbox.New(newKey)
-	if tr, err := store.New(e.pool).WithSecrets(onlyNew).EmailTransport(t.Context(), ws); err != nil || tr.Password != smtpSecret {
+	if tr, err := store.New(e.pool).WithSecrets(onlyNew).EmailTransport(t.Context(), ws, true); err != nil || tr.Password != smtpSecret {
 		t.Fatalf("new key cannot read the password: %v", err)
 	}
-	if _, err := e.st.EmailTransport(t.Context(), ws); err == nil {
+	if _, err := e.st.EmailTransport(t.Context(), ws, true); err == nil {
 		t.Fatal("old key still decrypts after rotation")
 	}
 	if n, err := store.New(e.pool).WithSecrets(box).ReencryptSecrets(t.Context()); err != nil || n != 0 {
@@ -415,5 +441,23 @@ func TestEmailPasswordKeyRotation(t *testing.T) {
 	_ = e.pool.QueryRow(t.Context(), `SELECT password_encrypted FROM workspace_email_settings WHERE workspace_id = $1`, ws).Scan(&after)
 	if bytes.Equal(before, after) {
 		t.Fatal("ciphertext unchanged")
+	}
+
+	// The old key can no longer open the password. While the row is enabled
+	// mail must not silently leave through the instance; once the admin
+	// disables it, it does (ADR-0038: disabled = instance), without trying
+	// to decrypt.
+	r := mailroute.Router{Instance: e.mail, Store: e.st, Policy: store.EmailPolicy{}}
+	if _, err := r.For(t.Context(), ws); err == nil {
+		t.Fatal("undecryptable enabled row fell back to the instance")
+	}
+	if _, err := e.pool.Exec(t.Context(), `UPDATE workspace_email_settings SET is_enabled = false WHERE workspace_id = $1`, ws); err != nil {
+		t.Fatal(err)
+	}
+	if route, err := r.For(t.Context(), ws); err != nil || route.Source != mailroute.SourceInstance {
+		t.Fatalf("disabled undecryptable row: source %q, err %v", route.Source, err)
+	}
+	if _, err := r.ForTest(t.Context(), ws); err == nil {
+		t.Fatal("test send of an undecryptable row did not report the error")
 	}
 }

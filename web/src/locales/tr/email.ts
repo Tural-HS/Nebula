@@ -41,6 +41,7 @@ export const tem = {
     port: (ports: string) => `Bu sunucuda izin verilen portlar: ${ports}`,
     tls_mode: "Şifresiz SMTP bu sunucuda yasak",
     credentials_without_tls: "Kullanıcı adı ve şifre asla şifrelemesiz gönderilmez",
+    password_required: "Sunucu, port, şifreleme veya kullanıcı adı değişince şifreyi yeniden girin (\"Değiştir\")",
   },
   testTitle: "Test e-postası",
   testHint: "Boş bırakırsanız size gönderilir. Başka bir adres bir çalışma alanı üyesinin e-postası olmalıdır.",

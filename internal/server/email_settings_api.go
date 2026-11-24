@@ -194,11 +194,7 @@ func (a *api) testEmailSettings(w http.ResponseWriter, r *http.Request) {
 	}
 	resp := map[string]any{"ok": sendErr == nil, "source": route.Source, "to": to}
 	if sendErr != nil {
-		var secrets []string
-		if t, err := a.store.EmailTransport(ctx, ws.ID); err == nil && route.Source == mailroute.SourceWorkspace {
-			secrets = []string{t.Password, t.Username}
-		}
-		resp["error"] = mail.Describe(sendErr, secrets...)
+		resp["error"] = route.Describe(sendErr)
 		a.logger.InfoContext(ctx, "test email failed", "workspace_id", ws.ID, "source", route.Source, "reason", resp["error"])
 	}
 	writeJSON(w, http.StatusOK, resp)

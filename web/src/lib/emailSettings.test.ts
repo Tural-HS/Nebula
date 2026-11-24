@@ -89,3 +89,18 @@ describe("formProblems", () => {
     expect(formProblems({ ...f, passwordAction: "clear" }, dev, true)).not.toContain("credentials_without_tls");
   });
 });
+
+describe("a kept password is bound to its server", () => {
+  const base = initialForm(saved, prod);
+  it("asks for the password again when the server or account changes", () => {
+    for (const patch of [{ host: "mx.other.example" }, { port: "587" }, { tls_mode: "starttls" as const }, { username: "other@example.com" }]) {
+      expect(formProblems({ ...base, ...patch }, prod, true, saved)).toContain("password_required");
+    }
+  });
+  it("is satisfied by a new password, a cleared one, or unchanged server fields", () => {
+    const moved = { ...base, host: "mx.other.example" };
+    expect(formProblems({ ...moved, passwordAction: "set", password: "x" }, prod, true, saved)).not.toContain("password_required");
+    expect(formProblems({ ...moved, passwordAction: "clear" }, prod, true, saved)).not.toContain("password_required");
+    expect(formProblems({ ...base, host: " Mail.Example.com. ", from_address: "Treasury <t@example.com>" }, prod, true, saved)).toEqual([]);
+  });
+});

@@ -3,6 +3,9 @@ package mailroute
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net/textproto"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -15,7 +18,7 @@ type fakeTransports map[uuid.UUID]store.EmailTransport
 
 var errBroken = errors.New("cannot decrypt")
 
-func (f fakeTransports) EmailTransport(_ context.Context, id uuid.UUID) (store.EmailTransport, error) {
+func (f fakeTransports) EmailTransport(_ context.Context, id uuid.UUID, _ bool) (store.EmailTransport, error) {
 	if id == brokenWS {
 		return store.EmailTransport{}, errBroken
 	}
@@ -113,5 +116,31 @@ func TestWorkspaceSenderIsGuarded(t *testing.T) {
 	}
 	if _, err := r.Workspace(store.EmailTransport{Host: "mail.example.com", Port: 587, TLSMode: mail.TLSStartTLS, FromAddress: "a@example.com"}); err != nil {
 		t.Fatalf("valid settings: %v", err)
+	}
+}
+
+func TestRouteDescribeMasksCredentials(t *testing.T) {
+	ws := uuid.New()
+	tr := fakeTransports{ws: {Host: "mail.example.com", Port: 587, TLSMode: mail.TLSStartTLS, FromAddress: "team@example.com",
+		Username: "finance-bot", Password: "hunter2-pass", Enabled: true}}
+	r := &Router{Instance: instance{}, Store: tr}
+	reply := &textproto.Error{Code: 535, Msg: "5.7.8 bad credentials for finance-bot / hunter2-pass"}
+
+	route, err := r.For(t.Context(), ws)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := route.Describe(fmt.Errorf("mail: auth: %w", reply))
+	if !strings.Contains(got, "535") || strings.Contains(got, "finance-bot") || strings.Contains(got, "hunter2-pass") {
+		t.Errorf("workspace route: %q", got)
+	}
+
+	// The instance server's reply text is never shown, only its code.
+	inst, err := r.For(t.Context(), uuid.Nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := inst.Describe(&textproto.Error{Code: 535, Msg: "auth failed for ops@corp.example"}); !strings.Contains(got, "535") || strings.Contains(got, "ops@corp") {
+		t.Errorf("instance route: %q", got)
 	}
 }

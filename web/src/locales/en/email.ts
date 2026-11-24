@@ -41,6 +41,7 @@ export const tem = {
     port: (ports: string) => `Ports allowed on this server: ${ports}`,
     tls_mode: "Unencrypted SMTP is not allowed on this server",
     credentials_without_tls: "A username and password are never sent without encryption",
+    password_required: "Enter the password again when the server, port, encryption or username changes (\"Change\")",
   },
   testTitle: "Test email",
   testHint: "Leave empty to send it to yourself. Another address must be a workspace member's email.",

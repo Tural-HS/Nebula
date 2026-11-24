@@ -94,3 +94,21 @@ func TestDescribeSanitizes(t *testing.T) {
 		}
 	}
 }
+
+func TestDescribeBrief(t *testing.T) {
+	reply := fmt.Errorf("mail: auth: %w", &textproto.Error{Code: 535, Msg: "5.7.8 auth failed for ops@corp.example"})
+	if got := DescribeBrief(reply); !strings.Contains(got, "535") || strings.Contains(got, "ops@corp") || strings.Contains(got, "auth failed") {
+		t.Errorf("SMTP reply: %q", got)
+	}
+	if got := DescribeBrief(errors.New("mail: something internal ops@corp.example")); strings.Contains(got, "ops@corp") {
+		t.Errorf("unclassified error leaks its text: %q", got)
+	}
+	dial := fmt.Errorf("mail: connect: %w", &net.OpError{Op: "dial", Net: "tcp",
+		Addr: &net.TCPAddr{IP: net.ParseIP("10.1.2.3"), Port: 25}, Err: errors.New("connection refused")})
+	if got := DescribeBrief(dial); !strings.Contains(got, "refused") || strings.Contains(got, "10.1.2.3") {
+		t.Errorf("dial error: %q", got)
+	}
+	if DescribeBrief(nil) != "" {
+		t.Error("nil error")
+	}
+}

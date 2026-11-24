@@ -57,7 +57,7 @@ function SettingsForm({ ws, view }: { ws: string; view: EmailSettingsView }) {
   const [form, setForm] = useState<EmailForm>(() => initialForm(view.settings, view.policy));
   const [preset, setPreset] = useState<PresetId | null>(null);
   const set = (patch: Partial<EmailForm>) => { setForm((f) => ({ ...f, ...patch })); };
-  const problems = formProblems(form, view.policy, hadPassword);
+  const problems = formProblems(form, view.policy, hadPassword, view.settings);
   const tlsModes: TLSMode[] = view.policy.allow_plaintext || form.tls_mode === "none" ? ["starttls", "tls", "none"] : ["starttls", "tls"];
 
   return (

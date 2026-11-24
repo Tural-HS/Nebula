@@ -36,7 +36,7 @@ var ErrPolicy = errors.New("email settings rejected by the instance policy")
 
 // Transports reads workspace SMTP settings (implemented by *store.Store).
 type Transports interface {
-	EmailTransport(ctx context.Context, wsID uuid.UUID) (store.EmailTransport, error)
+	EmailTransport(ctx context.Context, wsID uuid.UUID, includeDisabled bool) (store.EmailTransport, error)
 }
 
 // Router selects a sender. The zero value sends nothing.
@@ -56,6 +56,20 @@ type Route struct {
 	Sender mail.Sender
 	Source string
 	Host   string
+	// secrets are the workspace server's credentials, masked out of error
+	// texts (Describe). Empty for the instance server.
+	secrets []string
+}
+
+// Describe reduces a send error to a text that is safe to store or show:
+// network details are categorized and the credentials are masked. For the
+// instance server only the category and the SMTP reply code are given — its
+// replies are the operator's business, not the workspace admin's.
+func (r Route) Describe(err error) string {
+	if r.Source == SourceInstance {
+		return mail.DescribeBrief(err)
+	}
+	return mail.Describe(err, r.secrets...)
 }
 
 // For returns the sender for mail of workspace wsID (uuid.Nil: no workspace
@@ -72,14 +86,14 @@ func (r *Router) ForTest(ctx context.Context, wsID uuid.UUID) (Route, error) {
 
 func (r *Router) route(ctx context.Context, wsID uuid.UUID, includeDisabled bool) (Route, error) {
 	if wsID != uuid.Nil && r.Store != nil {
-		t, err := r.Store.EmailTransport(ctx, wsID)
+		t, err := r.Store.EmailTransport(ctx, wsID, includeDisabled)
 		switch {
 		case err == nil && (t.Enabled || includeDisabled):
 			s, err := r.Workspace(t)
 			if err != nil {
 				return Route{Source: SourceWorkspace, Host: t.Host}, err
 			}
-			return Route{Sender: s, Source: SourceWorkspace, Host: t.Host}, nil
+			return Route{Sender: s, Source: SourceWorkspace, Host: t.Host, secrets: []string{t.Password, t.Username}}, nil
 		case err != nil && !errors.Is(err, store.ErrNotFound):
 			// Never fall back silently on a broken row (e.g. undecryptable
 			// password): the mail would leave from another address.

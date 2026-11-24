@@ -622,12 +622,15 @@ func (e *Engine) sendEmail(ctx context.Context, j store.Job) error {
 		return err
 	}
 	if err := route.Sender.Send(ctx, mail.Message{To: m.To, Subject: m.Subject, Body: m.Body}); err != nil {
-		if errors.Is(err, mail.ErrInvalidMessage) || errors.Is(err, safehttp.ErrBlockedAddress) {
-			return worker.Permanent(err)
-		}
+		permanent := errors.Is(err, mail.ErrInvalidMessage) || errors.Is(err, safehttp.ErrBlockedAddress)
 		if route.Source == mailroute.SourceWorkspace {
-			// The admin-controlled server's reply is reduced to a safe text.
-			return fmt.Errorf("workspace SMTP: %s", mail.Describe(err))
+			// The admin-controlled server's reply is reduced to a safe text
+			// (credentials masked, never the dialed IP) before it reaches
+			// jobs.last_error and the logs.
+			err = fmt.Errorf("workspace SMTP: %s", route.Describe(err))
+		}
+		if permanent {
+			return worker.Permanent(err)
 		}
 		return err
 	}
