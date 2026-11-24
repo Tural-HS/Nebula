@@ -1,0 +1,42 @@
+# MIGRATION override (temporary): pgBackRest archives to TWO repositories while moving from the
+# same-host pilot target (repo1 = backup-s3, compose.local-s3.yaml) to off-site S3 (repo2).
+# Runbook: README.md, "Pulsuz yerel backup (pilot)" -> "Off-site S3-ə köçmə".
+#
+#   COMPOSE_FILE=compose.yaml:compose.shared-host.yaml:compose.local-s3.yaml:compose.repo2-offsite.yaml
+#   PGBACKREST_BACKUP_REPO=2      # scheduled backups go to the new repository (pgBackRest needs --repo)
+#
+# WAL goes to both repositories, so PITR never has a gap. Once a restore test from repo2 passes
+# (RESTORE_TEST_REPO=2 scripts/restore-test.sh), repo2's settings become the PGBACKREST_S3_* values
+# (repo1), and this file and compose.local-s3.yaml leave COMPOSE_FILE. Same stanza, same cipher
+# passphrase: the off-site repository is used as repo1 unchanged.
+services:
+  postgres:
+    environment:
+      PGBACKREST_REPO2_TYPE: s3
+      PGBACKREST_REPO2_S3_ENDPOINT: ${PGBACKREST_REPO2_S3_ENDPOINT:?}
+      PGBACKREST_REPO2_S3_REGION: ${PGBACKREST_REPO2_S3_REGION:?}
+      PGBACKREST_REPO2_S3_BUCKET: ${PGBACKREST_REPO2_S3_BUCKET:?}
+      PGBACKREST_REPO2_S3_URI_STYLE: ${PGBACKREST_REPO2_S3_URI_STYLE:-host}
+      PGBACKREST_REPO2_PATH: ${PGBACKREST_REPO2_PATH:-/nebula-prod}
+      PGBACKREST_REPO2_STORAGE_VERIFY_TLS: ${PGBACKREST_REPO2_S3_VERIFY_TLS:-y}
+      # The repo1-* settings of postgres/pgbackrest.conf, repeated for repo2.
+      PGBACKREST_REPO2_CIPHER_TYPE: aes-256-cbc
+      PGBACKREST_REPO2_RETENTION_FULL_TYPE: count
+      PGBACKREST_REPO2_RETENTION_FULL: "4"
+      PGBACKREST_REPO2_RETENTION_DIFF: "7"
+      PGBACKREST_REPO2_BUNDLE: "y"
+      PGBACKREST_REPO2_BLOCK: "y"
+    secrets:
+      - pgbackrest_repo2_s3_key
+      - pgbackrest_repo2_s3_key_secret
+    volumes:
+      # Released images up to v0.1.0 have a wrapper that loads only repo1's credentials; this one
+      # also loads repo2's (postgres/nebula-pgbackrest). Remove the line once the image has it.
+      - ./postgres/nebula-pgbackrest:/usr/local/bin/nebula-pgbackrest:ro
+    # The off-site endpoint is reached over the existing "egress" network (compose.yaml).
+
+secrets:
+  pgbackrest_repo2_s3_key:
+    file: ${NEBULA_SECRETS_DIR:-/etc/nebula/secrets}/pgbackrest_repo2_s3_key
+  pgbackrest_repo2_s3_key_secret:
+    file: ${NEBULA_SECRETS_DIR:-/etc/nebula/secrets}/pgbackrest_repo2_s3_key_secret

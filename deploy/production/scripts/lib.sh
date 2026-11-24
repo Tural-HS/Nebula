@@ -49,6 +49,18 @@ compose() {
 	docker compose --project-directory "$DEPLOY_DIR" --env-file "$ENV_FILE" "${files[@]}" "$@"
 }
 
+# Same-host pilot backup target (compose.local-s3.yaml, README "Pulsuz yerel backup (pilot)").
+# On when the override is in the compose file list or NEBULA_LOCAL_S3=1 (e.g. before .env lists it).
+LOCAL_S3_UID_DEFAULT=10002
+local_s3_enabled() {
+	[[ ${NEBULA_LOCAL_S3:-0} == 1 ]] || compose_files | grep -q '/compose\.local-s3\.yaml$'
+}
+local_s3_paths() { # sets LOCAL_S3_DATA, LOCAL_S3_TLS, LOCAL_S3_UID (after load_env)
+	LOCAL_S3_DATA="$STATE_DIR/backup-s3"
+	LOCAL_S3_TLS="$STATE_DIR/backup-s3-tls"
+	LOCAL_S3_UID="${NEBULA_LOCAL_S3_UID:-$LOCAL_S3_UID_DEFAULT}"
+}
+
 # psql inside the postgres container as the superuser via the local socket (peer auth).
 psql_prod() { # psql_prod DB SQL
 	compose exec -T postgres psql -X -v ON_ERROR_STOP=1 -At -d "$1" -c "$2"

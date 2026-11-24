@@ -1,0 +1,122 @@
+# Shared-host PILOT override: a free S3 target for pgBackRest ON THE SAME HOST (versitygw, posix
+# backend). Runbook: README.md, "Pulsuz yerel backup (pilot)". Third file in COMPOSE_FILE:
+#
+#   COMPOSE_FILE=compose.yaml:compose.shared-host.yaml:compose.local-s3.yaml
+#
+#   postgres (pgBackRest, TLS verified against ca.crt) --HTTPS--> backup-s3:7070 --> ${NEBULA_STATE_DIR}/backup-s3
+#
+# PROTECTS against wrong deletes, corruption and bad migrations (PITR). Does NOT protect against
+# losing the host or its disk: move to off-site S3 before Nebula becomes the only copy of the data.
+#
+# One-time setup: scripts/local-s3-init.sh (TLS material + bucket directory), then
+# NEBULA_LOCAL_S3=1 scripts/gen-secrets.sh (random repository keys). preflight.sh checks both.
+#
+# Invariants: never published on the host and never on edge, metrics, db or the shared proxy
+# network. Only the internal "backup" network, shared with postgres and with the throwaway
+# restore-test container (RESTORE_TEST_NETWORK=${COMPOSE_PROJECT_NAME}-backup).
+services:
+  backup-s3:
+    image: ${NEBULA_LOCAL_S3_IMAGE:-versity/versitygw:v1.11.0@sha256:8319a530d08d537426e2f855bae5280709795dc73a3f0c347973ef915d6343c5}
+    # No user in the image (it runs as root by default): a fixed unprivileged uid that owns the
+    # data and TLS directories (local-s3-init.sh), plus the secrets group for the key files.
+    user: "${NEBULA_LOCAL_S3_UID:-10002}:${NEBULA_LOCAL_S3_UID:-10002}"
+    group_add: ["${NEBULA_SECRETS_GID:-10001}"]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+    init: true
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+        tag: "{{.Name}}"
+    # versitygw reads its root credentials only from flags or environment variables. The keys are the
+    # SAME secret files pgBackRest reads (one source of truth); this shell (the image's busybox) loads
+    # them into the gateway's own environment just before exec. They are never in .env, the compose
+    # file, the command line or `docker inspect` (Config.Env shows only the VGW_* settings below);
+    # /proc/1/environ inside this container is readable only by its own uid and root.
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -eu
+        ROOT_ACCESS_KEY_ID="$$(tr -d '\r\n' </run/secrets/pgbackrest_s3_key)"
+        ROOT_SECRET_ACCESS_KEY="$$(tr -d '\r\n' </run/secrets/pgbackrest_s3_key_secret)"
+        [ -n "$$ROOT_ACCESS_KEY_ID" ] && [ -n "$$ROOT_SECRET_ACCESS_KEY" ] || { echo "backup-s3: empty key file" >&2; exit 1; }
+        export ROOT_ACCESS_KEY_ID ROOT_SECRET_ACCESS_KEY
+        exec /usr/local/bin/versitygw posix /data
+    environment:
+      VGW_PORT: ":7070"
+      VGW_CERT: /tls/tls.crt
+      VGW_KEY: /tls/tls.key
+      VGW_REGION: ${PGBACKREST_S3_REGION:?}
+      VGW_HEALTH: /health
+      # Every object is flushed to disk before the PUT is acknowledged: pgBackRest treats an
+      # acknowledged WAL segment as archived, so it must survive a host crash or power loss.
+      VGW_FSYNC: "true"
+      VGW_QUIET: "true" # no per-request access log on stdout; errors are still logged
+    secrets:
+      - pgbackrest_s3_key
+      - pgbackrest_s3_key_secret
+    volumes:
+      # Plain files on the host (posix backend, metadata in xattrs): snapshot or rsync this directory.
+      # pgBackRest encrypts client-side, so it only ever holds ciphertext.
+      # Long syntax with create_host_path: false: a missing directory fails the start instead of
+      # being created root-owned (and unwritable) by Docker. local-s3-init.sh creates them.
+      - type: bind
+        source: ${NEBULA_STATE_DIR:-/var/lib/nebula}/backup-s3
+        target: /data
+        bind: { create_host_path: false }
+      - type: bind
+        source: ${NEBULA_STATE_DIR:-/var/lib/nebula}/backup-s3-tls
+        target: /tls
+        read_only: true
+        bind: { create_host_path: false }
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    networks:
+      backup: {}
+    expose: ["7070"]
+    healthcheck:
+      # busybox wget: TLS without verification is enough for liveness on loopback; the real client
+      # (pgBackRest) verifies the certificate against ca.crt.
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "-T", "3", "--no-check-certificate", "https://127.0.0.1:7070/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    stop_grace_period: 30s
+    deploy:
+      resources:
+        limits: { cpus: "1.0", memory: 256M }
+        reservations: { memory: 32M }
+
+  postgres:
+    environment:
+      # Verified TLS against the self-signed CA from local-s3-init.sh (SAN: backup-s3). pgBackRest
+      # reads the option from the environment, so the released image needs no rebuild.
+      PGBACKREST_REPO1_STORAGE_CA_FILE: /etc/pgbackrest/backup-s3-ca.crt
+    volumes:
+      # A file mount pins the inode: after local-s3-init.sh --renew, recreate postgres.
+      - type: bind
+        source: ${PGBACKREST_S3_CA_FILE:-${NEBULA_STATE_DIR:-/var/lib/nebula}/backup-s3-tls/ca.crt}
+        target: /etc/pgbackrest/backup-s3-ca.crt
+        read_only: true
+        bind: { create_host_path: false }
+    networks:
+      backup: {}
+    depends_on:
+      # Started, not healthy: async archiving queues WAL in the spool volume while backup-s3 is down,
+      # so the database must never wait for (or restart with) its backup target.
+      backup-s3:
+        condition: service_started
+
+networks:
+  # Postgres <-> backup-s3 only (and restore-test). internal: no route to the outside world.
+  # Fixed name, so RESTORE_TEST_NETWORK does not depend on how Compose prefixes networks.
+  backup:
+    name: ${COMPOSE_PROJECT_NAME:-nebula-prod}-backup
+    driver: bridge
+    internal: true
