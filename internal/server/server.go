@@ -39,6 +39,8 @@ type Deps struct {
 	Verifier       auth.Verifier
 	Version        string
 	RequestTimeout time.Duration
+	// ExportMaxRows caps one item table export (ADR-0040); 0 = MaxExportRows.
+	ExportMaxRows  int
 	RateLimit      config.RateLimit // zero value disables limiting
 	TrustedProxies []netip.Prefix   // reverse proxies whose X-Forwarded-For is believed
 	Webhooks       safehttp.Options // URL policy for webhook targets
@@ -94,7 +96,7 @@ func NewAPIHandler(d Deps) http.Handler {
 			(&api{store: d.Store, logger: d.Logger, webhookOpts: d.Webhooks, publicURL: d.PublicURL,
 				attach: d.Attachments, uploadLimiter: newUploadLimiter(d.Attachments.UploadsPerMinute),
 				evidence: newEvidenceExports(d.EvidenceSigner), version: d.Version,
-				mail: mailRouter(d), emailTestLimiter: newEmailTestLimiter()}).routes(r)
+				mail: mailRouter(d), emailTestLimiter: newEmailTestLimiter(), exports: newItemExports(d.ExportMaxRows)}).routes(r)
 		})
 	})
 

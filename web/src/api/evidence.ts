@@ -35,7 +35,8 @@ export const useEvidenceHistory = (ws: string) =>
     queryFn: () => api<ActivityPage>("GET", path`/workspaces/${ws}/audit-log` + "?action=evidence.exported&limit=20"),
   });
 
-function save(blob: Blob, name: string): void {
+/** Saves a downloaded blob under name (a temporary object URL). */
+export function saveBlob(blob: Blob, name: string): void {
   const url = URL.createObjectURL(blob);
   try {
     const link = document.createElement("a");
@@ -52,7 +53,7 @@ function save(blob: Blob, name: string): void {
 
 async function download(p: string, body: unknown, fallback: string): Promise<void> {
   const res = await apiPostBlob(p, body);
-  save(res.blob, fileNameFrom(res.disposition, fallback));
+  saveBlob(res.blob, fileNameFrom(res.disposition, fallback));
 }
 
 export const exportItemEvidence = (ws: string, project: string, n: number, language: string) =>

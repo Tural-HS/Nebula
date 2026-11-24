@@ -41,6 +41,8 @@ type api struct {
 	// mail and emailTestLimiter: workspace SMTP settings (email_settings_api.go).
 	mail             mailroute.Router
 	emailTestLimiter *ratelimit.Limiter
+	// exports: item table export (export_api.go).
+	exports *itemExports
 }
 
 type ctxKey int
@@ -104,6 +106,7 @@ func (a *api) activeProjectRoutes(r chi.Router) {
 	r.Get("/items", a.listItems)
 	r.Get("/items/counts", a.countItems)
 	r.Get("/items/queue-counts", a.queueCounts)
+	r.Get("/items/export", a.exportItems)
 	r.With(requireRole(store.RoleMember)).Post("/items", a.createItem)
 	r.Get("/items/{number}", a.getItem)
 	r.Get("/items/{number}/transitions", a.allowedStatuses)

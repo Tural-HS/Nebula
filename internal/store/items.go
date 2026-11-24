@@ -360,6 +360,29 @@ func (s *Store) CountItemsByStatus(ctx context.Context, p ListItemsParams) (map[
 	return out, rows.Err()
 }
 
+// CountItemsUpTo counts the items ListItems would return over all pages
+// (every filter applies, cursor and limit do not), stopping at limit+1 so a
+// huge project costs no more than the cap (table export, ADR-0040).
+func (s *Store) CountItemsUpTo(ctx context.Context, p ListItemsParams, limit int) (int, error) {
+	where, args, err := s.itemFilter(ctx, p, true)
+	if err != nil {
+		return 0, err
+	}
+	args = append(args, limit+1)
+	var n int
+	err = s.pool.QueryRow(ctx, fmt.Sprintf("SELECT count(*) FROM (SELECT 1 FROM items i WHERE %s LIMIT $%d) c",
+		strings.Join(where, " AND "), len(args)), args...).Scan(&n)
+	return n, err
+}
+
+// RecordItemsExport appends items.exported on the project: who exported how
+// many rows, in which format, with which filters. Never cell data.
+func (s *Store) RecordItemsExport(ctx context.Context, wsID, actorID, projectID uuid.UUID, payload map[string]any) error {
+	return s.inTx(ctx, func(tx pgx.Tx) error {
+		return appendEvent(ctx, tx, wsID, actorID, "project", projectID, "items.exported", payload)
+	})
+}
+
 // itemFilter builds the WHERE conditions shared by listing and counting.
 // Values are always bound as parameters, never interpolated.
 func (s *Store) itemFilter(ctx context.Context, p ListItemsParams, withStatus bool) (where []string, args []any, err error) {
