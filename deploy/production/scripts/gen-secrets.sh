@@ -74,6 +74,10 @@ put remote_write_password "REPLACE_ME"
 # unreadable: keep an offline copy. Retired keys (comma separated) only during rotation.
 put nebula_encryption_key "$ENC_KEY"
 put nebula_encryption_keys_old "$(legacy NEBULA_ENCRYPTION_KEYS_OLD)"
+# Audit evidence signing key (ADR-0029): an Ed25519 seed, base64 32 bytes. Its fingerprint is in
+# Settings → Audit log and in every package. Losing it does not break old packages (they carry the
+# public key), but auditors who pinned the fingerprint must be told about a new one.
+put nebula_evidence_signing_key "$(openssl rand -base64 32)"
 # SMTP password; empty = no SMTP authentication. Host, user and sender are in .env.
 put nebula_smtp_password "$(legacy NEBULA_SMTP_PASSWORD)"
 
@@ -81,7 +85,7 @@ if ((${#created[@]})); then
 	log "created: ${created[*]}"
 	log "NEXT: replace REPLACE_ME in pgbackrest_s3_key, pgbackrest_s3_key_secret, remote_write_password;"
 	log "      set NEBULA_SMTP_* in .env (password: nebula_smtp_password);"
-	log "      back up pgbackrest_cipher_pass and nebula_encryption_key offline."
+	log "      back up pgbackrest_cipher_pass, nebula_encryption_key and nebula_evidence_signing_key offline."
 fi
 if [[ -e $SECRETS_DIR/nebula.env ]]; then
 	log "NOTE: $SECRETS_DIR/nebula.env is no longer used. Its secrets were carried over (if missing);"

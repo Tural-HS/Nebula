@@ -7,6 +7,7 @@
 //	nebula migrate down     roll back the latest migration
 //	nebula migrate status   show migration state
 //	nebula healthcheck      probe the local readiness endpoint (Docker HEALTHCHECK)
+//	nebula evidence verify  verify a signed audit evidence package (ADR-0029)
 //	nebula version          print the build version
 package main
 
@@ -30,6 +31,7 @@ import (
 	"github.com/Tural-HS/Nebula/internal/config"
 	"github.com/Tural-HS/Nebula/internal/database"
 	"github.com/Tural-HS/Nebula/internal/engine"
+	"github.com/Tural-HS/Nebula/internal/evidence"
 	"github.com/Tural-HS/Nebula/internal/mail"
 	"github.com/Tural-HS/Nebula/internal/observability"
 	"github.com/Tural-HS/Nebula/internal/safehttp"
@@ -59,6 +61,8 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 		return 0
 	case "healthcheck": // needs only the listen address, never secrets
 		return healthcheck(ctx, args[1:], getenv, stderr)
+	case "evidence": // verify runs anywhere: no configuration or database
+		return evidenceCmd(args[1:], getenv, stdout, stderr)
 	}
 
 	cfg, err := config.Load(getenv)
@@ -96,7 +100,7 @@ func run(ctx context.Context, args []string, getenv func(string) string, stdout,
 		}
 		err = migrate(ctx, cfg, logger, args[1])
 	default:
-		_, _ = fmt.Fprintf(stderr, "unknown command %q (use serve, worker, migrate, rotate-secrets, healthcheck, version)\n", cmd)
+		_, _ = fmt.Fprintf(stderr, "unknown command %q (use serve, worker, migrate, rotate-secrets, evidence, healthcheck, version)\n", cmd)
 		return 2
 	}
 	if err != nil {
@@ -130,7 +134,8 @@ type runtime struct {
 	store   *store.Store
 	metrics *observability.Metrics
 	webhook safehttp.Options
-	blobs   blobstore.Store // nil: attachments disabled
+	blobs   blobstore.Store  // nil: attachments disabled
+	signer  *evidence.Signer // nil: evidence export disabled
 }
 
 func newRuntime(ctx context.Context, cfg config.Config, logger *slog.Logger) (*runtime, error) {
@@ -151,7 +156,13 @@ func newRuntime(ctx context.Context, cfg config.Config, logger *slog.Logger) (*r
 		pool.Close()
 		return nil, err
 	}
+	signer, err := evidenceSigner(cfg, logger)
+	if err != nil {
+		pool.Close()
+		return nil, err
+	}
 	return &runtime{
+		signer:  signer,
 		blobs:   blobs,
 		pool:    pool,
 		store:   store.New(pool).WithSecrets(box),
@@ -267,6 +278,7 @@ func serve(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 		RateLimit:      cfg.RateLimit,
 		TrustedProxies: cfg.TrustedProxies,
 		Attachments:    attachmentDeps(cfg.Attachments, rt.blobs),
+		EvidenceSigner: rt.signer,
 	}), cfg.RequestTimeout)
 	admin := newHTTPServer(cfg.AdminAddr, server.NewAdminHandler(metrics), 10*time.Second)
 

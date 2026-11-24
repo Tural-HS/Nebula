@@ -34,6 +34,9 @@ type api struct {
 	// attach and uploadLimiter: file attachments (attachment_api.go).
 	attach        Attachments
 	uploadLimiter *ratelimit.Limiter
+	// evidence and version: audit evidence export (evidence_api.go).
+	evidence *evidenceExports
+	version  string
 }
 
 type ctxKey int
@@ -62,6 +65,7 @@ func (a *api) routes(r chi.Router) {
 		a.workspaceCollabRoutes(r)
 		a.searchRoutes(r)
 		a.calendarRoutes(r)
+		a.evidenceRoutes(r)
 		r.Get("/members", a.listMembers)
 		r.With(requireRole(store.RoleAdmin)).Post("/members", a.addMember)
 		r.With(requireRole(store.RoleAdmin)).Patch("/members/{userID}", a.updateMemberRole)
@@ -88,6 +92,7 @@ func (a *api) routes(r chi.Router) {
 			a.viewRoutes(r)
 			a.bulkRoutes(r)
 			a.approvalRoutes(r)
+			a.itemEvidenceRoutes(r)
 		})
 	})
 }

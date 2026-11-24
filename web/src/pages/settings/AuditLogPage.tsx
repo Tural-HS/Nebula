@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { useAuditLog } from "../../api/admin";
+import { EvidencePanel } from "../../components/Evidence";
 import { Button, ErrorState, Input, Spinner } from "../../components/ui";
 import { ta } from "../../i18n-admin";
 import { actorName } from "../../lib/activity";
@@ -25,6 +26,7 @@ function Audit({ ws }: { ws: string }) {
 
   return (
     <div className="space-y-3">
+      <EvidencePanel ws={ws} />
       <form
         className="flex gap-2"
         onSubmit={(e) => {

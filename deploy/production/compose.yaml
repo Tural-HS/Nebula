@@ -119,12 +119,14 @@ services:
       - nebula_encryption_key
       - nebula_encryption_keys_old
       - nebula_smtp_password
+      - nebula_evidence_signing_key
     environment:
       NEBULA_DATABASE_URL: postgres://nebula_app@postgres:5432/nebula?sslmode=disable
       NEBULA_DATABASE_PASSWORD_FILE: /run/secrets/nebula_app_db_password
       NEBULA_ENCRYPTION_KEY_FILE: /run/secrets/nebula_encryption_key
       NEBULA_ENCRYPTION_KEYS_OLD_FILE: /run/secrets/nebula_encryption_keys_old # empty unless rotating
       NEBULA_SMTP_PASSWORD_FILE: /run/secrets/nebula_smtp_password             # empty: no SMTP auth
+      NEBULA_EVIDENCE_SIGNING_KEY_FILE: /run/secrets/nebula_evidence_signing_key # ADR-0029
       # Outgoing mail (STARTTLS or TLS; "none" is refused in production). Empty host disables email.
       NEBULA_SMTP_HOST: ${NEBULA_SMTP_HOST:-}
       NEBULA_SMTP_PORT: ${NEBULA_SMTP_PORT:-587}
@@ -405,6 +407,8 @@ secrets:
     file: ${NEBULA_SECRETS_DIR:-/etc/nebula/secrets}/nebula_encryption_keys_old
   nebula_smtp_password:
     file: ${NEBULA_SECRETS_DIR:-/etc/nebula/secrets}/nebula_smtp_password
+  nebula_evidence_signing_key:
+    file: ${NEBULA_SECRETS_DIR:-/etc/nebula/secrets}/nebula_evidence_signing_key
   keycloak_db_password:
     file: ${NEBULA_SECRETS_DIR:-/etc/nebula/secrets}/keycloak_db_password
   monitoring_db_password:

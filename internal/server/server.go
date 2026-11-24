@@ -17,6 +17,7 @@ import (
 
 	"github.com/Tural-HS/Nebula/internal/auth"
 	"github.com/Tural-HS/Nebula/internal/config"
+	"github.com/Tural-HS/Nebula/internal/evidence"
 	"github.com/Tural-HS/Nebula/internal/observability"
 	"github.com/Tural-HS/Nebula/internal/ratelimit"
 	"github.com/Tural-HS/Nebula/internal/safehttp"
@@ -44,6 +45,8 @@ type Deps struct {
 	PublicURL string
 	// Attachments configures file uploads; zero value: attachments disabled.
 	Attachments Attachments
+	// EvidenceSigner signs audit evidence packages (ADR-0029); nil disables export.
+	EvidenceSigner *evidence.Signer
 }
 
 // NewAPIHandler returns the public HTTP handler.
@@ -84,7 +87,8 @@ func NewAPIHandler(d Deps) http.Handler {
 				return principal(r).UserID.String()
 			}, writeError))
 			(&api{store: d.Store, logger: d.Logger, webhookOpts: d.Webhooks, publicURL: d.PublicURL,
-				attach: d.Attachments, uploadLimiter: newUploadLimiter(d.Attachments.UploadsPerMinute)}).routes(r)
+				attach: d.Attachments, uploadLimiter: newUploadLimiter(d.Attachments.UploadsPerMinute),
+				evidence: newEvidenceExports(d.EvidenceSigner), version: d.Version}).routes(r)
 		})
 	})
 

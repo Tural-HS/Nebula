@@ -3,6 +3,7 @@ import { t } from "../i18n";
 import { tap } from "../i18n-approvals";
 import { activeLocale } from "../i18n/locale";
 import { ta } from "../i18n-attach";
+import { te } from "../i18n-evidence";
 import { tl } from "../i18n-links";
 import { ts } from "../i18n-subtasks";
 import { formatDate } from "./format";
@@ -65,6 +66,8 @@ export function describe(a: Activity, lookup: Lookup): Line[] {
       return [{ text: tap.act.canceled }];
     case "approval.applied":
       return [{ text: tap.act.applied, to: lookup.status(str(a.data.to_status_id)) ?? "?" }];
+    case "evidence.exported":
+      return [{ text: te.act.exported }];
     case "link.added":
     case "link.removed": {
       const other = a.data.other_item as { key?: unknown } | undefined;

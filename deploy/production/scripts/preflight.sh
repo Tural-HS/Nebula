@@ -21,7 +21,7 @@ done
 # Required secrets must be non-empty; the optional ones exist (Compose mounts them) but may be empty.
 required=(postgres_superuser_password nebula_db_password nebula_app_db_password keycloak_db_password
 	monitoring_db_password pgbackrest_cipher_pass pgbackrest_s3_key pgbackrest_s3_key_secret
-	remote_write_password nebula_encryption_key)
+	remote_write_password nebula_encryption_key nebula_evidence_signing_key)
 optional=(nebula_encryption_keys_old nebula_smtp_password)
 for s in "${required[@]}" "${optional[@]}"; do
 	f="$SECRETS_DIR/$s"
@@ -32,10 +32,11 @@ for s in "${required[@]}" "${optional[@]}"; do
 	[[ $mode == 440 || $mode == 400 ]] || bad "$f must be mode 0440 (is $mode)"
 done
 # 32 random bytes, base64 (Nebula refuses anything else; checked here without printing it).
-if [[ -r $SECRETS_DIR/nebula_encryption_key ]]; then
-	n="$(tr -d '\r\n' <"$SECRETS_DIR/nebula_encryption_key" | base64 -d 2>/dev/null | wc -c | tr -d ' ')" || n=0
-	[[ $n == 32 ]] || bad "nebula_encryption_key must be 32 bytes, base64 encoded (openssl rand -base64 32)"
-fi
+for k in nebula_encryption_key nebula_evidence_signing_key; do
+	[[ -r $SECRETS_DIR/$k ]] || continue
+	n="$(tr -d '\r\n' <"$SECRETS_DIR/$k" | base64 -d 2>/dev/null | wc -c | tr -d ' ')" || n=0
+	[[ $n == 32 ]] || bad "$k must be 32 bytes, base64 encoded (openssl rand -base64 32)"
+done
 if [[ -e $SECRETS_DIR/nebula.env ]]; then
 	log "WARN: $SECRETS_DIR/nebula.env is obsolete (ADR-0018): move SMTP settings to .env and delete it"
 fi
