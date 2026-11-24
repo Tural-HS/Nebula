@@ -17,6 +17,19 @@ function act(action: string, data: Record<string, unknown> = {}, extra: Partial<
 }
 
 suite("describe", () => {
+  it("renders the approval trail (ADR-0026)", () => {
+    expect(describe(act("approval.requested", { from_status_id: "s1", to_status_id: "s2", comment: "Qəbz var" }), lookup)).toEqual([
+      { text: "təsdiq istədi", from: "To Do", to: "Done" },
+      { text: "“Qəbz var”" },
+    ]);
+    expect(describe(act("approval.approved", { approvals: 1, min_approvals: 2, comment: null }), lookup)).toEqual([{ text: "təsdiqlədi (1/2)" }]);
+    expect(describe(act("approval.rejected", { reason: "Məbləğ səhvdir" }), lookup)).toEqual([
+      { text: "təsdiq sorğusunu rədd etdi" },
+      { text: "“Məbləğ səhvdir”" },
+    ]);
+    expect(describe(act("approval.applied", { to_status_id: "s2" }), lookup)).toEqual([{ text: "təsdiq tamamlandı, status dəyişdi", to: "Done" }]);
+  });
+
   it("renders a parent change with item keys (ADR-0021)", () => {
     expect(describe(act("item.updated", { changes: { parent: { from: "OPS-1", to: null } } }), lookup)).toEqual([
       { text: "əsas tapşırığı dəyişdi", from: "OPS-1", to: "—" },

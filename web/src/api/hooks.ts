@@ -1,7 +1,7 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api, path } from "./client";
-import type { ActivityPage, Comment, CommentPage, FieldDefinition, FieldSums, FieldValue, Item, ItemPage, ItemType, Me, Member, Project, ProjectMember, Status, Workspace } from "./types";
+import type { ActivityPage, Comment, CommentPage, FieldDefinition, FieldSums, FieldValue, Item, ItemPage, ItemType, Me, Member, Project, ProjectMember, TransitionTarget, Workspace } from "./types";
 import type { Locale } from "../i18n/locale";
 
 export const keys = {
@@ -96,6 +96,8 @@ export interface ItemFilters {
   dueTo?: string;
   /** Only subtasks of this item number (ADR-0021). */
   parent?: number;
+  /** Pending approvals (ADR-0026): any open request, or ones the viewer may decide. */
+  approval?: "" | "pending" | "mine";
 }
 
 const PAGE_SIZE = 100;
@@ -111,6 +113,7 @@ export function itemsQueryString(f: ItemFilters, cursor: string | null): string 
   if (f.dueFrom) p.set("due_from", f.dueFrom);
   if (f.dueTo) p.set("due_to", f.dueTo);
   if (f.parent) p.set("parent", String(f.parent));
+  if (f.approval) p.set("approval", f.approval);
   if (cursor) p.set("cursor", cursor);
   return p.toString();
 }
@@ -180,7 +183,7 @@ export const useTransitions = (ws: string, project: string, n: number | null) =>
   useQuery({
     queryKey: keys.transitions(ws, project, n ?? 0),
     queryFn: async () =>
-      (await api<{ statuses: Status[] }>("GET", path`/workspaces/${ws}/projects/${project}/items/${n ?? 0}/transitions`)).statuses,
+      (await api<{ statuses: TransitionTarget[] }>("GET", path`/workspaces/${ws}/projects/${project}/items/${n ?? 0}/transitions`)).statuses,
     enabled: n !== null,
   });
 

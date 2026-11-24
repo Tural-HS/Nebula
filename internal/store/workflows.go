@@ -45,8 +45,10 @@ type Workflow struct {
 	EnforceTransitions bool             `json:"enforce_transitions"`
 	Statuses           []WorkflowStatus `json:"statuses"`
 	Transitions        []Transition     `json:"transitions"`
-	CreatedAt          time.Time        `json:"created_at"`
-	UpdatedAt          time.Time        `json:"updated_at"`
+	// ApprovalPolicies guard entering statuses of this workflow (ADR-0026).
+	ApprovalPolicies []ApprovalPolicy `json:"approval_policies"`
+	CreatedAt        time.Time        `json:"created_at"`
+	UpdatedAt        time.Time        `json:"updated_at"`
 }
 
 const maxTransitionsPerWorkflow = 500
@@ -80,7 +82,7 @@ func listWorkflows(ctx context.Context, q querier, wsID uuid.UUID, only *uuid.UU
 		return nil, err
 	}
 	wfs, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (Workflow, error) {
-		w := Workflow{Statuses: []WorkflowStatus{}, Transitions: []Transition{}}
+		w := Workflow{Statuses: []WorkflowStatus{}, Transitions: []Transition{}, ApprovalPolicies: []ApprovalPolicy{}}
 		return w, r.Scan(&w.ID, &w.Name, &w.EnforceTransitions, &w.CreatedAt, &w.UpdatedAt)
 	})
 	if err != nil {
@@ -119,7 +121,14 @@ func listWorkflows(ctx context.Context, q querier, wsID uuid.UUID, only *uuid.UU
 	if err != nil {
 		return nil, err
 	}
+	policies, err := listApprovalPolicies(ctx, q, wsID, only)
+	if err != nil {
+		return nil, err
+	}
 	for i := range wfs {
+		if ps := policies[wfs[i].ID]; ps != nil {
+			wfs[i].ApprovalPolicies = ps
+		}
 		if sts := byWF[wfs[i].ID]; sts != nil {
 			wfs[i].Statuses = sts
 		}
@@ -358,9 +367,19 @@ func checkTransition(ctx context.Context, q querier, workflowID, from, to uuid.U
 	return nil
 }
 
+// TransitionTarget is a status an item can move to next. RequiresApproval
+// means the move goes through an approval request (ADR-0026).
+type TransitionTarget struct {
+	ID               uuid.UUID `json:"id"`
+	Name             string    `json:"name"`
+	Category         string    `json:"category"`
+	RequiresApproval bool      `json:"requires_approval"`
+}
+
 // AllowedStatuses returns the statuses an item can move to next.
-func (s *Store) AllowedStatuses(ctx context.Context, wsID, projectID uuid.UUID, number int64) ([]Status, error) {
-	rows, err := s.pool.Query(ctx, `SELECT st.id, st.name, st.category
+func (s *Store) AllowedStatuses(ctx context.Context, wsID, projectID uuid.UUID, number int64) ([]TransitionTarget, error) {
+	rows, err := s.pool.Query(ctx, `SELECT st.id, st.name, st.category,
+			EXISTS (SELECT 1 FROM approval_policies ap WHERE ap.status_id = st.id)
 		FROM items i
 		JOIN item_types it ON it.id = i.item_type_id
 		JOIN workflows w ON w.id = it.workflow_id
@@ -373,7 +392,7 @@ func (s *Store) AllowedStatuses(ctx context.Context, wsID, projectID uuid.UUID, 
 	if err != nil {
 		return nil, err
 	}
-	out, err := pgx.CollectRows(rows, pgx.RowToStructByPos[Status])
+	out, err := pgx.CollectRows(rows, pgx.RowToStructByPos[TransitionTarget])
 	if err != nil {
 		return nil, err
 	}
@@ -538,6 +557,13 @@ func (s *Store) DeleteStatus(ctx context.Context, wsID, actorID, workflowID, sta
 		}
 		if used {
 			return &ConflictError{Code: "status_in_use", Message: "items still use this status; move them first"}
+		}
+		if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM approval_requests WHERE to_status_id = $1 AND state = 'pending')`,
+			statusID).Scan(&used); err != nil {
+			return err
+		}
+		if used {
+			return &ConflictError{Code: "approval_pending", Message: "approval requests into this status are pending; decide or cancel them first"}
 		}
 		_, err = tx.Exec(ctx, `DELETE FROM statuses WHERE id = $1`, statusID)
 		if isForeignKeyViolation(err) { // an item raced in after the check

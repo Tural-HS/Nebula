@@ -85,6 +85,7 @@ func (a *api) routes(r chi.Router) {
 			a.projectSettingsRoutes(r)
 			a.viewRoutes(r)
 			a.bulkRoutes(r)
+			a.approvalRoutes(r)
 		})
 	})
 }
@@ -461,6 +462,13 @@ func parseItemFilters(w http.ResponseWriter, r *http.Request) (store.ListItemsPa
 	if !parseParentFilters(w, q, projectFrom(r).Key, &p) {
 		return store.ListItemsParams{}, false
 	}
+	switch v := q.Get("approval"); v {
+	case "", "pending", "mine":
+		p.Approval, p.Viewer = v, viewer(r)
+	default:
+		writeError(w, http.StatusBadRequest, "bad_request", "approval must be pending or mine")
+		return store.ListItemsParams{}, false
+	}
 	switch v := q.Get("assignee"); v {
 	case "":
 	case "me":
@@ -616,7 +624,10 @@ func (a *api) decode(w http.ResponseWriter, r *http.Request, dst any) bool {
 func (a *api) fail(w http.ResponseWriter, r *http.Request, err error) {
 	var ve *store.ValidationError
 	var ce *store.ConflictError
+	var fe *store.ForbiddenError
 	switch {
+	case errors.As(err, &fe):
+		writeError(w, http.StatusForbidden, fe.Code, fe.Message)
 	case errors.As(err, &ve):
 		writeJSON(w, http.StatusUnprocessableEntity, map[string]any{"error": map[string]string{
 			"code": "validation_failed", "message": ve.Message, "field": ve.Field}})

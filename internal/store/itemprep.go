@@ -39,6 +39,7 @@ type itemCache struct {
 	types     map[string]itemTypeRow
 	schemas   map[uuid.UUID]map[string]schemaField
 	statuses  map[uuid.UUID][]Status // per workflow; first = initial status
+	guarded   map[uuid.UUID]bool     // statuses that need approval to enter (ADR-0026)
 	members   map[uuid.UUID]bool
 }
 
@@ -47,7 +48,8 @@ func newItemCache(wsID uuid.UUID, fieldKeys []string) *itemCache {
 		fieldKeys = slices.Sorted(slices.Values(fieldKeys))
 	}
 	return &itemCache{wsID: wsID, fieldKeys: fieldKeys, types: map[string]itemTypeRow{},
-		schemas: map[uuid.UUID]map[string]schemaField{}, statuses: map[uuid.UUID][]Status{}, members: map[uuid.UUID]bool{}}
+		schemas: map[uuid.UUID]map[string]schemaField{}, statuses: map[uuid.UUID][]Status{}, guarded: map[uuid.UUID]bool{},
+		members: map[uuid.UUID]bool{}}
 }
 
 // prepareItem validates a new item: title and description, item type, custom
@@ -139,14 +141,19 @@ func (c *itemCache) schema(ctx context.Context, q querier, typeID uuid.UUID, raw
 func (c *itemCache) status(ctx context.Context, q querier, workflowID uuid.UUID, want *uuid.UUID) (Status, error) {
 	list, ok := c.statuses[workflowID]
 	if !ok {
-		rows, err := q.Query(ctx, `SELECT id, name, category FROM statuses WHERE workflow_id = $1
-			ORDER BY is_initial DESC, position`, workflowID)
+		rows, err := q.Query(ctx, `SELECT id, name, category, EXISTS (SELECT 1 FROM approval_policies ap WHERE ap.status_id = statuses.id)
+			FROM statuses WHERE workflow_id = $1 ORDER BY is_initial DESC, position`, workflowID)
 		if err != nil {
 			return Status{}, err
 		}
 		list, err = pgx.CollectRows(rows, func(r pgx.CollectableRow) (Status, error) {
 			var s Status
-			return s, r.Scan(&s.ID, &s.Name, &s.Category)
+			var guarded bool
+			err := r.Scan(&s.ID, &s.Name, &s.Category, &guarded)
+			if guarded {
+				c.guarded[s.ID] = true
+			}
+			return s, err
 		})
 		if err != nil {
 			return Status{}, err
@@ -159,10 +166,17 @@ func (c *itemCache) status(ctx context.Context, q querier, workflowID uuid.UUID,
 		}
 		return list[0], nil
 	}
-	for _, s := range list {
-		if s.ID == *want {
-			return s, nil
+	for i, s := range list {
+		if s.ID != *want {
+			continue
 		}
+		// Creating (or importing) an item straight into a guarded status
+		// would skip its approval. The initial status is exempt: a new item
+		// starts there anyway, and its policy guards moving back into it.
+		if i > 0 && c.guarded[s.ID] {
+			return Status{}, invalid("status_id", "this status requires approval (approval_required): create the item in another status and request approval")
+		}
+		return s, nil
 	}
 	return Status{}, invalid("status_id", "status does not belong to this item type's workflow")
 }

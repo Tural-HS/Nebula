@@ -1,4 +1,5 @@
 import type { AppNotification } from "../api/notifications";
+import { tap } from "../i18n-approvals";
 import { tn } from "../i18n-notifications";
 
 /** The sentence before the item reference, e.g. "Alice sizi qeyd etdi". */
@@ -13,6 +14,14 @@ export function notificationLead(n: Pick<AppNotification, "kind" | "actor_name">
       return tn.overdue;
     case "comment":
       return tn.comment(actor);
+    case "approval_requested":
+      return tap.notify.requested(actor);
+    case "approval_applied":
+      return tap.notify.applied;
+    case "approval_rejected":
+      return tap.notify.rejected(actor);
+    case "approval_canceled":
+      return tap.notify.canceled(actor);
   }
 }
 

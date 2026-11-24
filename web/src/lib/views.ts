@@ -22,7 +22,12 @@ export interface PageState {
   columns: string[]; // table columns in order
   sort: ItemSort;
   group: GroupBy;
+  /** Pending approvals (ADR-0026). Part of the link, not of saved views. */
+  approval: ApprovalFilter;
 }
+
+export type ApprovalFilter = "" | "pending" | "mine";
+const APPROVAL: readonly ApprovalFilter[] = ["pending", "mine"];
 
 /** Built-in table columns; custom fields are "field.<key>". */
 export const BUILTIN_COLUMNS = ["key", "title", "type", "status", "assignee", "due_date", "created_at", "updated_at"] as const;
@@ -39,7 +44,7 @@ const FIELD_KEY = /^[a-z][a-z0-9_]{0,62}$/;
 const COLUMN = /^(key|title|type|status|assignee|due_date|created_at|updated_at|field\.[a-z][a-z0-9_]{0,62})$/;
 
 /** URL parameters that make up the page state (others, like item, are kept). */
-const STATE_PARAMS = ["view", "q", "assignee", "due", "status", "cols", "sort", "group"];
+const STATE_PARAMS = ["view", "q", "assignee", "due", "status", "cols", "sort", "group", "approval"];
 
 export const isFieldColumn = (c: string) => c.startsWith("field.");
 export const fieldKey = (c: string) => c.slice("field.".length);
@@ -48,7 +53,7 @@ const splitList = (v: string | null) => (v ? v.split(",").map((s) => s.trim()).f
 const uniqSorted = (xs: string[]) => [...new Set(xs)].sort();
 
 export function emptyState(): PageState {
-  return { mode: "table", q: "", assignee: "", due: "", status: [], fields: {}, columns: [...DEFAULT_COLUMNS], sort: "number", group: "status" };
+  return { mode: "table", q: "", assignee: "", due: "", status: [], fields: {}, columns: [...DEFAULT_COLUMNS], sort: "number", group: "status", approval: "" };
 }
 
 /** Reads the page state from the URL, ignoring anything malformed. */
@@ -67,6 +72,7 @@ export function readState(p: URLSearchParams): PageState {
   if (cols.length > 0) s.columns = cols;
   if (p.get("sort") === "due") s.sort = "due";
   if (p.get("group") === "category") s.group = "category";
+  s.approval = APPROVAL.find((a) => a === p.get("approval")) ?? "";
   return s;
 }
 
@@ -87,6 +93,7 @@ export function writeState(s: PageState, base: URLSearchParams = new URLSearchPa
   if (!sameList(s.columns, DEFAULT_COLUMNS)) p.set("cols", s.columns.join(","));
   if (s.sort === "due") p.set("sort", "due");
   if (s.group === "category") p.set("group", "category");
+  if (s.approval) p.set("approval", s.approval);
   return p;
 }
 
@@ -129,7 +136,7 @@ export function viewFromState(s: PageState): { kind: Mode; config: ViewConfig } 
 
 /** The list filters for the API (the debounced search replaces s.q). */
 export function filtersOf(s: PageState, q: string): ItemFilters {
-  return { q, assignee: s.assignee, due: s.due, status: s.status, fields: s.fields, sort: s.sort };
+  return { q, assignee: s.assignee, due: s.due, status: s.status, fields: s.fields, sort: s.sort, ...(s.approval ? { approval: s.approval } : {}) };
 }
 
 /**

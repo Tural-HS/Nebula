@@ -40,9 +40,11 @@ type Item struct {
 	Overdue     bool           `json:"overdue"`  // past due and not done/canceled (ADR-0009)
 	Parent      *ItemParent    `json:"parent"`   // nil for a top-level item (ADR-0021)
 	Subtasks    SubtaskSummary `json:"subtasks"`
-	Version     int            `json:"version"`
-	CreatedAt   time.Time      `json:"created_at"`
-	UpdatedAt   time.Time      `json:"updated_at"`
+	// Approval is the pending approval request (ADR-0026); nil when none.
+	Approval  *PendingApproval `json:"approval"`
+	Version   int              `json:"version"`
+	CreatedAt time.Time        `json:"created_at"`
+	UpdatedAt time.Time        `json:"updated_at"`
 }
 
 const (
@@ -54,7 +56,8 @@ const itemSelect = `SELECT i.id, i.number, p.key, i.project_id, i.title, i.descr
 	i.reporter_id, i.fields, i.version, i.created_at, i.updated_at,
 	t.id, t.key, t.name, s.id, s.name, s.category, i.due_date::text,
 	COALESCE(i.due_date < (now() AT TIME ZONE w.timezone)::date AND s.category IN ('todo', 'in_progress'), false),
-	par.number, par.title, sub.total, sub.closed
+	par.number, par.title, sub.total, sub.closed,
+	ar.id, ar.to_status_id, ars.name, ars.category, ar.requested_by, ar.approvals, ar.min_approvals
 	FROM items i
 	JOIN workspaces w ON w.id = i.workspace_id
 	JOIN projects   p ON p.id = i.project_id
@@ -63,19 +66,31 @@ const itemSelect = `SELECT i.id, i.number, p.key, i.project_id, i.title, i.descr
 	LEFT JOIN items par ON par.id = i.parent_id AND par.deleted_at IS NULL
 	LEFT JOIN LATERAL (SELECT count(*) AS total, count(*) FILTER (WHERE cs.category IN ('done', 'canceled')) AS closed
 		FROM items c JOIN statuses cs ON cs.id = c.status_id
-		WHERE c.parent_id = i.id AND c.deleted_at IS NULL) sub ON true`
+		WHERE c.parent_id = i.id AND c.deleted_at IS NULL) sub ON true
+	LEFT JOIN approval_requests ar ON ar.item_id = i.id AND ar.state = 'pending'
+	LEFT JOIN statuses ars ON ars.id = ar.to_status_id`
 
 func scanItem(row pgx.Row) (Item, error) {
 	var it Item
 	var projectKey string
 	var parentNumber *int64
 	var parentTitle *string
+	var apID, apTo, apBy *uuid.UUID
+	var apToName, apToCat *string
+	var apCount, apMin *int
 	err := row.Scan(&it.ID, &it.Number, &projectKey, &it.ProjectID, &it.Title, &it.Description, &it.AssigneeID,
 		&it.ReporterID, &it.Fields, &it.Version, &it.CreatedAt, &it.UpdatedAt,
 		&it.Type.ID, &it.Type.Key, &it.Type.Name, &it.Status.ID, &it.Status.Name, &it.Status.Category, &it.DueDate, &it.Overdue,
-		&parentNumber, &parentTitle, &it.Subtasks.Count, &it.Subtasks.Done)
+		&parentNumber, &parentTitle, &it.Subtasks.Count, &it.Subtasks.Done,
+		&apID, &apTo, &apToName, &apToCat, &apBy, &apCount, &apMin)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Item{}, ErrNotFound
+	}
+	if apID != nil && apBy != nil && apCount != nil && apMin != nil {
+		it.Approval = &PendingApproval{ID: *apID, RequestedBy: *apBy, Approvals: *apCount, MinApprovals: *apMin}
+		if apTo != nil && apToName != nil && apToCat != nil {
+			it.Approval.ToStatus = Status{ID: *apTo, Name: *apToName, Category: *apToCat}
+		}
 	}
 	it.Key = itemKey(projectKey, it.Number)
 	if parentNumber != nil && parentTitle != nil {
@@ -226,6 +241,8 @@ type ListItemsParams struct {
 	Sort         string            // SortNumber (default) or SortDue, see itemsort.go
 	ParentNumber *int64            // only subtasks of this item
 	TopLevel     bool              // only items without a parent
+	Approval     string            // "", "pending" (any open request) or "mine" (Viewer may decide), ADR-0026
+	Viewer       Viewer            // who is asking; used by Approval == "mine"
 	Limit        int
 	Cursor       *ItemCursor // continue after this position (nil = from the start)
 }
@@ -322,6 +339,22 @@ func (s *Store) itemFilter(ctx context.Context, p ListItemsParams, withStatus bo
 	if p.TopLevel {
 		where = append(where, "i.parent_id IS NULL")
 	}
+	switch p.Approval {
+	case "":
+	case "pending":
+		where = append(where, "EXISTS (SELECT 1 FROM approval_requests far WHERE far.item_id = i.id AND far.state = 'pending')")
+	case "mine":
+		// Same eligibility as eligibleApproversSQL, minus project access: the
+		// list is already limited to a project the viewer can see.
+		args = append(args, p.Viewer.UserID, p.Viewer.Role)
+		u, r := "$"+strconv.Itoa(len(args)-1), "$"+strconv.Itoa(len(args))
+		where = append(where, `EXISTS (SELECT 1 FROM approval_requests far WHERE far.item_id = i.id AND far.state = 'pending'
+			AND far.requested_by <> `+u+` AND `+r+`::text <> 'guest'
+			AND (`+r+`::text = ANY(far.approver_roles) OR `+u+`::uuid = ANY(far.approver_user_ids))
+			AND NOT EXISTS (SELECT 1 FROM approval_decisions fd WHERE fd.request_id = far.id AND fd.user_id = `+u+`))`)
+	default:
+		return nil, nil, invalid("approval", "must be pending or mine")
+	}
 	if len(p.FieldFilters) > 0 {
 		conds, err := fieldFilterConditions(ctx, s.pool, p.WorkspaceID, p.FieldFilters)
 		if err != nil {
@@ -378,6 +411,10 @@ type UpdateItemParams struct {
 	Parent      opt.Field[int64]  // parent item number; null makes it top-level
 	// Fields is merged: listed keys are set (or cleared with null), others kept.
 	Fields opt.Field[map[string]json.RawMessage]
+	// approvalApply is the approval request whose final approval applies
+	// this change (ADR-0026). Only DecideApproval sets it; it is the one way
+	// past the approval guard and lock.
+	approvalApply uuid.UUID
 }
 
 // UpdateItem applies a partial update if Version is current, recording a diff event.
@@ -475,6 +512,11 @@ func updateItemTx(ctx context.Context, tx pgx.Tx, p UpdateItemParams, in checked
 			return &ConflictError{Code: "version_conflict",
 				Message: fmt.Sprintf("item was modified by someone else (current version %d); reload and retry", version)}
 		}
+		pending, err := pendingApprovalID(ctx, tx, id)
+		if err != nil {
+			return err
+		}
+		applying := pending != nil && *pending == p.approvalApply
 
 		changes := map[string]any{}
 		newTitle, newDesc, newStatus, newAssignee, newDue := curTitle, curDesc, curStatus, curAssignee, curDue
@@ -520,6 +562,15 @@ func updateItemTx(ctx context.Context, tx pgx.Tx, p UpdateItemParams, in checked
 			if err := checkTransition(ctx, tx, workflowID, curStatus, p.StatusID.Value); err != nil {
 				return err
 			}
+			if pending == nil {
+				guarded, err := statusGuarded(ctx, tx, p.StatusID.Value)
+				if err != nil {
+					return err
+				}
+				if guarded {
+					return errApprovalRequired()
+				}
+			}
 			changes["status_id"] = diff(curStatus, p.StatusID.Value)
 			newStatus = p.StatusID.Value
 		}
@@ -551,6 +602,9 @@ func updateItemTx(ctx context.Context, tx pgx.Tx, p UpdateItemParams, in checked
 			}
 			newFields = next
 			maps.Copy(changes, fieldChanges)
+		}
+		if pending != nil && !applying && lockedChange(changes) {
+			return errApprovalPending()
 		}
 
 		if len(changes) > 0 {
@@ -631,6 +685,11 @@ func deleteItemTx(ctx context.Context, tx pgx.Tx, wsID, projectID uuid.UUID, num
 	if version != nil && *version != cur {
 		return &ConflictError{Code: "version_conflict",
 			Message: fmt.Sprintf("item was modified by someone else (current version %d); reload and retry", cur)}
+	}
+	if pending, err := pendingApprovalID(ctx, tx, id); err != nil {
+		return err
+	} else if pending != nil {
+		return &ConflictError{Code: "approval_pending", Message: "this item is waiting for approval; cancel the request before deleting it"}
 	}
 	if _, err := tx.Exec(ctx, `UPDATE items SET deleted_at = now(), version = version + 1 WHERE id = $1`, id); err != nil {
 		return err

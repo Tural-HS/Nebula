@@ -1,5 +1,6 @@
 import type { Activity } from "../api/types";
 import { t } from "../i18n";
+import { tap } from "../i18n-approvals";
 import { ta } from "../i18n-attach";
 import { ts } from "../i18n-subtasks";
 import { formatDate } from "./format";
@@ -28,6 +29,10 @@ function str(v: unknown): string {
   return "…";
 }
 
+const num = (v: unknown) => (typeof v === "number" ? v : 0);
+/** A free-text comment or reason as its own quoted line, if present. */
+const note = (v: unknown): Line[] => (typeof v === "string" && v.trim() ? [{ text: `“${v.trim()}”` }] : []);
+
 /** Turns one audit event into human-readable lines (one per changed field). */
 export function describe(a: Activity, lookup: Lookup): Line[] {
   switch (a.action) {
@@ -47,6 +52,17 @@ export function describe(a: Activity, lookup: Lookup): Line[] {
       return [{ text: ta.act.added(str(a.data.filename)) }];
     case "attachment.removed":
       return [{ text: ta.act.removed(str(a.data.filename)) }];
+    case "approval.requested":
+      return [{ text: tap.act.requested, from: lookup.status(str(a.data.from_status_id)) ?? "?", to: lookup.status(str(a.data.to_status_id)) ?? "?" },
+        ...note(a.data.comment)];
+    case "approval.approved":
+      return [{ text: tap.act.approved(num(a.data.approvals), num(a.data.min_approvals)) }, ...note(a.data.comment)];
+    case "approval.rejected":
+      return [{ text: tap.act.rejected }, ...note(a.data.reason)];
+    case "approval.canceled":
+      return [{ text: tap.act.canceled }];
+    case "approval.applied":
+      return [{ text: tap.act.applied, to: lookup.status(str(a.data.to_status_id)) ?? "?" }];
     case "item.updated": {
       const changes = (a.data.changes ?? {}) as Record<string, Change>;
       const lines: Line[] = [];

@@ -1,7 +1,10 @@
 import { useState } from "react";
 
-import { useAdminApi, useWorkflows, type Workflow } from "../../api/admin";
+import { useAdminApi, useWorkflows, type ApprovalPolicy, type ApproverRole, type Workflow, type WorkflowStatus } from "../../api/admin";
+import { useMembers } from "../../api/hooks";
 import type { StatusCategory } from "../../api/types";
+import { tap } from "../../i18n-approvals";
+import { APPROVER_ROLES, MAX_MIN_APPROVALS, policyFor, policyProblem } from "../../lib/approvals";
 import { Button, ErrorState, Input, Select, Spinner, StatusBadge } from "../../components/ui";
 import { t } from "../../i18n";
 import { ta } from "../../i18n-admin";
@@ -185,6 +188,105 @@ function WorkflowCard({ ws, wf }: { ws: string; wf: Workflow }) {
           </form>
         </section>
       </div>
+
+      <ApprovalPolicies ws={ws} wf={wf} />
     </Card>
+  );
+}
+
+/** Four-eyes approval policies (ADR-0026): one optional policy per status. */
+function ApprovalPolicies({ ws, wf }: { ws: string; wf: Workflow }) {
+  return (
+    <section className="mt-6 border-t border-zinc-200 pt-4 dark:border-zinc-800" aria-label={`${wf.name}: ${tap.settings.title}`}>
+      <h3 className="mb-1 text-xs font-semibold tracking-wide text-zinc-500 uppercase">{tap.settings.title}</h3>
+      <p className="mb-3 text-xs text-zinc-500">{tap.settings.hint}</p>
+      {(wf.approval_policies ?? []).length === 0 && <p className="mb-2 text-xs text-zinc-400">{tap.settings.none}</p>}
+      <ul className="space-y-1.5">
+        {wf.statuses.map((st) => (
+          <PolicyRow key={st.id + (policyFor(wf.approval_policies, st.id)?.id ?? "")} ws={ws} wf={wf} status={st} policy={policyFor(wf.approval_policies, st.id)} />
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function PolicyRow({ ws, wf, status, policy }: { ws: string; wf: Workflow; status: WorkflowStatus; policy: ApprovalPolicy | undefined }) {
+  const adm = useAdminApi(ws);
+  const fb = useFeedback();
+  const members = useMembers(ws);
+  const [min, setMin] = useState(policy?.min_approvals ?? 1);
+  const [roles, setRoles] = useState<ApproverRole[]>(policy?.approver_roles ?? (policy ? [] : ["admin"]));
+  const [users, setUsers] = useState<string[]>(policy?.approver_user_ids ?? []);
+  const body = { min_approvals: min, approver_roles: roles, approver_user_ids: users };
+  const problem = policyProblem(body);
+  const toggle = <T,>(list: T[], v: T, on: boolean) => (on ? [...list, v] : list.filter((x) => x !== v));
+  const eligible = (members.data ?? []).filter((m) => m.role !== "guest");
+
+  return (
+    <li className="text-sm">
+      <details>
+        <summary className="flex cursor-pointer flex-wrap items-center gap-2 pointer-coarse:min-h-11">
+          <StatusBadge name={status.name} category={status.category} />
+          {policy ? (
+            <span className="text-xs text-amber-700 dark:text-amber-300">🔏 {tap.settings.summary(policy.min_approvals)}</span>
+          ) : (
+            <span className="text-xs text-zinc-400">—</span>
+          )}
+        </summary>
+        <form
+          className="mt-2 space-y-3 rounded-md p-3 ring-1 ring-zinc-200 dark:ring-zinc-800"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (problem) return;
+            adm.setApprovalPolicy.mutate({ wf: wf.id, status: status.id, body }, { onSuccess: fb.ok(), onError: fb.fail });
+          }}
+        >
+          <label className="flex items-center gap-2 text-xs text-zinc-500">
+            {tap.settings.min}
+            <Input
+              type="number"
+              min={1}
+              max={MAX_MIN_APPROVALS}
+              value={min}
+              onChange={(e) => { setMin(Number(e.target.value)); }}
+              className="w-20"
+            />
+          </label>
+          <fieldset>
+            <legend className="mb-1 text-xs text-zinc-500">{tap.settings.roles}</legend>
+            <div className="flex flex-wrap gap-3">
+              {APPROVER_ROLES.map((r) => (
+                <label key={r} className="flex items-center gap-1.5 pointer-coarse:min-h-11">
+                  <input type="checkbox" className="accent-brand-600" checked={roles.includes(r)} onChange={(e) => { setRoles(toggle(roles, r, e.target.checked)); }} />
+                  {ta.roles[r]}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend className="mb-1 text-xs text-zinc-500">{tap.settings.users}</legend>
+            <div className="flex max-h-40 flex-wrap gap-x-3 gap-y-1 overflow-y-auto">
+              {eligible.map((m) => (
+                <label key={m.user_id} className="flex items-center gap-1.5 pointer-coarse:min-h-11">
+                  <input type="checkbox" className="accent-brand-600" checked={users.includes(m.user_id)} onChange={(e) => { setUsers(toggle(users, m.user_id, e.target.checked)); }} />
+                  {m.display_name}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          {problem && problem !== "range" && <p className="text-xs text-red-600">{tap.settings[problem]}</p>}
+          <div className="flex flex-wrap gap-2">
+            <Button type="submit" variant="primary" disabled={problem !== null || adm.setApprovalPolicy.isPending}>
+              {policy ? tap.settings.save : tap.settings.add}
+            </Button>
+            {policy && (
+              <Button type="button" variant="ghost" className="text-red-600" onClick={() => { adm.deleteApprovalPolicy.mutate({ wf: wf.id, status: status.id }, { onSuccess: fb.ok(), onError: fb.fail }); }}>
+                {tap.settings.remove}
+              </Button>
+            )}
+          </div>
+        </form>
+      </details>
+    </li>
   );
 }
