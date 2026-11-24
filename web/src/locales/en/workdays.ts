@@ -42,7 +42,9 @@ export const tw = {
   presetTitle: "Fixed-date holidays of Azerbaijan",
   presetButton: (year: number) => `Add to ${String(year)}`,
   presetHint:
-    "Adds the non-working days with a fixed date in article 105 of the Labour Code: 1–2 January, 8 March, 9 May, 28 May, 15 June, 26 June, 8 and 9 November, 31 December. Dates you already added are left alone.",
+    "Adds the non-working days with a fixed date in article 105 of the Labour Code: 1–2 January, 20 January, 8 March, 9 May, 28 May, 15 June, 26 June, 8 and 9 November, 31 December. Dates you already added are left alone.",
+  presetOfficial: (year: number) =>
+    `Adds the official ${String(year)} calendar: every holiday (Novruz, Ramazan and Qurban included) and the transferred rest days. Source: the Cabinet of Ministers decision and the production calendar of the Ministry of Labour and Social Protection. Dates you already added are left alone.`,
   presetYearly:
     "Confirm every year: the days of Novruz, Ramazan and Qurban bayramı, the rest days moved when a holiday falls on a weekend, and working-day transfers are announced each year by a decision of the Cabinet of Ministers. Add them here by hand once the decision is published.",
   presetAdded: (n: number) => (n === 0 ? "Nothing new: every date is already there." : n === 1 ? "1 date added" : `${String(n)} dates added`),

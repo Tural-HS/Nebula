@@ -39,6 +39,9 @@ type WorkCalendar struct {
 	From        string        `json:"from"`
 	To          string        `json:"to"`
 	Days        []CalendarDay `json:"days"`
+	// AzOfficialYears are the years whose full official Azerbaijani calendar
+	// ships with this version (the preset then adds all of it).
+	AzOfficialYears []int `json:"az_official_years"`
 }
 
 // GetCalendar returns the weekend days and the dates between from and to.
@@ -50,7 +53,7 @@ func (s *Store) GetCalendar(ctx context.Context, wsID uuid.UUID, from, to time.T
 	if to.Sub(from).Hours()/24 >= maxCalendarRange {
 		return WorkCalendar{}, invalid("to", "the range can be at most %d days", maxCalendarRange)
 	}
-	out := WorkCalendar{From: from.Format(time.DateOnly), To: to.Format(time.DateOnly), Days: []CalendarDay{}}
+	out := WorkCalendar{From: from.Format(time.DateOnly), To: to.Format(time.DateOnly), Days: []CalendarDay{}, AzOfficialYears: AzOfficialYears()}
 	var weekend []int16
 	if err := s.pool.QueryRow(ctx, `SELECT weekend_days FROM workspaces WHERE id = $1`, wsID).Scan(&weekend); err != nil {
 		return WorkCalendar{}, err
@@ -286,6 +289,7 @@ var azFixedHolidays = []struct {
 }{
 	{time.January, 1, "Yeni il bayramı"},
 	{time.January, 2, "Yeni il bayramı"},
+	{time.January, 20, "Ümumxalq hüzn günü"},
 	{time.March, 8, "Qadınlar günü"},
 	{time.May, 9, "Faşizm üzərində qələbə günü"},
 	{time.May, 28, "Müstəqillik Günü"},
@@ -296,7 +300,69 @@ var azFixedHolidays = []struct {
 	{time.December, 31, "Dünya azərbaycanlılarının həmrəyliyi günü"},
 }
 
-// AddAzerbaijanFixedHolidays adds the fixed-date holidays of one year. Dates
+// transferredRestDay names a weekday made a rest day by Labour Code art.
+// 105.5/105.6 (a holiday on a weekend, or Ramazan/Qurban on another holiday).
+const transferredRestDay = "Köçürülmüş istirahət günü"
+
+// azOfficialCalendars are full official calendars (holidays and transferred
+// rest days, five-day week), added by hand from the Cabinet of Ministers
+// decision and the Ministry of Labour production calendar once they are
+// published (each December). Every year is checked against the published
+// total of working days (TestAzOfficialCalendars).
+var azOfficialCalendars = map[int]struct {
+	source      string
+	workingDays int // five-day week, as published
+	days        []CalendarDay
+}{
+	// Nazirlər Kabinetinin 2 dekabr 2025-ci il tarixli 362 nömrəli qərarı
+	// (Novruz 20–24 mart, Ramazan 20–21 mart, Qurban 27–28 may) and
+	// sosial.gov.az "2026-cı ilin istehsalat təqvimi": 241 working days,
+	// transferred rest days 9, 25, 26, 27, 30 March, 11, 29 May, 10 November.
+	2026: {
+		source:      "NK qərarı №362 (02.12.2025), ƏƏSMN 2026 istehsalat təqvimi",
+		workingDays: 241,
+		days: []CalendarDay{
+			{Date: "2026-01-01", Kind: CalendarHoliday, Name: "Yeni il bayramı"},
+			{Date: "2026-01-02", Kind: CalendarHoliday, Name: "Yeni il bayramı"},
+			{Date: "2026-01-20", Kind: CalendarHoliday, Name: "Ümumxalq hüzn günü"},
+			{Date: "2026-03-08", Kind: CalendarHoliday, Name: "Qadınlar günü"},
+			{Date: "2026-03-09", Kind: CalendarHoliday, Name: transferredRestDay},
+			{Date: "2026-03-20", Kind: CalendarHoliday, Name: "Novruz və Ramazan bayramı"},
+			{Date: "2026-03-21", Kind: CalendarHoliday, Name: "Novruz və Ramazan bayramı"},
+			{Date: "2026-03-22", Kind: CalendarHoliday, Name: "Novruz bayramı"},
+			{Date: "2026-03-23", Kind: CalendarHoliday, Name: "Novruz bayramı"},
+			{Date: "2026-03-24", Kind: CalendarHoliday, Name: "Novruz bayramı"},
+			{Date: "2026-03-25", Kind: CalendarHoliday, Name: transferredRestDay},
+			{Date: "2026-03-26", Kind: CalendarHoliday, Name: transferredRestDay},
+			{Date: "2026-03-27", Kind: CalendarHoliday, Name: transferredRestDay},
+			{Date: "2026-03-30", Kind: CalendarHoliday, Name: transferredRestDay},
+			{Date: "2026-05-09", Kind: CalendarHoliday, Name: "Faşizm üzərində qələbə günü"},
+			{Date: "2026-05-11", Kind: CalendarHoliday, Name: transferredRestDay},
+			{Date: "2026-05-27", Kind: CalendarHoliday, Name: "Qurban bayramı"},
+			{Date: "2026-05-28", Kind: CalendarHoliday, Name: "Qurban bayramı, Müstəqillik Günü"},
+			{Date: "2026-05-29", Kind: CalendarHoliday, Name: transferredRestDay},
+			{Date: "2026-06-15", Kind: CalendarHoliday, Name: "Azərbaycan xalqının milli qurtuluş günü"},
+			{Date: "2026-06-26", Kind: CalendarHoliday, Name: "Azərbaycan Respublikasının Silahlı Qüvvələri günü"},
+			{Date: "2026-11-08", Kind: CalendarHoliday, Name: "Zəfər Günü"},
+			{Date: "2026-11-09", Kind: CalendarHoliday, Name: "Azərbaycan Respublikasının Dövlət bayrağı günü"},
+			{Date: "2026-11-10", Kind: CalendarHoliday, Name: transferredRestDay},
+			{Date: "2026-12-31", Kind: CalendarHoliday, Name: "Dünya azərbaycanlılarının həmrəyliyi günü"},
+		},
+	},
+}
+
+// AzOfficialYears lists the years with a full official calendar, ascending.
+func AzOfficialYears() []int {
+	years := make([]int, 0, len(azOfficialCalendars))
+	for y := range azOfficialCalendars {
+		years = append(years, y)
+	}
+	slices.Sort(years)
+	return years
+}
+
+// AddAzerbaijanFixedHolidays adds the fixed-date holidays of one year, or the
+// full official calendar when this version ships one for that year. Dates
 // that already have an entry (the admin's own name, or a working-day
 // transfer) are left alone. Returns the added dates.
 func (s *Store) AddAzerbaijanFixedHolidays(ctx context.Context, wsID, actorID uuid.UUID, year int) ([]CalendarDay, error) {
@@ -309,11 +375,17 @@ func (s *Store) AddAzerbaijanFixedHolidays(ctx context.Context, wsID, actorID uu
 			return err
 		}
 		var candidates []CalendarDay
-		for _, h := range azFixedHolidays {
-			candidates = append(candidates, CalendarDay{
-				Date: time.Date(year, h.month, h.day, 0, 0, 0, 0, time.UTC).Format(time.DateOnly),
-				Kind: CalendarHoliday, Name: h.name,
-			})
+		preset := "az-fixed"
+		if official, ok := azOfficialCalendars[year]; ok {
+			preset = "az-official"
+			candidates = slices.Clone(official.days)
+		} else {
+			for _, h := range azFixedHolidays {
+				candidates = append(candidates, CalendarDay{
+					Date: time.Date(year, h.month, h.day, 0, 0, 0, 0, time.UTC).Format(time.DateOnly),
+					Kind: CalendarHoliday, Name: h.name,
+				})
+			}
 		}
 		rows, err := tx.Query(ctx, `SELECT day::text FROM workspace_calendar_days
 			WHERE workspace_id = $1 AND day >= make_date($2, 1, 1) AND day < make_date($2 + 1, 1, 1)`, wsID, year)
@@ -344,7 +416,7 @@ func (s *Store) AddAzerbaijanFixedHolidays(ctx context.Context, wsID, actorID uu
 			}
 		}
 		if err := appendEvent(ctx, tx, wsID, actorID, "calendar", wsID, "calendar.preset_applied",
-			map[string]any{"preset": "az-fixed", "year": year, "dates": dates}); err != nil {
+			map[string]any{"preset": preset, "year": year, "dates": dates}); err != nil {
 			return err
 		}
 		return rescheduleRecurrences(ctx, tx, wsID, actorID)

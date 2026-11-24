@@ -17,6 +17,8 @@ export interface WorkCalendar {
   from: string;
   to: string;
   days: CalendarDay[];
+  /** Years whose full official Azerbaijani calendar ships with this version (ADR-0027). */
+  az_official_years: number[];
 }
 
 /** Same limit as the server (recur.MaxDaysPerYear). */

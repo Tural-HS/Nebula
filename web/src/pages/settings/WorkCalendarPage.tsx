@@ -45,7 +45,7 @@ function WorkCalendar({ ws }: { ws: string }) {
             </div>
             <DayList ws={ws} year={year} days={daysOfYear(cal.data.days, year)} weekend={cal.data.weekend_days} />
           </Card>
-          <PresetCard ws={ws} year={year} />
+          <PresetCard ws={ws} year={year} official={cal.data.az_official_years.includes(year)} />
         </>
       )}
     </div>
@@ -197,17 +197,25 @@ function DayList({ ws, year, days, weekend }: { ws: string; year: number; days: 
   );
 }
 
-function PresetCard({ ws, year }: { ws: string; year: number }) {
+function PresetCard({ ws, year, official }: { ws: string; year: number; official: boolean }) {
   const capi = useCalendarApi(ws);
   const fb = useFeedback();
   const toast = useToast();
   return (
     <Card label={tw.presetTitle}>
       <h2 className="text-sm font-semibold">{tw.presetTitle}</h2>
-      <p className="mt-1 max-w-3xl text-sm text-zinc-600 dark:text-zinc-400">{tw.presetHint}</p>
-      <p role="note" className="mt-3 max-w-3xl rounded-lg bg-amber-50 p-3 text-sm text-amber-900 ring-1 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-100 dark:ring-amber-900">
-        {tw.presetYearly}
-      </p>
+      {official ? (
+        <p role="note" className="mt-1 max-w-3xl rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900 ring-1 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-100 dark:ring-emerald-900">
+          {tw.presetOfficial(year)}
+        </p>
+      ) : (
+        <>
+          <p className="mt-1 max-w-3xl text-sm text-zinc-600 dark:text-zinc-400">{tw.presetHint}</p>
+          <p role="note" className="mt-3 max-w-3xl rounded-lg bg-amber-50 p-3 text-sm text-amber-900 ring-1 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-100 dark:ring-amber-900">
+            {tw.presetYearly}
+          </p>
+        </>
+      )}
       <Button
         className="mt-3"
         disabled={capi.addAzerbaijanFixed.isPending}

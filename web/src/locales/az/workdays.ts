@@ -46,7 +46,9 @@ export const tw = {
   presetTitle: "Azərbaycanın sabit tarixli bayramları",
   presetButton: (year: number) => `${String(year)} ilinə əlavə et`,
   presetHint:
-    "Əmək Məcəlləsinin 105-ci maddəsində sabit tarixi olan qeyri-iş günləri əlavə olunur: 1–2 yanvar, 8 mart, 9 may, 28 may, 15 iyun, 26 iyun, 8 və 9 noyabr, 31 dekabr. Artıq əlavə etdiyiniz tarixlərə toxunulmur.",
+    "Əmək Məcəlləsinin 105-ci maddəsində sabit tarixi olan qeyri-iş günləri əlavə olunur: 1–2 yanvar, 20 yanvar, 8 mart, 9 may, 28 may, 15 iyun, 26 iyun, 8 və 9 noyabr, 31 dekabr. Artıq əlavə etdiyiniz tarixlərə toxunulmur.",
+  presetOfficial: (year: number) =>
+    `${String(year)} ilinin rəsmi təqvimi əlavə olunur: bütün bayramlar (Novruz, Ramazan, Qurban daxil) və köçürülmüş istirahət günləri. Mənbə: Nazirlər Kabinetinin qərarı və Əmək və Əhalinin Sosial Müdafiəsi Nazirliyinin istehsalat təqvimi. Artıq əlavə etdiyiniz tarixlərə toxunulmur.`,
   presetYearly:
     "Hər il təsdiqlənməlidir: Novruz, Ramazan və Qurban bayramlarının günləri, bayram həftə sonuna düşəndə köçürülən istirahət günləri və iş günlərinin köçürülməsi hər il Nazirlər Kabinetinin qərarı ilə elan edilir. Onları qərar dərc olunandan sonra burada əl ilə əlavə edin.",
   presetAdded: (n: number) => (n === 0 ? "Yeni tarix yoxdur: hamısı artıq əlavə edilib." : `${String(n)} tarix əlavə edildi`),

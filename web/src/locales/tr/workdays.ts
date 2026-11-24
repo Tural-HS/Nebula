@@ -36,7 +36,9 @@ export const tw = {
   presetTitle: "Azerbaycan'ın sabit tarihli bayramları",
   presetButton: (year: number) => `${String(year)} yılına ekle`,
   presetHint:
-    "İş Kanunu'nun (Əmək Məcəlləsi) 105. maddesinde sabit tarihi olan çalışılmayan günler eklenir: 1–2 Ocak, 8 Mart, 9 Mayıs, 28 Mayıs, 15 Haziran, 26 Haziran, 8 ve 9 Kasım, 31 Aralık. Daha önce eklediğiniz tarihlere dokunulmaz.",
+    "İş Kanunu'nun (Əmək Məcəlləsi) 105. maddesinde sabit tarihi olan çalışılmayan günler eklenir: 1–2 Ocak, 20 Ocak, 8 Mart, 9 Mayıs, 28 Mayıs, 15 Haziran, 26 Haziran, 8 ve 9 Kasım, 31 Aralık. Daha önce eklediğiniz tarihlere dokunulmaz.",
+  presetOfficial: (year: number) =>
+    `${String(year)} yılının resmî takvimi eklenir: tüm bayramlar (Nevruz, Ramazan ve Kurban dâhil) ve aktarılan dinlenme günleri. Kaynak: Bakanlar Kurulu kararı ve Çalışma ve Sosyal Güvenlik Bakanlığı'nın üretim takvimi. Daha önce eklediğiniz tarihlere dokunulmaz.`,
   presetYearly:
     "Her yıl doğrulanmalıdır: Nevruz, Ramazan ve Kurban bayramlarının günleri, bayram hafta sonuna denk geldiğinde taşınan dinlenme günleri ve iş günü taşımaları her yıl Bakanlar Kurulu kararıyla ilan edilir. Karar yayımlandıktan sonra bunları buraya elle ekleyin.",
   presetAdded: (n: number) => (n === 0 ? "Yeni tarih yok: hepsi zaten ekli." : `${String(n)} tarih eklendi`),

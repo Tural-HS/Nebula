@@ -94,7 +94,7 @@ func TestCalendarAPIAccessAndValidation(t *testing.T) {
 	// what the admin already entered.
 	e.must(200, "alice", "PUT", calPath+"/days/2027-01-01", map[string]any{"kind": "holiday", "name": "Öz adımız"})
 	added := e.must(200, "alice", "POST", calPath+"/presets/az-fixed", map[string]any{"year": 2027}).Body["added"].([]any)
-	if len(added) != 9 {
+	if len(added) != 10 { // 11 fixed dates, 1 January kept as the admin named it
 		t.Fatalf("preset added %d: %v", len(added), added)
 	}
 	if again := e.must(200, "alice", "POST", calPath+"/presets/az-fixed", map[string]any{"year": 2027}).Body["added"].([]any); len(again) != 0 {
@@ -276,5 +276,30 @@ func TestOverdueDigestSkipsNonWorkingDays(t *testing.T) {
 	}
 	if n, err := e.st.EmitOverdueDigests(ctx); err != nil || n != 1 {
 		t.Fatalf("digest on a working day: %d %v", n, err)
+	}
+}
+
+// TestCalendarOfficialPreset: for a year with a shipped official calendar the
+// preset adds every holiday and transferred rest day (ADR-0027).
+func TestCalendarOfficialPreset(t *testing.T) {
+	e := newP1Env(t)
+	e.setup()
+	cal := e.must(200, "alice", "GET", calPath+"?year=2026", nil).Body
+	if years, _ := cal["az_official_years"].([]any); len(years) == 0 || years[0] != float64(2026) {
+		t.Fatalf("official years: %v", cal["az_official_years"])
+	}
+	added := e.must(200, "alice", "POST", calPath+"/presets/az-fixed", map[string]any{"year": 2026}).Body["added"].([]any)
+	if len(added) != 25 {
+		t.Fatalf("official 2026 added %d", len(added))
+	}
+	days := e.must(200, "alice", "GET", calPath+"?year=2026", nil).Body["days"].([]any)
+	found := map[string]bool{}
+	for _, d := range days {
+		found[d.(map[string]any)["date"].(string)] = true
+	}
+	for _, want := range []string{"2026-03-20", "2026-03-30", "2026-05-29", "2026-11-10", "2026-01-20"} {
+		if !found[want] {
+			t.Errorf("missing %s", want)
+		}
 	}
 }
