@@ -22,13 +22,15 @@ Bütün əmrlər host-da `root` (və ya `sudo`) ilə, `/opt/nebula/deploy/produc
 - [ ] **SSH yalnız açarla**: `host/sshd-hardening.conf` → `/etc/ssh/sshd_config.d/10-hardening.conf`; `sshd -t && systemctl reload ssh`. Root login bağlı, ayrıca sudo istifadəçisi.
 - [ ] **ufw**: `ufw default deny incoming; ufw default allow outgoing; ufw allow 22/tcp; ufw allow 80/tcp; ufw allow 443/tcp; ufw allow 443/udp; ufw enable`.
   Diqqət: Docker-in publish etdiyi portlar ufw-ni keçir. Ona görə yalnız Caddy 80/443 publish edir, Keycloak admin portu `127.0.0.1`-ə bağlıdır. Yeni `ports:` əlavə etməyin.
-- [ ] **fail2ban**: `apt install fail2ban`; `host/fail2ban-jail.local` → `/etc/fail2ban/jail.d/nebula.local`.
+- [ ] **fail2ban**: `apt install fail2ban`; `host/fail2ban-jail.conf` → `/etc/fail2ban/jail.d/nebula.local`.
 - [ ] **unattended-upgrades**: `apt install unattended-upgrades apt-listchanges; dpkg-reconfigure -plow unattended-upgrades` (security mənbəyi; Docker paketlərini avtomatik yeniləməyin — `Unattended-Upgrade::Package-Blacklist { "docker-ce"; "containerd.io"; }`).
 - [ ] **Vaxt sinxronu**: `apt install systemd-timesyncd` (və ya chrony); `timedatectl` → `System clock synchronized: yes`. Token-lər və TLS buna bağlıdır (alert: `NebulaClockSkew`).
+- [ ] **Arxitektura: `amd64` (x86_64)**. Release image-ləri yalnız `linux/amd64` üçündür; arm64 hostda `pull` `no matching manifest for linux/arm64` ilə dayanır (emulyasiya production üçün deyil).
 - [ ] **Docker Engine** (rəsmi repo, `docker-ce`, `docker-compose-plugin` ≥ 2.35, Engine ≥ 28.1).
   `host/daemon.json` → `/etc/docker/daemon.json` (log limitləri, `live-restore`, `no-new-privileges`, `icc: false`, `userland-proxy: false`); `systemctl restart docker`.
 - [ ] **sysctl**: `host/99-nebula-sysctl.conf` → `/etc/sysctl.d/`; `sysctl --system` (HTTP/3 UDP bufferləri, şəbəkə hardening).
 - [ ] Alətlər: `apt install jq curl openssl util-linux git` (skriptlər `jq`, `flock` istifadə edir).
+- [ ] **cosign** (`deploy.sh --verify` üçün): GitHub release-dən binar + `cosign_checksums.txt` ilə `sha256sum -c`, `/usr/local/bin/cosign`.
 - [ ] Disk: Docker data root üçün ən az 40 GB, ayrıca volume tövsiyə olunur. Swap 1–2 GB.
 - [ ] Provayder səviyyəsində snapshot (netcup) aylıq — backup əvəzi deyil, əlavə qatdır.
 
@@ -137,7 +139,7 @@ sudo ./scripts/backup.sh full      # ilk tam backup
 ```bash
 set -a; source .env; set +a
 sudo ./scripts/deploy.sh NEBULA_IMAGE="$NEBULA_IMAGE" NEBULA_WEB_IMAGE="$NEBULA_WEB_IMAGE" \
-  KEYCLOAK_IMAGE="$KEYCLOAK_IMAGE" POSTGRES_IMAGE="$POSTGRES_IMAGE"
+  KEYCLOAK_IMAGE="$KEYCLOAK_IMAGE" POSTGRES_IMAGE="$POSTGRES_IMAGE" --verify
 ```
 
 Caddy ilk sorğuda Let's Encrypt sertifikatı alır (80 və 443 açıq olmalıdır). Test üçün əvvəlcə `.env`-də `ACME_CA`-nı staging-ə qoyun (rate limit). `caddy-data` volume-unu silməyin.
@@ -152,6 +154,7 @@ systemctl list-timers 'nebula-*'
 ```
 
 Fayllar `/opt/nebula/deploy/production` yolunu nəzərdə tutur; başqa yoldursa `WorkingDirectory`/`ExecStart`-ı dəyişin.
+Skriptlərə əlavə mühit lazımdırsa (`NEBULA_COMPOSE_OVERRIDE`, `RESTORE_TEST_NETWORK`) unit-lərə drop-in ilə verin (`systemctl edit nebula-backup@.service` → `[Service]` / `Environment=...`): timer-lər interaktiv shell-in mühitini görmür.
 
 ## 3. İlk admin və ilk istifadəçi (Keycloak)
 
@@ -184,7 +187,7 @@ Brute-force qoruması açıqdır (5 səhv → artan gözləmə, maks. 15 dəq), 
 | WAL (davamlı) | `archive_command` → pgBackRest async → S3 | hər seqment, ən gec 60 s |
 | Full | `nebula-backup@full` | bazar 02:15 UTC |
 | Differential | `nebula-backup@diff` | b.e.–şənbə 02:15 UTC |
-| Incremental | `deploy.sh` / `rollback.sh` | hər deploy-dan əvvəl |
+| Incremental | `deploy.sh` / `rollback.sh --migrate-down-to` | hər deploy-dan və Down miqrasiyasından əvvəl |
 | Retention | 4 full (~4 həftə PITR), 7 diff | pgBackRest `expire` |
 
 Hər iki baza (`nebula`, `keycloak`) bir klasterdədir — bir backup hər ikisini əhatə edir. Repo client-side AES-256 ilə şifrələnib. Bucket-də **versioning və ya Object Lock** yandırın (DB konteynerində S3 açarı var; kompromis halında backup-ların silinməsinə qarşı).
@@ -218,15 +221,16 @@ digest-i yoxlayın: `docker buildx imagetools inspect restic/restic:0.20.0`.
 # /etc/nebula/restic.env (0400 root): RESTIC_REPOSITORY=s3:https://<s3-endpoint>/<bucket>/nebula-files
 #   AWS_ACCESS_KEY_ID=…  AWS_SECRET_ACCESS_KEY=…  RESTIC_PASSWORD_FILE=/run/secrets/restic_password
 # /etc/nebula/secrets/restic_password: openssl rand -base64 32 (offline nüsxəsi olmadan repo bərpa olunmur!)
+# Docker seçimləri (-v) image adından ƏVVƏL gəlməlidir, ona görə komanda və image ayrıdır.
 RESTIC='docker run --rm --env-file /etc/nebula/restic.env
-  -v /etc/nebula/secrets/restic_password:/run/secrets/restic_password:ro
-  restic/restic:0.20.0@sha256:93999df80d4ac6cb148e82d2ef1fe6a81996f17ff535e772723538211b31555a'
+  -v /etc/nebula/secrets/restic_password:/run/secrets/restic_password:ro'
+IMG=restic/restic:0.20.0@sha256:93999df80d4ac6cb148e82d2ef1fe6a81996f17ff535e772723538211b31555a
 VOL=$(docker volume ls -q --filter label=com.docker.compose.volume=attachments)
 
-$RESTIC init                                                          # bir dəfə
-$RESTIC -v "$VOL":/data:ro backup /data --host nebula --tag attachments   # hər gecə, DB backup-dan sonra (~03:00 UTC)
-$RESTIC forget --host nebula --tag attachments --keep-daily 14 --keep-weekly 8 --prune   # ≥ 4 həftəlik PITR pəncərəsi
-$RESTIC check --read-data-subset=5%                                   # həftəlik
+$RESTIC $IMG init                                                          # bir dəfə
+$RESTIC -v "$VOL":/data:ro $IMG backup /data --host nebula --tag attachments   # hər gecə, DB backup-dan sonra (~03:00 UTC)
+$RESTIC $IMG forget --host nebula --tag attachments --keep-daily 14 --keep-weekly 8 --prune   # ≥ 4 həftəlik PITR pəncərəsi
+$RESTIC $IMG check --read-data-subset=5%                                   # həftəlik
 ```
 
 Hələ timer yoxdur: cron/systemd-ə əl ilə əlavə edin və nəticəni izləyin (follow-up: `nebula-files-backup.timer` + metrik).
@@ -235,12 +239,12 @@ Hələ timer yoxdur: cron/systemd-ə əl ilə əlavə edin və nəticəni izləy
 
 ```bash
 docker compose stop nebula
-$RESTIC snapshots --tag attachments                                   # T-dən sonrakı ilk snapshot-u seçin
-$RESTIC -v "$VOL":/data restore <snapshot-id> --target / --include /data
+$RESTIC $IMG snapshots --tag attachments                              # T-dən sonrakı ilk snapshot-u seçin
+$RESTIC -v "$VOL":/data $IMG restore <snapshot-id> --target / --include /data
 docker compose up -d --wait nebula
 # Yoxlama: bazada olub faylı olmayan açar qalmamalıdır (çıxış boş olmalıdır).
 docker compose exec -T postgres psql -U postgres -d nebula -Atc 'SELECT storage_key FROM attachments' | sort >/tmp/db-keys
-docker run --rm -v "$VOL":/data:ro --entrypoint find restic/restic:0.20.0@sha256:93999df80d4ac6cb148e82d2ef1fe6a81996f17ff535e772723538211b31555a \
+docker run --rm -v "$VOL":/data:ro --entrypoint find $IMG \
   /data -type f -not -path '*/.staging/*' -exec basename {} \; | sort >/tmp/blob-keys
 comm -23 /tmp/db-keys /tmp/blob-keys
 ```
