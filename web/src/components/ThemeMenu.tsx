@@ -20,7 +20,7 @@ export function ThemeMenu({ className, labelled = false }: { className?: string;
         if (isThemePref(e.target.value)) setTheme(e.target.value);
       }}
       className={cn(
-        "h-8 rounded-md bg-transparent px-1.5 text-xs font-medium text-zinc-600 ring-1 ring-zinc-300 hover:text-zinc-900 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none dark:text-zinc-300 dark:ring-zinc-700 dark:hover:text-zinc-50",
+        "h-8 rounded-md bg-transparent px-1.5 text-xs font-medium text-zinc-600 ring-1 ring-zinc-500 hover:text-zinc-900 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none dark:text-zinc-300 dark:hover:text-zinc-50",
         className,
       )}
     >

@@ -35,7 +35,9 @@ export const tc = {
   fieldValue: "Değer",
   apply: "Uygula",
   bulkDelete: "Sil",
-  confirmBulkDelete: (n: number) => `${String(n)} görevi silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.`,
+  confirmBulkDelete: (n: number) => `Seçili ${String(n)} görev, yorumları ve dosyaları silinecek. Bu geri alınamaz.`,
+  bulkDeleteTitle: (n: number) => `${String(n)} görev silinsin mi?`,
+  bulkDeleteAction: (n: number) => `${String(n)} görevi sil`,
   bulkDone: (n: number) => `${String(n)} görev güncellendi`,
   bulkDeleted: (n: number) => `${String(n)} görev silindi`,
   bulkFailedTitle: "Hiçbir şey değiştirilmedi",
@@ -44,5 +46,6 @@ export const tc = {
   bulkCap: (n: number) => `Tek seferde en fazla ${String(n)} görev`,
 
   edit: (what: string, key: string) => `${key}: ${what} değiştir`,
+  invalidNumber: (what: string) => `${what}: bir sayı girin, örneğin 1250,50. Değer değişmedi.`,
   saveFailed: "Değişiklik kaydedilemedi",
 } satisfies Messages["calendar"];

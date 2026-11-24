@@ -44,7 +44,7 @@ export function Comments({ ws, project, n, members, mentionable, meId, canWrite,
 
   return (
     <div className="space-y-4">
-      {comments.length === 0 && <p className="text-sm text-zinc-500">{t.noComments}</p>}
+      {comments.length === 0 && <p className="text-sm text-zinc-500 dark:text-zinc-400">{t.noComments}</p>}
       <ul className="space-y-4">
         {comments.map((c) => (
           <CommentRow
@@ -96,7 +96,7 @@ function CommentRow({ comment: c, people, suggest, canEdit, canDelete, onSave, o
     <li className="flex gap-3">
       <Avatar name={author} size="md" />
       <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-baseline gap-x-2 text-xs text-zinc-500">
+        <div className="flex flex-wrap items-baseline gap-x-2 text-xs text-zinc-500 dark:text-zinc-400">
           <span className="font-medium text-zinc-800 dark:text-zinc-200">{author}</span>
           <span title={c.created_at}>{formatRelative(c.created_at)}</span>
           {c.edited && <span>· {t.edited}</span>}
@@ -116,7 +116,7 @@ function CommentRow({ comment: c, people, suggest, canEdit, canDelete, onSave, o
           )}
         </div>
         {c.deleted || c.body === null ? (
-          <p className="text-sm text-zinc-400 italic">{t.commentDeleted}</p>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400 italic">{t.commentDeleted}</p>
         ) : editing ? (
           <Composer
             people={people}

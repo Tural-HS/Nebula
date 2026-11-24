@@ -149,7 +149,7 @@ export function CalendarView({ ws, project, filters, month, today, onMonth, memb
         <span aria-hidden>›</span>
       </Button>
       {monthOf(today) !== month && <Button onClick={() => { onMonth(monthOf(today)); }}>{tc.thisMonth}</Button>}
-      {(range.query.isFetching || undatedQ.isFetching) && <span className="text-xs text-zinc-500">{t.loading}</span>}
+      {(range.query.isFetching || undatedQ.isFetching) && <span className="text-xs text-zinc-500 dark:text-zinc-400">{t.loading}</span>}
       {range.truncated && <span role="status" className="text-xs text-amber-700 dark:text-amber-400">{tc.truncated(CALENDAR_CAP)}</span>}
     </div>
   );
@@ -163,7 +163,7 @@ export function CalendarView({ ws, project, filters, month, today, onMonth, memb
       <div className="flex h-full flex-col">
         {header}
         <div className="min-h-0 flex-1 overflow-y-auto" data-testid="calendar-agenda">
-          {days.length === 0 && <p className="px-4 py-6 text-center text-sm text-zinc-500">{tc.agendaEmpty}</p>}
+          {days.length === 0 && <p className="px-4 py-6 text-center text-sm text-zinc-500 dark:text-zinc-400">{tc.agendaEmpty}</p>}
           {days.map((d) => (
             <section key={d} aria-labelledby={`agenda-${d}`} className="border-b border-zinc-200 dark:border-zinc-800">
               <h3 id={`agenda-${d}`} className={cn("sticky top-0 z-[1] bg-zinc-50 px-3 py-1.5 text-xs font-medium text-zinc-600 dark:bg-zinc-950 dark:text-zinc-400", d === today && "text-brand-700 dark:text-brand-400")}>
@@ -208,7 +208,7 @@ export function CalendarView({ ws, project, filters, month, today, onMonth, memb
         {header}
         <div className="flex min-h-0 flex-1">
           <div className="flex min-w-0 flex-1 flex-col overflow-auto">
-            <div role="row" className="grid grid-cols-7 border-b border-zinc-200 text-xs font-medium text-zinc-500 dark:border-zinc-800">
+            <div role="row" className="grid grid-cols-7 border-b border-zinc-200 text-xs font-medium text-zinc-500 dark:text-zinc-400 dark:border-zinc-800">
               {tc.weekdays.map((w, i) => (
                 <span
                   key={w}
@@ -304,13 +304,13 @@ function DayCell({ day, inMonth, today, info, items, members, canEdit, onOpen, o
         "flex min-w-0 flex-col gap-1 border-r border-b border-zinc-200 p-1 dark:border-zinc-800",
         !info.working && "bg-zinc-100/60 dark:bg-zinc-900/60",
         info.kind === "holiday" && "bg-amber-50/80 dark:bg-amber-950/30",
-        !inMonth && "bg-zinc-50/70 text-zinc-400 dark:bg-zinc-900/40",
+        !inMonth && "bg-zinc-50/70 text-zinc-500 dark:text-zinc-400 dark:bg-zinc-900/40",
         isOver && "bg-brand-50 ring-2 ring-brand-500 ring-inset dark:bg-brand-950/40",
       )}
     >
       <span aria-hidden className="flex min-w-0 items-baseline gap-1">
         {(info.kind === "holiday" || info.kind === "workday") && (
-          <span className={cn("min-w-0 flex-1 truncate text-[11px]", info.kind === "holiday" ? "text-amber-800 dark:text-amber-300" : "text-emerald-800 dark:text-emerald-300")}>
+          <span className={cn("min-w-0 flex-1 truncate text-2xs", info.kind === "holiday" ? "text-amber-800 dark:text-amber-300" : "text-emerald-800 dark:text-emerald-300")}>
             {info.name}
           </span>
         )}
@@ -342,9 +342,9 @@ function UndatedList({ items, hasMore, loadingMore, loadMore, members, canEdit, 
       className={cn("flex w-64 shrink-0 flex-col border-l border-zinc-200 dark:border-zinc-800 max-lg:w-52", isOver && "bg-brand-50 dark:bg-brand-950/40")}
     >
       <h3 className="border-b border-zinc-200 px-3 py-2 text-sm font-medium dark:border-zinc-800">{tc.noDue}</h3>
-      {canEdit && <p className="px-3 pt-2 text-xs text-zinc-500">{tc.noDueHint}</p>}
+      {canEdit && <p className="px-3 pt-2 text-xs text-zinc-500 dark:text-zinc-400">{tc.noDueHint}</p>}
       <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto p-2">
-        {items.length === 0 && <p className="text-xs text-zinc-500">{tc.noDueEmpty}</p>}
+        {items.length === 0 && <p className="text-xs text-zinc-500 dark:text-zinc-400">{tc.noDueEmpty}</p>}
         {items.map((it) => <DraggableCard key={it.id} item={it} members={members} canEdit={canEdit} onOpen={onOpen} />)}
         {hasMore && <Button onClick={loadMore} disabled={loadingMore}>{tc.loadMore}</Button>}
       </div>
@@ -390,11 +390,11 @@ function CardBody({ item, members, compact = false, className, ref, ...rest }: {
       className={cn(
         "flex min-w-0 items-center gap-1.5 rounded-md bg-white px-1.5 py-1 text-left text-xs ring-1 ring-zinc-200 hover:ring-zinc-300 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none dark:bg-zinc-900 dark:ring-zinc-700",
         item.overdue && "text-red-700 ring-red-300 dark:text-red-400 dark:ring-red-800",
-        item.status.category === "done" && "text-zinc-500 line-through",
+        item.status.category === "done" && "text-zinc-500 dark:text-zinc-400 line-through",
         className,
       )}
     >
-      {!compact && <span className="shrink-0 font-mono text-[11px] text-zinc-500">{item.key}</span>}
+      {!compact && <span className="shrink-0 font-mono text-2xs text-zinc-500 dark:text-zinc-400">{item.key}</span>}
       <span className="min-w-0 flex-1 truncate">{item.title}</span>
       {item.overdue && <span className="sr-only">{t.overdue}</span>}
       {name && !compact && <Avatar name={name} />}

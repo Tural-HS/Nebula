@@ -35,7 +35,7 @@ export function WorkflowSteps({ statuses, item }: { statuses: readonly Status[];
               <span
                 className={cn(
                   "mt-1 block truncate text-xs",
-                  current ? "font-medium text-zinc-900 dark:text-zinc-100" : "text-zinc-500 @max-xl:sr-only",
+                  current ? "font-medium text-zinc-900 dark:text-zinc-100" : "text-zinc-500 dark:text-zinc-400 @max-xl:sr-only",
                 )}
               >
                 {s.name}

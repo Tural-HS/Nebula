@@ -134,7 +134,7 @@ const htmlType: Partial<Record<PublicFormField["type"], string>> = {
 function Hint({ helpId, help, errId, error }: { helpId?: string; help?: string; errId?: string; error?: string }) {
   return (
     <>
-      {help && <p id={helpId} className="mt-1 text-xs whitespace-pre-line text-zinc-500">{help}</p>}
+      {help && <p id={helpId} className="mt-1 text-xs whitespace-pre-line text-zinc-500 dark:text-zinc-400">{help}</p>}
       {error && <p id={errId} className="mt-1 text-sm text-red-600 dark:text-red-400">{error}</p>}
     </>
   );

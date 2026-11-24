@@ -8,7 +8,7 @@ import { formatDate } from "../lib/format";
 import { t } from "../i18n";
 
 
-type Variant = "primary" | "secondary" | "ghost" | "danger";
+type Variant = "primary" | "secondary" | "ghost" | "danger" | "dangerGhost";
 
 const variants: Record<Variant, string> = {
   primary: "bg-brand-600 text-white hover:bg-brand-700 disabled:bg-brand-600/50",
@@ -16,6 +16,10 @@ const variants: Record<Variant, string> = {
     "bg-white text-zinc-800 ring-1 ring-zinc-300 hover:bg-zinc-50 dark:bg-zinc-900 dark:text-zinc-100 dark:ring-zinc-700 dark:hover:bg-zinc-800",
   ghost: "text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800",
   danger: "bg-red-600 text-white hover:bg-red-700",
+  // A destructive action that is not the primary one (e.g. Delete in a panel
+  // header): red text in both themes. cn() does not merge classes, so a
+  // ghost button with an extra text colour lost to dark:text-zinc-300.
+  dangerGhost: "text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950",
 };
 
 export function Button({ variant = "secondary", className, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: Variant }) {
@@ -24,7 +28,7 @@ export function Button({ variant = "secondary", className, ...props }: ButtonHTM
       type="button"
       className={cn(
         // pointer-coarse: 44 px tap targets on touch screens, compact for mice.
-        "inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap transition disabled:cursor-not-allowed pointer-coarse:min-h-11",
+        "inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium whitespace-nowrap transition-colors disabled:cursor-not-allowed pointer-coarse:min-h-11",
         variants[variant],
         className,
       )}
@@ -39,7 +43,7 @@ export const touchField = "pointer-coarse:min-h-11 pointer-coarse:text-base";
 
 const fieldBase =
   touchField +
-  " rounded-md border-0 bg-white px-2.5 py-1.5 text-sm text-zinc-900 ring-1 ring-zinc-300 placeholder:text-zinc-400 focus:ring-2 focus:ring-brand-500 dark:bg-zinc-900 dark:text-zinc-100 dark:ring-zinc-700";
+  " rounded-md border-0 bg-white px-2.5 py-1.5 text-sm text-zinc-900 ring-1 ring-zinc-500 placeholder:text-zinc-500 focus:ring-2 focus:ring-brand-500 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder:text-zinc-400";
 
 // Full width unless the caller sets an explicit width (w-*), which would
 // otherwise lose to w-full depending on stylesheet order.
@@ -63,8 +67,8 @@ export function Label({ children, htmlFor }: { children: ReactNode; htmlFor: str
 
 export function Spinner({ label = t.loading }: { label?: string }) {
   return (
-    <div role="status" className="flex items-center gap-2 p-6 text-sm text-zinc-500">
-      <span className="size-4 animate-spin rounded-full border-2 border-zinc-300 border-t-brand-600" aria-hidden />
+    <div role="status" className="flex items-center gap-2 p-6 text-sm text-zinc-500 dark:text-zinc-400">
+      <span className="size-4 animate-spin rounded-full motion-reduce:animate-none border-2 border-zinc-300 border-t-brand-600" aria-hidden />
       {label}
     </div>
   );
@@ -85,14 +89,14 @@ export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () =>
 }
 
 export function EmptyState({ children }: { children: ReactNode }) {
-  return <div className="p-10 text-center text-sm text-zinc-500">{children}</div>;
+  return <div className="p-10 text-center text-sm text-zinc-500 dark:text-zinc-400">{children}</div>;
 }
 
 const categoryStyle: Record<StatusCategory, string> = {
   todo: "bg-zinc-100 text-zinc-700 ring-zinc-300 dark:bg-zinc-800 dark:text-zinc-300 dark:ring-zinc-700",
   in_progress: "bg-blue-50 text-blue-700 ring-blue-200 dark:bg-blue-950 dark:text-blue-300 dark:ring-blue-900",
   done: "bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:ring-emerald-900",
-  canceled: "bg-zinc-50 text-zinc-500 line-through ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-800",
+  canceled: "bg-zinc-50 text-zinc-500 dark:text-zinc-400 line-through ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-800",
 };
 
 export function StatusBadge({ name, category }: { name: string; category: StatusCategory }) {
@@ -107,10 +111,12 @@ export function StatusBadge({ name, category }: { name: string; category: Status
 export function DueChip({ date, overdue }: { date: string; overdue: boolean }) {
   const label = formatDate(date);
   return (
+    // role=img: aria-label is not allowed on a plain span (screen readers skip it).
     <span
+      role="img"
       aria-label={`${t.dueDate}: ${label}${overdue ? ` (${t.overdue})` : ""}`}
       className={cn(
-        "inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[11px] whitespace-nowrap tabular-nums",
+        "inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-2xs whitespace-nowrap tabular-nums",
         overdue ? "bg-red-50 font-medium text-red-700 ring-1 ring-red-200 dark:bg-red-950 dark:text-red-300 dark:ring-red-900" : "text-zinc-500 dark:text-zinc-400",
       )}
     >
@@ -124,10 +130,11 @@ export function Avatar({ name, size = "sm" }: { name: string; size?: "sm" | "md"
   return (
     <span
       title={name}
+      role="img"
       aria-label={name}
       className={cn(
         "inline-flex shrink-0 items-center justify-center rounded-full bg-brand-100 font-semibold text-brand-700 dark:bg-brand-700 dark:text-brand-50",
-        size === "sm" ? "size-6 text-[10px]" : "size-8 text-xs",
+        size === "sm" ? "size-6 text-2xs" : "size-8 text-xs",
       )}
     >
       {initials(name)}
@@ -184,7 +191,7 @@ export function Dialog({ open, onClose, title, children, variant = "dialog" }: {
 }
 
 export function FieldError({ error, field }: { error: unknown; field?: string }) {
-  if (!(error instanceof ApiError)) return error ? <p className="mt-2 text-sm text-red-600">{t.errorGeneric}</p> : null;
+  if (!(error instanceof ApiError)) return error ? <p role="alert" className="mt-2 text-sm text-red-600 dark:text-red-400">{t.errorGeneric}</p> : null;
   if (field && error.field !== field) return null;
   return (
     <p role="alert" className="mt-2 text-sm text-red-600 dark:text-red-400">

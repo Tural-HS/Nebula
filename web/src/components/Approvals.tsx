@@ -35,7 +35,7 @@ export function ApprovalBadge({ approval, className }: { approval?: PendingAppro
       data-testid="approval-badge"
       data-overdue={overdue || undefined}
       className={cn(
-        "inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[11px] whitespace-nowrap tabular-nums ring-1",
+        "inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-2xs whitespace-nowrap tabular-nums ring-1",
         overdue
           ? "bg-red-50 text-red-700 ring-red-200 dark:bg-red-950 dark:text-red-300 dark:ring-red-900"
           : "bg-amber-50 text-amber-800 ring-amber-200 dark:bg-amber-950 dark:text-amber-200 dark:ring-amber-900",
@@ -125,7 +125,7 @@ export function RequestApprovalDialog({ ws, project, item, version, target, onCl
         }}
       >
         <p className="text-sm text-zinc-600 dark:text-zinc-400">{tap.requestHint}</p>
-        <label className="block text-xs text-zinc-500">
+        <label className="block text-xs text-zinc-500 dark:text-zinc-400">
           {tap.comment}
           <textarea value={comment} maxLength={2000} rows={3} onChange={(e) => { setComment(e.target.value); }} className={cn(textareaClass, "mt-1")} />
         </label>
@@ -190,7 +190,7 @@ export function ApprovalPanel({ ws, project, item }: { ws: string; project: stri
       {latest && <ReapproveWarning ws={ws} req={latest} item={item} />}
       {rest.length > 0 && (
         <details className="text-sm">
-          <summary className="cursor-pointer text-zinc-500 pointer-coarse:min-h-11 pointer-coarse:py-2">{tap.history}</summary>
+          <summary className="cursor-pointer text-zinc-500 dark:text-zinc-400 pointer-coarse:min-h-11 pointer-coarse:py-2">{tap.history}</summary>
           <ul className="mt-2 space-y-2">
             {rest.map((r) => <li key={r.id}><RequestCard ws={ws} project={project} n={item.number} req={r} /></li>)}
           </ul>
@@ -224,7 +224,7 @@ function RequestCard({ ws, project, n, req }: { ws: string; project: string; n: 
         <span className="text-zinc-400" aria-hidden>→</span>
         {req.to_status && <StatusBadge name={req.to_status.name} category={req.to_status.category} />}
         {pending && <DueChip dueOn={req.due_on} overdue={req.overdue} />}
-        <span className="ml-auto text-xs text-zinc-500 tabular-nums">{tap.progress(p.done, p.min)}</span>
+        <span className="ml-auto text-xs text-zinc-500 dark:text-zinc-400 tabular-nums">{tap.progress(p.done, p.min)}</span>
       </div>
       {req.invalidated_at && (
         <p data-testid="approval-invalidated" className="rounded bg-amber-50 px-2 py-1 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-200">
@@ -244,7 +244,7 @@ function RequestCard({ ws, project, n, req }: { ws: string; project: string; n: 
           <div className="h-full bg-amber-500" style={{ width: `${String(Math.round(p.ratio * 100))}%` }} />
         </div>
       )}
-      <p className="text-xs text-zinc-500">
+      <p className="text-xs text-zinc-500 dark:text-zinc-400">
         {req.requested_by && tap.requestedBy(req.requested_by.display_name)} · {formatDateTime(req.created_at)}
         {req.closed_by && req.closed_at && <> · {tap.closedBy(req.closed_by.display_name)} · {formatDateTime(req.closed_at)}</>}
       </p>
@@ -256,7 +256,7 @@ function RequestCard({ ws, project, n, req }: { ws: string; project: string; n: 
             <li key={d.user.id} className="[overflow-wrap:anywhere]">
               <span aria-hidden>{d.decision === "approve" ? "✅" : "⛔"}</span> <strong className="font-medium">{d.user.display_name}</strong>{" "}
               {tap.decided[d.decision]}
-              <span className="text-xs text-zinc-500"> · {formatDateTime(d.created_at)}</span>
+              <span className="text-xs text-zinc-500 dark:text-zinc-400"> · {formatDateTime(d.created_at)}</span>
               {d.comment && <span className="block whitespace-pre-wrap text-zinc-600 dark:text-zinc-400">“{d.comment}”</span>}
             </li>
           ))}
@@ -323,7 +323,7 @@ function ReapproveWarning({ ws, req, item }: { ws: string; req: ApprovalRequest;
   const label = (tok: string) => (tok === "title" ? tai.settings.titleField : tok === "description" ? tai.settings.descriptionField : names.get(tok) ?? tok.replace(/^fields\./, ""));
   const watched = req.reapprove_fields ?? [];
   const what = watched.length === 0 ? tai.watchAllShort : watched.map(label).join(", ");
-  return <p data-testid="reapprove-warning" className="text-xs text-zinc-500">{tai.reapproveWarn(what)}</p>;
+  return <p data-testid="reapprove-warning" className="text-xs text-zinc-500 dark:text-zinc-400">{tai.reapproveWarn(what)}</p>;
 }
 
 export function PolicyExtras({ ws, value, onChange }: { ws: string; value: PolicyExtrasValue; onChange: (v: PolicyExtrasValue) => void }) {
@@ -345,12 +345,12 @@ export function PolicyExtras({ ws, value, onChange }: { ws: string; value: Polic
           />
           <span>
             {tai.settings.reapprove}
-            <span className="block text-xs text-zinc-500">{tai.settings.reapproveHint}</span>
+            <span className="block text-xs text-zinc-500 dark:text-zinc-400">{tai.settings.reapproveHint}</span>
           </span>
         </label>
         {value.reapprove_on_change && (
           <div className="pl-5">
-            <p className="mb-1 text-xs text-zinc-500">{tai.settings.watched}</p>
+            <p className="mb-1 text-xs text-zinc-500 dark:text-zinc-400">{tai.settings.watched}</p>
             <label className="flex items-center gap-1.5 text-sm pointer-coarse:min-h-11">
               <input type="checkbox" className="accent-brand-600" checked={value.reapprove_fields.length === 0} onChange={(e) => { if (e.target.checked) onChange({ ...value, reapprove_fields: [] }); }} />
               {tai.settings.watchAll}
@@ -371,7 +371,7 @@ export function PolicyExtras({ ws, value, onChange }: { ws: string; value: Polic
           </div>
         )}
       </fieldset>
-      <label className="block text-xs text-zinc-500">
+      <label className="block text-xs text-zinc-500 dark:text-zinc-400">
         {tai.settings.due}
         <Input
           type="number"
@@ -403,7 +403,7 @@ function RejectDialog({ open, busy, onClose, onSubmit }: { open: boolean; busy: 
           if (!empty) onSubmit(reason.trim());
         }}
       >
-        <label className="block text-xs text-zinc-500">
+        <label className="block text-xs text-zinc-500 dark:text-zinc-400">
           {tap.reason}
           <textarea
             required

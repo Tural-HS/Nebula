@@ -25,7 +25,7 @@ export function QueueStrip({ state, counts, onPick }: {
     <div
       role="group"
       aria-label={tlg.queues}
-      className="flex shrink-0 overflow-x-auto overscroll-x-contain border-b border-zinc-200 bg-white px-2 [scrollbar-width:none] md:px-3 dark:border-zinc-800 dark:bg-zinc-900"
+      className="flex shrink-0 overflow-x-auto overscroll-x-contain border-b border-zinc-200 bg-white px-2 [scrollbar-width:thin] md:px-3 dark:border-zinc-800 dark:bg-zinc-900"
     >
       {QUEUES.map((q) => {
         const n = counts?.[q];
@@ -46,7 +46,7 @@ export function QueueStrip({ state, counts, onPick }: {
               aria-hidden
               className={cn(
                 "text-lg leading-6 font-semibold tracking-tight tabular-nums md:text-xl",
-                n ? TONE[q] ?? "text-zinc-900 dark:text-zinc-50" : "text-zinc-400 dark:text-zinc-500",
+                n ? TONE[q] ?? "text-zinc-900 dark:text-zinc-50" : "text-zinc-500 dark:text-zinc-400",
               )}
             >
               {n ?? "–"}
@@ -73,7 +73,7 @@ export function FilterChips({ chips, onClear, onClearAll }: {
 }) {
   if (chips.length === 0) return null;
   return (
-    <ul aria-label={tlg.activeFilters} className="flex min-w-0 items-center gap-1.5 overflow-x-auto [scrollbar-width:none]">
+    <ul aria-label={tlg.activeFilters} className="flex min-w-0 items-center gap-1.5 overflow-x-auto [scrollbar-width:thin]">
       {chips.map((c) => (
         <li key={c.key} className="shrink-0">
           <button
@@ -90,7 +90,7 @@ export function FilterChips({ chips, onClear, onClearAll }: {
       ))}
       {chips.length > 1 && (
         <li className="shrink-0">
-          <button type="button" onClick={onClearAll} className="h-7 rounded-md px-2 text-xs text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100">
+          <button type="button" onClick={onClearAll} className="h-7 rounded-md px-2 text-xs text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100">
             {tlg.clearFilters}
           </button>
         </li>

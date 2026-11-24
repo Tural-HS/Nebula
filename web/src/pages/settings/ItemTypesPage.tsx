@@ -49,15 +49,15 @@ function NewType({ ws }: { ws: string }) {
           adm.createType.mutate({ name, key, workflow_id: workflowId }, { onSuccess: () => { setName(""); setKey(""); fb.ok()(); }, onError: fb.fail });
         }}
       >
-        <label className="text-xs text-zinc-500">
+        <label className="text-xs text-zinc-500 dark:text-zinc-400">
           {t.name}
           <Input required maxLength={100} value={name} onChange={(e) => { setName(e.target.value); setKey(slugKey(e.target.value)); }} />
         </label>
-        <label className="text-xs text-zinc-500">
+        <label className="text-xs text-zinc-500 dark:text-zinc-400">
           {ta.key}
           <Input required pattern="[a-z][a-z0-9_]{0,62}" value={key} onChange={(e) => { setKey(e.target.value); }} className="w-40" />
         </label>
-        <label className="text-xs text-zinc-500">
+        <label className="text-xs text-zinc-500 dark:text-zinc-400">
           {ta.workflow}
           <Select value={workflowId} onChange={(e) => { setWf(e.target.value); }} className="w-48">
             {workflows.data?.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
@@ -90,8 +90,8 @@ function TypeCard({ ws, type, workflowName, fields }: { ws: string; type: ItemTy
           onChange={(e) => { setName(e.target.value); }}
           onBlur={() => { if (name.trim() && name !== type.name) adm.updateType.mutate({ key: type.key, body: { name } }, { onSuccess: fb.ok(), onError: fb.fail }); }}
         />
-        <code className="text-xs text-zinc-500">{type.key}</code>
-        <span className="text-xs text-zinc-500">{ta.workflow}: {workflowName}</span>
+        <code className="text-xs text-zinc-500 dark:text-zinc-400">{type.key}</code>
+        <span className="text-xs text-zinc-500 dark:text-zinc-400">{ta.workflow}: {workflowName}</span>
         <Button
           variant="ghost"
           className="ml-auto text-red-600"
@@ -102,8 +102,8 @@ function TypeCard({ ws, type, workflowName, fields }: { ws: string; type: ItemTy
       </div>
 
       <div className="mt-3 border-t border-zinc-100 pt-3 dark:border-zinc-800">
-        <p className="mb-2 text-xs font-medium text-zinc-500">{ta.boundFields}</p>
-        {bound.length === 0 && <p className="text-xs text-zinc-400">{ta.noBoundFields}</p>}
+        <p className="mb-2 text-xs font-medium text-zinc-500 dark:text-zinc-400">{ta.boundFields}</p>
+        {bound.length === 0 && <p className="text-xs text-zinc-500 dark:text-zinc-400">{ta.noBoundFields}</p>}
         <ul className="space-y-1">
           {bound.map((b, i) => (
             <li key={b.key} className="flex flex-wrap items-center gap-x-3 text-sm">

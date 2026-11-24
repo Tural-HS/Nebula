@@ -29,7 +29,7 @@ export function SubtaskBadge({ summary, className }: { summary?: SubtaskSummary;
       title={ts.badge(summary.done, summary.count)}
       aria-label={ts.badge(summary.done, summary.count)}
       className={cn(
-        "inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[11px] whitespace-nowrap tabular-nums ring-1",
+        "inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-2xs whitespace-nowrap tabular-nums ring-1",
         complete
           ? "bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-950 dark:text-emerald-300 dark:ring-emerald-900"
           : "text-zinc-600 ring-zinc-200 dark:text-zinc-400 dark:ring-zinc-700",
@@ -46,7 +46,7 @@ export function ParentCrumb({ parent, canEdit, onDetach }: { parent: ItemParent;
   const href = useItemHref();
   return (
     <nav aria-label={ts.parent} className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-      <span className="text-zinc-500">{ts.parent}:</span>
+      <span className="text-zinc-500 dark:text-zinc-400">{ts.parent}:</span>
       <Link
         to={{ search: href(parent.number) }}
         title={ts.parentCrumb}
@@ -98,7 +98,7 @@ export function SubtaskSection({ ws, project, item, canEdit }: { ws: string; pro
           {ts.section}
         </h3>
         {summary.count > 0 && (
-          <span className="text-xs text-zinc-500 tabular-nums" data-testid="subtask-progress">
+          <span className="text-xs text-zinc-500 dark:text-zinc-400 tabular-nums" data-testid="subtask-progress">
             {summary.done}/{summary.count}
           </span>
         )}
@@ -117,7 +117,7 @@ export function SubtaskSection({ ws, project, item, canEdit }: { ws: string; pro
       )}
 
       {summary.count === 0 ? (
-        <p className="text-sm text-zinc-500">{ts.empty}</p>
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">{ts.empty}</p>
       ) : list.isPending ? (
         <Spinner />
       ) : list.isError ? (
@@ -130,8 +130,8 @@ export function SubtaskSection({ ws, project, item, canEdit }: { ws: string; pro
                 to={{ search: href(s.number) }}
                 className="flex min-w-0 items-center gap-2 px-3 py-2 text-sm hover:bg-zinc-50 pointer-coarse:min-h-11 dark:hover:bg-zinc-800"
               >
-                <span className="shrink-0 font-mono text-xs text-zinc-500">{s.key}</span>
-                <span className={cn("min-w-0 flex-1 truncate", (s.status.category === "done" || s.status.category === "canceled") && "text-zinc-500 line-through")}>
+                <span className="shrink-0 font-mono text-xs text-zinc-500 dark:text-zinc-400">{s.key}</span>
+                <span className={cn("min-w-0 flex-1 truncate", (s.status.category === "done" || s.status.category === "canceled") && "text-zinc-500 dark:text-zinc-400 line-through")}>
                   {s.title}
                 </span>
                 <StatusBadge name={s.status.name} category={s.status.category} />

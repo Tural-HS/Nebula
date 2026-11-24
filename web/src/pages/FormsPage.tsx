@@ -83,7 +83,7 @@ function Forms({ ws, project }: { ws: string; project: string }) {
       <div className="flex flex-wrap items-center gap-3">
         <div className="min-w-0 flex-1">
           <h1 id="forms-h" className="text-lg font-semibold">{tf.section}</h1>
-          <p className="text-sm text-zinc-500">{tf.sectionHint}</p>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">{tf.sectionHint}</p>
         </div>
         <Button variant="primary" onClick={() => { setEditing("new"); }}>{tf.newForm}</Button>
       </div>
@@ -96,11 +96,11 @@ function Forms({ ws, project }: { ws: string; project: string }) {
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">
                   {f.title}{" "}
-                  <span className={f.enabled ? "text-xs text-emerald-700 dark:text-emerald-400" : "text-xs text-zinc-500"}>
+                  <span className={f.enabled ? "text-xs text-emerald-700 dark:text-emerald-400" : "text-xs text-zinc-500 dark:text-zinc-400"}>
                     · {f.enabled ? tf.enabled : tf.disabled}
                   </span>
                 </p>
-                <p className="truncate font-mono text-xs text-zinc-500">/f/{f.slug} · {tf.submissions(f.submissions)} · {tf.audienceOptions[f.audience]}</p>
+                <p className="truncate font-mono text-xs text-zinc-500 dark:text-zinc-400">/f/{f.slug} · {tf.submissions(f.submissions)} · {tf.audienceOptions[f.audience]}</p>
               </div>
               <div className="flex flex-wrap gap-1">
                 <Button variant="ghost" onClick={() => { copy(f.slug); }}>{tf.copyLink}</Button>
@@ -215,7 +215,7 @@ function Editor({ ws, project, form, types, defs, onDone }: {
             <Label htmlFor="fe-slug">{tf.slug}</Label>
             <Input id="fe-slug" required pattern="[a-z0-9][a-z0-9\-]{2,62}" value={d.slug} aria-describedby="fe-slug-hint"
               onChange={(e) => { setSlugTouched(true); set("slug", e.target.value.toLowerCase()); }} />
-            <p id="fe-slug-hint" className="mt-1 text-xs text-zinc-500">{tf.slugHint}</p>
+            <p id="fe-slug-hint" className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{tf.slugHint}</p>
           </div>
           <div>
             <Label htmlFor="fe-intro">{tf.intro}</Label>
@@ -241,7 +241,7 @@ function Editor({ ws, project, form, types, defs, onDone }: {
 
         <fieldset className="space-y-3 rounded-xl bg-white p-4 ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-800">
           <legend className="text-sm font-semibold">{tf.fields}</legend>
-          <p className="text-xs text-zinc-500">{tf.fieldsHint}</p>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">{tf.fieldsHint}</p>
           <ol className="space-y-2">
             {d.fields.map((f, i) => {
               const name = f.label || fieldName(f.key);
@@ -258,7 +258,7 @@ function Editor({ ws, project, form, types, defs, onDone }: {
                 >
                   <div className="mb-2 flex items-center gap-2">
                     <span aria-hidden title={tf.dragHandle(name)} className="cursor-grab text-zinc-400 select-none">⠿</span>
-                    <span className="min-w-0 flex-1 truncate font-mono text-xs text-zinc-500">{fieldName(f.key)} · {f.key}</span>
+                    <span className="min-w-0 flex-1 truncate font-mono text-xs text-zinc-500 dark:text-zinc-400">{fieldName(f.key)} · {f.key}</span>
                     <Button variant="ghost" aria-label={tf.moveUp(name)} disabled={i === 0} onClick={() => { set("fields", moveField(d.fields, i, i - 1)); }}>↑</Button>
                     <Button variant="ghost" aria-label={tf.moveDown(name)} disabled={i === d.fields.length - 1} onClick={() => { set("fields", moveField(d.fields, i, i + 1)); }}>↓</Button>
                     <Button variant="ghost" className="text-red-600" aria-label={tf.removeField(name)} disabled={locked} title={locked ? tf.requiredByType : undefined}
@@ -278,7 +278,7 @@ function Editor({ ws, project, form, types, defs, onDone }: {
                     <input type="checkbox" className="size-4 accent-brand-600" checked={f.required || locked} disabled={locked}
                       onChange={(e) => { setField(i, { required: e.target.checked }); }} />
                     {tf.required}
-                    {locked && <span className="text-xs text-zinc-500">({tf.requiredByType})</span>}
+                    {locked && <span className="text-xs text-zinc-500 dark:text-zinc-400">({tf.requiredByType})</span>}
                   </label>
                 </li>
               );
@@ -304,7 +304,7 @@ function Editor({ ws, project, form, types, defs, onDone }: {
             <Label htmlFor="fe-tpl">{tf.titleTemplate}</Label>
             <Input id="fe-tpl" required maxLength={500} value={d.title_template} aria-describedby="fe-tpl-hint" aria-invalid={badPlaceholders.length > 0 || undefined}
               onChange={(e) => { set("title_template", e.target.value); }} />
-            <p id="fe-tpl-hint" className="mt-1 text-xs text-zinc-500">
+            <p id="fe-tpl-hint" className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
               {tf.titleTemplateHint}
               {badPlaceholders.length > 0 && <span className="block text-red-600">{badPlaceholders.map((b) => `{{${b}}}`).join(", ")}</span>}
             </p>
@@ -315,7 +315,7 @@ function Editor({ ws, project, form, types, defs, onDone }: {
               <option value="members">{tf.audienceOptions.members}</option>
               <option value="accounts">{tf.audienceOptions.accounts}</option>
             </Select>
-            <p id="fe-aud-hint" className="mt-1 text-xs text-zinc-500">{tf.audienceHint[d.audience]}</p>
+            <p id="fe-aud-hint" className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{tf.audienceHint[d.audience]}</p>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
@@ -352,12 +352,12 @@ function Editor({ ws, project, form, types, defs, onDone }: {
 
       <aside aria-labelledby="fe-prev" className="space-y-3 lg:sticky lg:top-4 lg:self-start">
         <h2 id="fe-prev" className="text-sm font-semibold">{tf.preview}</h2>
-        <p className="text-xs text-zinc-500">{tf.previewHint}</p>
+        <p className="text-xs text-zinc-500 dark:text-zinc-400">{tf.previewHint}</p>
         <div className="space-y-4 rounded-xl bg-white p-4 ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-800">
           <p className="text-lg font-semibold">{d.title || "…"}</p>
           {d.intro && <p className="text-sm whitespace-pre-line text-zinc-600 dark:text-zinc-400">{d.intro}</p>}
           <FormFields fields={pFields} draft={preview} errors={{}} prefix="fp" onChange={(k, v) => { setPreview((p) => ({ ...p, [k]: v })); }} />
-          <p className="border-t border-zinc-100 pt-3 text-xs text-zinc-500 dark:border-zinc-800">
+          <p className="border-t border-zinc-100 pt-3 text-xs text-zinc-500 dark:text-zinc-400 dark:border-zinc-800">
             {tf.titleTemplate}: <span className="font-medium text-zinc-800 dark:text-zinc-200">{previewTitle(d.title_template, display, me.data?.display_name ?? "", d.title)}</span>
           </p>
         </div>

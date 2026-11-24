@@ -88,9 +88,9 @@ test.describe("bulk and inline editing", () => {
     await page.getByRole("checkbox", { name: "QA-3 seç" }).check();
     await page.getByRole("checkbox", { name: "QA-4 seç" }).check();
     await page.getByRole("toolbar", { name: "Seçilmiş tapşırıqlar üçün əməliyyatlar" }).getByRole("button", { name: "Sil", exact: true }).click();
-    const confirm = page.getByRole("dialog", { name: "Sil" });
-    await expect(confirm).toContainText("2 tapşırığı silmək");
-    await confirm.getByRole("button", { name: "Sil", exact: true }).click();
+    const confirm = page.getByRole("dialog", { name: "2 tapşırıq silinsin?" });
+    await expect(confirm).toContainText("geri qaytarmaq olmaz");
+    await confirm.getByRole("button", { name: "2 tapşırığı sil", exact: true }).click();
     await expect(page.getByRole("status").filter({ hasText: "2 tapşırıq silindi" })).toBeVisible();
     await expect(page.getByRole("row").filter({ hasText: "QA-" })).toHaveCount(2);
     expect((await alice.get(`workspaces/${seed.ws}/projects/QA/items/3`)).status()).toBe(404);

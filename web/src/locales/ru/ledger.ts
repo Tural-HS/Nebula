@@ -15,6 +15,7 @@ export const tlg = {
   workflow: "Процесс",
   awaitingApproval: (done: number, min: number, to: string) => `Согласование ${String(done)}/${String(min)}, затем: ${to}`,
   details: "Свойства",
+  collab: "Комментарии и история",
   approvedBy: "согласовал(а)",
   waitingFor: "ожидается",
 } satisfies Messages["ledger"];

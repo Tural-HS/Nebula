@@ -75,7 +75,7 @@ export function ApprovalsInboxPage() {
         <div className="mx-auto max-w-3xl space-y-4 p-4 md:p-6">
           <div>
             <h1 className="text-lg font-semibold">{tai.title}</h1>
-            <p className="text-sm text-zinc-500">{tai.hint}</p>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">{tai.hint}</p>
           </div>
           <div role="tablist" aria-label={tai.title} className="flex flex-wrap gap-1">
             {tab("mine")}
@@ -98,11 +98,11 @@ function Row({ ws, e }: { ws: string; e: InboxEntry }) {
         className={cn("flex flex-col gap-1.5 p-3 hover:bg-zinc-50 dark:hover:bg-zinc-800/50", e.overdue && "border-l-4 border-red-500")}
       >
         <span className="flex min-w-0 items-center gap-2">
-          <span className="shrink-0 font-mono text-xs text-zinc-500">{e.item.key}</span>
+          <span className="shrink-0 font-mono text-xs text-zinc-500 dark:text-zinc-400">{e.item.key}</span>
           <span className="min-w-0 flex-1 truncate text-sm font-medium">{e.item.title}</span>
-          <span className="shrink-0 text-xs text-zinc-500 tabular-nums" aria-label={tap.progress(p.done, p.min)}>{p.done}/{p.min}</span>
+          <span className="shrink-0 text-xs text-zinc-500 dark:text-zinc-400 tabular-nums" aria-label={tap.progress(p.done, p.min)}>{p.done}/{p.min}</span>
         </span>
-        <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-500">
+        <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-500 dark:text-zinc-400">
           {e.from_status && <StatusBadge name={e.from_status.name} category={e.from_status.category} />}
           <span aria-hidden>→</span>
           {e.to_status && <StatusBadge name={e.to_status.name} category={e.to_status.category} />}

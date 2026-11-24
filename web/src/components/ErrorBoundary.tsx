@@ -27,7 +27,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
     return (
       <div role="alert" className="mx-auto mt-24 max-w-md space-y-4 p-6 text-center">
         <p className="text-base font-semibold">{newVersion ? t.newVersion : t.errorGeneric}</p>
-        <p className="text-sm text-zinc-500">{newVersion ? t.newVersionHint : t.unexpectedErrorHint}</p>
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">{newVersion ? t.newVersionHint : t.unexpectedErrorHint}</p>
         <Button variant="primary" onClick={() => { window.location.reload(); }}>{t.reload}</Button>
       </div>
     );

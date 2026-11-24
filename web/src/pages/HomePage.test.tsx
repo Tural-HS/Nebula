@@ -98,7 +98,7 @@ describe("HomePage", () => {
     home = { ...home, counters: { overdue: 0, approvals: 0, week: 0, assigned: 3 }, items: [], total: 0,
       recent_projects: [{ workspace: { slug: "acme", name: "ACME", accent: "forest" }, project: { key: "FIN", name: "Maliyyə" }, last_activity: "2031-03-09T10:00:00Z" }] };
     renderAt("/");
-    expect(await screen.findByText("Hazırda diqqətinizi tələb edən iş yoxdur")).toBeTruthy();
+    expect(await screen.findByText("Hazırda diqqətinizi tələb edən tapşırıq yoxdur")).toBeTruthy();
     expect(screen.getByRole("link", { name: /Maliyyə · ACME/ }).getAttribute("href")).toBe("/w/acme/p/FIN");
   });
 

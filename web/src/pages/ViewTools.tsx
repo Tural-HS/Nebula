@@ -28,7 +28,12 @@ export function Popover({ label, children, align = "left", inline = false, summa
   useEffect(() => {
     const close = (e: Event) => {
       const d = ref.current;
-      if (d?.open && (e instanceof KeyboardEvent ? e.key === "Escape" : !d.contains(e.target as Node))) d.open = false;
+      if (!d?.open || !(e instanceof KeyboardEvent ? e.key === "Escape" : !d.contains(e.target as Node))) return;
+      // Esc from inside: the content unmounts, so focus goes back to the toggle
+      // instead of falling to <body> (WCAG 2.4.3).
+      const inside = d.contains(document.activeElement);
+      d.open = false;
+      if (inside && e instanceof KeyboardEvent) d.querySelector("summary")?.focus();
     };
     document.addEventListener("pointerdown", close);
     document.addEventListener("keydown", close);
@@ -208,7 +213,7 @@ export function ViewSwitcher({ ws, project, views, active, dirty, state, isAdmin
               <input type="checkbox" className="mt-0.5" checked={shared} onChange={(e) => { setShared(e.target.checked); }} />
               <span>
                 {tv.share}
-                <span className="block text-xs text-zinc-500">{tv.shareHint}</span>
+                <span className="block text-xs text-zinc-500 dark:text-zinc-400">{tv.shareHint}</span>
               </span>
             </label>
           )}
@@ -243,7 +248,7 @@ export function ColumnPicker({ columns, fields, onChange, inline }: {
   };
   return (
     <Popover label={tv.columns} inline={inline}>
-      <p className="mb-2 text-xs text-zinc-500">{tv.columnsHint}</p>
+      <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400">{tv.columnsHint}</p>
       <ul className="flex flex-col gap-1">
         {[...columns.filter((c) => all.includes(c)), ...hidden].map((c) => {
           const on = columns.includes(c);
@@ -257,7 +262,7 @@ export function ColumnPicker({ columns, fields, onChange, inline }: {
                   disabled={c === "title" || (!on && columns.length >= MAX_COLUMNS)}
                   onChange={(e) => { toggle(c, e.target.checked); }}
                 />
-                <span className="truncate">{c === "key" ? "#" : label}</span>
+                <span className="truncate" title={c === "key" ? undefined : label}>{c === "key" ? "#" : label}</span>
               </label>
               {on && (
                 <span className="flex shrink-0 gap-0.5">
@@ -284,7 +289,7 @@ export function ColumnPicker({ columns, fields, onChange, inline }: {
 // More filters: statuses and select / boolean custom fields.
 // ---------------------------------------------------------------------------
 
-const MOVE_BUTTON = "rounded px-1.5 text-zinc-500 hover:bg-zinc-100 pointer-coarse:min-h-11 pointer-coarse:min-w-11 dark:hover:bg-zinc-800";
+const MOVE_BUTTON = "rounded px-1.5 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 pointer-coarse:min-h-11 pointer-coarse:min-w-11 dark:hover:bg-zinc-800";
 
 export function FilterPicker({ statuses, fields, status, values, onStatus, onField, onClear, inline }: {
   statuses: Status[];

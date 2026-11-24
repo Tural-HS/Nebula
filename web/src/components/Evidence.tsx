@@ -58,7 +58,7 @@ export function EvidencePanel({ ws }: { ws: string }) {
         <>
           <ScopeForm ws={ws} maxDays={key.data.limits?.max_days ?? 366} />
           {key.data.limits && (
-            <p className="text-xs text-zinc-500">{te.limits(key.data.limits.max_days, key.data.limits.max_items, key.data.limits.max_events)}</p>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">{te.limits(key.data.limits.max_days, key.data.limits.max_items, key.data.limits.max_events)}</p>
           )}
           <KeyInfo fingerprint={key.data.fingerprint ?? ""} />
         </>
@@ -129,7 +129,7 @@ function ScopeForm({ ws, maxDays }: { ws: string; maxDays: number }) {
             </label>
           ))}
         </div>
-        <p className="mt-1 text-xs text-zinc-500">{te.projectsHint}</p>
+        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{te.projectsHint}</p>
       </fieldset>
       <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" className="accent-brand-600" checked={approvalsOnly} onChange={(e) => { setApprovalsOnly(e.target.checked); }} />
@@ -165,7 +165,7 @@ function KeyInfo({ fingerprint }: { fingerprint: string }) {
           {copied ? te.copied : te.copy}
         </Button>
       </div>
-      <p className="text-xs text-zinc-500">{te.keyHint}</p>
+      <p className="text-xs text-zinc-500 dark:text-zinc-400">{te.keyHint}</p>
     </div>
   );
 }
@@ -181,11 +181,11 @@ function History({ ws }: { ws: string }) {
     <div>
       <h3 className="mb-2 text-sm font-semibold">{te.history}</h3>
       {rows.length === 0 ? (
-        <p className="text-sm text-zinc-500">{te.historyEmpty}</p>
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">{te.historyEmpty}</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[40rem] text-left text-sm" aria-label={te.history}>
-            <thead className="text-xs text-zinc-500">
+            <thead className="text-xs text-zinc-500 dark:text-zinc-400">
               <tr className="border-b border-zinc-200 dark:border-zinc-800">
                 <th className="py-1 pr-3">{te.cols.time}</th><th className="pr-3">{te.cols.who}</th><th className="pr-3">{te.cols.what}</th>
                 <th className="pr-3">{te.cols.content}</th><th>{te.cols.manifest}</th>
@@ -196,9 +196,9 @@ function History({ ws }: { ws: string }) {
                 <tr key={r.id} className="border-b border-zinc-100 align-top dark:border-zinc-800/60">
                   <td className="py-1 pr-3 text-xs whitespace-nowrap">{formatDateTime(r.time)}</td>
                   <td className="pr-3 text-xs">{r.who}</td>
-                  <td className="pr-3 text-xs">{r.what}{r.approvalsOnly && <span className="ml-1 text-zinc-500">({te.approvalsTag})</span>}</td>
+                  <td className="pr-3 text-xs">{r.what}{r.approvalsOnly && <span className="ml-1 text-zinc-500 dark:text-zinc-400">({te.approvalsTag})</span>}</td>
                   <td className="pr-3 text-xs whitespace-nowrap">{te.counts(r.items, r.events)}</td>
-                  <td className="font-mono text-[11px] break-all text-zinc-500" title={r.manifest}>{r.manifest.slice(0, 16)}…</td>
+                  <td className="font-mono text-2xs break-all text-zinc-500 dark:text-zinc-400" title={r.manifest}>{r.manifest.slice(0, 16)}…</td>
                 </tr>
               ))}
             </tbody>

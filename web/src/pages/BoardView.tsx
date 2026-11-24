@@ -198,7 +198,7 @@ function BoardColumnView({ ws, project, filters, column, count, moves, members, 
           <span aria-hidden className={cn("size-2 shrink-0 rounded-full", CATEGORY_DOT[column.category])} />
           <span className="truncate">{column.name}</span>
         </span>
-        <span className="rounded-full bg-zinc-200 px-1.5 text-[11px] tabular-nums dark:bg-zinc-800">{count ?? "…"}</span>
+        <span className="rounded-full bg-zinc-200 px-1.5 text-2xs tabular-nums dark:bg-zinc-800">{count ?? "…"}</span>
       </h2>
       <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-2 pb-2">
         {q.isPending && column.statusIds.length > 0 ? (
@@ -206,7 +206,7 @@ function BoardColumnView({ ws, project, filters, column, count, moves, members, 
         ) : q.isError ? (
           <ErrorState error={q.error} onRetry={() => void q.refetch()} />
         ) : shown.length === 0 ? (
-          <p className="px-1 py-6 text-center text-xs text-zinc-400">{t.columnEmpty}</p>
+          <p className="px-1 py-6 text-center text-xs text-zinc-500 dark:text-zinc-400">{t.columnEmpty}</p>
         ) : (
           shown.map((it) => <Card key={it.id} item={it} column={column.key} members={members} draggable={canEdit} onOpen={onOpen} />)
         )}
@@ -271,7 +271,7 @@ function CardBody({ item, members, className, ref, ...rest }: HTMLAttributes<HTM
         </div>
       ) : null}
       <div className="mt-2 flex items-center justify-between gap-2">
-        <span className="font-mono text-xs text-zinc-500">{item.key}</span>
+        <span className="font-mono text-xs text-zinc-500 dark:text-zinc-400">{item.key}</span>
         <span className="flex min-w-0 items-center gap-1.5">
           <StatusBadge name={item.status.name} category={item.status.category} />
           {assignee && <Avatar name={assignee} />}

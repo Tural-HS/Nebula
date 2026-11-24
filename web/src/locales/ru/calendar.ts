@@ -41,7 +41,9 @@ export const tc = {
   fieldValue: "Значение",
   apply: "Применить",
   bulkDelete: "Удалить",
-  confirmBulkDelete: (n: number) => `Удалить ${String(n)} ${itemsAcc(n)}? Это действие нельзя отменить.`,
+  confirmBulkDelete: (n: number) => `Выбранные ${String(n)} ${items(n)}, их комментарии и файлы будут удалены. Это нельзя отменить.`,
+  bulkDeleteTitle: (n: number) => `Удалить ${String(n)} ${itemsAcc(n)}?`,
+  bulkDeleteAction: (n: number) => `Удалить ${String(n)} ${itemsAcc(n)}`,
   bulkDone: (n: number) => `${plural("ru", n, { one: "Обновлена", few: "Обновлены", many: "Обновлено", other: "Обновлено" })} ${String(n)} ${items(n)}`,
   bulkDeleted: (n: number) => `${plural("ru", n, { one: "Удалена", few: "Удалены", many: "Удалено", other: "Удалено" })} ${String(n)} ${items(n)}`,
   bulkFailedTitle: "Ничего не изменено",
@@ -50,5 +52,6 @@ export const tc = {
   bulkCap: (n: number) => `Не более ${String(n)} ${itemsGen(n)} за раз`,
 
   edit: (what: string, key: string) => `${key}: изменить «${what}»`,
+  invalidNumber: (what: string) => `${what}: введите число, например 1250,50. Значение не изменено.`,
   saveFailed: "Не удалось сохранить изменение",
 } satisfies Messages["calendar"];

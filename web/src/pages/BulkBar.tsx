@@ -135,11 +135,11 @@ export function BulkBar({ ws, project, projectKey, selected, statuses, assignabl
       )}
       <Button className="ml-auto" onClick={onClear} disabled={busy}>{tc.clearSelection}</Button>
 
-      <Dialog open={confirmDelete} onClose={() => { setConfirmDelete(false); }} title={tc.bulkDelete}>
+      <Dialog open={confirmDelete} onClose={() => { setConfirmDelete(false); }} title={tc.bulkDeleteTitle(selected.length)}>
         <p className="text-sm">{tc.confirmBulkDelete(selected.length)}</p>
-        <div className="mt-4 flex justify-end gap-2">
+        <div className="mt-4 flex flex-wrap justify-end gap-2">
           <Button onClick={() => { setConfirmDelete(false); }}>{t.cancel}</Button>
-          <Button variant="danger" disabled={busy} onClick={() => { run({ delete: true }); }}>{tc.bulkDelete}</Button>
+          <Button variant="danger" disabled={busy} onClick={() => { run({ delete: true }); }}>{tc.bulkDeleteAction(selected.length)}</Button>
         </div>
       </Dialog>
       <Dialog open={failed !== null} onClose={() => { setFailed(null); }} title={tc.bulkFailedTitle}>

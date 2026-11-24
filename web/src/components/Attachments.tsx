@@ -84,7 +84,7 @@ export function Attachments({ ws, project, n, meId, canWrite, isAdmin }: Props) 
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <h3 id={headingId} className="text-sm font-semibold">
           {ta.attachments}
-          {q.data && q.data.attachments.length > 0 && <span className="ml-1.5 font-normal text-zinc-500">{q.data.attachments.length}</span>}
+          {q.data && q.data.attachments.length > 0 && <span className="ml-1.5 font-normal text-zinc-500 dark:text-zinc-400">{q.data.attachments.length}</span>}
         </h3>
         {canWrite && enabled && (
           <>
@@ -114,9 +114,9 @@ export function Attachments({ ws, project, n, meId, canWrite, isAdmin }: Props) 
         <ErrorState error={q.error} onRetry={() => void q.refetch()} />
       ) : (
         <>
-          {!enabled && <p className="text-sm text-zinc-500">{ta.disabled}</p>}
+          {!enabled && <p className="text-sm text-zinc-500 dark:text-zinc-400">{ta.disabled}</p>}
           {q.data.attachments.length === 0 && enabled && (
-            <p className="text-sm text-zinc-500">
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">
               {ta.none} {canWrite && <span className="max-md:hidden">{ta.dropHint}</span>}
             </p>
           )}
@@ -138,7 +138,7 @@ export function Attachments({ ws, project, n, meId, canWrite, isAdmin }: Props) 
             ))}
           </ul>
           {busy !== null && (
-            <p role="status" className="mt-2 text-sm text-zinc-500">
+            <p role="status" className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
               {ta.uploading(busy)}
             </p>
           )}
@@ -199,7 +199,7 @@ function AttachmentRow({ a, ws, project, n, canDelete, onDownload, onDelete }: {
           >
             {a.filename}
           </button>
-          <p className="truncate text-xs text-zinc-500">
+          <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
             {formatBytes(a.size)} · <span title={a.created_at}>{formatRelative(a.created_at)}</span>
             {a.uploader && <> · {ta.by(a.uploader.display_name)}</>}
           </p>

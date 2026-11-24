@@ -57,23 +57,23 @@ function NewField({ ws }: { ws: string }) {
           );
         }}
       >
-        <label className="text-xs text-zinc-500">
+        <label className="text-xs text-zinc-500 dark:text-zinc-400">
           {t.name}
           <Input required maxLength={100} value={name} onChange={(e) => { setName(e.target.value); if (!keyTouched) setKey(slugKey(e.target.value)); }} />
         </label>
-        <label className="text-xs text-zinc-500">
-          {ta.key} <span className="text-zinc-400">({ta.fieldKeyHint})</span>
+        <label className="text-xs text-zinc-500 dark:text-zinc-400">
+          {ta.key} <span className="text-zinc-500 dark:text-zinc-400">({ta.fieldKeyHint})</span>
           <Input required pattern="[a-z][a-z0-9_]{0,62}" value={key} onChange={(e) => { setKey(e.target.value); setKeyTouched(true); }} />
         </label>
-        <label className="text-xs text-zinc-500">
+        <label className="text-xs text-zinc-500 dark:text-zinc-400">
           {ta.fieldType}
           <Select value={type} onChange={(e) => { setType(e.target.value); }}>
             {TYPES.map((x) => <option key={x} value={x}>{ta.fieldTypes[x]}</option>)}
           </Select>
         </label>
         {isChoice(type) && (
-          <label className="text-xs text-zinc-500 sm:row-span-2">
-            {ta.choices} <span className="text-zinc-400">({ta.choicesHint})</span>
+          <label className="text-xs text-zinc-500 dark:text-zinc-400 sm:row-span-2">
+            {ta.choices} <span className="text-zinc-500 dark:text-zinc-400">({ta.choicesHint})</span>
             <textarea
               required
               rows={3}
@@ -125,12 +125,12 @@ function FieldCard({ ws, field }: { ws: string; field: FieldDefinition }) {
           onChange={(e) => { setName(e.target.value); }}
           onBlur={() => { if (name.trim() && name !== field.name) adm.updateField.mutate({ key: field.key, body: { name } }, { onSuccess: fb.ok(), onError: fb.fail }); }}
         />
-        <code className="text-xs text-zinc-500">{field.key}</code>
+        <code className="text-xs text-zinc-500 dark:text-zinc-400">{field.key}</code>
         <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs dark:bg-zinc-800">
           {ta.fieldTypes[field.type]}
           {saved && ` → ${tf.resultTypes[saved.result_type] ?? saved.result_type}`}
         </span>
-        {field.archived && <span className="text-xs text-zinc-500">{ta.archived}</span>}
+        {field.archived && <span className="text-xs text-zinc-500 dark:text-zinc-400">{ta.archived}</span>}
         <Button
           variant="ghost"
           className="ml-auto"
@@ -153,12 +153,12 @@ function FieldCard({ ws, field }: { ws: string; field: FieldDefinition }) {
         </form>
       )}
       {field.type === "formula" && field.archived && saved && (
-        <p className="mt-2 font-mono text-xs text-zinc-500">{tf.title(saved.expression)}</p>
+        <p className="mt-2 font-mono text-xs text-zinc-500 dark:text-zinc-400">{tf.title(saved.expression)}</p>
       )}
 
       {isChoice(field.type) && !field.archived && (
         <div className="mt-3 space-y-2 border-t border-zinc-100 pt-3 dark:border-zinc-800">
-          <p className="text-xs font-medium text-zinc-500">{ta.choices}</p>
+          <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">{ta.choices}</p>
           <ul className="flex flex-wrap gap-2">
             {choices.map((c) => (
               <li key={c.id} className={cn("flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs ring-1 ring-zinc-300 dark:ring-zinc-700", c.archived && "line-through opacity-60")}>

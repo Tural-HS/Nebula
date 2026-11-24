@@ -70,7 +70,7 @@ function CreateWorkspaceForm({ onDone }: { onDone: () => void }) {
       <div>
         <Label htmlFor="ws-slug">{t.slug}</Label>
         <Input id="ws-slug" value={slug} onChange={(e) => { setSlug(e.target.value.toLowerCase()); }} required pattern="[a-z0-9][a-z0-9\-]{1,62}" />
-        <p className="mt-1 text-xs text-zinc-500">{t.slugHint}</p>
+        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{t.slugHint}</p>
       </div>
       <div>
         <Label htmlFor="ws-template">{tt.template}</Label>
@@ -81,7 +81,7 @@ function CreateWorkspaceForm({ onDone }: { onDone: () => void }) {
             </option>
           ))}
         </Select>
-        <p className="mt-1 text-xs text-zinc-500">{tt.templateHint}</p>
+        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{tt.templateHint}</p>
       </div>
       {/* Team kind (ADR-0033): one column of cards on phones, two from sm up. */}
       <fieldset>
@@ -102,14 +102,14 @@ function CreateWorkspaceForm({ onDone }: { onDone: () => void }) {
               />
               <span className="min-w-0 [overflow-wrap:anywhere]">
                 <span className="block text-sm font-medium">{tk.names[k]}</span>
-                <span className="block text-xs text-zinc-500">{tk.descriptions[k]}</span>
+                <span className="block text-xs text-zinc-500 dark:text-zinc-400">{tk.descriptions[k]}</span>
               </span>
             </label>
           ))}
         </div>
         {notes.approval && <p className="mt-2 text-xs text-amber-700 dark:text-amber-400">{tk.approvalNote}</p>}
-        {notes.calendar && <p className="mt-1 text-xs text-zinc-500">{tk.calendarNote}</p>}
-        <p className="mt-1 text-xs text-zinc-500">{tk.kindHint}</p>
+        {notes.calendar && <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{tk.calendarNote}</p>}
+        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{tk.kindHint}</p>
       </fieldset>
       <FieldError error={create.error} />
       <div className="flex justify-end gap-2">

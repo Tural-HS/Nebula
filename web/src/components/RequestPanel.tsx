@@ -19,19 +19,19 @@ export function RequestPanel({ ws, project, n, canWrite }: { ws: string; project
   const r = q.data;
   return (
     <section aria-labelledby="req-panel" className="space-y-2 rounded-lg bg-zinc-50 p-3 ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-800">
-      <h3 id="req-panel" className="text-xs font-semibold tracking-wide text-zinc-500 uppercase">{tf.request}</h3>
+      <h3 id="req-panel" className="text-xs font-semibold tracking-wide text-zinc-500 dark:text-zinc-400 uppercase">{tf.request}</h3>
       <p className="text-sm">
         {tf.fromForm(r.form_title)} · {formatDateTime(r.submitted_at)}
       </p>
       {r.requester && (
         <p className="text-sm">
-          <span className="text-zinc-500">{tf.requester}: </span>
-          {r.requester.display_name} <span className="text-xs text-zinc-500">{r.requester.email}{r.requester.member ? "" : ` · ${tf.notMember}`}</span>
+          <span className="text-zinc-500 dark:text-zinc-400">{tf.requester}: </span>
+          {r.requester.display_name} <span className="text-xs text-zinc-500 dark:text-zinc-400">{r.requester.email}{r.requester.member ? "" : ` · ${tf.notMember}`}</span>
         </p>
       )}
       <MessageEditor key={r.message_at ?? "none"} ws={ws} project={project} n={n} initial={r.message ?? ""} />
       {r.message_by && r.message_at && (
-        <p className="text-xs text-zinc-500">{r.message_by.display_name} · {formatDateTime(r.message_at)}</p>
+        <p className="text-xs text-zinc-500 dark:text-zinc-400">{r.message_by.display_name} · {formatDateTime(r.message_at)}</p>
       )}
     </section>
   );
@@ -54,7 +54,7 @@ function MessageEditor({ ws, project, n, initial }: { ws: string; project: strin
         onChange={(e) => { setText(e.target.value); }}
         className="w-full rounded-md bg-white px-2.5 py-1.5 text-sm ring-1 ring-zinc-300 pointer-coarse:text-base focus:ring-2 focus:ring-brand-500 dark:bg-zinc-950 dark:ring-zinc-700"
       />
-      <p id={`${id}-hint`} className="mt-1 text-xs text-zinc-500">{tf.messageHint}</p>
+      <p id={`${id}-hint`} className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{tf.messageHint}</p>
       <Button
         className="mt-2"
         disabled={save.isPending || text.trim() === initial.trim()}

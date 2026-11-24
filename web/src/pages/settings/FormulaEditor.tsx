@@ -73,7 +73,7 @@ export function FormulaEditor({ ws, fieldKey, value, onChange, disabled }: {
 
   return (
     <div className="space-y-2">
-      <label className="block text-xs text-zinc-500" htmlFor={`${id}-expr`}>
+      <label className="block text-xs text-zinc-500 dark:text-zinc-400" htmlFor={`${id}-expr`}>
         {tf.expression} <span className="font-serif italic">ƒ</span>
       </label>
       <textarea
@@ -95,15 +95,15 @@ export function FormulaEditor({ ws, fieldKey, value, onChange, disabled }: {
           err && "ring-red-500 dark:ring-red-500",
         )}
       />
-      <p className="text-xs text-zinc-400">{tf.expressionHint}</p>
-      <details className="text-xs text-zinc-500">
+      <p className="text-xs text-zinc-500 dark:text-zinc-400">{tf.expressionHint}</p>
+      <details className="text-xs text-zinc-500 dark:text-zinc-400">
         <summary className="cursor-pointer select-none">{tf.helpTitle}</summary>
         <p className="mt-1">{tf.help}</p>
       </details>
 
       <div className="flex flex-wrap items-end gap-3">
         {resultType === "number" && (
-          <label className="text-xs text-zinc-500">
+          <label className="text-xs text-zinc-500 dark:text-zinc-400">
             {tf.scale}
             <Input
               type="number"
@@ -116,7 +116,7 @@ export function FormulaEditor({ ws, fieldKey, value, onChange, disabled }: {
             />
           </label>
         )}
-        <label className="text-xs text-zinc-500">
+        <label className="text-xs text-zinc-500 dark:text-zinc-400">
           {tf.sampleItem}
           <Input value={sample} placeholder={tf.sampleItemHint} className="w-32" maxLength={24} onChange={(e) => { setSample(e.target.value); }} />
         </label>
@@ -124,7 +124,7 @@ export function FormulaEditor({ ws, fieldKey, value, onChange, disabled }: {
 
       <div id={`${id}-status`} role="status" aria-live="polite" className="min-h-5 text-xs" data-testid="formula-status">
         {checking ? (
-          <span className="text-zinc-400">{tf.checking}</span>
+          <span className="text-zinc-500 dark:text-zinc-400">{tf.checking}</span>
         ) : failure ? (
           <span className="text-red-600 dark:text-red-400">{failure}</span>
         ) : err ? (

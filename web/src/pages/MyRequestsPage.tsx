@@ -39,7 +39,7 @@ export function MyRequestsPage() {
               {tf.myRequests}
               {unseen > 0 && <span className="ml-2 rounded-full bg-brand-600 px-2 py-0.5 align-middle text-xs text-white">{tf.unseen(unseen)}</span>}
             </h1>
-            <p className="text-sm text-zinc-500">{tf.myRequestsHint}</p>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">{tf.myRequestsHint}</p>
           </div>
           {body}
         </div>
@@ -53,11 +53,11 @@ function Row({ r }: { r: MyRequest }) {
     <li>
       <Link to={`/requests/${encodeURIComponent(r.id)}`} className="flex flex-col gap-1 p-3 hover:bg-zinc-50 sm:flex-row sm:items-center sm:gap-3 dark:hover:bg-zinc-800/50">
         <span className="flex min-w-0 flex-1 items-center gap-2">
-          <span className="shrink-0 font-mono text-xs text-zinc-500">{r.key}</span>
+          <span className="shrink-0 font-mono text-xs text-zinc-500 dark:text-zinc-400">{r.key}</span>
           <span className="truncate text-sm font-medium">{r.title}</span>
-          {r.unseen && <span className="shrink-0 rounded-full bg-brand-100 px-1.5 text-[11px] font-medium text-brand-700 dark:bg-brand-700 dark:text-brand-50">{tf.newBadge}</span>}
+          {r.unseen && <span className="shrink-0 rounded-full bg-brand-100 px-1.5 text-2xs font-medium text-brand-700 dark:bg-brand-700 dark:text-brand-50">{tf.newBadge}</span>}
         </span>
-        <span className="flex shrink-0 items-center gap-2 text-xs text-zinc-500">
+        <span className="flex shrink-0 items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
           <RequestStatus r={r} />
           <time dateTime={r.updated_at} title={formatDateTime(r.updated_at)}>{formatRelative(r.updated_at)}</time>
         </span>
@@ -90,9 +90,9 @@ export function MyRequestPage() {
     body = (
       <article aria-labelledby="req-title" className="space-y-5">
         <header className="space-y-1">
-          <p className="font-mono text-xs text-zinc-500">{d.key} · {d.form_title} · {d.workspace}</p>
+          <p className="font-mono text-xs text-zinc-500 dark:text-zinc-400">{d.key} · {d.form_title} · {d.workspace}</p>
           <h1 id="req-title" className="text-lg font-semibold">{d.title}</h1>
-          <p className="flex flex-wrap items-center gap-2 text-xs text-zinc-500">
+          <p className="flex flex-wrap items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
             <RequestStatus r={d} />
             <span>{tf.submittedAt(formatDateTime(d.created_at))}</span>
             <span>{tf.colUpdated}: {formatRelative(d.updated_at)}</span>
@@ -103,10 +103,10 @@ export function MyRequestPage() {
           {d.message ? (
             <>
               <p className="mt-1 text-sm whitespace-pre-line">{d.message}</p>
-              {d.message_at && <p className="mt-1 text-xs text-zinc-500">{formatDateTime(d.message_at)}</p>}
+              {d.message_at && <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">{formatDateTime(d.message_at)}</p>}
             </>
           ) : (
-            <p className="mt-1 text-sm text-zinc-500">{tf.noMessage}</p>
+            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{tf.noMessage}</p>
           )}
         </section>
         <section aria-labelledby="req-answers" className="rounded-xl bg-white p-4 ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-800">
@@ -114,17 +114,17 @@ export function MyRequestPage() {
           <dl className="space-y-3 text-sm">
             {d.answers.map((a) => (
               <div key={a.key}>
-                <dt className="text-xs text-zinc-500">{a.label}</dt>
+                <dt className="text-xs text-zinc-500 dark:text-zinc-400">{a.label}</dt>
                 <dd className="whitespace-pre-line break-words">{a.display}</dd>
               </div>
             ))}
             {d.files.length > 0 && (
               <div>
-                <dt className="text-xs text-zinc-500">{tf.files}</dt>
+                <dt className="text-xs text-zinc-500 dark:text-zinc-400">{tf.files}</dt>
                 <dd>
                   <ul>
                     {d.files.map((f, i) => (
-                      <li key={`${f.filename}-${String(i)}`}>{f.filename} <span className="text-xs text-zinc-500">({formatBytes(f.size)})</span></li>
+                      <li key={`${f.filename}-${String(i)}`}>{f.filename} <span className="text-xs text-zinc-500 dark:text-zinc-400">({formatBytes(f.size)})</span></li>
                     ))}
                   </ul>
                 </dd>

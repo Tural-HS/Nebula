@@ -33,7 +33,9 @@ export const tc = {
   fieldValue: "Dəyər",
   apply: "Tətbiq et",
   bulkDelete: "Sil",
-  confirmBulkDelete: (n: number) => `${String(n)} tapşırığı silmək istədiyinizə əminsiniz? Bu əməliyyat geri qaytarılmır.`,
+  confirmBulkDelete: (n: number) => `Seçilmiş ${String(n)} tapşırıq, şərhləri və faylları silinəcək. Bunu geri qaytarmaq olmaz.`,
+  bulkDeleteTitle: (n: number) => `${String(n)} tapşırıq silinsin?`,
+  bulkDeleteAction: (n: number) => `${String(n)} tapşırığı sil`,
   bulkDone: (n: number) => `${String(n)} tapşırıq yeniləndi`,
   bulkDeleted: (n: number) => `${String(n)} tapşırıq silindi`,
   bulkFailedTitle: "Heç nə dəyişdirilmədi",
@@ -42,5 +44,6 @@ export const tc = {
   bulkCap: (n: number) => `Bir dəfəyə ən çox ${String(n)} tapşırıq`,
 
   edit: (what: string, key: string) => `${key}: ${what} dəyiş`,
+  invalidNumber: (what: string) => `${what}: rəqəm daxil edin, məsələn 1250,50. Dəyər dəyişmədi.`,
   saveFailed: "Dəyişiklik saxlanılmadı",
 };

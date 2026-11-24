@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 
 
 import { useTransitions } from "../api/hooks";
 import type { FieldDefinition, Item, Status } from "../api/types";
+import { useToast } from "../components/toast-context";
 import { Input, Select } from "../components/ui";
 import { t } from "../i18n";
 import { tc } from "../i18n-calendar";
@@ -27,6 +28,7 @@ export function InlineCell({ item, col, kind, label, edit, fields, children }: {
 }) {
   const [editing, setEditing] = useState(false);
   const button = useRef<HTMLButtonElement>(null);
+  const toast = useToast();
   const wasEditing = useRef(false);
   useEffect(() => {
     // Back to the cell after saving or cancelling, so the keyboard stays put.
@@ -39,11 +41,13 @@ export function InlineCell({ item, col, kind, label, edit, fields, children }: {
       <button
         ref={button}
         type="button"
-        aria-label={tc.edit(label, item.key)}
         onClick={() => { setEditing(true); }}
         className="-mx-1 flex h-8 w-[calc(100%+0.5rem)] min-w-0 items-center rounded px-1 text-left hover:ring-1 hover:ring-zinc-300 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none dark:hover:ring-zinc-700"
       >
         {children ?? <span aria-hidden className="text-zinc-300 dark:text-zinc-600">—</span>}
+        {/* The visible value stays the start of the name (WCAG 2.5.3), the
+            action follows: "In Progress, QA-1: Status dəyiş". */}
+        <span className="sr-only">{children ? ", " : ""}{tc.edit(label, item.key)}</span>
       </button>
     );
   }
@@ -120,7 +124,11 @@ export function InlineCell({ item, col, kind, label, edit, fields, children }: {
           onDone={done}
           onCommit={(s) => {
             const v = parseDraft(kind, s);
-            if (v === undefined) return; // not a number: keep the old value
+            if (v === undefined) {
+              // Not a number: the old value stays, and the reader is told why.
+              toast("error", tc.invalidNumber(label));
+              return;
+            }
             edit.commit(item, { fields: { [key]: v } }, { ...item, fields: { ...item.fields, [key]: v } });
           }}
         />
