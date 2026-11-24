@@ -1,4 +1,5 @@
 import type { Item, StatusCategory } from "../api/types";
+import { tai } from "../i18n-approval-inbox";
 import { tap } from "../i18n-approvals";
 import { tl } from "../i18n-links";
 import { ts } from "../i18n-subtasks";
@@ -18,18 +19,28 @@ const SLOT = "inline-flex h-5 items-center justify-center rounded text-[11px] le
 export function SignalCell({ item, withDue }: { item: Item; withDue: boolean }) {
   const a = item.approval;
   const p = a ? progress(a.approvals, a.min_approvals) : null;
+  // Past the decision deadline (ADR-0034): red, like ApprovalBadge in the drawer.
+  const overdue = Boolean(a?.overdue && a.due_on);
+  const due = a?.due_on ? (overdue ? tai.overdue(a.due_on) : tai.due(a.due_on)) : "";
   const sub = item.subtasks && item.subtasks.count > 0 ? item.subtasks : null;
   return (
     <span className="flex items-center gap-1">
       <span className="w-11 shrink-0">
         {a && p && (
           <span
-            title={`${tap.badge(p.done, p.min)} → ${a.to_status.name}`}
-            aria-label={tap.badge(p.done, p.min)}
+            title={`${tap.badge(p.done, p.min)} → ${a.to_status.name}${due ? ` · ${due}` : ""}`}
+            aria-label={due ? `${tap.badge(p.done, p.min)}, ${due}` : tap.badge(p.done, p.min)}
             data-testid="approval-badge"
-            className={cn(SLOT, "w-full gap-0.5 bg-amber-50 text-amber-800 ring-1 ring-amber-200 dark:bg-amber-950 dark:text-amber-200 dark:ring-amber-900")}
+            data-overdue={overdue || undefined}
+            className={cn(
+              SLOT,
+              "w-full gap-0.5 ring-1",
+              overdue
+                ? "bg-red-50 text-red-700 ring-red-200 dark:bg-red-950 dark:text-red-300 dark:ring-red-900"
+                : "bg-amber-50 text-amber-800 ring-amber-200 dark:bg-amber-950 dark:text-amber-200 dark:ring-amber-900",
+            )}
           >
-            <span aria-hidden>⏳</span>
+            <span aria-hidden>{overdue ? "⏰" : "⏳"}</span>
             {p.done}/{p.min}
           </span>
         )}
