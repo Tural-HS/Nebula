@@ -164,42 +164,51 @@ func (s *Store) CreateAttachment(ctx context.Context, p CreateAttachmentParams) 
 				return err
 			}
 		}
-		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended('nebula.attachments:' || $1::text, 0))`,
-			p.WorkspaceID); err != nil {
-			return err
-		}
-		var used, onItem int64
-		if err := tx.QueryRow(ctx, `SELECT COALESCE(sum(size_bytes), 0),
-				count(*) FILTER (WHERE item_id = $2) FROM attachments WHERE workspace_id = $1`,
-			p.WorkspaceID, item.id).Scan(&used, &onItem); err != nil {
-			return err
-		}
-		if q := p.Limits.WorkspaceQuotaBytes; q > 0 && used+p.Size > q {
-			return &QuotaError{Message: fmt.Sprintf("the workspace storage quota (%d MiB) is full", q>>20)}
-		}
-		if m := p.Limits.MaxPerItem; m > 0 && onItem >= int64(m) {
-			return &QuotaError{Message: fmt.Sprintf("an item can have at most %d attachments", m)}
-		}
-		id := newID()
-		if _, err := tx.Exec(ctx, `INSERT INTO attachments
-			(id, workspace_id, item_id, comment_id, uploader_id, filename, content_type, size_bytes, sha256, storage_key)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-			id, p.WorkspaceID, item.id, p.CommentID, p.ActorID, name, p.ContentType, p.Size, p.SHA256, p.StorageKey); err != nil {
-			return err
-		}
-		// The blob now belongs to a row: it must not be purged.
-		if _, err := tx.Exec(ctx, `DELETE FROM attachment_blob_purges WHERE storage_key = $1`, p.StorageKey); err != nil {
-			return err
-		}
-		if err := appendEvent(ctx, tx, p.WorkspaceID, p.ActorID, "item", item.id, "attachment.added", map[string]any{
-			"attachment_id": id, "filename": name, "content_type": p.ContentType, "size": p.Size, "comment_id": p.CommentID,
-		}); err != nil {
+		id, err := insertAttachmentTx(ctx, tx, p, item.id, name)
+		if err != nil {
 			return err
 		}
 		a, err = scanAttachment(tx.QueryRow(ctx, attachmentSelect+` WHERE a.id = $1`, id))
 		return err
 	})
 	return a, err
+}
+
+// insertAttachmentTx records a stored blob on an item inside the caller's
+// transaction: limits under a per-workspace lock (parallel uploads cannot
+// overshoot), the row, the purge-queue release and attachment.added. Shared
+// by single uploads and form submissions (ADR-0032).
+func insertAttachmentTx(ctx context.Context, tx pgx.Tx, p CreateAttachmentParams, itemID uuid.UUID, name string) (uuid.UUID, error) {
+	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended('nebula.attachments:' || $1::text, 0))`,
+		p.WorkspaceID); err != nil {
+		return uuid.Nil, err
+	}
+	var used, onItem int64
+	if err := tx.QueryRow(ctx, `SELECT COALESCE(sum(size_bytes), 0),
+			count(*) FILTER (WHERE item_id = $2) FROM attachments WHERE workspace_id = $1`,
+		p.WorkspaceID, itemID).Scan(&used, &onItem); err != nil {
+		return uuid.Nil, err
+	}
+	if q := p.Limits.WorkspaceQuotaBytes; q > 0 && used+p.Size > q {
+		return uuid.Nil, &QuotaError{Message: fmt.Sprintf("the workspace storage quota (%d MiB) is full", q>>20)}
+	}
+	if m := p.Limits.MaxPerItem; m > 0 && onItem >= int64(m) {
+		return uuid.Nil, &QuotaError{Message: fmt.Sprintf("an item can have at most %d attachments", m)}
+	}
+	id := newID()
+	if _, err := tx.Exec(ctx, `INSERT INTO attachments
+		(id, workspace_id, item_id, comment_id, uploader_id, filename, content_type, size_bytes, sha256, storage_key)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+		id, p.WorkspaceID, itemID, p.CommentID, p.ActorID, name, p.ContentType, p.Size, p.SHA256, p.StorageKey); err != nil {
+		return uuid.Nil, err
+	}
+	// The blob now belongs to a row: it must not be purged.
+	if _, err := tx.Exec(ctx, `DELETE FROM attachment_blob_purges WHERE storage_key = $1`, p.StorageKey); err != nil {
+		return uuid.Nil, err
+	}
+	return id, appendEvent(ctx, tx, p.WorkspaceID, p.ActorID, "item", itemID, "attachment.added", map[string]any{
+		"attachment_id": id, "filename": name, "content_type": p.ContentType, "size": p.Size, "comment_id": p.CommentID,
+	})
 }
 
 // ListAttachments returns an item's files, oldest first.

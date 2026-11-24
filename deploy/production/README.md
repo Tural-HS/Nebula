@@ -175,6 +175,8 @@ Realm şablonunda (`keycloak/realm/nebula-realm.json`) **heç bir istifadəçi y
 
 Brute-force qoruması açıqdır (5 səhv → artan gözləmə, maks. 15 dəq), access token 5 dəq, SSO idle 30 dəq, maks. 10 saat, refresh token rotasiyası.
 
+> **Özünüqeydiyyat bağlı qalmalıdır** (`registrationAllowed: false`, şablonda belədir). Açılsa, auditoriyası "hesabı olan hər kəs" olan qəbul formaları (ADR-0032) praktiki olaraq ictimai olur: istənilən şəxs hesab yaradıb tələb göndərə bilər.
+
 ## 4. Backup-lar
 
 | Nə | Necə | Nə vaxt |
@@ -359,6 +361,7 @@ Sxemi də geri qaytarmaq lazımdırsa `--migrate-down-to N` Down hissələrini *
 | 00020 working calendar | var | iş təqvimi (həftə sonu günləri, bayramlar, köçürmələr) silinir; iş günü seçimi (`work_day`) və ya köçürmə (`shift`) istifadə edən təkrarlanma varsa Down xəta ilə dayanır — əvvəlcə onları adi tarixə dəyişin və ya silin. **Kilidlər:** Up/Down qısa `ACCESS EXCLUSIVE` (`workspaces`, `recurrences`, `recurrence_runs`; `lock_timeout` 5 s), cədvəl yenidən yazılmır |
 | 00021 links and watchers | var | bütün tapşırıq əlaqələri (`item_links`), izləyicilər (`item_watchers`) və izləyici bildirişləri silinir; əlaqə hadisələri `events`-də qalır. **Kilidlər:** `notifications`-də qısa `ACCESS EXCLUSIVE` (kind CHECK yenidən yaradılır) |
 | 00023 formula fields | var | formula sahəsi varsa Down xəta ilə dayanır (köhnə image `formula` tipini tanımır). Əvvəlcə təriflərini və dəyərlərini silin (ifadələr `events`-də `field.created`/`field.updated` kimi qalır, dəyərlər girişlərdən yenidən hesablanır): `DELETE FROM item_type_fields WHERE field_id IN (SELECT id FROM field_definitions WHERE field_type = 'formula'); UPDATE items i SET fields = i.fields - ARRAY(SELECT key FROM field_definitions f WHERE f.workspace_id = i.workspace_id AND f.field_type = 'formula') WHERE i.fields ?\| ARRAY(SELECT key FROM field_definitions f WHERE f.workspace_id = i.workspace_id AND f.field_type = 'formula'); DELETE FROM field_definitions WHERE field_type = 'formula';` Saxlanılan görünüşlərdəki `field.<key>` / `-field.<key>` sıralamasını köhnə image tanımır (UI onu nömrə sırası kimi açır, görünüşü yadda saxlamaq isə 422 verir) — `number`/`due`-ya dəyişin. **Kilidlər:** Up/Down `field_definitions`-də qısa `ACCESS EXCLUSIVE` (CHECK), `items`-də millisaniyəlik trigger əvəzlənməsi (`lock_timeout` 5 s), cədvəl yenidən yazılmır |
+| 00025 intake forms | var | ⚠️ bütün qəbul formaları və göndərişlər (`forms`, `form_submissions`: tələb edənlərin "Tələblərim" tarixçəsi və komandanın mesajları) silinir; formadan yaradılmış tapşırıqlar, onların faylları və hadisələr qalır. `events.source` CHECK-ində `form` qalır (audit yenidən yazılmır). **Kilidlər:** `items`-ə millisaniyəlik `SHARE ROW EXCLUSIVE` (trigger), `events`-ə qısa `ACCESS EXCLUSIVE` (CHECK dəyişikliyi), `VALIDATE` yazmaları bloklamır; `lock_timeout` 5 s |
 
 **Audit sübut ixracı (ADR-0029) miqrasiyasızdır** (00022 nömrəsi istifadə edilmədi): rollback yalnız image-dir. Köhnə image `NEBULA_EVIDENCE_SIGNING_KEY_FILE`-ı nəzərə almır, `evidence.exported` hadisələri audit log-da qalır; artıq verilmiş paketlər bu və sonrakı release-lərin `nebula evidence verify` əmri ilə yoxlanmağa davam edir.
 

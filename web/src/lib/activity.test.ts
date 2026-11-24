@@ -17,6 +17,15 @@ function act(action: string, data: Record<string, unknown> = {}, extra: Partial<
 }
 
 suite("describe", () => {
+  it("renders form submissions and messages to the requester (ADR-0032)", () => {
+    expect(describe(act("item.created", { form_id: "f1", key: "OPS-1" }), lookup)).toEqual([{ text: "tapşırığı formadan yaratdı" }]);
+    expect(describe(act("item.created", { key: "OPS-1" }), lookup)[0]?.text).not.toBe("tapşırığı formadan yaratdı");
+    expect(describe(act("request.message_set", { message: { from: null, to: "Ödənildi" } }), lookup)).toEqual([
+      { text: "tələb edənə mesaj yazdı" }, { text: "“Ödənildi”" },
+    ]);
+    expect(describe(act("request.message_set", { message: { from: "x", to: null } }), lookup)).toEqual([{ text: "tələb edənə mesajı sildi" }]);
+  });
+
   it("renders the approval trail (ADR-0026)", () => {
     expect(describe(act("approval.requested", { from_status_id: "s1", to_status_id: "s2", comment: "Qəbz var" }), lookup)).toEqual([
       { text: "təsdiq istədi", from: "To Do", to: "Done" },

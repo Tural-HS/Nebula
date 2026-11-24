@@ -21,6 +21,10 @@ const ImportPage = named(() => import("./pages/ImportPage"), "ImportPage");
 const RecurringPage = named(() => import("./pages/RecurringPage"), "RecurringPage");
 const ProjectSettingsPage = named(() => import("./pages/ProjectSettingsPage"), "ProjectSettingsPage");
 const InvitePage = named(() => import("./pages/InvitePage"), "InvitePage");
+const FormPage = named(() => import("./pages/FormPage"), "FormPage");
+const FormsPage = named(() => import("./pages/FormsPage"), "FormsPage");
+const MyRequestsPage = named(() => import("./pages/MyRequestsPage"), "MyRequestsPage");
+const MyRequestPage = named(() => import("./pages/MyRequestsPage"), "MyRequestPage");
 const AuditLogPage = named(() => import("./pages/settings/AuditLogPage"), "AuditLogPage");
 const AutomationsPage = named(() => import("./pages/settings/AutomationsPage"), "AutomationsPage");
 const FieldsPage = named(() => import("./pages/settings/FieldsPage"), "FieldsPage");
@@ -80,6 +84,10 @@ export function App() {
             <Route path="/w/:ws/p/:project/recurring" element={<RecurringPage />} />
             <Route path="/w/:ws/p/:project/settings" element={<ProjectSettingsPage />} />
             <Route path="/invite/:token" element={<InvitePage />} />
+            <Route path="/f/:ref" element={<FormPage />} />
+            <Route path="/requests" element={<MyRequestsPage />} />
+            <Route path="/requests/:id" element={<MyRequestPage />} />
+            <Route path="/w/:ws/p/:project/forms" element={<FormsPage />} />
             <Route path="/w/:ws/settings" element={<MembersPage />} />
             <Route path="/w/:ws/settings/general" element={<GeneralPage />} />
             <Route path="/w/:ws/settings/calendar" element={<WorkCalendarPage />} />
