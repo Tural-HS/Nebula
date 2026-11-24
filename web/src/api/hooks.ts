@@ -34,6 +34,15 @@ export const useMembers = (ws: string) =>
     staleTime: 60_000,
   });
 
+/** Sets or clears the view a project opens with (admin+). */
+export function useSetDefaultView(ws: string, project: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string | null) => api<Project>("PATCH", path`/workspaces/${ws}/projects/${project}`, { default_view_id: id }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: keys.projects(ws) }),
+  });
+}
+
 export const useProjects = (ws: string) =>
   useQuery({
     queryKey: keys.projects(ws),

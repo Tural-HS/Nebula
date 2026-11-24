@@ -40,6 +40,8 @@ export interface Project {
   updated_at: string;
   /** "private": only project members and workspace admins see it (ADR-0013). */
   visibility: "workspace" | "private";
+  /** The shared view the project opens with; null: all items. */
+  default_view_id: string | null;
 }
 
 export interface ProjectMember {

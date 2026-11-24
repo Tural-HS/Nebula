@@ -24,6 +24,8 @@ type Project struct {
 	// Visibility is "workspace" (every member) or "private" (project members
 	// and workspace admins only), ADR-0013.
 	Visibility string `json:"visibility"`
+	// DefaultViewID is the shared view the project opens with (nil: all items).
+	DefaultViewID *uuid.UUID `json:"default_view_id"`
 }
 
 // Viewer is who is asking: project reads always go through it, so a caller
@@ -35,7 +37,7 @@ type Viewer struct {
 
 var projectKeyRe = regexp.MustCompile(`^[A-Z][A-Z0-9]{1,9}$`)
 
-const projectSelect = `SELECT id, key, name, description, created_at, updated_at, visibility FROM projects`
+const projectSelect = `SELECT id, key, name, description, created_at, updated_at, visibility, default_view_id FROM projects`
 
 // visibleToViewer is the access predicate for project rows (table projects):
 // $2 = viewer user id, $3 = viewer is admin+. Keep in sync with canSeeProject.
@@ -238,6 +240,8 @@ type UpdateProjectParams struct {
 	Name        opt.Field[string]
 	Description opt.Field[string]
 	Visibility  opt.Field[string]
+	// DefaultView: a shared view of this project, or null for "all items".
+	DefaultView opt.Field[uuid.UUID]
 }
 
 // UpdateProject changes name, description or visibility (admin+, checked by
@@ -266,8 +270,9 @@ func (s *Store) UpdateProject(ctx context.Context, wsID, projectID, actorID uuid
 	return s.inTx(ctx, func(tx pgx.Tx) error {
 		var curName, curVis string
 		var curDesc *string
-		if err := tx.QueryRow(ctx, `SELECT name, description, visibility FROM projects WHERE workspace_id = $1 AND id = $2 FOR UPDATE`,
-			wsID, projectID).Scan(&curName, &curDesc, &curVis); errors.Is(err, pgx.ErrNoRows) {
+		var curDefault *uuid.UUID
+		if err := tx.QueryRow(ctx, `SELECT name, description, visibility, default_view_id FROM projects WHERE workspace_id = $1 AND id = $2 FOR UPDATE`,
+			wsID, projectID).Scan(&curName, &curDesc, &curVis, &curDefault); errors.Is(err, pgx.ErrNoRows) {
 			return ErrNotFound
 		} else if err != nil {
 			return err
@@ -283,15 +288,41 @@ func (s *Store) UpdateProject(ctx context.Context, wsID, projectID, actorID uuid
 		if p.Visibility.Set && p.Visibility.Value != curVis {
 			changes["visibility"], newVis = diff(curVis, p.Visibility.Value), p.Visibility.Value
 		}
+		newDefault := curDefault
+		if p.DefaultView.Set {
+			newDefault = p.DefaultView.Ptr()
+			if newDefault != nil {
+				if err := checkDefaultView(ctx, tx, wsID, projectID, *newDefault); err != nil {
+					return err
+				}
+			}
+			if !equalPtr(curDefault, newDefault) {
+				changes["default_view_id"] = diff(curDefault, newDefault)
+			}
+		}
 		if len(changes) == 0 {
 			return nil
 		}
-		if _, err := tx.Exec(ctx, `UPDATE projects SET name = $1, description = $2, visibility = $3 WHERE id = $4`,
-			newName, newDesc, newVis, projectID); err != nil {
+		if _, err := tx.Exec(ctx, `UPDATE projects SET name = $1, description = $2, visibility = $3, default_view_id = $4 WHERE id = $5`,
+			newName, newDesc, newVis, newDefault, projectID); err != nil {
 			return err
 		}
 		return appendEvent(ctx, tx, wsID, actorID, "project", projectID, "project.updated", map[string]any{"changes": changes})
 	})
+}
+
+// checkDefaultView: a project's default view must be a shared view of that
+// project (a personal view is someone else's and invisible to the rest).
+func checkDefaultView(ctx context.Context, tx pgx.Tx, wsID, projectID, viewID uuid.UUID) error {
+	var ok bool
+	if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM saved_views
+		WHERE workspace_id = $1 AND project_id = $2 AND id = $3 AND shared)`, wsID, projectID, viewID).Scan(&ok); err != nil {
+		return err
+	}
+	if !ok {
+		return invalid("default_view_id", "must be a shared view of this project")
+	}
+	return nil
 }
 
 // ProjectMember is a user explicitly given access to a (private) project.

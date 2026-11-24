@@ -54,4 +54,7 @@ export const tv = {
     created_at: "Создано",
     updated_at: "Обновлено",
   },
+  makeDefault: "Сделать видом проекта по умолчанию",
+  unsetDefault: "Больше не по умолчанию",
+  defaultMark: "по умолчанию",
 } as const satisfies Messages["views"];

@@ -69,7 +69,7 @@ const errText = (err: unknown) => (err instanceof ApiError ? err.message : t.err
 // share and delete where allowed (the server decides, can_edit mirrors it).
 // ---------------------------------------------------------------------------
 
-export function ViewSwitcher({ ws, project, views, active, dirty, state, isAdmin, onSelect }: {
+export function ViewSwitcher({ ws, project, views, active, dirty, state, isAdmin, onSelect, defaultViewId = null, onSetDefault }: {
   ws: string;
   project: string;
   views: SavedView[];
@@ -78,6 +78,9 @@ export function ViewSwitcher({ ws, project, views, active, dirty, state, isAdmin
   state: PageState;
   isAdmin: boolean;
   onSelect: (v: SavedView | null) => void;
+  /** The project's default view (it opens with it) and, for admins, how to change it. */
+  defaultViewId?: string | null;
+  onSetDefault?: (id: string | null) => Promise<unknown>;
 }) {
   const toast = useToast();
   const m = useViewMutations(ws, project);
@@ -126,7 +129,7 @@ export function ViewSwitcher({ ws, project, views, active, dirty, state, isAdmin
         )}
         {common.length > 0 && (
           <optgroup label={tv.shared}>
-            {common.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+            {common.map((v) => <option key={v.id} value={v.id}>{v.id === defaultViewId ? `${v.name} · ${tv.defaultMark}` : v.name}</option>)}
           </optgroup>
         )}
       </Select>
@@ -166,6 +169,15 @@ export function ViewSwitcher({ ws, project, views, active, dirty, state, isAdmin
                 onClick={() => void run(m.update.mutateAsync({ id: active.id, body: { shared: !active.shared } }), t.saved)}
               >
                 {active.shared ? tv.unshare : tv.share}
+              </Button>
+            )}
+            {active.shared && isAdmin && onSetDefault && (
+              <Button
+                variant="ghost"
+                className="justify-start"
+                onClick={() => void run(onSetDefault(active.id === defaultViewId ? null : active.id), t.saved)}
+              >
+                {active.id === defaultViewId ? tv.unsetDefault : tv.makeDefault}
               </Button>
             )}
             <Button

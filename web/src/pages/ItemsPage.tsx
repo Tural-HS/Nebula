@@ -1,9 +1,9 @@
-import { lazy, Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 
 import { MAX_BULK, useOptimisticUpdate } from "../api/bulk";
 import { ApiError } from "../api/client";
-import { useAssignable, useFields, useItems, useItemSums, useItemTypes, useMembers, useProjects, useQueueCounts, useWorkspace, type DueFilter } from "../api/hooks";
+import { useAssignable, useFields, useItems, useItemSums, useItemTypes, useMembers, useProjects, useQueueCounts, useSetDefaultView, useWorkspace, type DueFilter } from "../api/hooks";
 import { roleAtLeast, type Item, type SavedView, type Status } from "../api/types";
 import { useViews } from "../api/views";
 import { Layout } from "../components/Layout";
@@ -81,7 +81,9 @@ export function ItemsPage() {
   const canEdit = roleAtLeast(workspace.data?.role, "member");
   const isAdmin = roleAtLeast(workspace.data?.role, "admin");
   const canImport = isAdmin;
-  const projectName = projects.data?.find((p) => p.key === project)?.name ?? project;
+  const projectData = projects.data?.find((p) => p.key === project);
+  const projectName = projectData?.name ?? project;
+  const setDefaultView = useSetDefaultView(ws, project);
 
   const fields = useMemo(() => new Map((fieldDefs.data ?? []).map((f) => [f.key, f])), [fieldDefs.data]);
   const columns = useMemo(() => visibleColumns(state.columns, fields), [state.columns, fields]);
@@ -143,6 +145,24 @@ export function ItemsPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run when the view list or the selected view changes
   }, [savedId, views.data]);
+
+  // Opening the project from a bare link applies its default view once
+  // (ADR-0014 addendum); choosing "all items" afterwards is respected.
+  const defaultTried = useRef<string | null>(null); // the project it was tried for
+  useEffect(() => {
+    if (defaultTried.current === project || !projects.data || !views.data) return;
+    defaultTried.current = project;
+    if (savedId || hasState(params)) return;
+    const v = views.data.find((x) => x.id === projectData?.default_view_id);
+    if (v) {
+      setParams((prev) => {
+        const next = writeState(stateFromView(v), prev);
+        next.set("saved", v.id);
+        return next;
+      }, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per project, when it and its views have loaded
+  }, [project, projects.data, views.data]);
 
   const memberById = useMemo(() => new Map((members.data ?? []).map((m) => [m.user_id, m])), [members.data]);
   const all = useMemo(() => flattenPages(items.data?.pages ?? []), [items.data]);
@@ -219,7 +239,9 @@ export function ItemsPage() {
   ];
   const filterCount = activeFilterCount(state);
   const viewSwitcher = (
-    <ViewSwitcher ws={ws} project={project} views={views.data ?? []} active={active} dirty={dirty} state={state} isAdmin={isAdmin} onSelect={selectView} />
+    <ViewSwitcher ws={ws} project={project} views={views.data ?? []} active={active} dirty={dirty} state={state} isAdmin={isAdmin} onSelect={selectView}
+      defaultViewId={projectData?.default_view_id ?? null}
+      onSetDefault={isAdmin ? (id) => setDefaultView.mutateAsync(id) : undefined} />
   );
   const searchBox = (className: string) => (
     <Input

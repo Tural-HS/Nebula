@@ -51,4 +51,7 @@ export const tv = {
     created_at: "Oluşturuldu",
     updated_at: "Güncellendi",
   },
+  makeDefault: "Projenin varsayılan görünümü yap",
+  unsetDefault: "Varsayılan olmasın",
+  defaultMark: "varsayılan",
 } satisfies Messages["views"];

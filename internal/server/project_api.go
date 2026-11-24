@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 
 	"github.com/Tural-HS/Nebula/internal/opt"
 	"github.com/Tural-HS/Nebula/internal/store"
@@ -22,16 +23,17 @@ func (a *api) projectSettingsRoutes(r chi.Router) {
 
 func (a *api) updateProject(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Name        opt.Field[string] `json:"name"`
-		Description opt.Field[string] `json:"description"`
-		Visibility  opt.Field[string] `json:"visibility"`
+		Name        opt.Field[string]    `json:"name"`
+		Description opt.Field[string]    `json:"description"`
+		Visibility  opt.Field[string]    `json:"visibility"`
+		DefaultView opt.Field[uuid.UUID] `json:"default_view_id"`
 	}
 	if !a.decode(w, r, &body) {
 		return
 	}
 	p := projectFrom(r)
 	if err := a.store.UpdateProject(r.Context(), workspaceFrom(r).ID, p.ID, principal(r).UserID, store.UpdateProjectParams{
-		Name: body.Name, Description: body.Description, Visibility: body.Visibility,
+		Name: body.Name, Description: body.Description, Visibility: body.Visibility, DefaultView: body.DefaultView,
 	}); err != nil {
 		a.fail(w, r, err)
 		return

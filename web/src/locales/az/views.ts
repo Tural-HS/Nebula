@@ -49,4 +49,7 @@ export const tv = {
     created_at: "Yaradılıb",
     updated_at: "Yenilənib",
   },
+  makeDefault: "Layihənin standart görünüşü et",
+  unsetDefault: "Standart görünüş olmasın",
+  defaultMark: "standart",
 } as const;

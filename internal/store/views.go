@@ -240,6 +240,13 @@ func (s *Store) UpdateView(ctx context.Context, v ViewCaller, id uuid.UUID, in V
 			WHERE id = $5 RETURNING updated_at`, next.Name, next.Kind, next.Shared, next.Config, id).Scan(&next.UpdatedAt); err != nil {
 			return err
 		}
+		// A view made personal can no longer be the project's default.
+		if cur.Shared && !next.Shared {
+			if _, err := tx.Exec(ctx, `UPDATE projects SET default_view_id = NULL
+				WHERE workspace_id = $1 AND default_view_id = $2`, v.WorkspaceID, id); err != nil {
+				return err
+			}
+		}
 		next.CanEdit = v.canEdit(next)
 		view = next
 		if cur.Shared || next.Shared {

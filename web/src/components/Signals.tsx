@@ -16,16 +16,21 @@ import { DueChip } from "./ui";
 
 const SLOT = "inline-flex h-5 items-center justify-center rounded text-[11px] leading-none whitespace-nowrap tabular-nums";
 
-export function SignalCell({ item, withDue }: { item: Item; withDue: boolean }) {
+/**
+ * The row's signals. In the table they sit in fixed slots so columns line up;
+ * `inline` (phones, on the key line of the pinned title) drops empty slots.
+ */
+export function SignalCell({ item, withDue, inline = false }: { item: Item; withDue: boolean; inline?: boolean }) {
   const a = item.approval;
   const p = a ? progress(a.approvals, a.min_approvals) : null;
   // Past the decision deadline (ADR-0034): red, like ApprovalBadge in the drawer.
   const overdue = Boolean(a?.overdue && a.due_on);
   const due = a?.due_on ? (overdue ? tai.overdue(a.due_on) : tai.due(a.due_on)) : "";
   const sub = item.subtasks && item.subtasks.count > 0 ? item.subtasks : null;
+  const slot = (w: string, filled: boolean) => (inline ? (filled ? "shrink-0" : "hidden") : cn(w, "shrink-0"));
   return (
     <span className="flex items-center gap-1">
-      <span className="w-11 shrink-0">
+      <span className={slot("w-11", Boolean(a && p))}>
         {a && p && (
           <span
             title={`${tap.badge(p.done, p.min)} → ${a.to_status.name}${due ? ` · ${due}` : ""}`}
@@ -34,7 +39,7 @@ export function SignalCell({ item, withDue }: { item: Item; withDue: boolean }) 
             data-overdue={overdue || undefined}
             className={cn(
               SLOT,
-              "w-full gap-0.5 ring-1",
+              inline ? "gap-0.5 px-1 ring-1" : "w-full gap-0.5 ring-1",
               overdue
                 ? "bg-red-50 text-red-700 ring-red-200 dark:bg-red-950 dark:text-red-300 dark:ring-red-900"
                 : "bg-amber-50 text-amber-800 ring-amber-200 dark:bg-amber-950 dark:text-amber-200 dark:ring-amber-900",
@@ -45,26 +50,26 @@ export function SignalCell({ item, withDue }: { item: Item; withDue: boolean }) 
           </span>
         )}
       </span>
-      <span className="w-6 shrink-0">
+      <span className={slot("w-6", Boolean(item.blocked))}>
         {item.blocked && (
           <span
             title={tl.blockedTitle}
             aria-label={tl.blockedTitle}
             data-testid="blocked-badge"
-            className={cn(SLOT, "w-full bg-red-50 text-red-700 ring-1 ring-red-200 dark:bg-red-950 dark:text-red-300 dark:ring-red-900")}
+            className={cn(SLOT, inline ? "px-1" : "w-full", "bg-red-50 text-red-700 ring-1 ring-red-200 dark:bg-red-950 dark:text-red-300 dark:ring-red-900")}
           >
             <span aria-hidden>⛔</span>
           </span>
         )}
       </span>
-      <span className="w-10 shrink-0">
+      <span className={slot("w-10", sub !== null)}>
         {sub && (
           <span
             title={ts.badge(sub.done, sub.count)}
             aria-label={ts.badge(sub.done, sub.count)}
             className={cn(
               SLOT,
-              "w-full",
+              inline ? "px-0.5" : "w-full",
               sub.done === sub.count ? "text-emerald-700 dark:text-emerald-400" : "text-zinc-500 dark:text-zinc-400",
             )}
           >

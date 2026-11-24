@@ -128,7 +128,7 @@ func TestWorkspaceKindFinance(t *testing.T) {
 		t.Fatalf("projects: %v", k.projects)
 	}
 	overdue, awaiting := k.views["Gecikənlər"], k.views["Təsdiq gözləyir"]
-	if overdue == nil || awaiting == nil || len(k.views) != 2 || overdue["shared"] != true || awaiting["shared"] != true {
+	if overdue == nil || awaiting == nil || len(k.views) != 3 || k.views["Bütün tapşırıqlar"] == nil || overdue["shared"] != true || awaiting["shared"] != true {
 		t.Fatalf("views: %v", k.views)
 	}
 	if f := overdue["config"].(map[string]any)["filters"].(map[string]any); f["due"] != "overdue" {
@@ -202,7 +202,7 @@ func TestWorkspaceKindIT(t *testing.T) {
 		t.Fatalf("it has no approval policy: %v", k.policies)
 	}
 	mine, crit := k.views["My work"], k.views["Critical"]
-	if mine == nil || crit == nil {
+	if mine == nil || crit == nil || k.views["All items"] == nil {
 		t.Fatalf("views: %v", k.views)
 	}
 	if f := mine["config"].(map[string]any)["filters"].(map[string]any); f["assignee"] != "me" {
@@ -237,7 +237,7 @@ func TestWorkspaceKindHR(t *testing.T) {
 		titles = append(titles, f["title"].(string))
 	}
 	expectJoined(t, "forms", titles, "Məzuniyyət sorğusu,Yeni əməkdaş")
-	if k.views["Mənim işlərim"] == nil || k.views["Gecikənlər"] == nil {
+	if k.views["Mənim işlərim"] == nil || k.views["Gecikənlər"] == nil || k.views["Bütün tapşırıqlar"] == nil {
 		t.Fatalf("views: %v", k.views)
 	}
 	if len(k.policies) != 0 || len(k.calendar) != wantAzCalendar() {

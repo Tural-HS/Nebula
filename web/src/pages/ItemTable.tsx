@@ -106,6 +106,9 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
   const edit = plainRows ? undefined : inline;
   const { columns, keyInTitle } = useMemo(() => {
     const d = displayColumns(chosen, compact);
+    // Phones: the signals ride on the key line of the pinned title column, so
+    // they are never scrolled out of view; no separate column.
+    if (compact && d.keyInTitle) return d;
     const at = d.columns.indexOf("title");
     return { ...d, columns: [...d.columns.slice(0, at + 1), SIGNALS, ...d.columns.slice(at + 1)] };
   }, [chosen, compact]);
@@ -160,7 +163,10 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
         );
         return keyInTitle ? (
           <span className="flex min-w-0 flex-col leading-tight">
-            <span className="text-[11px] text-zinc-500 tabular-nums">{it.key}</span>
+            <span className="flex min-w-0 items-center gap-1.5 overflow-hidden text-[11px] text-zinc-500 tabular-nums">
+              <span className="shrink-0">{it.key}</span>
+              <SignalCell item={it} withDue inline /* the due column is off-screen on phones */ />
+            </span>
             {title}
           </span>
         ) : title;
@@ -190,7 +196,7 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
     const expr = isFormula(def) ? def?.options.formula?.expression : undefined;
     return (
       <span
-        className={cn("block truncate", numeric(col) && "text-right tabular-nums", expr !== undefined && "text-zinc-700 dark:text-zinc-300")}
+        className={cn("block min-w-0 flex-1 truncate", numeric(col) && "text-right tabular-nums", expr !== undefined && "text-zinc-700 dark:text-zinc-300")}
         title={expr !== undefined ? `${text}\n${tf.title(expr)}` : text}
         data-formula={expr !== undefined ? "" : undefined}
       >

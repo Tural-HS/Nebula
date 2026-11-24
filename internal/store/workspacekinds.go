@@ -73,6 +73,8 @@ type kindView struct {
 	name    loc
 	columns []string
 	sort    string
+	// isDefault: the project opens with this view (projects.default_view_id).
+	isDefault bool
 	// filters builds the view's filters from the created statuses and
 	// choice IDs (field key -> choice label index -> id).
 	filters func(statuses map[string]uuid.UUID, choices map[string][]string) ViewFilters
@@ -203,10 +205,17 @@ func installKind(ctx context.Context, tx pgx.Tx, t kindTarget, k kindSpec) error
 		if v.filters != nil {
 			cfg.Filters = v.filters(statuses, choices)
 		}
-		if _, err := createView(ctx, tx, caller, ViewInput{
+		view, err := createView(ctx, tx, caller, ViewInput{
 			Name: opt.Of(v.name.in(t.lang)), Kind: opt.Of(ViewTable), Shared: opt.Of(true), Config: opt.Of(cfg),
-		}); err != nil {
+		})
+		if err != nil {
 			return fmt.Errorf("kind %s: view %s: %w", k.key, v.name.in(TemplateEnglish), err)
+		}
+		if v.isDefault {
+			if _, err := tx.Exec(ctx, `UPDATE projects SET default_view_id = $1 WHERE workspace_id = $2 AND id = $3`,
+				view.ID, t.wsID, project.ID); err != nil {
+				return fmt.Errorf("kind %s: default view: %w", k.key, err)
+			}
 		}
 	}
 
@@ -265,6 +274,7 @@ var (
 	locTask       = loc{"Tapşırıq", "Task", "Görev", "Задача"}
 	locMyWork     = loc{"Mənim işlərim", "My work", "İşlerim", "Мои задачи"}
 	locOverdue    = loc{"Gecikənlər", "Overdue", "Gecikenler", "Просроченные"}
+	locAllItems   = loc{"Bütün tapşırıqlar", "All items", "Tüm görevler", "Все задачи"}
 	locNote       = loc{"Qeyd", "Note", "Not", "Комментарий"}
 	locNeededBy   = loc{"Nə vaxta lazımdır", "Needed by", "Ne zamana kadar", "Нужно к дате"}
 )
@@ -313,6 +323,12 @@ func kindFinance() kindSpec {
 		policyOn:   "paid",
 		azCalendar: true,
 		views: []kindView{
+			{
+				name:      locAllItems,
+				columns:   []string{"key", "title", "type", "status", "assignee", "due_date", "field.amount", "field.vat", "field.counterparty"},
+				sort:      SortDue,
+				isDefault: true,
+			},
 			{
 				name:    locOverdue,
 				columns: []string{"key", "title", "type", "status", "assignee", "due_date", "field.amount", "field.counterparty"},
@@ -384,6 +400,12 @@ func kindIT() kindSpec {
 		},
 		views: []kindView{
 			{
+				name:      locAllItems,
+				columns:   []string{"key", "title", "type", "status", "assignee", "due_date", "field.priority", "field.component"},
+				sort:      SortDue,
+				isDefault: true,
+			},
+			{
 				name:    locMyWork,
 				columns: []string{"key", "title", "type", "status", "due_date", "field.priority", "field.component"},
 				sort:    SortDue,
@@ -452,6 +474,12 @@ func kindHR() kindSpec {
 		},
 		azCalendar: true,
 		views: []kindView{
+			{
+				name:      locAllItems,
+				columns:   []string{"key", "title", "type", "status", "assignee", "due_date", "field.employee"},
+				sort:      SortDue,
+				isDefault: true,
+			},
 			{
 				name:    locMyWork,
 				columns: []string{"key", "title", "type", "status", "due_date", "field.employee", "field.start_date"},

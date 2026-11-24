@@ -25,6 +25,10 @@ test("a finance workspace is created with its project, form and approval policy"
 
   await page.getByRole("link", { name: /Maliyyə/ }).first().click();
   await expect(page).toHaveURL(new RegExp(`/w/${slug}/p/FIN`));
+  // The project opens with its default view: all items with the money columns.
+  await expect(page).toHaveURL(/saved=/);
+  await expect(page.getByLabel("Görünüş", { exact: true })).toHaveValue(/.+/);
+  await expect(page).toHaveURL(/cols=[^&]*field\.amount/); // the project is empty: no table to look at
 
   const formSlug = `${slug}-payment-request`;
   await page.goto(`/w/${slug}/p/FIN/forms`);
@@ -43,7 +47,7 @@ test("a finance workspace is created with its project, form and approval policy"
     workflows: { statuses: { id: string; name: string }[]; approval_policies: { status_id: string }[] }[];
   };
   await alice.dispose();
-  expect(views.views.map((v) => v.name).sort()).toEqual(["Gecikənlər", "Təsdiq gözləyir"]);
+  expect(views.views.map((v) => v.name).sort()).toEqual(["Bütün tapşırıqlar", "Gecikənlər", "Təsdiq gözləyir"]);
   expect(wfs.workflows).toHaveLength(1);
   const [wf] = wfs.workflows;
   expect(wf.statuses.map((s) => s.name)).toEqual(["Hazırlanır", "Yoxlamada", "Təsdiq gözləyir", "Ödənildi", "Ləğv edildi"]);

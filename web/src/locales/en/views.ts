@@ -52,4 +52,7 @@ export const tv = {
     created_at: "Created",
     updated_at: "Updated",
   },
+  makeDefault: "Make the project default",
+  unsetDefault: "Stop being the default",
+  defaultMark: "default",
 } satisfies Messages["views"];

@@ -44,3 +44,10 @@ yalnız URL-də idi, cədvəlin sütunları sabit idi, cəm yox idi. Bundan əla
   çünki bütün marşrutlar `loadProject`-dən keçir.
 - Cəm sorğusu filtrlənmiş bütün sətirləri skan edir (indeks yalnız filtrlərə kömək edir); çox böyük layihələrdə
   lazım olarsa, cəmlər üçün qısa müddətli keş əlavə oluna bilər.
+
+## Əlavə (2026-11-24): layihənin standart görünüşü
+
+| Qərar | Səbəb | Alternativ və niyə yox |
+|---|---|---|
+| `projects.default_view_id` (miqrasiya 00029): layihə linkdə siyahı vəziyyəti olmadan açılanda bu **ümumi** görünüş bir dəfə tətbiq olunur; sonra "Hamısı" seçmək hörmət edilir | Maliyyə layihəsi açılan kimi məbləğ sütunlarını göstərir (ADR-0033 şablonları "Bütün tapşırıqlar" görünüşünü standart edir) | Qlobal standart sütunları dəyişmək: bütün layihələrə təsir edir. Hər istifadəçi üçün yadda saxlamaq: yeni istifadəçi yenə boş siyahı görür |
+| Yalnız admin dəyişir (`PATCH /projects/{key} {default_view_id}`), yalnız həmin layihənin ümumi görünüşü ola bilər (422); görünüş silinəndə (FK `ON DELETE SET NULL`) və ya şəxsiyə çevriləndə standart təmizlənir; dəyişiklik `project.updated` hadisəsindədir | Şəxsi görünüş başqasınındır və digərlərinə görünmür | — |
