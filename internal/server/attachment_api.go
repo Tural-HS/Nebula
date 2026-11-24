@@ -59,7 +59,7 @@ func isTransfer(r *http.Request) bool {
 	p := r.URL.Path
 	switch r.Method {
 	case http.MethodPost:
-		return strings.HasSuffix(p, "/attachments")
+		return strings.HasSuffix(p, "/attachments") || isFormSubmission(r)
 	case http.MethodGet, http.MethodHead:
 		return strings.HasSuffix(p, "/content") && strings.Contains(p, "/attachments/")
 	}

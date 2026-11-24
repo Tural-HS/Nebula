@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { useParams } from "react-router";
+import { Link, useParams } from "react-router";
 
 import { api, path } from "../api/client";
 import { keys, useMembers, useProjectMembers, useProjects, useWorkspace } from "../api/hooks";
@@ -10,6 +10,7 @@ import { useToast } from "../components/toast-context";
 import { Avatar, Button, EmptyState, ErrorState, FieldError, Input, Label, Select, Spinner } from "../components/ui";
 import { t } from "../i18n";
 import { ta } from "../i18n-admin";
+import { tf } from "../i18n-forms";
 import { tp } from "../i18n-project";
 
 export function ProjectSettingsPage() {
@@ -89,6 +90,13 @@ function Settings({ ws, project }: { ws: string; project: Project }) {
         <Button type="submit" variant="primary" disabled={update.isPending}>{t.save}</Button>
       </form>
       {project.visibility === "private" && <Members ws={ws} project={project} />}
+      <section aria-labelledby="ps-forms" className="space-y-2 rounded-xl bg-white p-4 ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-800">
+        <h2 id="ps-forms" className="text-sm font-semibold">{tf.section}</h2>
+        <p className="text-xs text-zinc-500">{tf.sectionHint}</p>
+        <Link to={`/w/${encodeURIComponent(ws)}/p/${encodeURIComponent(project.key)}/forms`} className="inline-flex rounded-md px-3 py-1.5 text-sm font-medium ring-1 ring-zinc-300 hover:bg-zinc-50 pointer-coarse:min-h-11 dark:ring-zinc-700 dark:hover:bg-zinc-800">
+          {tf.manage}
+        </Link>
+      </section>
     </>
   );
 }

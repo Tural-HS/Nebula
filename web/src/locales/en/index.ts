@@ -5,6 +5,7 @@ import { tap as approvals } from "./approvals";
 import { ta as attach } from "./attach";
 import { tc as calendar } from "./calendar";
 import { t as core } from "./core";
+import { tf as forms } from "./forms";
 import { ti as importer } from "./import";
 import { ti as invite } from "./invite";
 import { tl as links } from "./links";
@@ -18,4 +19,4 @@ import { tt as templates } from "./templates";
 import { tv as views } from "./views";
 import { tw as workdays } from "./workdays";
 
-export const en: Messages = { admin, approvals, attach, calendar, core, importer, invite, links, mobile, notifications, project, recur, search, subtasks, templates, views, workdays };
+export const en: Messages = { admin, approvals, attach, calendar, core, forms, importer, invite, links, mobile, notifications, project, recur, search, subtasks, templates, views, workdays };

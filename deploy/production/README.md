@@ -172,6 +172,8 @@ Realm şablonunda (`keycloak/realm/nebula-realm.json`) **heç bir istifadəçi y
 
 Brute-force qoruması açıqdır (5 səhv → artan gözləmə, maks. 15 dəq), access token 5 dəq, SSO idle 30 dəq, maks. 10 saat, refresh token rotasiyası.
 
+> **Özünüqeydiyyat bağlı qalmalıdır** (`registrationAllowed: false`, şablonda belədir). Açılsa, auditoriyası "hesabı olan hər kəs" olan qəbul formaları (ADR-0032) praktiki olaraq ictimai olur: istənilən şəxs hesab yaradıb tələb göndərə bilər.
+
 ## 4. Backup-lar
 
 | Nə | Necə | Nə vaxt |
@@ -355,6 +357,7 @@ Sxemi də geri qaytarmaq lazımdırsa `--migrate-down-to N` Down hissələrini *
 | 00019 approvals | var | ⚠️ bütün təsdiq siyasətləri, sorğuları və qərarları (`approval_*`) və təsdiq bildirişləri silinir; təsdiq izi yalnız `events`-də (audit log) qalır. Gözləyən sorğusu olan tapşırıqlar kilidsiz qalır. **Kilidlər:** `notifications`-də qısa `ACCESS EXCLUSIVE` (kind CHECK yenidən yaradılır) |
 | 00020 working calendar | var | iş təqvimi (həftə sonu günləri, bayramlar, köçürmələr) silinir; iş günü seçimi (`work_day`) və ya köçürmə (`shift`) istifadə edən təkrarlanma varsa Down xəta ilə dayanır — əvvəlcə onları adi tarixə dəyişin və ya silin. **Kilidlər:** Up/Down qısa `ACCESS EXCLUSIVE` (`workspaces`, `recurrences`, `recurrence_runs`; `lock_timeout` 5 s), cədvəl yenidən yazılmır |
 | 00021 links and watchers | var | bütün tapşırıq əlaqələri (`item_links`), izləyicilər (`item_watchers`) və izləyici bildirişləri silinir; əlaqə hadisələri `events`-də qalır. **Kilidlər:** `notifications`-də qısa `ACCESS EXCLUSIVE` (kind CHECK yenidən yaradılır) |
+| 00025 intake forms | var | ⚠️ bütün qəbul formaları və göndərişlər (`forms`, `form_submissions`: tələb edənlərin "Tələblərim" tarixçəsi və komandanın mesajları) silinir; formadan yaradılmış tapşırıqlar, onların faylları və hadisələr qalır. `events.source` CHECK-ində `form` qalır (audit yenidən yazılmır). **Kilidlər:** `items`-ə millisaniyəlik `SHARE ROW EXCLUSIVE` (trigger), `events`-ə qısa `ACCESS EXCLUSIVE` (CHECK dəyişikliyi), `VALIDATE` yazmaları bloklamır; `lock_timeout` 5 s |
 
 **ADR-0018-dən əvvəlki release-ə rollback:** köhnə image `*_FILE` sirləri oxumur və `nebula healthcheck` bilmir, yeni `compose.yaml` ilə işləmir; `rollback.sh` bunu yoxlayır və `.env`-i qaytarıb dayanır. Belə halda: `git -C /opt/nebula checkout <köhnə tag> -- deploy/production`, `nebula.env`-i bərpa edin (ondan `NEBULA_DATABASE_URL` `nebula` rolu ilə), sonra `rollback.sh`. `nebula_app` rolu və onun hüquqları qala bilər (zərərsizdir).
 

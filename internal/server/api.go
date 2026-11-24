@@ -47,6 +47,7 @@ func (a *api) routes(r chi.Router) {
 	r.Get("/me", a.me)
 	a.invitationPublicRoutes(r)
 	a.notificationRoutes(r)
+	a.formPublicRoutes(r)
 	r.Get("/workspaces", a.listWorkspaces)
 	r.Post("/workspaces", a.createWorkspace)
 
@@ -88,6 +89,7 @@ func (a *api) routes(r chi.Router) {
 			a.viewRoutes(r)
 			a.bulkRoutes(r)
 			a.approvalRoutes(r)
+			a.formProjectRoutes(r)
 		})
 	})
 }

@@ -3,6 +3,7 @@ import { t } from "../i18n";
 import { tap } from "../i18n-approvals";
 import { activeLocale } from "../i18n/locale";
 import { ta } from "../i18n-attach";
+import { tf } from "../i18n-forms";
 import { tl } from "../i18n-links";
 import { ts } from "../i18n-subtasks";
 import { formatDate } from "./format";
@@ -39,7 +40,12 @@ const note = (v: unknown): Line[] => (typeof v === "string" && v.trim() ? [{ tex
 export function describe(a: Activity, lookup: Lookup): Line[] {
   switch (a.action) {
     case "item.created":
-      return [{ text: t.act.created }];
+      // A form submission (ADR-0032) carries the form's id.
+      return [{ text: typeof a.data.form_id === "string" ? tf.act.fromForm : t.act.created }];
+    case "request.message_set": {
+      const msg = (a.data.message as Change | undefined)?.to;
+      return typeof msg === "string" ? [{ text: tf.act.message }, ...note(msg)] : [{ text: tf.act.messageCleared }];
+    }
     case "item.deleted":
       return [{ text: t.act.deleted }];
     case "item.overdue":

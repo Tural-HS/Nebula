@@ -2,8 +2,10 @@ import type { ReactNode } from "react";
 import { Link } from "react-router";
 
 import { useAuth } from "../auth/context";
+import { useMyRequestsUnseen } from "../api/forms";
 import { useMe } from "../api/hooks";
 import { t } from "../i18n";
+import { tf } from "../i18n-forms";
 import { cn } from "../lib/cn";
 import { GlobalSearch } from "./GlobalSearch";
 import { LanguageMenu } from "./LanguageMenu";
@@ -18,6 +20,7 @@ export interface Crumb {
 export function Layout({ crumbs, actions, children }: { crumbs: Crumb[]; actions?: ReactNode; children: ReactNode }) {
   const { logout } = useAuth();
   const me = useMe();
+  const unseen = useMyRequestsUnseen().data ?? 0;
   return (
     <div className="flex h-full flex-col">
       {/* Phones (ADR-0019): no app name, avatar or upper crumbs, so the
@@ -46,6 +49,20 @@ export function Layout({ crumbs, actions, children }: { crumbs: Crumb[]; actions
         <div className="ml-auto flex shrink-0 items-center gap-2">
           {actions}
           <GlobalSearch />
+          {/* Requesters follow their intake-form submissions here (ADR-0032). */}
+          <Link
+            to="/requests"
+            aria-label={unseen > 0 ? `${tf.myRequests}: ${tf.unseen(unseen)}` : tf.myRequests}
+            className="relative inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-sm text-zinc-700 hover:bg-zinc-100 pointer-coarse:min-h-11 dark:text-zinc-300 dark:hover:bg-zinc-800"
+          >
+            <span aria-hidden>📨</span>
+            <span className="hidden md:inline">{tf.myRequests}</span>
+            {unseen > 0 && (
+              <span aria-hidden className="absolute -top-0.5 -right-0.5 min-w-4 rounded-full bg-brand-600 px-1 text-center text-[10px] leading-4 font-semibold text-white">
+                {unseen > 99 ? "99+" : unseen}
+              </span>
+            )}
+          </Link>
           <NotificationBell />
           <LanguageMenu className="max-sm:hidden" />
           {me.data && (

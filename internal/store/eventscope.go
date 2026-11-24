@@ -21,7 +21,8 @@ type EventScope struct {
 }
 
 // projectScoped are the entity types whose events belong to one project.
-var projectScoped = map[string]bool{"item": true, "recurrence": true, "project": true, "view": true}
+// Form events (ADR-0032) always carry project_id in their payload.
+var projectScoped = map[string]bool{"item": true, "recurrence": true, "project": true, "view": true, "form": true}
 
 // EventScopeOf resolves an event's project. A project_id in the payload wins
 // (deletion events carry it because the entity row is gone); otherwise the

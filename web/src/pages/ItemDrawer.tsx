@@ -11,6 +11,7 @@ import { Comments } from "../components/Comments";
 import { DescriptionField } from "../components/DescriptionField";
 import { FieldEditor } from "../components/FieldEditor";
 import { LinksSection } from "../components/Links";
+import { RequestPanel } from "../components/RequestPanel";
 import { ParentCrumb, SubtaskSection } from "../components/Subtasks";
 import { useToast } from "../components/toast-context";
 import { WatchControl } from "../components/Watchers";
@@ -298,6 +299,8 @@ function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose }: {
         {!item.parent && <SubtaskSection ws={ws} project={project} item={item} canEdit={canEdit} />}
 
         <LinksSection ws={ws} project={project} item={item} canEdit={canEdit} />
+
+        <RequestPanel ws={ws} project={project} n={item.number} canWrite={canEdit} />
 
         {boundFields.length > 0 && (
           <section>
