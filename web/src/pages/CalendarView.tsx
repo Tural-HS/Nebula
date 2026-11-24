@@ -6,6 +6,7 @@ import { useInfiniteQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState, type HTMLAttributes, type Ref } from "react";
 
 import { useOptimisticUpdate } from "../api/bulk";
+import { useWorkCalendar } from "../api/calendar";
 import { api, ApiError, path } from "../api/client";
 import { keys, useItems, type ItemFilters } from "../api/hooks";
 import type { Item, ItemPage, Member } from "../api/types";
@@ -13,10 +14,12 @@ import { useToast } from "../components/toast-context";
 import { Avatar, Button, Dialog, ErrorState, Spinner } from "../components/ui";
 import { t } from "../i18n";
 import { tc } from "../i18n-calendar";
+import { tw } from "../i18n-workdays";
 import { byDay, monthDays, monthGrid, monthOf, monthTitle, overdueOn, overflow, shiftMonth, weekday, type Month } from "../lib/calendar";
 import { flattenPages } from "../lib/board";
 import { cn } from "../lib/cn";
 import { formatDate } from "../lib/format";
+import { dayLookup, type DayInfo } from "../lib/workdays";
 
 // ---------------------------------------------------------------------------
 // Calendar (ADR-0023): the month's items by due date, Monday first, in the
@@ -82,6 +85,10 @@ export function CalendarView({ ws, project, filters, month, today, onMonth, memb
   const from = compact ? month + "-01" : grid.first;
   const to = compact ? (monthDays(month).at(-1) ?? grid.last) : grid.last;
   const range = useRangeItems(ws, project, filters, from, to);
+  // Weekends and holidays come from the workspace calendar (ADR-0027); until
+  // it loads (or if it fails) the default Saturday/Sunday weekend is shown.
+  const workCal = useWorkCalendar(ws, from, to);
+  const lookup = useMemo(() => dayLookup(workCal.data), [workCal.data]);
   // A due filter other than "none" leaves nothing undated to show.
   const showUndated = !filters.due || filters.due === "none";
   const undatedQ = useItems(ws, project, { ...filters, due: "none", sort: "number" }, showUndated);
@@ -161,6 +168,7 @@ export function CalendarView({ ws, project, filters, month, today, onMonth, memb
             <section key={d} aria-labelledby={`agenda-${d}`} className="border-b border-zinc-200 dark:border-zinc-800">
               <h3 id={`agenda-${d}`} className={cn("sticky top-0 z-[1] bg-zinc-50 px-3 py-1.5 text-xs font-medium text-zinc-600 dark:bg-zinc-950 dark:text-zinc-400", d === today && "text-brand-700 dark:text-brand-400")}>
                 {tc.weekdaysLong[weekday(d)]}, {formatDate(d)}{d === today ? ` · ${tc.today}` : ""}
+                <DayNote info={lookup.info(d)} />
               </h3>
               <ul>
                 {(dated.get(d) ?? []).map((it) => (
@@ -202,7 +210,14 @@ export function CalendarView({ ws, project, filters, month, today, onMonth, memb
           <div className="flex min-w-0 flex-1 flex-col overflow-auto">
             <div role="row" className="grid grid-cols-7 border-b border-zinc-200 text-xs font-medium text-zinc-500 dark:border-zinc-800">
               {tc.weekdays.map((w, i) => (
-                <span key={w} role="columnheader" title={tc.weekdaysLong[i]} className="px-2 py-1.5">{w}</span>
+                <span
+                  key={w}
+                  role="columnheader"
+                  title={tc.weekdaysLong[i]}
+                  className={cn("px-2 py-1.5", lookup.isWeekend((i + 1) % 7) && "text-zinc-400 dark:text-zinc-600")}
+                >
+                  {w}
+                </span>
               ))}
             </div>
             <div role="grid" aria-label={monthTitle(month)} data-testid="calendar-grid" className="grid flex-1 auto-rows-[minmax(7rem,1fr)] grid-cols-7">
@@ -212,6 +227,7 @@ export function CalendarView({ ws, project, filters, month, today, onMonth, memb
                   day={d}
                   inMonth={monthOf(d) === month}
                   today={d === today}
+                  info={lookup.info(d)}
                   items={dated.get(d) ?? []}
                   members={members}
                   canEdit={canEdit}
@@ -251,30 +267,56 @@ export function CalendarView({ ws, project, filters, month, today, onMonth, memb
 }
 
 
-function DayCell({ day, inMonth, today, items, members, canEdit, onOpen, onMore }: {
-  day: string; inMonth: boolean; today: boolean; items: Item[]; members: Map<string, Member>; canEdit: boolean;
+/** Accessible text for a non-working day or a transferred working day. */
+function dayNote(info: DayInfo): string | null {
+  if (info.kind === "holiday") return tw.holidayLabel(info.name ?? "");
+  if (info.kind === "workday") return tw.workdayLabel(info.name ?? "");
+  if (info.kind === "weekend") return tw.weekendLabel;
+  return null;
+}
+
+function DayNote({ info }: { info: DayInfo }) {
+  if (info.kind !== "holiday" && info.kind !== "workday") return null;
+  return (
+    <span className={cn("ml-1 font-normal", info.kind === "holiday" ? "text-amber-800 dark:text-amber-300" : "text-emerald-800 dark:text-emerald-300")}>
+      · {info.name}
+    </span>
+  );
+}
+
+function DayCell({ day, inMonth, today, info, items, members, canEdit, onOpen, onMore }: {
+  day: string; inMonth: boolean; today: boolean; info: DayInfo; items: Item[]; members: Map<string, Member>; canEdit: boolean;
   onOpen: (n: number) => void; onMore: () => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: "day:" + day, disabled: !canEdit });
   const { shown, more } = overflow(items, PER_DAY);
-  const label = `${tc.weekdaysLong[weekday(day)]}, ${formatDate(day)}`;
+  const note = dayNote(info);
+  const label = `${tc.weekdaysLong[weekday(day)]}, ${formatDate(day)}${note ? ` (${note})` : ""}`;
   return (
     <div
       ref={setNodeRef}
       role="gridcell"
       aria-label={tc.dayItems(label, items.length)}
       data-day={day}
+      data-nonworking={info.working ? undefined : (info.kind ?? undefined)}
+      title={info.name ?? undefined}
       className={cn(
         "flex min-w-0 flex-col gap-1 border-r border-b border-zinc-200 p-1 dark:border-zinc-800",
+        !info.working && "bg-zinc-100/60 dark:bg-zinc-900/60",
+        info.kind === "holiday" && "bg-amber-50/80 dark:bg-amber-950/30",
         !inMonth && "bg-zinc-50/70 text-zinc-400 dark:bg-zinc-900/40",
         isOver && "bg-brand-50 ring-2 ring-brand-500 ring-inset dark:bg-brand-950/40",
       )}
     >
-      <span
-        aria-hidden
-        className={cn("self-end px-1 text-xs tabular-nums", today && "rounded-full bg-brand-600 px-1.5 font-semibold text-white")}
-      >
-        {Number(day.slice(8))}
+      <span aria-hidden className="flex min-w-0 items-baseline gap-1">
+        {(info.kind === "holiday" || info.kind === "workday") && (
+          <span className={cn("min-w-0 flex-1 truncate text-[11px]", info.kind === "holiday" ? "text-amber-800 dark:text-amber-300" : "text-emerald-800 dark:text-emerald-300")}>
+            {info.name}
+          </span>
+        )}
+        <span className={cn("ml-auto px-1 text-xs tabular-nums", today && "rounded-full bg-brand-600 px-1.5 font-semibold text-white")}>
+          {Number(day.slice(8))}
+        </span>
       </span>
       {shown.map((it) => (
         <DraggableCard key={it.id} item={it} members={members} canEdit={canEdit} onOpen={onOpen} compact />

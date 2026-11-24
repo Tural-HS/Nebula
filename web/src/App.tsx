@@ -29,6 +29,7 @@ const ItemTypesPage = named(() => import("./pages/settings/ItemTypesPage"), "Ite
 const MembersPage = named(() => import("./pages/settings/MembersPage"), "MembersPage");
 const WebhooksPage = named(() => import("./pages/settings/WebhooksPage"), "WebhooksPage");
 const WorkflowsPage = named(() => import("./pages/settings/WorkflowsPage"), "WorkflowsPage");
+const WorkCalendarPage = named(() => import("./pages/settings/WorkCalendarPage"), "WorkCalendarPage");
 
 function makeQueryClient() {
   return new QueryClient({
@@ -81,6 +82,7 @@ export function App() {
             <Route path="/invite/:token" element={<InvitePage />} />
             <Route path="/w/:ws/settings" element={<MembersPage />} />
             <Route path="/w/:ws/settings/general" element={<GeneralPage />} />
+            <Route path="/w/:ws/settings/calendar" element={<WorkCalendarPage />} />
             <Route path="/w/:ws/settings/members" element={<MembersPage />} />
             <Route path="/w/:ws/settings/fields" element={<FieldsPage />} />
             <Route path="/w/:ws/settings/item-types" element={<ItemTypesPage />} />

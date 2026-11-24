@@ -80,12 +80,21 @@ func TestSearchBackfill(t *testing.T) {
 	f := newSearchFixture(t)
 	ctx := context.Background()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	if err := database.Migrate(ctx, f.owner, "down", logger); err != nil {
-		t.Fatal(err)
-	}
+	// Later migrations are undone first, one step at a time.
 	var version int
-	if err := f.owner.QueryRow(ctx, `SELECT max(version_id) FROM goose_db_version WHERE is_applied`).Scan(&version); err != nil || version >= 18 {
-		t.Fatalf("down did not undo 00018 (now %d): %v", version, err)
+	for range 10 {
+		if err := database.Migrate(ctx, f.owner, "down", logger); err != nil {
+			t.Fatal(err)
+		}
+		if err := f.owner.QueryRow(ctx, `SELECT max(version_id) FROM goose_db_version WHERE is_applied`).Scan(&version); err != nil {
+			t.Fatal(err)
+		}
+		if version < 18 {
+			break
+		}
+	}
+	if version >= 18 {
+		t.Fatalf("down did not undo 00018 (now %d)", version)
 	}
 	for i, title := range []string{"Ödəniş gecikir", "Silinmiş ödəniş", "Başqa iş"} {
 		it, err := f.st.CreateItem(ctx, store.CreateItemParams{WorkspaceID: f.wsID, ProjectID: f.project, ActorID: f.userID, Title: title})

@@ -7,10 +7,12 @@ import { Layout } from "../../components/Layout";
 import { ErrorState, Spinner } from "../../components/ui";
 import { t } from "../../i18n";
 import { ta } from "../../i18n-admin";
+import { tw } from "../../i18n-workdays";
 import { cn } from "../../lib/cn";
 
 const sections = [
   ["general", ta.nav.general],
+  ["calendar", tw.nav],
   ["members", ta.nav.members],
   ["fields", ta.nav.fields],
   ["item-types", ta.nav.itemTypes],

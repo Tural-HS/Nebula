@@ -5,13 +5,18 @@ import { keys } from "./hooks";
 import type { FieldValue } from "./types";
 
 export type Freq = "daily" | "weekly" | "monthly" | "yearly";
+/** What a plain date does when it lands on a non-working day (ADR-0027). */
+export type Shift = "none" | "previous" | "next";
 
 export interface ScheduleInput {
   freq: Freq;
   every: number;
   weekdays: number[]; // 0 = Sunday … 6 = Saturday
-  month_day: number | null; // 1..31, -1 = last day
+  month_day: number | null; // 1..31, -1 = last day; null with work_day
+  /** N-th working day of the month 1..23, -1 = last working day (ADR-0027). */
+  work_day?: number | null;
   month: number | null; // 1..12
+  shift?: Shift; // default "none"; not with work_day
   start_date: string;
   end_date: string | null;
 }

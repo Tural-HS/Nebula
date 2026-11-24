@@ -1,7 +1,7 @@
 import { useMemo, useState, type SyntheticEvent } from "react";
 import { useParams } from "react-router";
 
-import { useRecurrenceApi, useRecurrences, useSchedulePreview, type Freq, type Recurrence, type RecurrenceInput, type ScheduleInput } from "../api/recurrences";
+import { useRecurrenceApi, useRecurrences, useSchedulePreview, type Freq, type Recurrence, type RecurrenceInput, type ScheduleInput, type Shift } from "../api/recurrences";
 import { useAssignable, useFields, useItemTypes, useMembers, useProjects, useWorkspace } from "../api/hooks";
 import { roleAtLeast, type FieldValue, type Member } from "../api/types";
 import { FieldEditor } from "../components/FieldEditor";
@@ -10,6 +10,7 @@ import { useToast } from "../components/toast-context";
 import { Avatar, Button, Dialog, EmptyState, ErrorState, FieldError, Input, Label, Select, Spinner } from "../components/ui";
 import { t } from "../i18n";
 import { tr } from "../i18n-recur";
+import { tw } from "../i18n-workdays";
 import { cn } from "../lib/cn";
 import { formatDate } from "../lib/format";
 import { describeSchedule, renderTitle, WEEKDAYS } from "../lib/recurrence";
@@ -147,6 +148,9 @@ function RuleForm({ ws, project, rule, members, onDone }: { ws: string; project:
   const [every, setEvery] = useState(String(rule?.every ?? 1));
   const [weekdays, setWeekdays] = useState<number[]>(rule?.weekdays.length ? rule.weekdays : [1]);
   const [monthDay, setMonthDay] = useState(String(rule?.month_day ?? 1));
+  const [dayMode, setDayMode] = useState<"date" | "workday">(rule?.work_day != null ? "workday" : "date");
+  const [workDay, setWorkDay] = useState(String(rule?.work_day ?? -1));
+  const [shift, setShift] = useState<Shift>(rule?.shift ?? "none");
   const [month, setMonth] = useState(String(rule?.month ?? 1));
   const [start, setStart] = useState(rule?.start_date ?? todayISO());
   const [end, setEnd] = useState(rule?.end_date ?? "");
@@ -157,11 +161,14 @@ function RuleForm({ ws, project, rule, members, onDone }: { ws: string; project:
   const defs = new Map((fields.data ?? []).map((f) => [f.key, f]));
   const required = (type?.fields ?? []).filter((f) => f.required);
 
+  const byWorkDay = (freq === "monthly" || freq === "yearly") && dayMode === "workday";
   const schedule: ScheduleInput = {
     freq,
     every: Math.max(1, Number(every) || 1),
     weekdays: freq === "weekly" ? weekdays : [],
-    month_day: freq === "monthly" || freq === "yearly" ? Number(monthDay) : null,
+    month_day: (freq === "monthly" || freq === "yearly") && !byWorkDay ? Number(monthDay) : null,
+    work_day: byWorkDay ? Number(workDay) : null,
+    shift: byWorkDay ? "none" : shift,
     month: freq === "yearly" ? Number(month) : null,
     start_date: start,
     end_date: end || null,
@@ -252,7 +259,7 @@ function RuleForm({ ws, project, rule, members, onDone }: { ws: string; project:
           </div>
         )}
         {(freq === "monthly" || freq === "yearly") && (
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {freq === "yearly" && (
               <div>
                 <Label htmlFor="rec-month">{tr.month}</Label>
@@ -262,14 +269,40 @@ function RuleForm({ ws, project, rule, members, onDone }: { ws: string; project:
               </div>
             )}
             <div>
-              <Label htmlFor="rec-day">{tr.monthDay}</Label>
-              <Select id="rec-day" value={monthDay} onChange={(e) => { setMonthDay(e.target.value); }}>
-                {Array.from({ length: 31 }, (_, i) => <option key={i + 1} value={String(i + 1)}>{i + 1}</option>)}
-                <option value="-1">{tr.lastDay}</option>
+              <Label htmlFor="rec-day-mode">{tw.dayMode}</Label>
+              <Select id="rec-day-mode" value={dayMode} onChange={(e) => { setDayMode(e.target.value === "workday" ? "workday" : "date"); }}>
+                <option value="date">{tw.dayModes.date}</option>
+                <option value="workday">{tw.dayModes.workday}</option>
               </Select>
             </div>
+            {byWorkDay ? (
+              <div>
+                <Label htmlFor="rec-work-day">{tw.workDay}</Label>
+                <Select id="rec-work-day" value={workDay} onChange={(e) => { setWorkDay(e.target.value); }}>
+                  <option value="-1">{tw.lastWorkDay}</option>
+                  {Array.from({ length: 23 }, (_, i) => <option key={i + 1} value={String(i + 1)}>{tw.workDayOption(i + 1)}</option>)}
+                </Select>
+              </div>
+            ) : (
+              <div>
+                <Label htmlFor="rec-day">{tr.monthDay}</Label>
+                <Select id="rec-day" value={monthDay} onChange={(e) => { setMonthDay(e.target.value); }}>
+                  {Array.from({ length: 31 }, (_, i) => <option key={i + 1} value={String(i + 1)}>{i + 1}</option>)}
+                  <option value="-1">{tr.lastDay}</option>
+                </Select>
+              </div>
+            )}
           </div>
         )}
+        {!byWorkDay && (
+          <div className="sm:w-1/2">
+            <Label htmlFor="rec-shift">{tw.shift}</Label>
+            <Select id="rec-shift" value={shift} onChange={(e) => { setShift(e.target.value as Shift); }}>
+              {(Object.keys(tw.shifts) as Shift[]).map((k) => <option key={k} value={k}>{tw.shifts[k]}</option>)}
+            </Select>
+          </div>
+        )}
+        {(byWorkDay || shift !== "none") && <p className="text-xs text-zinc-500">{tw.calendarHint}</p>}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           <div>
             <Label htmlFor="rec-start">{tr.start}</Label>
