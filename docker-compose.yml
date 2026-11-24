@@ -52,6 +52,11 @@ services:
       NEBULA_SMTP_TLS: none
       # Lets webhooks reach receivers on this machine (host.docker.internal). Dev only.
       NEBULA_WEBHOOK_ALLOW_PRIVATE: "true"
+      # Workspace SMTP settings (ADR-0038) may point at Mailpit (mailpit:1025,
+      # no TLS). Dev only: both flags are refused in production.
+      NEBULA_SMTP_WORKSPACE_ALLOW_PRIVATE: "true"
+      NEBULA_SMTP_WORKSPACE_ALLOW_PLAINTEXT: "true"
+      NEBULA_SMTP_WORKSPACE_PORTS: "25,465,587,1025,2525"
     ports:
       - "127.0.0.1:8080:8080"
       - "127.0.0.1:9090:9090"

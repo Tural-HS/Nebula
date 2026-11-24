@@ -150,6 +150,10 @@ services:
       NEBULA_RATE_LIMIT_IP_RPS: ${NEBULA_RATE_LIMIT_IP_RPS:-100}
       NEBULA_RATE_LIMIT_IP_BURST: ${NEBULA_RATE_LIMIT_IP_BURST:-200}
       NEBULA_WEBHOOK_ALLOW_PRIVATE: "false"
+      # Workspace SMTP servers (ADR-0038): public hosts with TLS only.
+      NEBULA_SMTP_WORKSPACE_ALLOW_PRIVATE: "false"
+      NEBULA_SMTP_WORKSPACE_ALLOW_PLAINTEXT: "false"
+      NEBULA_SMTP_WORKSPACE_PORTS: ${NEBULA_SMTP_WORKSPACE_PORTS:-25,465,587,2525}
       NEBULA_SHUTDOWN_TIMEOUT: 25s
       # File attachments (ADR-0022): blobs on the "attachments" volume, not in Postgres, so
       # pgBackRest does NOT back them up — see README section 4.1. 20 MiB per file fits under

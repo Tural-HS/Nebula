@@ -146,7 +146,7 @@ func liveItem(ctx context.Context, q querier, wsID, projectID uuid.UUID, number 
 
 // notifyMentions queues one email per newly mentioned member (never the author)
 // in the caller's transaction, so notifications exist iff the comment does.
-func notifyMentions(ctx context.Context, q querier, people []mentioned, authorID uuid.UUID, authorName string,
+func notifyMentions(ctx context.Context, q querier, wsID uuid.UUID, people []mentioned, authorID uuid.UUID, authorName string,
 	item itemRef, commentID uuid.UUID, body string) error {
 	names := map[uuid.UUID]string{}
 	for _, p := range people {
@@ -157,11 +157,8 @@ func notifyMentions(ctx context.Context, q querier, people []mentioned, authorID
 		if p.id == authorID {
 			continue
 		}
-		payload := map[string]any{
-			"to":      []string{p.email},
-			"subject": fmt.Sprintf("[%s] %s mentioned you", item.key, authorName),
-			"body":    fmt.Sprintf("%s mentioned you on %s:\n\n%s\n", authorName, item.key, text),
-		}
+		payload := emailPayload(wsID, []string{p.email}, fmt.Sprintf("[%s] %s mentioned you", item.key, authorName),
+			fmt.Sprintf("%s mentioned you on %s:\n\n%s\n", authorName, item.key, text))
 		if err := enqueueJob(ctx, q, JobSendEmail, payload, 8, fmt.Sprintf("mn:%s:%s", commentID, p.id)); err != nil {
 			return err
 		}
@@ -319,7 +316,7 @@ func (s *Store) CreateComment(ctx context.Context, wsID, projectID uuid.UUID, nu
 		if err != nil {
 			return err
 		}
-		if err := notifyMentions(ctx, tx, people, actorID, name, item, id, body); err != nil {
+		if err := notifyMentions(ctx, tx, wsID, people, actorID, name, item, id, body); err != nil {
 			return err
 		}
 		c, err = scanComment(tx.QueryRow(ctx, commentSelect+` WHERE c.id = $1`, id))
@@ -403,7 +400,7 @@ func (s *Store) UpdateComment(ctx context.Context, wsID, projectID uuid.UUID, nu
 			if err != nil {
 				return err
 			}
-			if err := notifyMentions(ctx, tx, added, actorID, name, item, commentID, body); err != nil {
+			if err := notifyMentions(ctx, tx, wsID, added, actorID, name, item, commentID, body); err != nil {
 				return err
 			}
 		}

@@ -123,8 +123,27 @@ func (s *Store) FanOut(ctx context.Context, e Event) (webhooks, rules int, err e
 }
 
 // EnqueueEmail queues an email job; dedupeKey prevents duplicates on retries.
-func (s *Store) EnqueueEmail(ctx context.Context, to []string, subject, body, dedupeKey string) error {
-	return enqueueJob(ctx, s.pool, JobSendEmail, map[string]any{"to": to, "subject": subject, "body": body}, 8, dedupeKey)
+// wsID selects the workspace's SMTP settings (ADR-0038); uuid.Nil: instance.
+func (s *Store) EnqueueEmail(ctx context.Context, wsID uuid.UUID, to []string, subject, body, dedupeKey string) error {
+	return enqueueJob(ctx, s.pool, JobSendEmail, emailPayload(wsID, to, subject, body), 8, dedupeKey)
+}
+
+// EmailJob is the payload of a JobSendEmail job. WorkspaceID is absent in
+// jobs queued before ADR-0038 and for mail without a workspace context; both
+// are sent through the instance configuration.
+type EmailJob struct {
+	WorkspaceID *uuid.UUID `json:"workspace_id,omitempty"`
+	To          []string   `json:"to"`
+	Subject     string     `json:"subject"`
+	Body        string     `json:"body"`
+}
+
+func emailPayload(wsID uuid.UUID, to []string, subject, body string) EmailJob {
+	j := EmailJob{To: to, Subject: subject, Body: body}
+	if wsID != uuid.Nil {
+		j.WorkspaceID = &wsID
+	}
+	return j
 }
 
 // ItemByID returns a live item by its ID within a workspace, with its project ID.

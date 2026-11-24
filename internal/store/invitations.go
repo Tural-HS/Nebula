@@ -174,7 +174,7 @@ func (s *Store) CreateInvitation(ctx context.Context, p InviteParams) (Invitatio
 			return err
 		}
 		inv.InvitedBy = &inviter
-		if err := queueInvitationEmail(ctx, tx, id, email, inviter, wsName, p.Role, p.AcceptURL(token)); err != nil {
+		if err := queueInvitationEmail(ctx, tx, p.WorkspaceID, id, email, inviter, wsName, p.Role, p.AcceptURL(token)); err != nil {
 			return err
 		}
 		return appendEvent(ctx, tx, p.WorkspaceID, p.ActorID, "invitation", id, invitationCreatedAction,
@@ -185,7 +185,7 @@ func (s *Store) CreateInvitation(ctx context.Context, p InviteParams) (Invitatio
 
 var roleNamesAz = map[string]string{RoleGuest: "qonaq", RoleMember: "üzv", RoleAdmin: "admin", RoleOwner: "sahib"}
 
-func queueInvitationEmail(ctx context.Context, q querier, id uuid.UUID, to, inviter, wsName, role, link string) error {
+func queueInvitationEmail(ctx context.Context, q querier, wsID, id uuid.UUID, to, inviter, wsName, role, link string) error {
 	clean := strings.NewReplacer("\r", " ", "\n", " ")
 	subject := fmt.Sprintf("%s sizi Nebula-da \"%s\" workspace-inə dəvət etdi", clean.Replace(inviter), clean.Replace(wsName))
 	body := fmt.Sprintf("Salam,\n\n%s sizi Nebula-da \"%s\" workspace-inə %s kimi dəvət etdi.\n\n"+
@@ -193,7 +193,7 @@ func queueInvitationEmail(ctx context.Context, q querier, id uuid.UUID, to, invi
 		"Link 7 gün etibarlıdır və yalnız bir dəfə istifadə oluna bilər.\n"+
 		"Bu dəvəti gözləmirdinizsə, sadəcə bu məktubu nəzərə almayın.\n",
 		inviter, wsName, roleNamesAz[role], to, link)
-	return enqueueJob(ctx, q, JobSendEmail, map[string]any{"to": []string{to}, "subject": subject, "body": body}, 8,
+	return enqueueJob(ctx, q, JobSendEmail, emailPayload(wsID, []string{to}, subject, body), 8,
 		invitationEmailDedupeSalt+id.String()+":"+time.Now().UTC().Format(time.RFC3339Nano))
 }
 
@@ -249,7 +249,7 @@ func (s *Store) ResendInvitation(ctx context.Context, wsID, actorID, id uuid.UUI
 		if err != nil {
 			return err
 		}
-		if err := queueInvitationEmail(ctx, tx, id, email, inviter, wsName, role, acceptURL(token)); err != nil {
+		if err := queueInvitationEmail(ctx, tx, wsID, id, email, inviter, wsName, role, acceptURL(token)); err != nil {
 			return err
 		}
 		return appendEvent(ctx, tx, wsID, actorID, "invitation", id, invitationResentAction, map[string]any{"email": email})

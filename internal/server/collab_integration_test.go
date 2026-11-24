@@ -294,7 +294,7 @@ func TestListenWakesOnNewJobs(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("listener did not connect")
 	}
-	if err := store.New(pool).EnqueueEmail(ctx, []string{"a@example.com"}, "s", "b", ""); err != nil {
+	if err := store.New(pool).EnqueueEmail(ctx, uuid.Nil, []string{"a@example.com"}, "s", "b", ""); err != nil {
 		t.Fatal(err)
 	}
 	select {

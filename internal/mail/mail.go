@@ -24,6 +24,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/Tural-HS/Nebula/internal/safehttp"
 )
 
 // ErrInvalidMessage wraps deterministic message errors (bad address, subject,
@@ -50,8 +52,18 @@ type Config struct {
 	Username string
 	Password string
 	From     string // "Nebula <noreply@example.com>" or a bare address
+	ReplyTo  string // optional mailbox for the Reply-To header
 	TLS      string
 	Timeout  time.Duration
+	// Guard, when set, checks every resolved destination IP (SSRF): used for
+	// servers that workspace admins configure, never for the operator's own.
+	Guard *Guard
+}
+
+// Guard restricts where a sender may connect.
+type Guard struct {
+	// AllowPrivate permits loopback/private/link-local destinations.
+	AllowPrivate bool
 }
 
 // Message is a plain-text email.
@@ -68,8 +80,9 @@ type Sender interface {
 
 // SMTPSender sends through one SMTP server.
 type SMTPSender struct {
-	cfg  Config
-	from *mail.Address
+	cfg     Config
+	from    *mail.Address
+	replyTo *mail.Address
 }
 
 // NewSMTPSender validates cfg and returns a sender.
@@ -89,14 +102,45 @@ func NewSMTPSender(cfg Config) (*SMTPSender, error) {
 	if err != nil {
 		return nil, errors.New("mail: invalid From address")
 	}
+	var replyTo *mail.Address
+	if cfg.ReplyTo != "" {
+		if replyTo, err = ParseMailbox(cfg.ReplyTo); err != nil {
+			return nil, errors.New("mail: invalid Reply-To address")
+		}
+	}
+	if strings.ContainsAny(cfg.From, "\r\n") {
+		return nil, errors.New("mail: invalid From address")
+	}
+	if cfg.Guard != nil && !cfg.Guard.AllowPrivate {
+		if err := safehttp.CheckHost(cfg.Host); err != nil {
+			return nil, fmt.Errorf("mail: %w", err)
+		}
+	}
 	if cfg.Timeout <= 0 {
 		cfg.Timeout = 30 * time.Second
 	}
-	return &SMTPSender{cfg: cfg, from: from}, nil
+	return &SMTPSender{cfg: cfg, from: from, replyTo: replyTo}, nil
+}
+
+// ParseMailbox parses one RFC 5322 mailbox ("Name <a@example.com>" or a bare
+// address) and rejects anything that could inject headers.
+func ParseMailbox(s string) (*mail.Address, error) {
+	if strings.ContainsAny(s, "\r\n") || len(s) > 400 {
+		return nil, errors.New("invalid address")
+	}
+	a, err := mail.ParseAddress(s)
+	if err != nil || !strings.Contains(a.Address, "@") {
+		return nil, errors.New("invalid address")
+	}
+	return a, nil
 }
 
 // Build renders an RFC 5322 message. Exposed for tests and previews.
 func Build(from *mail.Address, m Message, now time.Time) ([]byte, []string, error) {
+	return build(from, nil, m, now)
+}
+
+func build(from, replyTo *mail.Address, m Message, now time.Time) ([]byte, []string, error) {
 	if len(m.To) == 0 || len(m.To) > maxRecipients {
 		return nil, nil, fmt.Errorf("mail: 1 to %d recipients required", maxRecipients)
 	}
@@ -130,6 +174,9 @@ func Build(from *mail.Address, m Message, now time.Time) ([]byte, []string, erro
 	var b bytes.Buffer
 	w := func(k, v string) { b.WriteString(k + ": " + v + "\r\n") }
 	w("From", from.String())
+	if replyTo != nil {
+		w("Reply-To", replyTo.String())
+	}
 	w("To", strings.Join(headers, ", "))
 	w("Subject", mime.QEncoding.Encode("utf-8", m.Subject))
 	w("Date", now.UTC().Format(time.RFC1123Z))
@@ -151,7 +198,7 @@ func Build(from *mail.Address, m Message, now time.Time) ([]byte, []string, erro
 
 // Send delivers m, honoring ctx's deadline.
 func (s *SMTPSender) Send(ctx context.Context, m Message) error {
-	msg, rcpts, err := Build(s.from, m, time.Now())
+	msg, rcpts, err := build(s.from, s.replyTo, m, time.Now())
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidMessage, err)
 	}
@@ -163,6 +210,9 @@ func (s *SMTPSender) Send(ctx context.Context, m Message) error {
 	tlsCfg := &tls.Config{ServerName: s.cfg.Host, MinVersion: tls.VersionTLS12}
 
 	dialer := &net.Dialer{Deadline: deadline}
+	if s.cfg.Guard != nil && !s.cfg.Guard.AllowPrivate {
+		dialer.Control = safehttp.Control // every resolved IP, after DNS (rebinding-safe)
+	}
 	var conn net.Conn
 	if s.cfg.TLS == TLSImplicit {
 		conn, err = (&tls.Dialer{NetDialer: dialer, Config: tlsCfg}).DialContext(ctx, "tcp", addr)

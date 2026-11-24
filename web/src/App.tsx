@@ -29,6 +29,7 @@ const MyRequestsPage = named(() => import("./pages/MyRequestsPage"), "MyRequests
 const MyRequestPage = named(() => import("./pages/MyRequestsPage"), "MyRequestPage");
 const AuditLogPage = named(() => import("./pages/settings/AuditLogPage"), "AuditLogPage");
 const AutomationsPage = named(() => import("./pages/settings/AutomationsPage"), "AutomationsPage");
+const EmailPage = named(() => import("./pages/settings/EmailPage"), "EmailPage");
 const FieldsPage = named(() => import("./pages/settings/FieldsPage"), "FieldsPage");
 const GeneralPage = named(() => import("./pages/settings/GeneralPage"), "GeneralPage");
 const ItemTypesPage = named(() => import("./pages/settings/ItemTypesPage"), "ItemTypesPage");
@@ -99,6 +100,7 @@ export function App() {
             <Route path="/w/:ws/settings/fields" element={<FieldsPage />} />
             <Route path="/w/:ws/settings/item-types" element={<ItemTypesPage />} />
             <Route path="/w/:ws/settings/workflows" element={<WorkflowsPage />} />
+            <Route path="/w/:ws/settings/email" element={<EmailPage />} />
             <Route path="/w/:ws/settings/webhooks" element={<WebhooksPage />} />
             <Route path="/w/:ws/settings/automations" element={<AutomationsPage />} />
             <Route path="/w/:ws/settings/audit" element={<AuditLogPage />} />

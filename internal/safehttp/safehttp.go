@@ -86,18 +86,39 @@ func ValidateURL(raw string, o Options) (*url.URL, error) {
 		}
 	}
 	if !o.AllowPrivate {
-		if addr, err := netip.ParseAddr(strings.Trim(u.Hostname(), "[]")); err == nil && !IsPublic(addr) {
-			return nil, ErrBlockedAddress
-		}
-		if isObfuscatedIP(u.Hostname()) {
-			return nil, ErrBlockedAddress // 0x7f000001, 2130706433, 0177.0.0.1 ...
-		}
-		if h := strings.ToLower(u.Hostname()); h == "localhost" || strings.HasSuffix(h, ".localhost") ||
-			strings.HasSuffix(h, ".internal") || strings.HasSuffix(h, ".local") {
-			return nil, ErrBlockedAddress
+		if err := CheckHost(u.Hostname()); err != nil {
+			return nil, err
 		}
 	}
 	return u, nil
+}
+
+// CheckHost rejects host names that obviously point inside the network: a
+// non-public IP literal, an obfuscated IPv4 spelling or a local-only name.
+// It is a fast pre-check; the dialer still checks every resolved IP.
+func CheckHost(host string) error {
+	if addr, err := netip.ParseAddr(strings.Trim(host, "[]")); err == nil && !IsPublic(addr) {
+		return ErrBlockedAddress
+	}
+	if isObfuscatedIP(host) {
+		return ErrBlockedAddress // 0x7f000001, 2130706433, 0177.0.0.1 ...
+	}
+	if h := strings.TrimSuffix(strings.ToLower(host), "."); h == "localhost" || strings.HasSuffix(h, ".localhost") ||
+		strings.HasSuffix(h, ".internal") || strings.HasSuffix(h, ".local") {
+		return ErrBlockedAddress
+	}
+	return nil
+}
+
+// Control is a net.Dialer Control function that refuses non-public
+// destinations. It runs after DNS resolution, for the exact IP being dialed,
+// so DNS rebinding cannot slip a private address past an earlier check.
+func Control(_, address string, _ syscall.RawConn) error {
+	ap, err := netip.ParseAddrPort(address)
+	if err != nil || !IsPublic(ap.Addr()) {
+		return fmt.Errorf("%w: %s", ErrBlockedAddress, address)
+	}
+	return nil
 }
 
 var numericLabel = regexp.MustCompile(`^(0[xX][0-9a-fA-F]*|[0-9]+)$`)
@@ -121,15 +142,11 @@ func NewClient(o Options) *http.Client {
 	dialer := &net.Dialer{
 		Timeout: 5 * time.Second,
 		// Control runs after DNS resolution, for the exact IP being dialed.
-		Control: func(_, address string, _ syscall.RawConn) error {
+		Control: func(network, address string, c syscall.RawConn) error {
 			if o.AllowPrivate {
 				return nil
 			}
-			ap, err := netip.ParseAddrPort(address)
-			if err != nil || !IsPublic(ap.Addr()) {
-				return fmt.Errorf("%w: %s", ErrBlockedAddress, address)
-			}
-			return nil
+			return Control(network, address, c)
 		},
 	}
 	transport := &http.Transport{

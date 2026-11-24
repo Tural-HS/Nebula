@@ -18,6 +18,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Tural-HS/Nebula/internal/auth"
+	"github.com/Tural-HS/Nebula/internal/mailroute"
 	"github.com/Tural-HS/Nebula/internal/opt"
 	"github.com/Tural-HS/Nebula/internal/ratelimit"
 	"github.com/Tural-HS/Nebula/internal/safehttp"
@@ -37,6 +38,9 @@ type api struct {
 	// evidence and version: audit evidence export (evidence_api.go).
 	evidence *evidenceExports
 	version  string
+	// mail and emailTestLimiter: workspace SMTP settings (email_settings_api.go).
+	mail             mailroute.Router
+	emailTestLimiter *ratelimit.Limiter
 }
 
 type ctxKey int
@@ -64,6 +68,7 @@ func (a *api) routes(r chi.Router) {
 		a.configRoutes(r)
 		a.fieldRoutes(r)
 		a.automationRoutes(r)
+		a.emailSettingsRoutes(r)
 		a.workspaceCollabRoutes(r)
 		a.searchRoutes(r)
 		a.calendarRoutes(r)
