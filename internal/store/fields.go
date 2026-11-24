@@ -38,10 +38,11 @@ const (
 	FieldUser        = "user"         // workspace member id
 	FieldURL         = "url"          // http(s) URL
 	FieldEmail       = "email"        // bare address
+	// FieldFormula (formulas.go) is computed from other fields: read-only.
 )
 
 var fieldTypes = []string{FieldText, FieldLongText, FieldNumber, FieldDate, FieldDateTime, FieldBoolean,
-	FieldSelect, FieldMultiSelect, FieldUser, FieldURL, FieldEmail}
+	FieldSelect, FieldMultiSelect, FieldUser, FieldURL, FieldEmail, FieldFormula}
 
 const (
 	maxFieldsPerWorkspace = 200 // active definitions
@@ -75,7 +76,8 @@ type Choice struct {
 
 // FieldOptions holds type-specific settings.
 type FieldOptions struct {
-	Choices []Choice `json:"choices,omitempty"`
+	Choices []Choice        `json:"choices,omitempty"`
+	Formula *FormulaOptions `json:"formula,omitempty"` // formula fields only (ADR-0030)
 }
 
 // FieldDefinition is a workspace-level custom field.
@@ -128,6 +130,7 @@ type CreateFieldParams struct {
 	Name        string
 	Type        string
 	Choices     []ChoiceInput
+	Formula     *FormulaInput // required for formula fields, refused otherwise
 }
 
 // CreateField adds a custom field definition to a workspace.
@@ -152,11 +155,31 @@ func (s *Store) CreateField(ctx context.Context, p CreateFieldParams) (FieldDefi
 	case p.Choices != nil:
 		return FieldDefinition{}, invalid("options.choices", "only select and multi_select fields have choices")
 	}
+	switch {
+	case p.Type == FieldFormula && p.Formula == nil:
+		return FieldDefinition{}, invalid("options.formula", "is required for formula fields")
+	case p.Type != FieldFormula && p.Formula != nil:
+		return FieldDefinition{}, invalid("options.formula", "only formula fields have a formula")
+	}
 
 	var f FieldDefinition
 	err = s.inTx(ctx, func(tx pgx.Tx) error {
 		if err := checkFieldLimit(ctx, tx, p.WorkspaceID); err != nil {
 			return err
+		}
+		payload := map[string]any{"key": key, "type": p.Type}
+		if p.Type == FieldFormula {
+			defs, err := loadFormulaDefs(ctx, tx, p.WorkspaceID)
+			if err != nil {
+				return err
+			}
+			if _, taken := defs[key]; taken {
+				return &ConflictError{Code: "field_key_taken", Message: "a field with this key already exists (keys of archived fields stay reserved)"}
+			}
+			if opts.Formula, _, err = compileFormulaDef(defs, key, *p.Formula); err != nil {
+				return err
+			}
+			payload["formula"] = formulaAudit(opts.Formula)
 		}
 		f, err = scanField(tx.QueryRow(ctx, `INSERT INTO field_definitions (id, workspace_id, key, name, field_type, options)
 			VALUES ($1, $2, $3, $4, $5, $6)
@@ -168,8 +191,13 @@ func (s *Store) CreateField(ctx context.Context, p CreateFieldParams) (FieldDefi
 		if err != nil {
 			return err
 		}
-		return appendEvent(ctx, tx, p.WorkspaceID, p.ActorID, "field", f.ID, "field.created",
-			map[string]any{"key": key, "type": p.Type})
+		if p.Type == FieldFormula {
+			// Existing items get their values from the background pass.
+			if err := requestFormulaRecompute(ctx, tx, p.WorkspaceID, ""); err != nil {
+				return err
+			}
+		}
+		return appendEvent(ctx, tx, p.WorkspaceID, p.ActorID, "field", f.ID, "field.created", payload)
 	})
 	return f, err
 }
@@ -266,6 +294,7 @@ type UpdateFieldParams struct {
 	Key         string
 	Name        opt.Field[string]
 	Choices     *[]ChoiceInput // nil: unchanged; else the complete new list
+	Formula     *FormulaInput  // nil: unchanged; formula fields only
 	Archived    opt.Field[bool]
 }
 
@@ -273,6 +302,11 @@ type UpdateFieldParams struct {
 func (s *Store) UpdateField(ctx context.Context, p UpdateFieldParams) (FieldDefinition, error) {
 	var f FieldDefinition
 	err := s.inTx(ctx, func(tx pgx.Tx) error {
+		// Serializes definition changes with each other and with item writes
+		// (loadFormulaSet share-locks the same row), see ADR-0030.
+		if _, err := tx.Exec(ctx, `SELECT 1 FROM workspaces WHERE id = $1 FOR NO KEY UPDATE`, p.WorkspaceID); err != nil {
+			return err
+		}
 		cur, err := scanField(tx.QueryRow(ctx, fieldSelect+` WHERE workspace_id = $1 AND key = $2 FOR UPDATE`,
 			p.WorkspaceID, p.Key))
 		if err != nil {
@@ -280,6 +314,7 @@ func (s *Store) UpdateField(ctx context.Context, p UpdateFieldParams) (FieldDefi
 		}
 		next := cur
 		changes := map[string]any{}
+		recompute := false
 		if p.Name.Set {
 			if p.Name.Null {
 				return invalid("name", "cannot be null")
@@ -312,9 +347,49 @@ func (s *Store) UpdateField(ctx context.Context, p UpdateFieldParams) (FieldDefi
 					if err := checkFieldLimit(ctx, tx, p.WorkspaceID); err != nil {
 						return err
 					}
+				} else {
+					users, err := formulaUsers(ctx, tx, p.WorkspaceID, cur.Key)
+					if err != nil {
+						return err
+					}
+					if len(users) > 0 {
+						return &ConflictError{Code: "field_in_use", Message: fmt.Sprintf(
+							"field is used by formula field(s) %s; change or archive them first", strings.Join(users, ", "))}
+					}
 				}
 				changes["archived"] = diff(cur.Archived, next.Archived)
 			}
+		}
+		if p.Formula != nil && cur.Type != FieldFormula {
+			return invalid("options.formula", "only formula fields have a formula")
+		}
+		// A changed or restored formula is compiled against the current
+		// fields; its result type cannot change (like a field's type).
+		if cur.Type == FieldFormula && !next.Archived && (p.Formula != nil || cur.Archived) {
+			in := FormulaInput{}
+			if cur.Options.Formula != nil {
+				in = FormulaInput{Expression: cur.Options.Formula.Expression, Scale: cur.Options.Formula.Scale}
+			}
+			if p.Formula != nil {
+				in = *p.Formula
+			}
+			defs, err := loadFormulaDefs(ctx, tx, p.WorkspaceID)
+			if err != nil {
+				return err
+			}
+			opts, _, err := compileFormulaDef(defs, cur.Key, in)
+			if err != nil {
+				return err
+			}
+			if cur.Options.Formula != nil && opts.ResultType != cur.Options.Formula.ResultType {
+				return invalid("options.formula.expression", "the result must stay a %s (it is now a %s); create a new field instead",
+					cur.Options.Formula.ResultType, opts.ResultType)
+			}
+			if !reflect.DeepEqual(cur.Options.Formula, opts) {
+				changes["options.formula"] = diff(formulaAudit(cur.Options.Formula), formulaAudit(opts))
+			}
+			next.Options.Formula = opts
+			recompute = true
 		}
 		if len(changes) == 0 {
 			f = cur
@@ -327,6 +402,11 @@ func (s *Store) UpdateField(ctx context.Context, p UpdateFieldParams) (FieldDefi
 			next.Name, next.Options, next.Archived, cur.ID))
 		if err != nil {
 			return err
+		}
+		if recompute {
+			if err := requestFormulaRecompute(ctx, tx, p.WorkspaceID, ""); err != nil {
+				return err
+			}
 		}
 		return appendEvent(ctx, tx, p.WorkspaceID, p.ActorID, "field", cur.ID, "field.updated",
 			map[string]any{"key": cur.Key, "changes": changes})
@@ -348,6 +428,15 @@ func (s *Store) BindField(ctx context.Context, wsID, actorID uuid.UUID, typeKey,
 		}
 		if archived {
 			return invalid("field", "archived fields cannot be attached")
+		}
+		if required {
+			var typ string
+			if err := tx.QueryRow(ctx, `SELECT field_type FROM field_definitions WHERE id = $1`, fieldID).Scan(&typ); err != nil {
+				return err
+			}
+			if typ == FieldFormula {
+				return invalid("required", "formula fields are computed and cannot be required")
+			}
 		}
 		if _, err := tx.Exec(ctx, `INSERT INTO item_type_fields (workspace_id, item_type_id, field_id, is_required, position)
 			VALUES ($1, $2, $3, $4, $5)
@@ -477,6 +566,9 @@ func applyFields(ctx context.Context, q querier, wsID uuid.UUID, schema map[stri
 	for _, k := range keys {
 		path := "fields." + k
 		f, known := schema[k]
+		if known && f.def.Type == FieldFormula {
+			return nil, nil, invalid(path, "is a formula field: its value is computed and cannot be set")
+		}
 		var val any
 		empty := in[k] == nil
 		if !empty {
@@ -778,6 +870,30 @@ func fieldFilterConditions(ctx context.Context, q querier, wsID uuid.UUID, filte
 			raw = b
 		case FieldMultiSelect:
 			raw = []any{f.Value}
+		}
+		if def.Type == FieldFormula {
+			// A formula filters like its result type: number, date or boolean.
+			if def.Options.Formula == nil {
+				return nil, invalid(path, "formula field is invalid")
+			}
+			def.Type = map[string]string{"number": FieldNumber, "date": FieldDate, "boolean": FieldBoolean}[def.Options.Formula.ResultType]
+			switch def.Type {
+			case FieldNumber:
+				n, err := strconv.ParseFloat(f.Value, 64)
+				if err != nil {
+					return nil, invalid(path, "must be a number")
+				}
+				raw = n
+			case FieldBoolean:
+				b, err := strconv.ParseBool(f.Value)
+				if err != nil {
+					return nil, invalid(path, "must be true or false")
+				}
+				raw = b
+			case FieldDate:
+			default:
+				return nil, invalid(path, "formula field is invalid")
+			}
 		}
 		// Archived choices are still valid filter targets: old items carry them.
 		filterDef := def

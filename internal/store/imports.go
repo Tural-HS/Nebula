@@ -100,6 +100,9 @@ func (s *Store) ImportItems(ctx context.Context, p ImportParams) (ImportResult, 
 			if err != nil {
 				return err
 			}
+			if prep.fields, err = cache.withFormulas(ctx, tx, prep.fields, prep.due); err != nil {
+				return err
+			}
 			prepared = append(prepared, prep)
 		}
 		res.Valid = len(prepared)

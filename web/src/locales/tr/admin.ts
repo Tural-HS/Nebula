@@ -71,7 +71,7 @@ export const ta = {
   addChoice: "Seçenek ekle",
   fieldTypes: {
     text: "Metin", long_text: "Uzun metin", number: "Sayı", date: "Tarih", datetime: "Tarih ve saat", boolean: "Evet/Hayır",
-    select: "Seçim", multi_select: "Çoklu seçim", user: "Kullanıcı", url: "URL", email: "E-posta",
+    select: "Seçim", multi_select: "Çoklu seçim", user: "Kullanıcı", url: "URL", email: "E-posta", formula: "Formül",
   } as Record<string, string>,
 
   newType: "Yeni tür",

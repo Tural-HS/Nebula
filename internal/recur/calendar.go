@@ -126,3 +126,47 @@ func (c *Calendar) WorkdayIn(y int, m time.Month, n int) (time.Time, bool) {
 func Today(now time.Time, loc *time.Location) time.Time {
 	return Date(now.In(loc))
 }
+
+// WorkdaysBetween counts the working days d with from < d <= to, or minus
+// the count for to < d <= from when to is before from, so that
+// WorkdaysBetween(today, due) is "working days left" and is 0 for today.
+// It costs O(holidays + transfers), not O(days): whole weeks are counted
+// arithmetically, then each override inside the range adjusts the count.
+func (c *Calendar) WorkdaysBetween(from, to time.Time) int {
+	from, to = Date(from), Date(to)
+	if to.Before(from) {
+		return -c.WorkdaysBetween(to, from)
+	}
+	n := int((to.Unix() - from.Unix()) / 86400)
+	weekend := 0
+	for wd := time.Sunday; wd <= time.Saturday; wd++ {
+		if c.IsWeekend(wd) {
+			weekend++
+		}
+	}
+	count := n / 7 * (7 - weekend)
+	wd := from.Weekday()
+	for range n % 7 {
+		wd = (wd + 1) % 7
+		if !c.IsWeekend(wd) {
+			count++
+		}
+	}
+	if c == nil {
+		return count
+	}
+	lo, hi := dateKey(from), dateKey(to)
+	for k, working := range c.override {
+		if k <= lo || k > hi {
+			continue
+		}
+		d := time.Date(k/10000, time.Month(k/100%100), k%100, 0, 0, 0, 0, time.UTC)
+		switch weekendDay := c.IsWeekend(d.Weekday()); {
+		case working && weekendDay:
+			count++
+		case !working && !weekendDay:
+			count--
+		}
+	}
+	return count
+}

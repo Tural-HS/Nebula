@@ -41,6 +41,7 @@ type itemCache struct {
 	statuses  map[uuid.UUID][]Status // per workflow; first = initial status
 	guarded   map[uuid.UUID]bool     // statuses that need approval to enter (ADR-0026)
 	members   map[uuid.UUID]bool
+	formulas  *formulaSet // loaded (and the workspace share-locked) on first use
 }
 
 func newItemCache(wsID uuid.UUID, fieldKeys []string) *itemCache {
@@ -93,6 +94,20 @@ func prepareItem(ctx context.Context, q querier, c *itemCache, p CreateItemParam
 		}
 	}
 	return preparedItem{typ: typ, status: status, title: title, desc: desc, assignee: p.AssigneeID, fields: fields, due: due}, nil
+}
+
+// withFormulas returns fields with the workspace's formula values computed
+// (ADR-0030). The first call share-locks the workspace row for the rest of
+// the transaction, so a concurrent formula change waits for this write.
+func (c *itemCache) withFormulas(ctx context.Context, q querier, fields map[string]any, due *string) (map[string]any, error) {
+	if c.formulas == nil {
+		fs, err := loadFormulaSet(ctx, q, c.wsID, true)
+		if err != nil {
+			return nil, err
+		}
+		c.formulas = fs
+	}
+	return c.formulas.apply(ctx, q, fields, due)
 }
 
 func (c *itemCache) itemType(ctx context.Context, q querier, key string) (itemTypeRow, error) {

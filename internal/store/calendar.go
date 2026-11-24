@@ -432,6 +432,10 @@ func (s *Store) AddAzerbaijanFixedHolidays(ctx context.Context, wsID, actorID uu
 // rule it starts from today: it never creates items for past dates, and never
 // a second item for a date the rule already produced (lastRun).
 func rescheduleRecurrences(ctx context.Context, tx pgx.Tx, wsID, actorID uuid.UUID) error {
+	// Formulas using workdays() follow the calendar too (ADR-0030).
+	if err := requestFormulaRecompute(ctx, tx, wsID, "calendar"); err != nil {
+		return err
+	}
 	cal, err := loadCalendar(ctx, tx, wsID, false)
 	if err != nil {
 		return err

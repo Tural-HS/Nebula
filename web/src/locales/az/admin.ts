@@ -70,7 +70,7 @@ export const ta = {
   addChoice: "Seçim əlavə et",
   fieldTypes: {
     text: "Mətn", long_text: "Uzun mətn", number: "Rəqəm", date: "Tarix", datetime: "Tarix və vaxt", boolean: "Bəli/Xeyr",
-    select: "Seçim", multi_select: "Çoxlu seçim", user: "İstifadəçi", url: "URL", email: "Email",
+    select: "Seçim", multi_select: "Çoxlu seçim", user: "İstifadəçi", url: "URL", email: "Email", formula: "Düstur",
   } as Record<string, string>,
 
   newType: "Yeni tip",

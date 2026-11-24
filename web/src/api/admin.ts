@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient, type QueryKey } from "@tanstack/
 import { api, path } from "./client";
 import { keys } from "./hooks";
 import type { WebhookFormat } from "../lib/webhooks";
-import type { ActivityPage, FieldDefinition, ItemType, Member, Role, StatusCategory, Workspace } from "./types";
+import type { ActivityPage, FieldDefinition, FieldValue, FormulaPreview, ItemType, Member, Role, StatusCategory, Workspace } from "./types";
 
 export interface WorkflowStatus {
   id: string;
@@ -187,11 +187,11 @@ export function useAdminApi(ws: string) {
     revokeInvite: useAdminMutation((id: string) => api<undefined>("DELETE", base + path`/invitations/${id}`), [["ws", ws, "invitations"]]),
 
     createField: useAdminMutation(
-      (b: { key: string; name: string; type: string; options?: { choices: { label: string }[] } }) => api<FieldDefinition>("POST", base + "/fields", b),
+      (b: { key: string; name: string; type: string; options?: { choices: { label: string }[] } | { formula: FormulaInput } }) => api<FieldDefinition>("POST", base + "/fields", b),
       [fields],
     ),
     updateField: useAdminMutation(
-      (v: { key: string; body: { name?: string; archived?: boolean; options?: { choices: { id?: string; label: string; archived?: boolean }[] } } }) =>
+      (v: { key: string; body: { name?: string; archived?: boolean; options?: { choices: { id?: string; label: string; archived?: boolean }[] } | { formula: FormulaInput } } }) =>
         api<FieldDefinition>("PATCH", base + path`/fields/${v.key}`, v.body),
       [fields, types],
     ),
@@ -278,3 +278,18 @@ export function useAdminApi(ws: string) {
     deleteRule: useAdminMutation((id: string) => api<undefined>("DELETE", base + path`/automations/${id}`), [rules]),
   };
 }
+
+/** The admin-editable part of a formula field (ADR-0030). */
+export interface FormulaInput {
+  expression: string;
+  scale?: number;
+}
+
+/**
+ * Compiles a draft formula and computes it for a sample item and/or values,
+ * without saving. Compile errors come back as valid=false with a position.
+ */
+export const previewFormula = (
+  ws: string,
+  body: FormulaInput & { key?: string; item?: string; values?: Record<string, FieldValue> },
+) => api<FormulaPreview>("POST", path`/workspaces/${ws}/fields/formula-preview`, body);

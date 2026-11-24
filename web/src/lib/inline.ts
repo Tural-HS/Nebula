@@ -36,7 +36,9 @@ export function inlineKind(col: string, fields: ReadonlyMap<string, FieldDefinit
 
 /** The text an input starts with for a field value. */
 export function draftOf(v: FieldValue | undefined): string {
-  return v === null || v === undefined ? "" : String(v);
+  if (v === null || v === undefined) return "";
+  if (Array.isArray(v)) return v.join(",");
+  return typeof v === "object" ? "" : String(v); // a formula error marker has no draft
 }
 
 /** Parses an input back to a field value; undefined means "not a valid value". */

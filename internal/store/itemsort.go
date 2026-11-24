@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"math/big"
 	"slices"
 	"strconv"
 	"strings"
@@ -18,17 +19,83 @@ const (
 	SortDue    = "due"    // due_date ASC NULLS LAST, number ASC: soonest first, undated last
 )
 
+// Field sorts (ADR-0030): "field.<key>" ascending, "-field.<key>"
+// descending, for number, date and formula (number or date result) fields.
+// Empty values come last in both directions; the item number breaks ties
+// in the sort's direction, so the order is total and keyset pagination is
+// exact.
+const (
+	sortFieldPrefix     = "field."
+	sortFieldDescPrefix = "-field."
+)
+
 // ItemCursor is the position after the last item of a page. It belongs to
 // one sort: Due is the last item's due date (nil when it had none) and is
-// only meaningful for SortDue.
+// only meaningful for SortDue; Value is the last item's sort value for a
+// field sort (nil when it had none), as exact text.
 type ItemCursor struct {
 	Sort   string
 	Number int64
 	Due    *string // YYYY-MM-DD
+	Value  *string
 }
 
-// ValidSort reports whether s is a known sort ("" means SortNumber).
-func ValidSort(s string) bool { return s == "" || s == SortNumber || s == SortDue }
+// ValidSort reports whether s is a known sort ("" means SortNumber). Field
+// sorts are checked against the field definitions when used.
+func ValidSort(s string) bool {
+	if s == "" || s == SortNumber || s == SortDue {
+		return true
+	}
+	_, _, ok := parseFieldSort(s)
+	return ok
+}
+
+// parseFieldSort splits "field.<key>" / "-field.<key>".
+func parseFieldSort(s string) (key string, desc, ok bool) {
+	if k, found := strings.CutPrefix(s, sortFieldDescPrefix); found {
+		return k, true, fieldKeyRe.MatchString(k)
+	}
+	if k, found := strings.CutPrefix(s, sortFieldPrefix); found {
+		return k, false, fieldKeyRe.MatchString(k)
+	}
+	return "", false, false
+}
+
+// fieldSort is a resolved field sort.
+type fieldSort struct {
+	key     string
+	desc    bool
+	numeric bool // number (else date as text)
+}
+
+// resolveFieldSort checks that a field sort names a sortable field.
+func resolveFieldSort(ctx context.Context, q querier, wsID uuid.UUID, sort, path string) (*fieldSort, error) {
+	key, desc, ok := parseFieldSort(sort)
+	if !ok {
+		return nil, nil
+	}
+	types, err := fieldTypesByKey(ctx, q, wsID, []string{key})
+	if err != nil {
+		return nil, err
+	}
+	switch types[key] {
+	case FieldNumber, "formula:number":
+		return &fieldSort{key: key, desc: desc, numeric: true}, nil
+	case FieldDate, "formula:date":
+		return &fieldSort{key: key, desc: desc}, nil
+	case "":
+		return nil, invalid(path, "unknown field %q", key)
+	}
+	return nil, invalid(path, "field %q cannot be sorted: only number, date and formula fields can", key)
+}
+
+// expr is the sort value; values not in the field's stored form sort as empty.
+func (f *fieldSort) expr(param string) string {
+	if f.numeric {
+		return "(CASE WHEN jsonb_typeof(i.fields -> " + param + "::text) = 'number' THEN (i.fields ->> " + param + "::text)::numeric END)"
+	}
+	return "(CASE WHEN jsonb_typeof(i.fields -> " + param + "::text) = 'string' THEN (i.fields ->> " + param + "::text) END) COLLATE \"C\""
+}
 
 func normSort(s string) string {
 	if s == "" {
@@ -45,12 +112,16 @@ func cursorAfter(sort string, last Item) *ItemCursor {
 	return c
 }
 
+// SortError is the message for an unknown sort.
+const SortError = "must be number, due, field.<key> or -field.<key>"
+
 // sortAndSeek returns the ORDER BY clause and adds the keyset condition for
-// p.Cursor. Values are bound as parameters.
-func sortAndSeek(p ListItemsParams, where []string, args []any) (string, []string, []any, error) {
+// p.Cursor. Values are bound as parameters. fs is the resolved field sort,
+// if p.Sort is one.
+func sortAndSeek(p ListItemsParams, fs *fieldSort, where []string, args []any) (string, []string, []any, error) {
 	sort := normSort(p.Sort)
 	if !ValidSort(sort) {
-		return "", nil, nil, invalid("sort", "must be number or due")
+		return "", nil, nil, invalid("sort", SortError)
 	}
 	c := p.Cursor
 	if c != nil && normSort(c.Sort) != sort {
@@ -59,6 +130,26 @@ func sortAndSeek(p ListItemsParams, where []string, args []any) (string, []strin
 	param := func(v any) string {
 		args = append(args, v)
 		return "$" + strconv.Itoa(len(args))
+	}
+	if fs != nil {
+		e := fs.expr(param(fs.key))
+		cmp, dir := ">", "ASC"
+		if fs.desc {
+			cmp, dir = "<", "DESC"
+		}
+		if c != nil {
+			if c.Value == nil {
+				where = append(where, "("+e+" IS NULL AND i.number "+cmp+" "+param(c.Number)+")")
+			} else {
+				cast := "::numeric"
+				if !fs.numeric {
+					cast = "::text COLLATE \"C\""
+				}
+				v, n := param(*c.Value)+cast, param(c.Number)
+				where = append(where, "("+e+" "+cmp+" "+v+" OR ("+e+" = "+v+" AND i.number "+cmp+" "+n+") OR "+e+" IS NULL)")
+			}
+		}
+		return e + " " + dir + " NULLS LAST, i.number " + dir, where, args, nil
 	}
 	switch sort {
 	case SortDue:
@@ -119,7 +210,7 @@ func (s *Store) SumItemFields(ctx context.Context, p ListItemsParams, keys []str
 		if !ok {
 			return nil, invalid("fields", "unknown field %q", k)
 		}
-		if t != FieldNumber {
+		if t != FieldNumber && t != "formula:number" {
 			return nil, invalid("fields", "field %q is not a number field", k)
 		}
 	}
@@ -160,7 +251,10 @@ func (s *Store) SumItemFields(ctx context.Context, p ListItemsParams, keys []str
 // fieldTypesByKey returns key -> type for the workspace's field definitions
 // among keys (archived ones included: old items still carry their values).
 func fieldTypesByKey(ctx context.Context, q querier, wsID uuid.UUID, keys []string) (map[string]string, error) {
-	rows, err := q.Query(ctx, `SELECT key, field_type FROM field_definitions WHERE workspace_id = $1 AND key = ANY($2)`, wsID, keys)
+	// Formula fields report "formula:<result type>" (ADR-0030).
+	rows, err := q.Query(ctx, `SELECT key, CASE WHEN field_type = 'formula'
+			THEN 'formula:' || coalesce(options -> 'formula' ->> 'result_type', '') ELSE field_type END
+		FROM field_definitions WHERE workspace_id = $1 AND key = ANY($2)`, wsID, keys)
 	if err != nil {
 		return nil, err
 	}
@@ -174,4 +268,18 @@ func fieldTypesByKey(ctx context.Context, q querier, wsID uuid.UUID, keys []stri
 		out[k] = t
 	}
 	return out, rows.Err()
+}
+
+// checkCursorValue validates a field sort cursor's value for its field.
+func checkCursorValue(fs *fieldSort, v string) error {
+	if fs.numeric {
+		if _, ok := new(big.Rat).SetString(v); !ok || strings.ContainsAny(v, "eE/") || len(v) > 64 {
+			return invalid("cursor", "invalid cursor")
+		}
+		return nil
+	}
+	if len(v) > 64 {
+		return invalid("cursor", "invalid cursor")
+	}
+	return nil
 }

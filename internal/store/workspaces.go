@@ -529,6 +529,12 @@ func (s *Store) UpdateWorkspace(ctx context.Context, wsID, actorID uuid.UUID, p 
 			newName, newTZ, newHour, wsID); err != nil {
 			return err
 		}
+		if _, ok := changes["timezone"]; ok {
+			// today() is the local date (ADR-0030).
+			if err := requestFormulaRecompute(ctx, tx, wsID, "volatile"); err != nil {
+				return err
+			}
+		}
 		return appendEvent(ctx, tx, wsID, actorID, "workspace", wsID, "workspace.updated", map[string]any{"changes": changes})
 	})
 }

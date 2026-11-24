@@ -133,8 +133,12 @@ func (s *Store) CreateItem(ctx context.Context, p CreateItemParams) (Item, error
 // the caller's transaction. A zero ActorID creates it as the system (no
 // reporter). extra is merged into the event payload.
 func createItemTx(ctx context.Context, tx pgx.Tx, p CreateItemParams, extra map[string]any) (Item, error) {
-	prep, err := prepareItem(ctx, tx, newItemCache(p.WorkspaceID, nil), p)
+	cache := newItemCache(p.WorkspaceID, nil)
+	prep, err := prepareItem(ctx, tx, cache, p)
 	if err != nil {
+		return Item{}, err
+	}
+	if prep.fields, err = cache.withFormulas(ctx, tx, prep.fields, prep.due); err != nil {
 		return Item{}, err
 	}
 
@@ -266,7 +270,16 @@ func (s *Store) ListItems(ctx context.Context, p ListItemsParams) (items []Item,
 	if err != nil {
 		return nil, nil, err
 	}
-	order, where, args, err := sortAndSeek(p, where, args)
+	fsort, err := resolveFieldSort(ctx, s.pool, p.WorkspaceID, p.Sort, "sort")
+	if err != nil {
+		return nil, nil, err
+	}
+	if fsort != nil && p.Cursor != nil && p.Cursor.Value != nil {
+		if err := checkCursorValue(fsort, *p.Cursor.Value); err != nil {
+			return nil, nil, err
+		}
+	}
+	order, where, args, err := sortAndSeek(p, fsort, where, args)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -292,6 +305,14 @@ func (s *Store) ListItems(ctx context.Context, p ListItemsParams) (items []Item,
 	if len(items) > p.Limit {
 		items = items[:p.Limit]
 		next = cursorAfter(p.Sort, items[len(items)-1])
+		if fsort != nil {
+			// The exact sort value as SQL sees it (a float64 copy could
+			// differ in the last digit and skip or repeat rows).
+			if err := s.pool.QueryRow(ctx, "SELECT ("+fsort.expr("$2")+")::text FROM items i WHERE i.id = $1",
+				items[len(items)-1].ID, fsort.key).Scan(&next.Value); err != nil {
+				return nil, nil, err
+			}
+		}
 	}
 	if p.Viewer != nil {
 		ids := make([]uuid.UUID, len(items))
@@ -641,7 +662,26 @@ func updateItemTx(ctx context.Context, tx pgx.Tx, p UpdateItemParams, in checked
 		if pending != nil && !applying && lockedChange(changes) {
 			return errApprovalPending()
 		}
+		// Formula values follow every input change, the due date included
+		// (ADR-0030). They are not listed in changes: the inputs are.
+		formulas, err := loadFormulaSet(ctx, tx, p.WorkspaceID, true)
+		if err != nil {
+			return err
+		}
+		computed, err := formulas.apply(ctx, tx, newFields, newDue)
+		if err != nil {
+			return err
+		}
+		stale := formulas.formulaValuesDiffer(newFields, computed)
+		newFields = computed
 
+		if len(changes) == 0 && stale {
+			// Nothing the caller asked for changed, but a stored value was
+			// out of date (e.g. a recompute pass skipped this locked row).
+			if err := writeComputedFields(ctx, tx, id, newFields); err != nil {
+				return err
+			}
+		}
 		if len(changes) > 0 {
 			if _, err := tx.Exec(ctx, `UPDATE items SET title = $1, description = $2, status_id = $3,
 				assignee_id = $4, fields = $5, due_date = $6::date, parent_id = $8, version = version + 1 WHERE id = $7`,

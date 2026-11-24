@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import { useAdminApi } from "../../api/admin";
+import { useAdminApi, type FormulaInput } from "../../api/admin";
 import { useFields } from "../../api/hooks";
 import type { Choice, FieldDefinition } from "../../api/types";
 import { Button, ErrorState, Input, Select, Spinner } from "../../components/ui";
@@ -8,10 +8,12 @@ import { t } from "../../i18n";
 import { ta } from "../../i18n-admin";
 import { cn } from "../../lib/cn";
 import { slugKey } from "../../lib/slug";
+import { tf } from "../../i18n-formulas";
+import { FormulaEditor } from "./FormulaEditor";
 import { Card, SettingsLayout } from "./SettingsLayout";
 import { useFeedback } from "./useErrorToast";
 
-const TYPES = ["text", "long_text", "number", "date", "datetime", "boolean", "select", "multi_select", "user", "url", "email"];
+const TYPES = ["text", "long_text", "number", "date", "datetime", "boolean", "select", "multi_select", "user", "url", "email", "formula"];
 const isChoice = (type: string) => type === "select" || type === "multi_select";
 
 export function FieldsPage() {
@@ -38,6 +40,7 @@ function NewField({ ws }: { ws: string }) {
   const [keyTouched, setKeyTouched] = useState(false);
   const [type, setType] = useState("text");
   const [choices, setChoices] = useState("");
+  const [formula, setFormula] = useState<FormulaInput>({ expression: "" });
 
   return (
     <Card>
@@ -47,9 +50,10 @@ function NewField({ ws }: { ws: string }) {
         onSubmit={(e) => {
           e.preventDefault();
           const list = choices.split("\n").map((s) => s.trim()).filter(Boolean).map((label) => ({ label }));
+          const options = isChoice(type) ? { options: { choices: list } } : type === "formula" ? { options: { formula } } : {};
           adm.createField.mutate(
-            { name, key, type, ...(isChoice(type) ? { options: { choices: list } } : {}) },
-            { onSuccess: () => { setName(""); setKey(""); setKeyTouched(false); setChoices(""); fb.ok()(); }, onError: fb.fail },
+            { name, key, type, ...options },
+            { onSuccess: () => { setName(""); setKey(""); setKeyTouched(false); setChoices(""); setFormula({ expression: "" }); fb.ok()(); }, onError: fb.fail },
           );
         }}
       >
@@ -79,6 +83,11 @@ function NewField({ ws }: { ws: string }) {
             />
           </label>
         )}
+        {type === "formula" && (
+          <div className="sm:col-span-2">
+            <FormulaEditor ws={ws} value={formula} onChange={setFormula} />
+          </div>
+        )}
         <div className="flex items-end sm:col-span-2">
           <Button type="submit" variant="primary" disabled={adm.createField.isPending}>{t.create}</Button>
         </div>
@@ -93,6 +102,9 @@ function FieldCard({ ws, field }: { ws: string; field: FieldDefinition }) {
   const [name, setName] = useState(field.name);
   const [newChoice, setNewChoice] = useState("");
   const choices = field.options.choices ?? [];
+  const saved = field.options.formula;
+  const [formula, setFormula] = useState<FormulaInput>({ expression: saved?.expression ?? "", ...(saved?.scale !== undefined ? { scale: saved.scale } : {}) });
+  const formulaDirty = !!saved && (formula.expression.trim() !== saved.expression || (formula.scale ?? saved.scale) !== saved.scale);
 
   const saveChoices = (next: (Choice | { label: string })[]) => {
     adm.updateField.mutate(
@@ -114,7 +126,10 @@ function FieldCard({ ws, field }: { ws: string; field: FieldDefinition }) {
           onBlur={() => { if (name.trim() && name !== field.name) adm.updateField.mutate({ key: field.key, body: { name } }, { onSuccess: fb.ok(), onError: fb.fail }); }}
         />
         <code className="text-xs text-zinc-500">{field.key}</code>
-        <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs dark:bg-zinc-800">{ta.fieldTypes[field.type]}</span>
+        <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs dark:bg-zinc-800">
+          {ta.fieldTypes[field.type]}
+          {saved && ` → ${tf.resultTypes[saved.result_type] ?? saved.result_type}`}
+        </span>
         {field.archived && <span className="text-xs text-zinc-500">{ta.archived}</span>}
         <Button
           variant="ghost"
@@ -124,6 +139,22 @@ function FieldCard({ ws, field }: { ws: string; field: FieldDefinition }) {
           {field.archived ? ta.restore : ta.archive}
         </Button>
       </div>
+
+      {field.type === "formula" && !field.archived && (
+        <form
+          className="mt-3 space-y-2 border-t border-zinc-100 pt-3 dark:border-zinc-800"
+          onSubmit={(e) => {
+            e.preventDefault();
+            adm.updateField.mutate({ key: field.key, body: { options: { formula } } }, { onSuccess: fb.ok(), onError: fb.fail });
+          }}
+        >
+          <FormulaEditor ws={ws} fieldKey={field.key} value={formula} onChange={setFormula} />
+          {formulaDirty && <Button type="submit" variant="primary" disabled={adm.updateField.isPending}>{tf.save}</Button>}
+        </form>
+      )}
+      {field.type === "formula" && field.archived && saved && (
+        <p className="mt-2 font-mono text-xs text-zinc-500">{tf.title(saved.expression)}</p>
+      )}
 
       {isChoice(field.type) && !field.archived && (
         <div className="mt-3 space-y-2 border-t border-zinc-100 pt-3 dark:border-zinc-800">

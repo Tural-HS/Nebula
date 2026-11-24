@@ -28,6 +28,7 @@ böyük həcmli məlumatlarda sürətli, tam fərdiləşdirilə bilən, öz serv
 - Tapşırıq əlaqələri və izləyicilər: [ADR-0028](docs/adr/0028-item-links-and-watchers.md)
 - Təsdiqlər Mattermost/Slack kanalında (kart və "Nebula-da aç", addım 2 dizaynı): [ADR-0031](docs/adr/0031-chat-approval-cards.md)
 - Audit sübut paketinin ixracı (imzalı ZIP, `nebula evidence verify`): [ADR-0029](docs/adr/0029-audit-evidence-export.md), auditor üçün runbook: [docs/runbooks/audit-evidence.md](docs/runbooks/audit-evidence.md)
+- Düstur sahələri (dəqiq onluq hesab, `today()`, `workdays()`, cəm və sıralama): [ADR-0030](docs/adr/0030-formula-fields.md)
 - Yol xəritəsi: [docs/ROADMAP.md](docs/ROADMAP.md)
 
 ## Tələblər

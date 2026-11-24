@@ -4,6 +4,7 @@ import { ta as admin } from "./admin";
 import { tap as approvals } from "./approvals";
 import { ta as attach } from "./attach";
 import { tc as calendar } from "./calendar";
+import { tf as formulas } from "./formulas";
 import { t as core } from "./core";
 import { te as evidence } from "./evidence";
 import { ti as importer } from "./import";
@@ -20,4 +21,4 @@ import { tv as views } from "./views";
 import { twc as webhookChat } from "./webhookChat";
 import { tw as workdays } from "./workdays";
 
-export const ru: Messages = { admin, approvals, attach, calendar, core, evidence, importer, invite, links, mobile, notifications, project, recur, search, subtasks, templates, views, webhookChat, workdays };
+export const ru: Messages = { admin, approvals, attach, calendar, core, evidence, formulas, importer, invite, links, mobile, notifications, project, recur, search, subtasks, templates, views, webhookChat, workdays };

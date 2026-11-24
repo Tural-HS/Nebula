@@ -275,8 +275,8 @@ func (a *api) loadImportContext(ctx context.Context, wsID uuid.UUID) (*importCon
 	ic.targets = append(ic.targets, builtinTargets...)
 	for i := range fields {
 		f := &fields[i]
-		if f.Archived {
-			continue
+		if f.Archived || f.Type == store.FieldFormula {
+			continue // formula values are computed, never imported (ADR-0030)
 		}
 		ic.targets = append(ic.targets, importTarget{ID: fieldTargetPrefix + f.Key, Kind: "field", Key: f.Key, Name: f.Name,
 			Type: f.Type, field: f, hints: importer.Target{Names: []string{f.Key, f.Name}}})

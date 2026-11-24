@@ -72,7 +72,7 @@ export const ta = {
   addChoice: "Add option",
   fieldTypes: {
     text: "Text", long_text: "Long text", number: "Number", date: "Date", datetime: "Date and time", boolean: "Yes/No",
-    select: "Select", multi_select: "Multi-select", user: "User", url: "URL", email: "Email",
+    select: "Select", multi_select: "Multi-select", user: "User", url: "URL", email: "Email", formula: "Formula",
   } as Record<string, string>,
 
   newType: "New type",

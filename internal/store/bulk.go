@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -107,6 +108,18 @@ func (s *Store) BulkItems(ctx context.Context, p BulkItemsParams) (BulkResult, e
 	checked, err := checkUpdate(update)
 	if err != nil {
 		return BulkResult{}, err
+	}
+	if p.Fields.Set && len(p.Fields.Value) > 0 {
+		// Refuse up front instead of failing every item (ADR-0030).
+		types, err := fieldTypesByKey(ctx, s.pool, p.WorkspaceID, fieldKeys(p.Fields.Value))
+		if err != nil {
+			return BulkResult{}, err
+		}
+		for _, k := range fieldKeys(p.Fields.Value) {
+			if strings.HasPrefix(types[k], FieldFormula+":") {
+				return BulkResult{}, invalid("fields."+k, "is a formula field: its value is computed and cannot be set")
+			}
+		}
 	}
 
 	// Lock rows in one order (by number): two overlapping bulk edits then

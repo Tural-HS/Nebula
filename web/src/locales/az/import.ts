@@ -83,6 +83,7 @@ export const ti = {
     user: "istifadəçi (e-poçt)",
     url: "URL",
     email: "e-poçt",
+    formula: "düstur (idxal edilmir)",
   } satisfies Record<FieldType, string>,
 
   // Server error codes (ADR-0011) → messages.

@@ -155,9 +155,16 @@ func (a *api) sumItems(w http.ResponseWriter, r *http.Request) {
 //
 //	v1:<number>                   number DESC (the original format)
 //	d1:<YYYY-MM-DD or empty>:<n>  due_date ASC NULLS LAST, number ASC
+//	f1:<sort>:<value or empty>:<n> field sorts (ADR-0030): [-]field.<key>
 func encodeItemCursor(c store.ItemCursor) string {
 	var s string
-	if c.Sort == store.SortDue {
+	if c.Sort != store.SortDue && c.Sort != store.SortNumber {
+		v := ""
+		if c.Value != nil {
+			v = *c.Value
+		}
+		s = "f1:" + c.Sort + ":" + v + ":" + strconv.FormatInt(c.Number, 10)
+	} else if c.Sort == store.SortDue {
 		due := ""
 		if c.Due != nil {
 			due = *c.Due
@@ -172,7 +179,7 @@ func encodeItemCursor(c store.ItemCursor) string {
 var errBadCursor = errors.New("invalid cursor")
 
 func decodeItemCursor(s string) (store.ItemCursor, error) {
-	if len(s) > 100 {
+	if len(s) > 300 {
 		return store.ItemCursor{}, errBadCursor
 	}
 	b, err := base64.RawURLEncoding.DecodeString(s)
@@ -201,6 +208,17 @@ func decodeItemCursor(s string) (store.ItemCursor, error) {
 				break
 			}
 			c.Due = &d
+		}
+		return c, nil
+	case len(parts) == 4 && parts[0] == "f1":
+		n, ok := num(parts[3])
+		if !ok || parts[1] == store.SortNumber || parts[1] == store.SortDue || !store.ValidSort(parts[1]) {
+			break
+		}
+		c := store.ItemCursor{Sort: parts[1], Number: n}
+		if parts[2] != "" {
+			v := parts[2]
+			c.Value = &v // checked against the field's type by the store
 		}
 		return c, nil
 	}

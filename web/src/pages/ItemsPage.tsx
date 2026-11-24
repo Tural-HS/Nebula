@@ -21,6 +21,8 @@ import { tc } from "../i18n-calendar";
 import { monthOf, parseMonth, todayIn } from "../lib/calendar";
 import { activeFilterCount, useCompact } from "../lib/responsive";
 import { flattenPages } from "../lib/board";
+import { fieldSortOptions, isSortable, parseSort, sortFieldKey } from "../lib/formula";
+import { tf } from "../i18n-formulas";
 import { emptyState, filtersOf, hasState, readState, sameState, stateFromView, sumFields, visibleColumns, writeState, type PageState } from "../lib/views";
 import { CreateItemDialog } from "./CreateItemDialog";
 import { BulkBar } from "./BulkBar";
@@ -85,6 +87,12 @@ export function ItemsPage() {
 
   const fields = useMemo(() => new Map((fieldDefs.data ?? []).map((f) => [f.key, f])), [fieldDefs.data]);
   const columns = useMemo(() => visibleColumns(state.columns, fields), [state.columns, fields]);
+  const sortFields = useMemo(() => {
+    const opts = fieldSortOptions(columns, fields);
+    const current = fields.get(sortFieldKey(state.sort));
+    if (current && isSortable(current) && !opts.some((o) => o.key === current.key)) opts.push({ key: current.key, name: current.name });
+    return opts;
+  }, [columns, fields, state.sort]);
   const sumKeys = useMemo(() => (view === "table" ? sumFields(columns, fields) : []), [view, columns, fields]);
   const sums = useItemSums(ws, project, filters, sumKeys);
   const statuses = useMemo(() => {
@@ -272,9 +280,16 @@ export function ItemsPage() {
     />
   );
   const sortSelect = (className: string) => (
-    <Select aria-label={tv.sort} value={state.sort} onChange={(e) => { applyState({ sort: e.target.value === "due" ? "due" : "number" }); }} className={className}>
+    <Select aria-label={tv.sort} value={state.sort} onChange={(e) => { applyState({ sort: parseSort(e.target.value) }); }} className={className}>
       <option value="number">{tv.sortNumber}</option>
       <option value="due">{tv.sortDue}</option>
+      {/* Number, date and formula columns (ADR-0030); a sort on a hidden column stays selectable. */}
+      {sortFields.map((f) => (
+        <optgroup key={f.key} label={f.name}>
+          <option value={`field.${f.key}`}>{tf.sortAsc(f.name)}</option>
+          <option value={`-field.${f.key}`}>{tf.sortDesc(f.name)}</option>
+        </optgroup>
+      ))}
     </Select>
   );
   const columnPicker = (inline: boolean) => <ColumnPicker inline={inline} columns={columns} fields={fields} onChange={(c) => { applyState({ columns: c }); }} />;
