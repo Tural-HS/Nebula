@@ -67,6 +67,7 @@ func (a *api) routes(r chi.Router) {
 		a.searchRoutes(r)
 		a.calendarRoutes(r)
 		a.evidenceRoutes(r)
+		a.approvalInboxRoutes(r)
 		r.Get("/members", a.listMembers)
 		r.With(requireRole(store.RoleAdmin)).Post("/members", a.addMember)
 		r.With(requireRole(store.RoleAdmin)).Patch("/members/{userID}", a.updateMemberRole)

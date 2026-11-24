@@ -3,7 +3,10 @@ import { useState } from "react";
 import { useAdminApi, useWorkflows, type ApprovalPolicy, type ApproverRole, type Workflow, type WorkflowStatus } from "../../api/admin";
 import { useMembers } from "../../api/hooks";
 import type { StatusCategory } from "../../api/types";
+import { tai } from "../../i18n-approval-inbox";
 import { tap } from "../../i18n-approvals";
+import { parseDue, policyExtrasFrom } from "../../lib/approvalInbox";
+import { PolicyExtras } from "../../components/Approvals";
 import { APPROVER_ROLES, MAX_MIN_APPROVALS, policyFor, policyProblem } from "../../lib/approvals";
 import { Button, ErrorState, Input, Select, Spinner, StatusBadge } from "../../components/ui";
 import { t } from "../../i18n";
@@ -217,8 +220,14 @@ function PolicyRow({ ws, wf, status, policy }: { ws: string; wf: Workflow; statu
   const [min, setMin] = useState(policy?.min_approvals ?? 1);
   const [roles, setRoles] = useState<ApproverRole[]>(policy?.approver_roles ?? (policy ? [] : ["admin"]));
   const [users, setUsers] = useState<string[]>(policy?.approver_user_ids ?? []);
-  const body = { min_approvals: min, approver_roles: roles, approver_user_ids: users };
+  const [extras, setExtras] = useState(() => policyExtrasFrom(policy));
+  const due = parseDue(extras.due);
+  const body = {
+    min_approvals: min, approver_roles: roles, approver_user_ids: users,
+    reapprove_on_change: extras.reapprove_on_change, reapprove_fields: extras.reapprove_fields, due_in_working_days: due,
+  };
   const problem = policyProblem(body);
+  const dueBad = due !== null && Number.isNaN(due);
   const toggle = <T,>(list: T[], v: T, on: boolean) => (on ? [...list, v] : list.filter((x) => x !== v));
   const eligible = (members.data ?? []).filter((m) => m.role !== "guest");
 
@@ -228,7 +237,11 @@ function PolicyRow({ ws, wf, status, policy }: { ws: string; wf: Workflow; statu
         <summary className="flex cursor-pointer flex-wrap items-center gap-2 pointer-coarse:min-h-11">
           <StatusBadge name={status.name} category={status.category} />
           {policy ? (
-            <span className="text-xs text-amber-700 dark:text-amber-300">🔏 {tap.settings.summary(policy.min_approvals)}</span>
+            <span className="text-xs text-amber-700 dark:text-amber-300">
+              🔏 {tap.settings.summary(policy.min_approvals)}
+              {policy.due_in_working_days ? ` · ⏰ ${tai.settings.summaryDue(policy.due_in_working_days)}` : ""}
+              {policy.reapprove_on_change ? ` · ♻️ ${tai.settings.summaryReapprove}` : ""}
+            </span>
           ) : (
             <span className="text-xs text-zinc-400">—</span>
           )}
@@ -237,7 +250,7 @@ function PolicyRow({ ws, wf, status, policy }: { ws: string; wf: Workflow; statu
           className="mt-2 space-y-3 rounded-md p-3 ring-1 ring-zinc-200 dark:ring-zinc-800"
           onSubmit={(e) => {
             e.preventDefault();
-            if (problem) return;
+            if (problem || dueBad) return;
             adm.setApprovalPolicy.mutate({ wf: wf.id, status: status.id, body }, { onSuccess: fb.ok(), onError: fb.fail });
           }}
         >
@@ -274,9 +287,10 @@ function PolicyRow({ ws, wf, status, policy }: { ws: string; wf: Workflow; statu
               ))}
             </div>
           </fieldset>
+          <PolicyExtras ws={ws} value={extras} onChange={setExtras} />
           {problem && problem !== "range" && <p className="text-xs text-red-600">{tap.settings[problem]}</p>}
           <div className="flex flex-wrap gap-2">
-            <Button type="submit" variant="primary" disabled={problem !== null || adm.setApprovalPolicy.isPending}>
+            <Button type="submit" variant="primary" disabled={problem !== null || dueBad || adm.setApprovalPolicy.isPending}>
               {policy ? tap.settings.save : tap.settings.add}
             </Button>
             {policy && (

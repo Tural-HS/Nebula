@@ -94,6 +94,11 @@ func RenderChat(ev store.Event, c ChatContext) string {
 		lines = append(lines, fmt.Sprintf("↩️ %s %s%s üçün təsdiq sorğusunu ləğv etdi", who, ref, title))
 	case store.EventApprovalApplied:
 		lines = append(lines, fmt.Sprintf("✅ %s%s təsdiqləndi və statusu dəyişdi — %s", ref, title, who))
+	case store.EventApprovalInvalidated:
+		lines = append(lines, fmt.Sprintf("♻️ %s %s%s tapşırığının təsdiqlənmiş məzmununu dəyişdi: təsdiq etibarsızdır, yenidən təsdiq lazımdır", who, ref, title))
+	case store.EventApprovalOverdue:
+		lines = append(lines, fmt.Sprintf("⏰ %s%s: təsdiq müddəti keçib (son gün %s, %s/%s)", ref, title,
+			escapeChat(str(ev.Payload["due_on"])), count(ev.Payload["approvals"]), count(ev.Payload["min_approvals"])))
 	default:
 		subject := ref + title
 		if subject == "" {
@@ -426,7 +431,7 @@ func (e *Engine) chatContext(ctx context.Context, ev store.Event) (ChatContext, 
 	if ev.ActorID != nil {
 		c.Actor = c.Users[*ev.ActorID]
 	}
-	if ev.Action == store.EventApprovalRequested {
+	if ev.Action == store.EventApprovalRequested || ev.Action == store.EventApprovalOverdue {
 		if id, ok := uuidOf(ev.Payload["request_id"]); ok {
 			if c.Approvers, c.ApproversTotal, err = e.Store.PendingApprovers(ctx, ev.WorkspaceID, id, maxChatApprovers); err != nil {
 				return c, err

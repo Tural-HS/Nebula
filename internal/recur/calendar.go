@@ -170,3 +170,26 @@ func (c *Calendar) WorkdaysBetween(from, to time.Time) int {
 	}
 	return count
 }
+
+// AddWorkdays returns the n-th working day after from (n >= 1): from itself
+// never counts, so a deadline of one working day set on a Friday is the next
+// Monday, and one set on a holiday is the first working day after it. It is
+// the inverse of WorkdaysBetween: WorkdaysBetween(from, d) == n and d is a
+// working day. ok is false if the search runs past n*MaxSearchDays days,
+// which a valid calendar never does (see MaxSearchDays).
+func (c *Calendar) AddWorkdays(from time.Time, n int) (time.Time, bool) {
+	d := Date(from)
+	if n < 1 {
+		return d, false
+	}
+	for range n * MaxSearchDays {
+		d = d.AddDate(0, 0, 1)
+		if c.IsWorkday(d) {
+			n--
+			if n == 0 {
+				return d, true
+			}
+		}
+	}
+	return time.Time{}, false
+}

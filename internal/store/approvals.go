@@ -45,6 +45,16 @@ const (
 	EventApprovalRejected  = "approval.rejected"
 	EventApprovalCanceled  = "approval.canceled"
 	EventApprovalApplied   = "approval.applied"
+	// ADR-0034: approved content changed (the item went back for a new
+	// approval), and a pending request passed its deadline.
+	EventApprovalInvalidated = "approval.invalidated"
+	EventApprovalOverdue     = "approval.overdue"
+)
+
+// Policy limits added by ADR-0034.
+const (
+	maxDueWorkingDays  = 30
+	maxReapproveFields = 50
 )
 
 var approverRoles = []string{RoleMember, RoleAdmin, RoleOwner}
@@ -65,14 +75,26 @@ type ApprovalPolicy struct {
 	MinApprovals    int         `json:"min_approvals"`
 	ApproverRoles   []string    `json:"approver_roles"`
 	ApproverUserIDs []uuid.UUID `json:"approver_user_ids"`
-	UpdatedAt       time.Time   `json:"updated_at"`
+	// ReapproveOnChange: once approved, changing watched content sends the
+	// item back for a new approval (ADR-0034). ReapproveFields are the
+	// watched tokens ("title", "description", "fields.<key>"); empty means
+	// title, description and every custom field.
+	ReapproveOnChange bool     `json:"reapprove_on_change"`
+	ReapproveFields   []string `json:"reapprove_fields"`
+	// DueInWorkingDays is the decision deadline in working days of the
+	// workspace calendar (ADR-0027), nil for none.
+	DueInWorkingDays *int      `json:"due_in_working_days"`
+	UpdatedAt        time.Time `json:"updated_at"`
 }
 
 // ApprovalPolicyInput is the body of a policy PUT.
 type ApprovalPolicyInput struct {
-	MinApprovals    int         `json:"min_approvals"`
-	ApproverRoles   []string    `json:"approver_roles"`
-	ApproverUserIDs []uuid.UUID `json:"approver_user_ids"`
+	MinApprovals      int         `json:"min_approvals"`
+	ApproverRoles     []string    `json:"approver_roles"`
+	ApproverUserIDs   []uuid.UUID `json:"approver_user_ids"`
+	ReapproveOnChange bool        `json:"reapprove_on_change"`
+	ReapproveFields   []string    `json:"reapprove_fields"`
+	DueInWorkingDays  *int        `json:"due_in_working_days"`
 }
 
 // PendingApproval is the summary of an item's open request, embedded in
@@ -83,6 +105,8 @@ type PendingApproval struct {
 	RequestedBy  uuid.UUID `json:"requested_by"`
 	Approvals    int       `json:"approvals"`
 	MinApprovals int       `json:"min_approvals"`
+	DueOn        *string   `json:"due_on"`  // YYYY-MM-DD in the workspace's time zone (ADR-0034)
+	Overdue      bool      `json:"overdue"` // the deadline day has passed
 }
 
 // ApprovalDecision is one approver's vote.
@@ -113,6 +137,16 @@ type ApprovalRequest struct {
 	CreatedAt  time.Time       `json:"created_at"`
 	ClosedAt   *time.Time      `json:"closed_at"`
 	ClosedBy   *CommentAuthor  `json:"closed_by"`
+	// ADR-0034: the deadline, whether it has passed (pending only), when an
+	// approved request was invalidated by a change of approved content, and
+	// the request this one replaces.
+	DueOn         *string    `json:"due_on"`
+	Overdue       bool       `json:"overdue"`
+	InvalidatedAt *time.Time `json:"invalidated_at"`
+	ReopenedFrom  *uuid.UUID `json:"reopened_from"`
+	// The snapshot's re-approval rule, so the UI can warn before an edit.
+	ReapproveOnChange bool     `json:"reapprove_on_change"`
+	ReapproveFields   []string `json:"reapprove_fields"`
 }
 
 // ---------------------------------------------------------------------------
@@ -120,7 +154,7 @@ type ApprovalRequest struct {
 // ---------------------------------------------------------------------------
 
 func listApprovalPolicies(ctx context.Context, q querier, wsID uuid.UUID, only *uuid.UUID) (map[uuid.UUID][]ApprovalPolicy, error) {
-	rows, err := q.Query(ctx, `SELECT workflow_id, id, status_id, min_approvals, approver_roles, approver_user_ids, updated_at
+	rows, err := q.Query(ctx, `SELECT workflow_id, `+policyColumns+`
 		FROM approval_policies WHERE workspace_id = $1 AND ($2::uuid IS NULL OR workflow_id = $2)
 		ORDER BY created_at, id`, wsID, only)
 	if err != nil {
@@ -130,11 +164,77 @@ func listApprovalPolicies(ctx context.Context, q querier, wsID uuid.UUID, only *
 	_, err = pgx.CollectRows(rows, func(r pgx.CollectableRow) (struct{}, error) {
 		var wf uuid.UUID
 		var p ApprovalPolicy
-		err := r.Scan(&wf, &p.ID, &p.StatusID, &p.MinApprovals, &p.ApproverRoles, &p.ApproverUserIDs, &p.UpdatedAt)
+		err := r.Scan(append([]any{&wf}, p.scanDest()...)...)
 		out[wf] = append(out[wf], p)
 		return struct{}{}, err
 	})
 	return out, err
+}
+
+const policyColumns = `id, status_id, min_approvals, approver_roles, approver_user_ids,
+	reapprove_on_change, reapprove_fields, due_in_working_days, updated_at`
+
+func (p *ApprovalPolicy) scanDest() []any {
+	return []any{&p.ID, &p.StatusID, &p.MinApprovals, &p.ApproverRoles, &p.ApproverUserIDs,
+		&p.ReapproveOnChange, &p.ReapproveFields, &p.DueInWorkingDays, &p.UpdatedAt}
+}
+
+// policyOf returns the policy guarding entering a status of a workflow.
+func policyOf(ctx context.Context, q querier, workflowID, statusID uuid.UUID) (ApprovalPolicy, bool, error) {
+	var p ApprovalPolicy
+	err := q.QueryRow(ctx, `SELECT `+policyColumns+` FROM approval_policies WHERE workflow_id = $1 AND status_id = $2`,
+		workflowID, statusID).Scan(p.scanDest()...)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return p, false, nil
+	}
+	return p, err == nil, err
+}
+
+// reapproveTokens normalizes the watched-content list of a policy: tokens
+// are "title", "description" or "fields.<key>" of a live, non-formula
+// custom field (a formula changes when its inputs do: watch those).
+func reapproveTokens(ctx context.Context, q querier, wsID uuid.UUID, in []string) ([]string, error) {
+	out := []string{}
+	var keys []string
+	for _, tok := range in {
+		tok = strings.TrimSpace(tok)
+		if slices.Contains(out, tok) {
+			continue
+		}
+		switch {
+		case tok == "title" || tok == "description":
+		case strings.HasPrefix(tok, "fields.") && len(tok) > len("fields."):
+			keys = append(keys, strings.TrimPrefix(tok, "fields."))
+		default:
+			return nil, invalid("reapprove_fields", "each entry must be title, description or fields.<key>")
+		}
+		out = append(out, tok)
+	}
+	if len(out) > maxReapproveFields {
+		return nil, invalid("reapprove_fields", "at most %d entries", maxReapproveFields)
+	}
+	if len(keys) == 0 {
+		return out, nil
+	}
+	rows, err := q.Query(ctx, `SELECT key, field_type FROM field_definitions
+		WHERE workspace_id = $1 AND key = ANY($2) AND archived_at IS NULL`, wsID, keys)
+	if err != nil {
+		return nil, err
+	}
+	types := map[string]string{}
+	var k, ft string
+	if _, err := pgx.ForEachRow(rows, []any{&k, &ft}, func() error { types[k] = ft; return nil }); err != nil {
+		return nil, err
+	}
+	for _, key := range keys {
+		switch types[key] {
+		case "":
+			return nil, invalid("reapprove_fields", "unknown field %q", key)
+		case FieldFormula:
+			return nil, invalid("reapprove_fields", "%q is a formula field: watch the fields it is computed from", key)
+		}
+	}
+	return out, nil
 }
 
 // SetApprovalPolicy creates or replaces the policy guarding a status.
@@ -177,6 +277,12 @@ func setApprovalPolicy(ctx context.Context, tx pgx.Tx, wsID, actorID, workflowID
 	if len(roles) == 0 && len(users) < in.MinApprovals {
 		return Workflow{}, invalid("min_approvals", "cannot exceed the number of approvers")
 	}
+	if d := in.DueInWorkingDays; d != nil && (*d < 1 || *d > maxDueWorkingDays) {
+		return Workflow{}, invalid("due_in_working_days", "must be between 1 and %d working days", maxDueWorkingDays)
+	}
+	if !in.ReapproveOnChange && len(in.ReapproveFields) > 0 {
+		return Workflow{}, invalid("reapprove_fields", "only applies with reapprove_on_change")
+	}
 	var wf Workflow
 	err := func() error {
 		if err := lockWorkflow(ctx, tx, wsID, workflowID); err != nil {
@@ -200,17 +306,25 @@ func setApprovalPolicy(ctx context.Context, tx pgx.Tx, wsID, actorID, workflowID
 				return invalid("approver_user_ids", "every approver must be a workspace member with at least the member role")
 			}
 		}
-		_, err := tx.Exec(ctx, `INSERT INTO approval_policies
-			(id, workspace_id, workflow_id, status_id, min_approvals, approver_roles, approver_user_ids)
-			VALUES ($1, $2, $3, $4, $5, $6, $7)
+		watched, err := reapproveTokens(ctx, tx, wsID, in.ReapproveFields)
+		if err != nil {
+			return err
+		}
+		_, err = tx.Exec(ctx, `INSERT INTO approval_policies
+			(id, workspace_id, workflow_id, status_id, min_approvals, approver_roles, approver_user_ids,
+			 reapprove_on_change, reapprove_fields, due_in_working_days)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 			ON CONFLICT (status_id) DO UPDATE SET min_approvals = EXCLUDED.min_approvals,
-				approver_roles = EXCLUDED.approver_roles, approver_user_ids = EXCLUDED.approver_user_ids, updated_at = now()`,
-			newID(), wsID, workflowID, statusID, in.MinApprovals, roles, users)
+				approver_roles = EXCLUDED.approver_roles, approver_user_ids = EXCLUDED.approver_user_ids,
+				reapprove_on_change = EXCLUDED.reapprove_on_change, reapprove_fields = EXCLUDED.reapprove_fields,
+				due_in_working_days = EXCLUDED.due_in_working_days, updated_at = now()`,
+			newID(), wsID, workflowID, statusID, in.MinApprovals, roles, users, in.ReapproveOnChange, watched, in.DueInWorkingDays)
 		if err != nil {
 			return err
 		}
 		if err := appendEvent(ctx, tx, wsID, actorID, "workflow", workflowID, "approval_policy.set", map[string]any{
 			"status_id": statusID, "min_approvals": in.MinApprovals, "approver_roles": roles, "approver_user_ids": users,
+			"reapprove_on_change": in.ReapproveOnChange, "reapprove_fields": watched, "due_in_working_days": in.DueInWorkingDays,
 		}); err != nil {
 			return err
 		}
@@ -428,34 +542,90 @@ func (s *Store) RequestApproval(ctx context.Context, p RequestApprovalParams) (u
 		if err := checkTransition(ctx, tx, it.workflow, it.status, p.ToStatusID); err != nil {
 			return asField(err, "to_status_id")
 		}
-		var pol ApprovalPolicy
-		err = tx.QueryRow(ctx, `SELECT id, min_approvals, approver_roles, approver_user_ids FROM approval_policies
-			WHERE workflow_id = $1 AND status_id = $2`, it.workflow, p.ToStatusID).
-			Scan(&pol.ID, &pol.MinApprovals, &pol.ApproverRoles, &pol.ApproverUserIDs)
-		if errors.Is(err, pgx.ErrNoRows) {
+		pol, ok, err := policyOf(ctx, tx, it.workflow, p.ToStatusID)
+		if err != nil {
+			return err
+		}
+		if !ok {
 			return invalid("to_status_id", "this status needs no approval; change the status directly")
 		}
-		if err != nil {
-			return err
-		}
-		_, err = tx.Exec(ctx, `INSERT INTO approval_requests (id, workspace_id, item_id, policy_id, from_status_id, to_status_id,
-				requested_by, comment, min_approvals, approver_roles, approver_user_ids)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-			id, p.WorkspaceID, it.id, pol.ID, it.status, p.ToStatusID, p.ActorID, comment,
-			pol.MinApprovals, pol.ApproverRoles, pol.ApproverUserIDs)
-		if isUniqueViolation(err, "approval_requests_one_pending_idx") {
-			return &ConflictError{Code: "approval_pending", Message: "this item already has a pending approval request"}
-		}
-		if err != nil {
-			return err
-		}
-		from, to := it.status, p.ToStatusID
-		row := approvalRow{id: id, itemID: it.id, fromStatus: &from, toStatus: &to, requestedBy: p.ActorID,
-			minApprovals: pol.MinApprovals, roles: pol.ApproverRoles, users: pol.ApproverUserIDs}
-		return appendEvent(ctx, tx, p.WorkspaceID, p.ActorID, "item", it.id, EventApprovalRequested,
-			approvalPayload(row, map[string]any{"comment": comment}))
+		_, err = openRequest(ctx, tx, openParams{id: id, ws: p.WorkspaceID, item: it.id, from: it.status, to: p.ToStatusID,
+			actor: p.ActorID, comment: comment}, pol)
+		return err
 	})
 	return id, err
+}
+
+// openParams describe a new approval request.
+type openParams struct {
+	id, ws, item, from, to, actor uuid.UUID
+	comment                       *string
+	reopenedFrom                  *uuid.UUID // the invalidated request this one replaces (ADR-0034)
+}
+
+// openRequest inserts a pending request with the policy's snapshot and
+// records approval.requested. The caller holds the item lock.
+func openRequest(ctx context.Context, tx pgx.Tx, o openParams, pol ApprovalPolicy) (approvalRow, error) {
+	due, err := requestDueOn(ctx, tx, o.ws, pol)
+	if err != nil {
+		return approvalRow{}, err
+	}
+	row, err := insertRequest(ctx, tx, o, pol, due)
+	if err != nil {
+		return approvalRow{}, err
+	}
+	return row, appendEvent(ctx, tx, o.ws, o.actor, "item", o.item, EventApprovalRequested, approvalPayload(row, requestedExtra(o, due)))
+}
+
+// requestDueOn is a new request's deadline: the policy's number of working
+// days after the workspace's local today, on its working-day calendar
+// (ADR-0027). It is fixed when the request opens; a later calendar or
+// policy change does not move it, like the rest of the snapshot.
+func requestDueOn(ctx context.Context, tx pgx.Tx, wsID uuid.UUID, pol ApprovalPolicy) (*string, error) {
+	if pol.DueInWorkingDays == nil {
+		return nil, nil
+	}
+	var today time.Time
+	if err := tx.QueryRow(ctx, `SELECT `+localToday+` FROM workspaces w WHERE w.id = $1`, wsID).Scan(&today); err != nil {
+		return nil, err
+	}
+	cal, err := loadCalendar(ctx, tx, wsID, false)
+	if err != nil {
+		return nil, err
+	}
+	d, ok := cal.AddWorkdays(today, *pol.DueInWorkingDays)
+	if !ok {
+		return nil, nil // unreachable with a valid calendar: no deadline rather than a wrong one
+	}
+	s := d.Format(time.DateOnly)
+	return &s, nil
+}
+
+func insertRequest(ctx context.Context, tx pgx.Tx, o openParams, pol ApprovalPolicy, due *string) (approvalRow, error) {
+	_, err := tx.Exec(ctx, `INSERT INTO approval_requests (id, workspace_id, item_id, policy_id, from_status_id, to_status_id,
+			requested_by, comment, min_approvals, approver_roles, approver_user_ids,
+			reapprove_on_change, reapprove_fields, due_on, reopened_from)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::date, $15)`,
+		o.id, o.ws, o.item, pol.ID, o.from, o.to, o.actor, o.comment,
+		pol.MinApprovals, pol.ApproverRoles, pol.ApproverUserIDs, pol.ReapproveOnChange, pol.ReapproveFields, due, o.reopenedFrom)
+	if isUniqueViolation(err, "approval_requests_one_pending_idx") {
+		return approvalRow{}, &ConflictError{Code: "approval_pending", Message: "this item already has a pending approval request"}
+	}
+	if err != nil {
+		return approvalRow{}, err
+	}
+	from, to := o.from, o.to
+	return approvalRow{id: o.id, itemID: o.item, fromStatus: &from, toStatus: &to, requestedBy: o.actor,
+		minApprovals: pol.MinApprovals, roles: pol.ApproverRoles, users: pol.ApproverUserIDs, state: ApprovalPending}, nil
+}
+
+// requestedExtra is the request-specific part of approval.requested.
+func requestedExtra(o openParams, due *string) map[string]any {
+	extra := map[string]any{"comment": o.comment, "due_on": due}
+	if o.reopenedFrom != nil {
+		extra["reopened_from"] = *o.reopenedFrom
+	}
+	return extra
 }
 
 func asField(err error, field string) error {
@@ -590,19 +760,26 @@ func (s *Store) CancelApproval(ctx context.Context, wsID, projectID uuid.UUID, n
 	})
 }
 
-// eligibleApproversSQL lists the people who may decide on a request: active
-// members with at least the member role, matching the snapshot's roles or
-// users, who can see the project (ADR-0013; keep in sync with
-// canSeeProject), excluding the requester. $1 workspace, $2 project,
-// $3 requester, $4 roles, $5 users, $6 one user to check (NULL = all).
-const eligibleApproversSQL = `SELECT u.id, u.display_name FROM workspace_members m
+// approverEligible is the predicate "member m (user u) may decide on a
+// request of project p": an active member with at least the member role,
+// matching the snapshot's roles or users, who can see the project (ADR-0013;
+// visibleProjectFor is the canSeeProject predicate), and not the requester.
+// It is the single definition of eligibility: the decision itself, the
+// approver lists, notifications and the workspace inbox all use it.
+func approverEligible(m, u, p, requester, roles, users string) string {
+	return u + `.is_active AND ` + m + `.role <> 'guest' AND ` + m + `.user_id <> ` + requester + `
+	  AND (` + m + `.role = ANY(` + roles + `) OR ` + m + `.user_id = ANY(` + users + `))
+	  AND ` + visibleProjectFor(p, m+".user_id", m+".role IN ('admin', 'owner')")
+}
+
+// eligibleApproversSQL lists the people who may decide on a request.
+// $1 workspace, $2 project, $3 requester, $4 roles, $5 users, $6 one user
+// to check (NULL = all).
+var eligibleApproversSQL = `SELECT u.id, u.display_name FROM workspace_members m
 	JOIN users u ON u.id = m.user_id
 	JOIN projects p ON p.workspace_id = m.workspace_id AND p.id = $2
-	WHERE m.workspace_id = $1 AND u.is_active AND m.role <> 'guest' AND m.user_id <> $3
-	  AND (m.role = ANY($4::text[]) OR m.user_id = ANY($5::uuid[]))
-	  AND ($6::uuid IS NULL OR m.user_id = $6)
-	  AND (p.visibility = 'workspace' OR m.role IN ('admin', 'owner')
-	       OR EXISTS (SELECT 1 FROM project_members pm WHERE pm.project_id = p.id AND pm.user_id = m.user_id))`
+	WHERE m.workspace_id = $1 AND ($6::uuid IS NULL OR m.user_id = $6)
+	  AND ` + approverEligible("m", "u", "p", "$3", "$4::text[]", "$5::uuid[]")
 
 func isEligibleApprover(ctx context.Context, q querier, wsID, projectID uuid.UUID, r approvalRow, userID uuid.UUID) (bool, error) {
 	var ok bool
@@ -635,8 +812,11 @@ func (s *Store) ListApprovals(ctx context.Context, wsID, projectID uuid.UUID, nu
 	}
 	rows, err := s.pool.Query(ctx, `SELECT r.id, r.state, r.from_status_id, fs.name, fs.category, r.to_status_id, ts.name, ts.category,
 			r.requested_by, ru.display_name, r.comment, r.min_approvals, r.approvals, r.approver_roles, r.approver_user_ids,
-			r.created_at, r.closed_at, r.closed_by, cu.display_name
+			r.created_at, r.closed_at, r.closed_by, cu.display_name,
+			r.due_on::text, r.state = 'pending' AND COALESCE(r.due_on < `+localToday+`, false), r.invalidated_at, r.reopened_from,
+			r.reapprove_on_change, r.reapprove_fields
 		FROM approval_requests r
+		JOIN workspaces w ON w.id = r.workspace_id
 		LEFT JOIN statuses fs ON fs.id = r.from_status_id
 		LEFT JOIN statuses ts ON ts.id = r.to_status_id
 		JOIN users ru ON ru.id = r.requested_by
@@ -656,7 +836,8 @@ func (s *Store) ListApprovals(ctx context.Context, wsID, projectID uuid.UUID, nu
 		var closedName *string
 		err := row.Scan(&a.ID, &a.State, &raw.fromStatus, &fromName, &fromCat, &raw.toStatus, &toName, &toCat,
 			&raw.requestedBy, &reqName, &a.Comment, &a.MinApprovals, &a.Approvals, &a.ApproverRoles, &raw.users,
-			&a.CreatedAt, &a.ClosedAt, &closedBy, &closedName)
+			&a.CreatedAt, &a.ClosedAt, &closedBy, &closedName, &a.DueOn, &a.Overdue, &a.InvalidatedAt, &a.ReopenedFrom,
+			&a.ReapproveOnChange, &a.ReapproveFields)
 		if err != nil {
 			return a, err
 		}

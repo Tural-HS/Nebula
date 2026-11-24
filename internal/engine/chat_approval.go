@@ -52,7 +52,8 @@ const approvalFocus = "&focus=approval"
 func isApprovalEvent(action string) bool {
 	switch action {
 	case store.EventApprovalRequested, store.EventApprovalApproved, store.EventApprovalRejected,
-		store.EventApprovalCanceled, store.EventApprovalApplied:
+		store.EventApprovalCanceled, store.EventApprovalApplied,
+		store.EventApprovalInvalidated, store.EventApprovalOverdue:
 		return true
 	}
 	return false
@@ -89,6 +90,10 @@ func approvalCard(ev store.Event, c ChatContext, fallback string) ChatAttachment
 		heading, a.Color = "Təsdiq sorğusu ləğv edildi", colorCanceled
 	case store.EventApprovalApplied:
 		heading, a.Color = "Təsdiqləndi, status dəyişdi", colorApproved
+	case store.EventApprovalInvalidated:
+		heading, a.Color = "Məzmun dəyişdi, yenidən təsdiq lazımdır", colorPending
+	case store.EventApprovalOverdue:
+		heading, a.Color = "Təsdiq müddəti keçib", colorRejected
 	}
 	// The title holds only our own text and the item key (project keys are
 	// [A-Z0-9]), so it needs no markdown escaping on servers that show it raw.
@@ -129,9 +134,33 @@ func approvalCard(ev store.Event, c ChatContext, fallback string) ChatAttachment
 		field("Səbəb", optQuote(p["reason"]), false)
 	case store.EventApprovalCanceled:
 		field("Ləğv edən", actorLabel(ev, c), true)
+	case store.EventApprovalInvalidated:
+		field("Dəyişdirən", actorLabel(ev, c), true)
+		field("Dəyişən", changedList(p["changed"]), false)
+	case store.EventApprovalOverdue:
+		field("Son gün", escapeChat(str(p["due_on"])), true)
+		field("Təsdiq edə bilənlər", c.approverList(), false)
 	}
 	a.Footer = "Nebula · qərar yalnız Nebula-da verilir"
 	return a
+}
+
+// changedList names the changed content of approval.invalidated:
+// "başlıq, məbləğ" (custom fields by key).
+func changedList(v any) string {
+	list, _ := v.([]any)
+	names := make([]string, 0, len(list))
+	for _, x := range list {
+		switch k := str(x); k {
+		case "title":
+			names = append(names, "başlıq")
+		case "description":
+			names = append(names, "təsvir")
+		default:
+			names = append(names, escapeChat(strings.TrimPrefix(k, "fields.")))
+		}
+	}
+	return strings.Join(names, ", ")
 }
 
 // reached reports whether the approvals count reached the minimum.

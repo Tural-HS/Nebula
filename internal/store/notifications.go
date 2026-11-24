@@ -28,6 +28,11 @@ const (
 	NotifyApprovalApplied   = "approval_applied"
 	NotifyApprovalRejected  = "approval_rejected"
 	NotifyApprovalCanceled  = "approval_canceled"
+	// ADR-0034: a deadline passed (to approvers who have not decided and to
+	// the requester), approved content changed (to the earlier requester
+	// and approvers).
+	NotifyApprovalOverdue     = "approval_overdue"
+	NotifyApprovalInvalidated = "approval_invalidated"
 )
 
 const (
@@ -65,7 +70,8 @@ func notifiable(e Event) bool {
 	}
 	switch e.Action {
 	case TriggerItemCreated, TriggerItemOverdue, "comment.created", "comment.updated", "link.added",
-		EventApprovalRequested, EventApprovalApplied, EventApprovalRejected, EventApprovalCanceled:
+		EventApprovalRequested, EventApprovalApplied, EventApprovalRejected, EventApprovalCanceled,
+		EventApprovalOverdue, EventApprovalInvalidated:
 		return true
 	case TriggerItemUpdated:
 		changes, _ := e.Payload["changes"].(map[string]any)
@@ -220,8 +226,30 @@ func (s *Store) CreateNotifications(ctx context.Context, e Event) (int, error) {
 			}
 			addWatchers(NotifyLinkAdded)
 		case EventApprovalRequested:
-			if err := addApprovers(ctx, tx, e, projectID, add); err != nil {
+			if err := addApprovers(ctx, tx, e, projectID, NotifyApprovalRequested, add); err != nil {
 				return err
+			}
+		case EventApprovalOverdue:
+			// One reminder (the scan emits the event once per request).
+			if err := addApprovers(ctx, tx, e, projectID, NotifyApprovalOverdue, add); err != nil {
+				return err
+			}
+			add(payloadUUID(e.Payload["requested_by"]), NotifyApprovalOverdue)
+		case EventApprovalInvalidated:
+			add(payloadUUID(e.Payload["requested_by"]), NotifyApprovalInvalidated)
+			if reqID := payloadUUID(e.Payload["request_id"]); reqID != nil {
+				rows, err := tx.Query(ctx, `SELECT user_id FROM approval_decisions
+					WHERE request_id = $1 AND decision = 'approve' ORDER BY created_at, user_id`, *reqID)
+				if err != nil {
+					return err
+				}
+				approvers, err := pgx.CollectRows(rows, pgx.RowTo[uuid.UUID])
+				if err != nil {
+					return err
+				}
+				for i := range approvers {
+					add(&approvers[i], NotifyApprovalInvalidated)
+				}
 			}
 		case EventApprovalApplied:
 			add(payloadUUID(e.Payload["requested_by"]), NotifyApprovalApplied)
@@ -265,7 +293,7 @@ func (s *Store) CreateNotifications(ctx context.Context, e Event) (int, error) {
 // addApprovers adds the people who may decide on a new approval request,
 // from the request's policy snapshot (at most maxApproverNotifyees). Project
 // access is part of eligibility and checked again by the caller.
-func addApprovers(ctx context.Context, tx pgx.Tx, e Event, projectID uuid.UUID, add func(*uuid.UUID, string)) error {
+func addApprovers(ctx context.Context, tx pgx.Tx, e Event, projectID uuid.UUID, kind string, add func(*uuid.UUID, string)) error {
 	reqID := payloadUUID(e.Payload["request_id"])
 	if reqID == nil {
 		return nil
@@ -287,7 +315,7 @@ func addApprovers(ctx context.Context, tx pgx.Tx, e Event, projectID uuid.UUID, 
 		return err
 	}
 	for _, p := range people {
-		add(&p.ID, NotifyApprovalRequested)
+		add(&p.ID, kind)
 	}
 	return nil
 }

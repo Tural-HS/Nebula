@@ -43,6 +43,14 @@ func (e *Engine) Tick(ctx context.Context) {
 		e.Logger.Info("recurring items created", "count", n)
 	}
 	e.recomputeFormulas(ctx)
+	// Approval deadlines (ADR-0034): one approval.overdue per request.
+	if n, err := e.Store.EmitApprovalOverdue(ctx, overdueBatch); err != nil {
+		if ctx.Err() == nil {
+			e.Logger.Error("approval deadlines", "error", err)
+		}
+	} else if n > 0 {
+		e.Logger.Info("approval requests became overdue", "count", n)
+	}
 	n, err := e.Store.EmitOverdueDigests(ctx)
 	if err != nil {
 		if ctx.Err() == nil {

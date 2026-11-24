@@ -1,4 +1,5 @@
 import type { AppNotification } from "../api/notifications";
+import { tai } from "../i18n-approval-inbox";
 import { tap } from "../i18n-approvals";
 import { tn } from "../i18n-notifications";
 
@@ -30,6 +31,10 @@ export function notificationLead(n: Pick<AppNotification, "kind" | "actor_name">
       return tn.dueChanged(actor);
     case "link_added":
       return tn.linkAdded(actor);
+    case "approval_overdue":
+      return tai.notify.overdue;
+    case "approval_invalidated":
+      return tai.notify.invalidated(actor);
   }
 }
 

@@ -39,12 +39,22 @@ export interface ApprovalPolicy {
   min_approvals: number;
   approver_roles: ApproverRole[];
   approver_user_ids: string[];
+  /** ADR-0034: changing watched content after approval needs a new approval. */
+  reapprove_on_change?: boolean;
+  /** "title" | "description" | "fields.<key>"; empty = all of them. */
+  reapprove_fields?: string[];
+  /** Decision deadline in working days (1..30), null for none. */
+  due_in_working_days?: number | null;
 }
 
 export interface ApprovalPolicyInput {
   min_approvals: number;
   approver_roles: ApproverRole[];
   approver_user_ids: string[];
+  /** ADR-0034; omitted = off / all content / no deadline. */
+  reapprove_on_change?: boolean;
+  reapprove_fields?: string[];
+  due_in_working_days?: number | null;
 }
 
 export interface Webhook {
