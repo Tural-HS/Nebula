@@ -8,5 +8,7 @@ vulnerabilities:
     statement: >-
       golang.org/x/net/html DoS on crafted HTML input. Caddy 2.11.9 (latest, 2026-11-05) still bundles
       x/net v0.60.0. Our Caddyfile uses no templates/markdown, so Caddy never parses untrusted HTML.
-      Remove when the next Caddy release ships x/net >= 0.62.0.
+      Remove when the next Caddy release ships x/net >= 0.62.0. Checked 2026-11-24: still no release,
+      Caddy master already has x/net v0.62.0. If there is no release by 2026-12-15, build Caddy v2.11.9
+      with xcaddy and `--replace golang.org/x/net=golang.org/x/net@v0.62.0` instead of extending this.
     expired_at: 2026-12-31

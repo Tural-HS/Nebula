@@ -228,6 +228,7 @@ curl -fsS -H "Authorization: Bearer $(make -s token)" \
 
 ## Production qeydləri
 
+- Buraxılış qeydləri: [docs/releases/](docs/releases/) (ilk buraxılış: [v0.1.0](docs/releases/v0.1.0.md)).
 - Image: distroless Debian 13, root olmayan istifadəçi (UID 65532), ~25 MB. Read-only root FS ilə və bütün capability-lər söndürülmüş halda işlədin.
 - `nebula migrate up`-ı API yenilənməsindən əvvəl ayrıca job kimi işlədin (Compose: `migrate` servisi, `deploy/production`; K8s Job / Argo CD PreSync hook).
 - Hər miqrasiyanın işləyən `Down` hissəsi olmalı və əvvəlki relizin işləməsinə mane olmamalıdır (expand/contract).

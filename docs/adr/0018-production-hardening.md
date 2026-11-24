@@ -90,7 +90,7 @@ Lokal sınaq skanı (2026-11-23, release ilə eyni Trivy versiyası və parametr
 
 | CVE | Harada | Niyə qəbul | Bitmə |
 |---|---|---|---|
-| CVE-2026-78661 (`golang.org/x/net/html` DoS) | `usr/bin/caddy` | Caddy 2.11.9 (ən son) düzəlişsiz `x/net`-lə gəlir; Caddyfile-da `templates`/markdown yoxdur — Caddy etibarsız HTML parse etmir | 2026-12-31 |
+| CVE-2026-78661 (`golang.org/x/net/html` DoS) | `usr/bin/caddy` | Caddy 2.11.9 (ən son) düzəlişsiz `x/net`-lə gəlir; Caddyfile-da `templates`/markdown yoxdur — Caddy etibarsız HTML parse etmir. 2026-11-24: Caddy master-də `x/net v0.62.0` var, release yoxdur; 2026-12-15-ə qədər release çıxmasa Caddy `xcaddy` ilə düzəlişli `x/net`-lə build olunur (istisna uzadılmır) | 2026-12-31 |
 
 ### 9. Keycloak-da guava yaması (istisna əvəzinə, 2026-11-24)
 
