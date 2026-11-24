@@ -27,7 +27,9 @@ fail() {
 		echo 'nebula_restore_test_last_run_success 0'
 		echo '# TYPE nebula_restore_test_last_run_timestamp_seconds gauge'
 		echo "nebula_restore_test_last_run_timestamp_seconds $(date +%s)"
-		[[ -n ${last_ok:-} ]] && echo "nebula_restore_test_last_success_timestamp_seconds $last_ok"
+		# if, not &&: a false test as the group's last command would fail the pipeline (pipefail)
+		# and exit via errexit before die logs the reason.
+		if [[ -n ${last_ok:-} ]]; then echo "nebula_restore_test_last_success_timestamp_seconds $last_ok"; fi
 	} | write_metrics restore_test
 	die "restore test failed: $*"
 }
@@ -39,13 +41,18 @@ tables=(workspaces users projects items comments events)
 declare -A prod=()
 for t in "${tables[@]}"; do prod[$t]="$(psql_prod nebula "SELECT count(*) FROM $t")"; done
 prod_schema="$(schema_version)"
+# Archive the current WAL segment (pgbackrest check switches and waits), so the restore includes every
+# row counted above; otherwise up to archive_timeout of recent writes is missing and the
+# row-count tolerance fails on small or busy databases.
+compose exec -T postgres nebula-pgbackrest --stanza="$stanza" check >/dev/null 2>&1 || fail "WAL archiving check failed (backup.sh check)"
 log "production: schema $prod_schema, $(for t in "${tables[@]}"; do printf '%s=%s ' "$t" "${prod[$t]}"; done)"
 
 docker volume create "$vol" >/dev/null
 # Same image as production. No production network: the default bridge only reaches S3
 # (override with RESTORE_TEST_NETWORK when the repository is only reachable on another network).
 # archive_mode=off and --archive-mode=off: the restored copy can never push WAL into the repository.
-docker run -d --name "$name" --user 999:999 --group-add "${NEBULA_SECRETS_GID:-10001}" \
+# --init: async archive-get workers are re-parented to PID 1, which must not be the postmaster.
+docker run -d --init --name "$name" --user 999:999 --group-add "${NEBULA_SECRETS_GID:-10001}" \
 	--read-only --cap-drop ALL --security-opt no-new-privileges:true \
 	--memory 2g --cpus 2 --network "${RESTORE_TEST_NETWORK:-bridge}" \
 	--tmpfs /var/run/postgresql:size=1m,mode=1777 --tmpfs /tmp:size=256m,mode=1777 \

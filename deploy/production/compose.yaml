@@ -257,6 +257,10 @@ services:
     <<: [*hardening, *secrets-group]
     image: ${POSTGRES_IMAGE:?set POSTGRES_IMAGE (name@sha256:digest)}
     user: "999:999"
+    # PID 1 must reap orphans: pgBackRest async archive-push/archive-get detach a worker that is
+    # re-parented to PID 1. If PID 1 is the postmaster, a failing worker (S3 unreachable, exit 103)
+    # counts as a crashed child and Postgres restarts every backend (crash recovery).
+    init: true
     shm_size: 256m
     command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
     environment:

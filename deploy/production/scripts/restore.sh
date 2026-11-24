@@ -24,6 +24,14 @@ while (($#)); do
 	shift
 done
 
+# Validate before anything is stopped: a typo must not take the stack down.
+for ((i = 0; i < ${#opts[@]}; i++)); do
+	case ${opts[i]} in
+	--target=*) date -d "${opts[i]#--target=}" >/dev/null 2>&1 || die "invalid --target '${opts[i]#--target=}' (e.g. '2026-12-01 09:59:00+00')" ;;
+	--set=*) [[ ${opts[i]#--set=} =~ ^[0-9]{8}-[0-9]{6}F(_[0-9]{8}-[0-9]{6}[DI])?$ ]] || die "invalid --set '${opts[i]#--set=}' (see backup.sh info)" ;;
+	esac
+done
+
 take_lock 3600
 compose exec -T postgres nebula-pgbackrest --stanza="$stanza" info >&2 || log "WARN: could not list backups (is postgres down?)"
 confirm "This REPLACES the production databases nebula and keycloak (${opts[*]:-latest})."
