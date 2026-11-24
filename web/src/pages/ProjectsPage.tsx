@@ -5,6 +5,7 @@ import { useCreateProject, useProjects, useWorkspace } from "../api/hooks";
 import { roleAtLeast } from "../api/types";
 import { ApprovalInboxLink } from "../components/Approvals";
 import { Layout } from "../components/Layout";
+import { ArchivedProjectsList } from "../components/Lifecycle";
 import { Button, Dialog, EmptyState, ErrorState, FieldError, Input, Label, Select, Spinner } from "../components/ui";
 import { t } from "../i18n";
 import { tp } from "../i18n-project";
@@ -84,6 +85,7 @@ export function ProjectsPage() {
             ))}
           </ul>
         )}
+        <ArchivedProjectsList ws={ws} enabled={canCreate} />
       </div>
       <Dialog open={open} onClose={() => { setOpen(false); }} title={t.newProject}>
         <CreateProjectForm ws={ws} onDone={() => { setOpen(false); }} />

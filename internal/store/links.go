@@ -177,7 +177,7 @@ func (s *Store) AddItemLink(ctx context.Context, p AddLinkParams) (ItemLink, err
 		var target uuid.UUID
 		err = tx.QueryRow(ctx, `SELECT i.id FROM items i JOIN projects op ON op.id = i.project_id
 			WHERE i.workspace_id = $1 AND op.workspace_id = $1 AND op.key = $2 AND i.number = $3 AND i.deleted_at IS NULL
-			  AND `+visibleProjectFor("op", "$4", "$5"),
+			  AND op.archived_at IS NULL AND `+visibleProjectFor("op", "$4", "$5"),
 			p.WorkspaceID, tKey, tNum, p.Viewer.UserID, RoleAtLeast(p.Viewer.Role, RoleAdmin)).Scan(&target)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return invalid("target", "no such item")

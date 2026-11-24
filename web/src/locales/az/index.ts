@@ -14,6 +14,7 @@ import { ti as importer } from "./import";
 import { ti as invite } from "./invite";
 import { tk as kinds } from "./kinds";
 import { tlg as ledger } from "./ledger";
+import { tlc as lifecycle } from "./lifecycle";
 import { tl as links } from "./links";
 import { tm as mobile } from "./mobile";
 import { tn as notifications } from "./notifications";
@@ -27,4 +28,4 @@ import { tv as views } from "./views";
 import { twc as webhookChat } from "./webhookChat";
 import { tw as workdays } from "./workdays";
 
-export const az = { admin, approvalInbox, approvals, attach, calendar, core, email, evidence, forms, formulas, home, importer, invite, kinds, ledger, links, mobile, notifications, project, recur, search, subtasks, templates, theme, views, webhookChat, workdays };
+export const az = { admin, approvalInbox, approvals, attach, calendar, core, email, evidence, forms, formulas, home, importer, invite, kinds, ledger, lifecycle, links, mobile, notifications, project, recur, search, subtasks, templates, theme, views, webhookChat, workdays };

@@ -80,7 +80,7 @@ const inboxFrom = ` FROM approval_requests r
 // see; canDecide is the viewer's eligibility (approverEligible, the same
 // predicate as the decision itself) and not having voted yet.
 var (
-	inboxWhere = ` WHERE r.workspace_id = $1 AND r.state = 'pending' AND ` +
+	inboxWhere = ` WHERE r.workspace_id = $1 AND r.state = 'pending' AND p.archived_at IS NULL AND ` +
 		visibleProjectFor("p", "vm.user_id", "vm.role IN ('admin', 'owner')")
 	inboxCanDecide = `(` + approverEligible("vm", "vu", "p", "r.requested_by", "r.approver_roles", "r.approver_user_ids") + `
 	  AND NOT EXISTS (SELECT 1 FROM approval_decisions d WHERE d.request_id = r.id AND d.user_id = vm.user_id))`
@@ -174,7 +174,10 @@ func (s *Store) EmitApprovalOverdue(ctx context.Context, limit int) (int, error)
 	err := s.inTx(ctx, func(tx pgx.Tx) error {
 		rows, err := tx.Query(ctx, `UPDATE approval_requests r SET overdue_notified_at = now()
 			WHERE r.id IN (
-				SELECT c.id FROM approval_requests c JOIN workspaces w ON w.id = c.workspace_id
+				SELECT c.id FROM approval_requests c
+				JOIN workspaces w ON w.id = c.workspace_id AND w.archived_at IS NULL
+				JOIN items ci ON ci.id = c.item_id
+				JOIN projects cp ON cp.id = ci.project_id AND cp.archived_at IS NULL
 				WHERE c.state = 'pending' AND c.due_on IS NOT NULL AND c.overdue_notified_at IS NULL
 				  AND c.due_on < `+localToday+`
 				ORDER BY c.due_on, c.id LIMIT $1

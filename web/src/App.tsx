@@ -14,6 +14,7 @@ import { ItemsPage } from "./pages/ItemsPage";
 import { ApprovalsInboxPage } from "./pages/ApprovalsInboxPage";
 import { ProjectsPage } from "./pages/ProjectsPage";
 import { HomePage } from "./pages/HomePage";
+import { ProjectGate } from "./pages/ProjectGate";
 
 // Pages that are not needed for the first paint load on demand, each as its
 // own chunk; the workspace, project and item pages stay in the main bundle.
@@ -84,15 +85,15 @@ export function App() {
             <Route path="/" element={<HomePage />} />
             <Route path="/w/:ws" element={<ProjectsPage />} />
             <Route path="/w/:ws/approvals" element={<ApprovalsInboxPage />} />
-            <Route path="/w/:ws/p/:project" element={<ItemsPage />} />
-            <Route path="/w/:ws/p/:project/import" element={<ImportPage />} />
-            <Route path="/w/:ws/p/:project/recurring" element={<RecurringPage />} />
-            <Route path="/w/:ws/p/:project/settings" element={<ProjectSettingsPage />} />
+            <Route path="/w/:ws/p/:project" element={<ProjectGate><ItemsPage /></ProjectGate>} />
+            <Route path="/w/:ws/p/:project/import" element={<ProjectGate><ImportPage /></ProjectGate>} />
+            <Route path="/w/:ws/p/:project/recurring" element={<ProjectGate><RecurringPage /></ProjectGate>} />
+            <Route path="/w/:ws/p/:project/settings" element={<ProjectGate><ProjectSettingsPage /></ProjectGate>} />
             <Route path="/invite/:token" element={<InvitePage />} />
             <Route path="/f/:ref" element={<FormPage />} />
             <Route path="/requests" element={<MyRequestsPage />} />
             <Route path="/requests/:id" element={<MyRequestPage />} />
-            <Route path="/w/:ws/p/:project/forms" element={<FormsPage />} />
+            <Route path="/w/:ws/p/:project/forms" element={<ProjectGate><FormsPage /></ProjectGate>} />
             <Route path="/w/:ws/settings" element={<MembersPage />} />
             <Route path="/w/:ws/settings/general" element={<GeneralPage />} />
             <Route path="/w/:ws/settings/calendar" element={<WorkCalendarPage />} />

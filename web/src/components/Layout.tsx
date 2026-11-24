@@ -8,6 +8,7 @@ import { t } from "../i18n";
 import { tf } from "../i18n-forms";
 import { cn } from "../lib/cn";
 import { GlobalSearch } from "./GlobalSearch";
+import { ArchivedWorkspaceBanner } from "./Lifecycle";
 import { LanguageMenu } from "./LanguageMenu";
 import { NotificationBell } from "./NotificationBell";
 import { ThemeMenu } from "./ThemeMenu";
@@ -107,6 +108,7 @@ export function Layout({ crumbs, actions, children }: { crumbs: Crumb[]; actions
           </span>
         </div>
       </header>
+      <ArchivedWorkspaceBanner />
       <main className="min-h-0 flex-1">{children}</main>
     </div>
   );

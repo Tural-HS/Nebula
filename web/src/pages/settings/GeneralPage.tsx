@@ -9,6 +9,7 @@ import { ta } from "../../i18n-admin";
 import { tth } from "../../i18n-theme";
 import { ACCENT_SCALES, ACCENTS, DEFAULT_ACCENT, isAccent, type Accent } from "../../lib/accent";
 import { cn } from "../../lib/cn";
+import { WorkspaceDangerZone } from "../../components/Lifecycle";
 import { Card, SettingsLayout } from "./SettingsLayout";
 import { useFeedback } from "./useErrorToast";
 
@@ -35,6 +36,8 @@ function General({ ws }: { ws: string }) {
       <GeneralForm key={workspace.data.id} ws={ws} workspace={workspace.data} />
       {/* Hidden if the API predates accents (ADR-0035, migration 00028). */}
       {workspace.data.accent !== undefined && <AccentPicker ws={ws} accent={workspace.data.accent} />}
+      {/* Hidden if the API predates archiving (ADR-0039, migration 00031). */}
+      {workspace.data.archived_at !== undefined && <WorkspaceDangerZone ws={ws} workspace={workspace.data} />}
     </div>
   );
 }

@@ -351,7 +351,7 @@ const notificationFrom = ` FROM notifications n
 	JOIN workspace_members m ON m.workspace_id = n.workspace_id AND m.user_id = n.recipient_id
 	JOIN projects p ON p.workspace_id = n.workspace_id AND p.id = n.project_id
 	JOIN items i ON i.workspace_id = n.workspace_id AND i.id = n.item_id AND i.deleted_at IS NULL
-	WHERE n.recipient_id = $1 AND ` + visibleNotification
+	WHERE n.recipient_id = $1 AND w.archived_at IS NULL AND p.archived_at IS NULL AND ` + visibleNotification
 
 // NotificationFilter selects a page of a user's notifications.
 type NotificationFilter struct {

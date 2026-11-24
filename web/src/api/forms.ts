@@ -64,6 +64,8 @@ export interface PublicForm {
   intro: string | null;
   workspace: string;
   open: boolean;
+  /** Why a closed form is closed (ADR-0039); absent when open or from an older API. */
+  closed_reason?: "archived" | "disabled";
   max_files: number;
   fields: PublicFormField[];
   can_manage: boolean;

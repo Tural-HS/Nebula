@@ -142,7 +142,7 @@ var homeScope = `WITH my AS MATERIALIZED (
 		SELECT w.id, w.slug, w.name, w.accent, w.timezone, m.role, m.role IN ('admin', 'owner') AS adm,
 			(now() AT TIME ZONE w.timezone)::date AS today
 		FROM workspace_members m JOIN workspaces w ON w.id = m.workspace_id
-		WHERE m.user_id = $1),
+		WHERE m.user_id = $1 AND w.archived_at IS NULL),
 	vis AS MATERIALIZED (
 		SELECT p.id, p.workspace_id, p.key, p.name FROM projects p JOIN my ON my.id = p.workspace_id
 		WHERE p.archived_at IS NULL AND ` + visibleProjectFor("p", "$1", "my.adm") + `),

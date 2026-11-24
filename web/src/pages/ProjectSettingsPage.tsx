@@ -4,8 +4,9 @@ import { Link, useParams } from "react-router";
 
 import { api, path } from "../api/client";
 import { keys, useMembers, useProjectMembers, useProjects, useWorkspace } from "../api/hooks";
-import { roleAtLeast, type Project } from "../api/types";
+import { roleAtLeast, type Project, type Workspace } from "../api/types";
 import { Layout } from "../components/Layout";
+import { ProjectDangerZone } from "../components/Lifecycle";
 import { useToast } from "../components/toast-context";
 import { Avatar, Button, EmptyState, ErrorState, FieldError, Input, Label, Select, Spinner } from "../components/ui";
 import { t } from "../i18n";
@@ -25,7 +26,7 @@ export function ProjectSettingsPage() {
   else if (workspace.isError) body = <ErrorState error={workspace.error} />;
   else if (!p) body = <EmptyState>{t.notFound}</EmptyState>;
   else if (!roleAtLeast(workspace.data.role, "admin")) body = <EmptyState>{tp.adminOnly}</EmptyState>;
-  else body = <Settings key={p.id} ws={ws} project={p} />;
+  else body = <Settings key={p.id} ws={ws} project={p} role={workspace.data.role} />;
 
   return (
     <Layout
@@ -46,7 +47,7 @@ export function ProjectSettingsPage() {
   );
 }
 
-function Settings({ ws, project }: { ws: string; project: Project }) {
+function Settings({ ws, project, role }: { ws: string; project: Project; role: Workspace["role"] }) {
   const qc = useQueryClient();
   const toast = useToast();
   const [name, setName] = useState(project.name);
@@ -97,6 +98,7 @@ function Settings({ ws, project }: { ws: string; project: Project }) {
           {tf.manage}
         </Link>
       </section>
+      {project.archived_at !== undefined && <ProjectDangerZone ws={ws} project={project} role={role} />}
     </>
   );
 }

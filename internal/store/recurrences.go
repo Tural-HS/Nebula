@@ -411,7 +411,11 @@ func (s *Store) DeleteRecurrence(ctx context.Context, wsID, projectID, actorID, 
 // lead time, for up to limit rules, and returns how many items it created.
 // Each rule runs in its own transaction so one broken rule cannot block others.
 func (s *Store) EmitRecurrences(ctx context.Context, limit int) (int, error) {
-	rows, err := s.pool.Query(ctx, `SELECT r.id FROM recurrences r JOIN workspaces w ON w.id = r.workspace_id
+	// Archived projects and workspaces create nothing (ADR-0039); their
+	// rules catch up after a restore, bounded like any backlog.
+	rows, err := s.pool.Query(ctx, `SELECT r.id FROM recurrences r
+		JOIN workspaces w ON w.id = r.workspace_id AND w.archived_at IS NULL
+		JOIN projects p ON p.id = r.project_id AND p.archived_at IS NULL
 		WHERE r.is_enabled AND r.next_due IS NOT NULL
 		  AND r.next_due - r.lead_days <= (now() AT TIME ZONE w.timezone)::date
 		ORDER BY r.next_due, r.id LIMIT $1`, limit)

@@ -22,6 +22,10 @@ export interface Workspace {
   /** Accent colour key (lib/accent.ts, ADR-0035, migration 00028); null = the
    * Nebula teal. Optional so an older API (without the field) hides the picker. */
   accent?: string | null;
+  /** Archived: read-only and hidden from lists (ADR-0039); null = active. */
+  archived_at?: string | null;
+  /** Permanent deletion requested; the purge is running. */
+  deleting?: boolean;
 }
 
 export interface Member {
@@ -42,6 +46,10 @@ export interface Project {
   visibility: "workspace" | "private";
   /** The shared view the project opens with; null: all items. */
   default_view_id: string | null;
+  /** Archived: hidden and read-only (ADR-0039); null = active. */
+  archived_at?: string | null;
+  /** Permanent deletion requested; the purge is running. */
+  deleting?: boolean;
 }
 
 export interface ProjectMember {

@@ -17,6 +17,7 @@ const (
 // are safe. Errors are logged and retried on the next tick.
 func (e *Engine) Tick(ctx context.Context) {
 	e.purgeBlobs(ctx)
+	e.purgeDeletions(ctx)
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	for range 10 { // up to 10 batches per tick, then let jobs run

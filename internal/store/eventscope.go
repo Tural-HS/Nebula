@@ -18,6 +18,8 @@ type EventScope struct {
 	// Unknown: the event belongs to a project that can no longer be resolved.
 	// Such events are delivered to no webhook (fail closed).
 	Unknown bool
+	// Archived: the project is archived or being deleted (ADR-0039).
+	Archived bool
 }
 
 // projectScoped are the entity types whose events belong to one project.
@@ -66,8 +68,8 @@ func eventScope(ctx context.Context, q querier, e Event) (EventScope, error) {
 	}
 	sc := EventScope{ProjectID: &projectID}
 	var visibility string
-	err := q.QueryRow(ctx, `SELECT key, visibility FROM projects WHERE workspace_id = $1 AND id = $2`, e.WorkspaceID, projectID).
-		Scan(&sc.ProjectKey, &visibility)
+	err := q.QueryRow(ctx, `SELECT key, visibility, archived_at IS NOT NULL FROM projects WHERE workspace_id = $1 AND id = $2`,
+		e.WorkspaceID, projectID).Scan(&sc.ProjectKey, &visibility, &sc.Archived)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return EventScope{Unknown: true}, nil
 	}
@@ -80,7 +82,7 @@ func eventScope(ctx context.Context, q querier, e Event) (EventScope, error) {
 // a private project is delivered only to webhooks that list it.
 func (sc EventScope) Allows(filter []uuid.UUID) bool {
 	switch {
-	case sc.Unknown:
+	case sc.Unknown, sc.Archived:
 		return false
 	case sc.ProjectID == nil:
 		return true

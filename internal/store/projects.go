@@ -26,6 +26,10 @@ type Project struct {
 	Visibility string `json:"visibility"`
 	// DefaultViewID is the shared view the project opens with (nil: all items).
 	DefaultViewID *uuid.UUID `json:"default_view_id"`
+	// ArchivedAt: an archived project is hidden and read-only (ADR-0039).
+	ArchivedAt *time.Time `json:"archived_at"`
+	// Deleting: permanent deletion was requested; the purge is running.
+	Deleting bool `json:"deleting"`
 }
 
 // Viewer is who is asking: project reads always go through it, so a caller
@@ -37,7 +41,8 @@ type Viewer struct {
 
 var projectKeyRe = regexp.MustCompile(`^[A-Z][A-Z0-9]{1,9}$`)
 
-const projectSelect = `SELECT id, key, name, description, created_at, updated_at, visibility, default_view_id FROM projects`
+const projectSelect = `SELECT id, key, name, description, created_at, updated_at, visibility, default_view_id,
+	archived_at, deletion_requested_at IS NOT NULL FROM projects`
 
 // visibleToViewer is the access predicate for project rows (table projects):
 // $2 = viewer user id, $3 = viewer is admin+. Keep in sync with canSeeProject.

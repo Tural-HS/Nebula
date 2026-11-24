@@ -262,6 +262,7 @@ type invitationRow struct {
 	slug, wsName      string
 	inviter           *string
 	expired, accepted bool
+	archived          bool
 }
 
 // pendingInvitation finds a usable invitation by token. Unknown, revoked or
@@ -277,12 +278,12 @@ func pendingInvitation(ctx context.Context, q querier, token string, forUpdate b
 	}
 	var r invitationRow
 	err := q.QueryRow(ctx, `SELECT i.id, i.workspace_id, i.email, i.role, w.slug, w.name, u.display_name,
-			i.expires_at <= now(), i.accepted_at IS NOT NULL
+			i.expires_at <= now(), i.accepted_at IS NOT NULL, w.archived_at IS NOT NULL
 		FROM workspace_invitations i
 		JOIN workspaces w ON w.id = i.workspace_id
 		LEFT JOIN users u ON u.id = i.invited_by
 		WHERE i.token_hash = $1 AND i.revoked_at IS NULL`+lock, hash).
-		Scan(&r.id, &r.wsID, &r.email, &r.role, &r.slug, &r.wsName, &r.inviter, &r.expired, &r.accepted)
+		Scan(&r.id, &r.wsID, &r.email, &r.role, &r.slug, &r.wsName, &r.inviter, &r.expired, &r.accepted, &r.archived)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return invitationRow{}, ErrNotFound
 	}
@@ -291,6 +292,10 @@ func pendingInvitation(ctx context.Context, q querier, token string, forUpdate b
 	}
 	if r.accepted {
 		return invitationRow{}, &ConflictError{Code: "invitation_used", Message: "this invitation has already been used"}
+	}
+	if r.archived {
+		// Archived or being deleted (ADR-0039): nobody joins a read-only workspace.
+		return invitationRow{}, &ConflictError{Code: "workspace_archived", Message: "this workspace is archived; ask its owner to restore it"}
 	}
 	if r.expired {
 		return invitationRow{}, &ConflictError{Code: "invitation_expired", Message: "this invitation has expired; ask for a new one"}
