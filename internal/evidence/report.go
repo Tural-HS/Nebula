@@ -282,6 +282,12 @@ func renderReport(m Manifest, d *store.EvidenceSet) ([]byte, error) {
 		if a.ClosedAt != nil {
 			va.Closed = r.time(*a.ClosedAt) + " · " + r.person(a.ClosedBy)
 		}
+		if a.InvalidatedAt != nil {
+			va.State += " · " + l.Invalidated + " (" + r.time(*a.InvalidatedAt) + ")"
+		}
+		if a.DueOn != nil {
+			va.Required += " · " + l.Due + " " + *a.DueOn
+		}
 		for _, dec := range a.Decisions {
 			vd := viewDecision{Who: r.person(&dec.UserID), Verb: l.Approve, Time: r.time(dec.CreatedAt)}
 			if dec.Decision == "reject" {

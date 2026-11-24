@@ -16,7 +16,10 @@ export type NotificationKind =
   | "status_changed"
   | "assignee_changed"
   | "due_changed"
-  | "link_added";
+  | "link_added"
+  // Approval deadlines and re-approval (ADR-0034)
+  | "approval_overdue"
+  | "approval_invalidated";
 
 /** One entry of GET /me/notifications; item key and title are current. */
 export interface AppNotification {

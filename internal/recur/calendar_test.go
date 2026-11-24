@@ -395,3 +395,46 @@ func TestWorkdaysBetween(t *testing.T) {
 		t.Fatalf("same day = %d", got)
 	}
 }
+
+func TestAddWorkdays(t *testing.T) {
+	day := func(s string) time.Time {
+		d, err := time.Parse(time.DateOnly, s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return d
+	}
+	// A synthetic calendar: Wednesday 2031-03-19 is a holiday, Saturday
+	// 2031-03-22 a transferred working day.
+	cal, err := NewCalendar(DefaultWeekend, []time.Time{day("2031-03-19")}, []time.Time{day("2031-03-22")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		from string
+		n    int
+		want string
+	}{
+		{"2031-03-17", 1, "2031-03-18"}, // Mon +1 = Tue
+		{"2031-03-18", 1, "2031-03-20"}, // Tue +1 skips the holiday
+		{"2031-03-18", 3, "2031-03-22"}, // ... and lands on the working Saturday
+		{"2031-03-21", 2, "2031-03-24"}, // Fri +2 = Sat (working), Mon
+		{"2031-03-19", 1, "2031-03-20"}, // from a holiday
+		{"2031-03-23", 1, "2031-03-24"}, // from a Sunday
+	} {
+		got, ok := cal.AddWorkdays(day(tc.from), tc.n)
+		if !ok || got.Format(time.DateOnly) != tc.want {
+			t.Errorf("AddWorkdays(%s, %d) = %s %v, want %s", tc.from, tc.n, got.Format(time.DateOnly), ok, tc.want)
+		}
+		if back := cal.WorkdaysBetween(day(tc.from), got); back != tc.n {
+			t.Errorf("inverse: WorkdaysBetween = %d, want %d", back, tc.n)
+		}
+	}
+	var nilCal *Calendar
+	if got, ok := nilCal.AddWorkdays(day("2031-03-21"), 1); !ok || got.Format(time.DateOnly) != "2031-03-24" {
+		t.Errorf("default calendar: %s", got)
+	}
+	if _, ok := cal.AddWorkdays(day("2031-03-21"), 0); ok {
+		t.Error("n = 0 must fail")
+	}
+}

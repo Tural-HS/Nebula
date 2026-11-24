@@ -1,5 +1,6 @@
 // Azerbaijani: the default language and the source of truth for the others.
 import { ta as admin } from "./admin";
+import { tai as approvalInbox } from "./approvalInbox";
 import { tap as approvals } from "./approvals";
 import { ta as attach } from "./attach";
 import { tc as calendar } from "./calendar";
@@ -21,4 +22,4 @@ import { tv as views } from "./views";
 import { twc as webhookChat } from "./webhookChat";
 import { tw as workdays } from "./workdays";
 
-export const az = { admin, approvals, attach, calendar, core, evidence, forms, formulas, importer, invite, links, mobile, notifications, project, recur, search, subtasks, templates, views, webhookChat, workdays };
+export const az = { admin, approvalInbox, approvals, attach, calendar, core, evidence, forms, formulas, importer, invite, links, mobile, notifications, project, recur, search, subtasks, templates, views, webhookChat, workdays };

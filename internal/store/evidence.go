@@ -136,6 +136,11 @@ type EvidenceApproval struct {
 	ClosedAt        *time.Time         `json:"closed_at"`
 	ClosedBy        *uuid.UUID         `json:"closed_by"`
 	Decisions       []EvidenceDecision `json:"decisions"`
+	// ADR-0034: the deadline (local date), when a change of approved content
+	// invalidated an approved request, and the request a new one replaces.
+	DueOn         *string    `json:"due_on"`
+	InvalidatedAt *time.Time `json:"invalidated_at"`
+	ReopenedFrom  *uuid.UUID `json:"reopened_from"`
 }
 
 // EvidenceLink is a link (ADR-0028) whose both sides the viewer can see.
@@ -497,7 +502,8 @@ func evidenceComments(ctx context.Context, tx pgx.Tx, q EvidenceQuery, itemIDs [
 
 func evidenceApprovals(ctx context.Context, tx pgx.Tx, q EvidenceQuery, itemIDs []uuid.UUID, keys map[uuid.UUID]string) ([]EvidenceApproval, error) {
 	rows, err := tx.Query(ctx, `SELECT id, item_id, state, from_status_id, to_status_id, requested_by, comment, min_approvals,
-			approvals, approver_roles, approver_user_ids, created_at, closed_at, closed_by
+			approvals, approver_roles, approver_user_ids, created_at, closed_at, closed_by,
+			due_on::text, invalidated_at, reopened_from
 		FROM approval_requests WHERE workspace_id = $1 AND item_id = ANY($2) ORDER BY created_at, id LIMIT $3`,
 		q.WorkspaceID, itemIDs, q.Limits.MaxApprovals+1)
 	if err != nil {
@@ -506,7 +512,8 @@ func evidenceApprovals(ctx context.Context, tx pgx.Tx, q EvidenceQuery, itemIDs 
 	list, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (EvidenceApproval, error) {
 		var a EvidenceApproval
 		err := r.Scan(&a.ID, &a.ItemID, &a.State, &a.FromStatusID, &a.ToStatusID, &a.RequestedBy, &a.Comment, &a.MinApprovals,
-			&a.Approvals, &a.ApproverRoles, &a.ApproverUserIDs, &a.CreatedAt, &a.ClosedAt, &a.ClosedBy)
+			&a.Approvals, &a.ApproverRoles, &a.ApproverUserIDs, &a.CreatedAt, &a.ClosedAt, &a.ClosedBy,
+			&a.DueOn, &a.InvalidatedAt, &a.ReopenedFrom)
 		a.ItemKey, a.Decisions = keys[a.ItemID], []EvidenceDecision{}
 		return a, err
 	})

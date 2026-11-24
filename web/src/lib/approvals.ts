@@ -4,6 +4,7 @@ import type { ApprovalPolicy, ApprovalPolicyInput, ApproverRole } from "../api/a
 import { ApiError } from "../api/client";
 import type { Item } from "../api/types";
 import { t } from "../i18n";
+import { tai } from "../i18n-approval-inbox";
 import { tap } from "../i18n-approvals";
 
 export const APPROVER_ROLES: readonly ApproverRole[] = ["member", "admin", "owner"];
@@ -40,7 +41,8 @@ export function progress(approvals: number, min: number): { done: number; min: n
   return { done, min, ratio: min > 0 ? done / min : 0 };
 }
 
-const APPROVAL_CODES = new Set(["approval_pending", "approval_required", "self_approval", "not_an_approver", "already_decided", "approval_closed"]);
+const APPROVAL_CODES = new Set(["approval_pending", "approval_required", "self_approval", "not_an_approver", "already_decided", "approval_closed",
+  "reapproval_required"]);
 
 /** The approval error code of a failed request, or null for other errors. */
 export function approvalErrorCode(err: unknown): string | null {
@@ -50,7 +52,7 @@ export function approvalErrorCode(err: unknown): string | null {
 /** Human message for a failed approval-related call. */
 export function approvalErrorText(err: unknown): string {
   const code = approvalErrorCode(err);
-  const known = code ? tap.errors[code] : undefined;
+  const known = code ? (tap.errors[code] ?? tai.errors[code]) : undefined;
   if (known) return known;
   return err instanceof ApiError ? err.message : t.errorGeneric;
 }

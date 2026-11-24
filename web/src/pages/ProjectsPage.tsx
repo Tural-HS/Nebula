@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router";
 
 import { useCreateProject, useProjects, useWorkspace } from "../api/hooks";
 import { roleAtLeast } from "../api/types";
+import { ApprovalInboxLink } from "../components/Approvals";
 import { Layout } from "../components/Layout";
 import { Button, Dialog, EmptyState, ErrorState, FieldError, Input, Label, Select, Spinner } from "../components/ui";
 import { t } from "../i18n";
@@ -50,7 +51,10 @@ export function ProjectsPage() {
       }
     >
       <div className="mx-auto max-w-3xl p-4 md:p-6">
-        <h1 className="mb-4 text-lg font-semibold">{t.projects}</h1>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <h1 className="text-lg font-semibold">{t.projects}</h1>
+          <ApprovalInboxLink ws={ws} />
+        </div>
         {projects.isPending ? (
           <Spinner />
         ) : projects.isError ? (

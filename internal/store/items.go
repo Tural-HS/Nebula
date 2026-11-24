@@ -60,7 +60,8 @@ const itemSelect = `SELECT i.id, i.number, p.key, i.project_id, i.title, i.descr
 	t.id, t.key, t.name, s.id, s.name, s.category, i.due_date::text,
 	COALESCE(i.due_date < (now() AT TIME ZONE w.timezone)::date AND s.category IN ('todo', 'in_progress'), false),
 	par.number, par.title, sub.total, sub.closed,
-	ar.id, ar.to_status_id, ars.name, ars.category, ar.requested_by, ar.approvals, ar.min_approvals
+	ar.id, ar.to_status_id, ars.name, ars.category, ar.requested_by, ar.approvals, ar.min_approvals,
+	ar.due_on::text, COALESCE(ar.due_on < (now() AT TIME ZONE w.timezone)::date, false)
 	FROM items i
 	JOIN workspaces w ON w.id = i.workspace_id
 	JOIN projects   p ON p.id = i.project_id
@@ -81,16 +82,19 @@ func scanItem(row pgx.Row) (Item, error) {
 	var apID, apTo, apBy *uuid.UUID
 	var apToName, apToCat *string
 	var apCount, apMin *int
+	var apDue *string
+	var apOverdue bool
 	err := row.Scan(&it.ID, &it.Number, &projectKey, &it.ProjectID, &it.Title, &it.Description, &it.AssigneeID,
 		&it.ReporterID, &it.Fields, &it.Version, &it.CreatedAt, &it.UpdatedAt,
 		&it.Type.ID, &it.Type.Key, &it.Type.Name, &it.Status.ID, &it.Status.Name, &it.Status.Category, &it.DueDate, &it.Overdue,
 		&parentNumber, &parentTitle, &it.Subtasks.Count, &it.Subtasks.Done,
-		&apID, &apTo, &apToName, &apToCat, &apBy, &apCount, &apMin)
+		&apID, &apTo, &apToName, &apToCat, &apBy, &apCount, &apMin, &apDue, &apOverdue)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Item{}, ErrNotFound
 	}
 	if apID != nil && apBy != nil && apCount != nil && apMin != nil {
-		it.Approval = &PendingApproval{ID: *apID, RequestedBy: *apBy, Approvals: *apCount, MinApprovals: *apMin}
+		it.Approval = &PendingApproval{ID: *apID, RequestedBy: *apBy, Approvals: *apCount, MinApprovals: *apMin,
+			DueOn: apDue, Overdue: apOverdue}
 		if apTo != nil && apToName != nil && apToCat != nil {
 			it.Approval.ToStatus = Status{ID: *apTo, Name: *apToName, Category: *apToCat}
 		}
@@ -662,6 +666,19 @@ func updateItemTx(ctx context.Context, tx pgx.Tx, p UpdateItemParams, in checked
 		if pending != nil && !applying && lockedChange(changes) {
 			return errApprovalPending()
 		}
+		// Changing approved content sends the item back for a new approval
+		// (ADR-0034). A change that also moves the status leaves the
+		// approved status anyway, so its approval no longer covers anything.
+		var reopen *reopening
+		if _, moving := changes["status_id"]; pending == nil && !moving && len(changes) > 0 {
+			if reopen, err = planReapproval(ctx, tx, p, id, curStatus, workflowID, changes, extra); err != nil {
+				return err
+			}
+			if reopen != nil {
+				changes["status_id"] = diff(curStatus, reopen.back)
+				newStatus = reopen.back
+			}
+		}
 		// Formula values follow every input change, the due date included
 		// (ADR-0030). They are not listed in changes: the inputs are.
 		formulas, err := loadFormulaSet(ctx, tx, p.WorkspaceID, true)
@@ -682,6 +699,18 @@ func updateItemTx(ctx context.Context, tx pgx.Tx, p UpdateItemParams, in checked
 				return err
 			}
 		}
+		var reopenEvents func() error
+		if reopen != nil {
+			var reqID uuid.UUID
+			if reqID, reopenEvents, err = reopen.apply(ctx, tx, p.WorkspaceID, p.ActorID); err != nil {
+				return err
+			}
+			extra = maps.Clone(extra)
+			if extra == nil {
+				extra = map[string]any{}
+			}
+			extra["approval"] = map[string]any{"invalidated_request_id": reopen.old.id, "request_id": reqID}
+		}
 		if len(changes) > 0 {
 			if _, err := tx.Exec(ctx, `UPDATE items SET title = $1, description = $2, status_id = $3,
 				assignee_id = $4, fields = $5, due_date = $6::date, parent_id = $8, version = version + 1 WHERE id = $7`,
@@ -701,7 +730,13 @@ func updateItemTx(ctx context.Context, tx pgx.Tx, p UpdateItemParams, in checked
 		}
 		payload := map[string]any{"changes": changes, "snapshot": Snapshot(item)}
 		maps.Copy(payload, extra)
-		return appendEvent(ctx, tx, p.WorkspaceID, p.ActorID, "item", id, "item.updated", payload)
+		if err := appendEvent(ctx, tx, p.WorkspaceID, p.ActorID, "item", id, "item.updated", payload); err != nil {
+			return err
+		}
+		if reopenEvents != nil {
+			return reopenEvents()
+		}
+		return nil
 	}()
 	return item, changed, err
 }

@@ -202,3 +202,35 @@ func TestApprovalLinkSurvivesHostileKeys(t *testing.T) {
 		t.Fatalf("link %q", u)
 	}
 }
+
+// ADR-0034: re-approval and deadline events get their own card and line.
+func TestRenderChatMessageReapprovalAndOverdue(t *testing.T) {
+	c, p, eve := approvalFixture()
+	inv := store.Event{Action: store.EventApprovalInvalidated, EntityType: "item", ActorID: &eve,
+		Payload: withPayload(p, map[string]any{"changed": []any{"fields.amount", "title"}})}
+	msg := RenderChatMessage(inv, c)
+	if len(msg.Attachments) != 1 {
+		t.Fatalf("invalidated: no card: %+v", msg)
+	}
+	a := msg.Attachments[0]
+	if a.Color != colorPending || !strings.Contains(a.Title, "yenidən təsdiq") || fieldMap(a)["Dəyişən"] != "amount, başlıq" {
+		t.Fatalf("invalidated card: %+v", a)
+	}
+	if !strings.HasPrefix(msg.Text, "♻️ Eve <") || !strings.Contains(msg.Text, "yenidən təsdiq lazımdır") {
+		t.Fatalf("invalidated text: %q", msg.Text)
+	}
+
+	over := store.Event{Action: store.EventApprovalOverdue, EntityType: "item",
+		Payload: withPayload(p, map[string]any{"due_on": "2031-03-20"})}
+	msg = RenderChatMessage(over, c)
+	a = msg.Attachments[0]
+	if a.Color != colorRejected || fieldMap(a)["Son gün"] != "2031-03-20" || fieldMap(a)["Təsdiq edə bilənlər"] != "Erin, Eve" {
+		t.Fatalf("overdue card: %+v", a)
+	}
+	if !strings.Contains(msg.Text, "təsdiq müddəti keçib (son gün 2031-03-20, 0/2)") || a.TitleLink != wantApprovalLink {
+		t.Fatalf("overdue text: %q %q", msg.Text, a.TitleLink)
+	}
+	if _, err := json.Marshal(msg); err != nil {
+		t.Fatal(err)
+	}
+}

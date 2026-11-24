@@ -1,5 +1,5 @@
 // Four-eyes approvals on status changes (ADR-0026).
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api, path } from "./client";
 import { collabKeys, keys } from "./hooks";
@@ -32,6 +32,42 @@ export interface ApprovalRequest {
   created_at: string;
   closed_at: string | null;
   closed_by: PersonRef | null;
+  /** ADR-0034: deadline (workspace-local YYYY-MM-DD), passed (pending only). */
+  due_on?: string | null;
+  overdue?: boolean;
+  /** An approved request whose content changed afterwards. */
+  invalidated_at?: string | null;
+  /** The invalidated request this one replaces. */
+  reopened_from?: string | null;
+  /** The snapshot's re-approval rule (ADR-0034); empty fields = all content. */
+  reapprove_on_change?: boolean;
+  reapprove_fields?: string[];
+}
+
+/** One pending request of the workspace inbox (ADR-0034). */
+export interface InboxEntry {
+  id: string;
+  item: { key: string; number: number; project_key: string; title: string };
+  requested_by: PersonRef;
+  from_status: Status | null;
+  to_status: Status | null;
+  approvals: number;
+  min_approvals: number;
+  created_at: string;
+  due_on: string | null;
+  overdue: boolean;
+  can_decide: boolean;
+}
+
+export interface InboxPage {
+  approvals: InboxEntry[];
+  next_cursor: string | null;
+}
+
+export interface InboxCount {
+  count: number;
+  overdue: number;
+  cap: number;
 }
 
 interface ApprovalResult {
@@ -41,7 +77,30 @@ interface ApprovalResult {
 
 export const approvalKeys = {
   list: (ws: string, project: string, n: number) => ["ws", ws, "p", project, "item", n, "approvals"] as const,
+  inbox: (ws: string) => ["ws", ws, "approval-inbox"] as const,
 };
+
+/** The workspace inbox, oldest first; mine = only what the viewer may decide on. */
+export const useApprovalInbox = (ws: string, mine: boolean) =>
+  useInfiniteQuery({
+    queryKey: [...approvalKeys.inbox(ws), "list", mine],
+    initialPageParam: null as string | null,
+    queryFn: ({ pageParam }) => {
+      const q = new URLSearchParams({ state: "pending", mine: String(mine), limit: "50" });
+      if (pageParam) q.set("cursor", pageParam);
+      return api<InboxPage>("GET", path`/workspaces/${ws}/approvals` + "?" + q.toString());
+    },
+    getNextPageParam: (last) => last.next_cursor,
+  });
+
+/** The badge: requests waiting for the viewer's decision (capped server-side). */
+export const useApprovalInboxCount = (ws: string) =>
+  useQuery({
+    queryKey: [...approvalKeys.inbox(ws), "count"],
+    queryFn: () => api<InboxCount>("GET", path`/workspaces/${ws}/approvals/count` + "?mine=true"),
+    refetchInterval: 120_000,
+    staleTime: 60_000,
+  });
 
 export const useApprovals = (ws: string, project: string, n: number) =>
   useQuery({
@@ -59,6 +118,7 @@ export function useApprovalActions(ws: string, project: string, n: number) {
     void qc.invalidateQueries({ queryKey: keys.items(ws, project) });
     void qc.invalidateQueries({ queryKey: keys.transitions(ws, project, n) });
     void qc.invalidateQueries({ queryKey: collabKeys.activity(ws, project, n) });
+    void qc.invalidateQueries({ queryKey: approvalKeys.inbox(ws) });
   };
   return {
     request: useMutation({

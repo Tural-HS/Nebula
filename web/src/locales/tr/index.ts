@@ -1,6 +1,7 @@
 // Turkish dictionary (ADR-0025); mirrors the Azerbaijani source of truth.
 import type { Messages } from "../../i18n/locale";
 import { ta as admin } from "./admin";
+import { tai as approvalInbox } from "./approvalInbox";
 import { tap as approvals } from "./approvals";
 import { ta as attach } from "./attach";
 import { tc as calendar } from "./calendar";
@@ -22,4 +23,4 @@ import { tv as views } from "./views";
 import { twc as webhookChat } from "./webhookChat";
 import { tw as workdays } from "./workdays";
 
-export const tr: Messages = { admin, approvals, attach, calendar, core, evidence, forms, formulas, importer, invite, links, mobile, notifications, project, recur, search, subtasks, templates, views, webhookChat, workdays };
+export const tr: Messages = { admin, approvalInbox, approvals, attach, calendar, core, evidence, forms, formulas, importer, invite, links, mobile, notifications, project, recur, search, subtasks, templates, views, webhookChat, workdays };

@@ -248,6 +248,9 @@ export interface PendingApproval {
   requested_by: string;
   approvals: number;
   min_approvals: number;
+  /** ADR-0034: the decision deadline (workspace-local date) and whether it passed. */
+  due_on?: string | null;
+  overdue?: boolean;
 }
 
 /** A status the item can move to next; requires_approval means via a request. */

@@ -10,6 +10,7 @@ type labels struct {
 	Project, Type, Status, Assignee, Reporter, Created, Updated, Due, Deleted, Fields, Description string
 	History, ProjectEvents, Requested, By, Transition, State, Required, Decisions, Approve, Reject string
 	CommentDeleted, File, Size, SHA256, Uploader, Time, Who, Action, Details, System, None, Edited string
+	Invalidated                                                                                    string
 	States                                                                                         map[string]string
 	LinkTypes                                                                                      map[string]string
 }
@@ -29,7 +30,7 @@ var allLabels = map[string]labels{
 		Transition: "Keçid", State: "Vəziyyət", Required: "Tələb olunan", Decisions: "Qərarlar", Approve: "təsdiqlədi",
 		Reject: "rədd etdi", CommentDeleted: "(şərh silinib)", File: "Fayl", Size: "Ölçü", SHA256: "SHA-256",
 		Uploader: "Yükləyən", Time: "Vaxt", Who: "Kim", Action: "Hadisə", Details: "Təfərrüat", System: "sistem / avtomatlaşdırma",
-		None: "—", Edited: "redaktə olunub",
+		None: "—", Edited: "redaktə olunub", Invalidated: "məzmun dəyişdi, təsdiq etibarsızdır",
 		States:    map[string]string{"pending": "gözləyir", "approved": "təsdiqlənib", "rejected": "rədd edilib", "canceled": "ləğv edilib"},
 		LinkTypes: map[string]string{"blocks": "bloklayır", "relates": "əlaqəlidir", "duplicates": "təkrarlayır"},
 	},
@@ -47,7 +48,7 @@ var allLabels = map[string]labels{
 		Transition: "Transition", State: "State", Required: "Required", Decisions: "Decisions", Approve: "approved",
 		Reject: "rejected", CommentDeleted: "(comment deleted)", File: "File", Size: "Size", SHA256: "SHA-256",
 		Uploader: "Uploaded by", Time: "Time", Who: "Who", Action: "Event", Details: "Details", System: "system / automation",
-		None: "—", Edited: "edited",
+		None: "—", Edited: "edited", Invalidated: "content changed, approval invalidated",
 		States:    map[string]string{"pending": "pending", "approved": "approved", "rejected": "rejected", "canceled": "canceled"},
 		LinkTypes: map[string]string{"blocks": "blocks", "relates": "relates to", "duplicates": "duplicates"},
 	},
@@ -65,7 +66,7 @@ var allLabels = map[string]labels{
 		Transition: "Geçiş", State: "Durum", Required: "Gerekli", Decisions: "Kararlar", Approve: "onayladı",
 		Reject: "reddetti", CommentDeleted: "(yorum silindi)", File: "Dosya", Size: "Boyut", SHA256: "SHA-256",
 		Uploader: "Yükleyen", Time: "Zaman", Who: "Kim", Action: "Olay", Details: "Ayrıntı", System: "sistem / otomasyon",
-		None: "—", Edited: "düzenlendi",
+		None: "—", Edited: "düzenlendi", Invalidated: "içerik değişti, onay geçersiz",
 		States:    map[string]string{"pending": "bekliyor", "approved": "onaylandı", "rejected": "reddedildi", "canceled": "iptal edildi"},
 		LinkTypes: map[string]string{"blocks": "engelliyor", "relates": "ilişkili", "duplicates": "yineliyor"},
 	},
@@ -83,7 +84,7 @@ var allLabels = map[string]labels{
 		Transition: "Переход", State: "Состояние", Required: "Требуется", Decisions: "Решения", Approve: "согласовал(а)",
 		Reject: "отклонил(а)", CommentDeleted: "(комментарий удалён)", File: "Файл", Size: "Размер", SHA256: "SHA-256",
 		Uploader: "Загрузил(а)", Time: "Время", Who: "Кто", Action: "Событие", Details: "Подробности", System: "система / автоматизация",
-		None: "—", Edited: "изменён",
+		None: "—", Edited: "изменён", Invalidated: "содержание изменено, согласование аннулировано",
 		States:    map[string]string{"pending": "ожидает", "approved": "согласовано", "rejected": "отклонено", "canceled": "отменено"},
 		LinkTypes: map[string]string{"blocks": "блокирует", "relates": "связана с", "duplicates": "дублирует"},
 	},

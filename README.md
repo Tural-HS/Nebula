@@ -30,6 +30,7 @@ böyük həcmli məlumatlarda sürətli, tam fərdiləşdirilə bilən, öz serv
 - Audit sübut paketinin ixracı (imzalı ZIP, `nebula evidence verify`): [ADR-0029](docs/adr/0029-audit-evidence-export.md), auditor üçün runbook: [docs/runbooks/audit-evidence.md](docs/runbooks/audit-evidence.md)
 - Düstur sahələri (dəqiq onluq hesab, `today()`, `workdays()`, cəm və sıralama): [ADR-0030](docs/adr/0030-formula-fields.md)
 - Qəbul formaları və "Tələblərim" (yalnız daxil olmuş istifadəçilər, anonim formalar təxirə salınıb): [ADR-0032](docs/adr/0032-intake-forms.md)
+- Təsdiq qutusu, dəyişiklikdə yenidən təsdiq və iş günü ilə təsdiq müddətləri: [ADR-0034](docs/adr/0034-approval-inbox-reapproval-deadlines.md)
 - Yol xəritəsi: [docs/ROADMAP.md](docs/ROADMAP.md)
 
 ## Tələblər
@@ -186,7 +187,9 @@ Bütün `/api/v1` endpoint-ləri (`/version` istisna olmaqla) `Authorization: Be
 | `GET .../items/{number}/transitions` | Növbəti mümkün statuslar (`requires_approval`: təsdiq tələb edir, ADR-0026) | guest+ |
 | `GET, POST .../items/{number}/approvals` | Təsdiq sorğuları / qorunan statusa keçid üçün sorğu (`to_status_id`, `version`, `comment`) | guest+ / member+ |
 | `POST .../items/{number}/approvals/{id}/approve\|reject\|cancel` | Təsdiqlə (`comment`), rədd et (`reason` məcburi), ləğv et (sorğunu göndərən və ya admin) | member+ |
-| `PUT, DELETE .../{ws}/workflows/{id}/statuses/{sid}/approval-policy` | Statusa daxil olmaq üçün təsdiq siyasəti (`min_approvals`, `approver_roles`, `approver_user_ids`) | admin+ |
+| `PUT, DELETE .../{ws}/workflows/{id}/statuses/{sid}/approval-policy` | Statusa daxil olmaq üçün təsdiq siyasəti (`min_approvals`, `approver_roles`, `approver_user_ids`; ADR-0034: `reapprove_on_change`, `reapprove_fields`, `due_in_working_days`) | admin+ |
+| `GET .../{ws}/approvals?state=pending&mine=true\|false` | Workspace üzrə gözləyən təsdiq sorğuları (yalnız görünən layihələr; `mine`: qərar verə biləcəkləriniz), `limit`, `cursor` (ADR-0034) | guest+ |
+| `GET .../{ws}/approvals/count?mine=true` | Nişan: `count` (ən çox 100), `overdue` (ADR-0034) | guest+ |
 | `GET, POST .../items/{number}/comments` | Şərhlər (`cursor`, `limit`) / yazmaq; `<@user-id>` ilə qeydetmə | guest+ / member+ |
 | `PATCH, DELETE .../items/{number}/comments/{id}` | Redaktə (yalnız müəllif) / silmə (müəllif və ya admin) | member+ |
 | `GET, POST .../items/{number}/attachments` | Fayllar və limitlər / yükləmə (`multipart/form-data`: `file`, istəyə bağlı `comment_id`) | guest+ / member+ |

@@ -1,5 +1,6 @@
 import type { Activity } from "../api/types";
 import { t } from "../i18n";
+import { tai } from "../i18n-approval-inbox";
 import { tap } from "../i18n-approvals";
 import { activeLocale } from "../i18n/locale";
 import { ta } from "../i18n-attach";
@@ -72,6 +73,10 @@ export function describe(a: Activity, lookup: Lookup): Line[] {
       return [{ text: tap.act.canceled }];
     case "approval.applied":
       return [{ text: tap.act.applied, to: lookup.status(str(a.data.to_status_id)) ?? "?" }];
+    case "approval.invalidated":
+      return [{ text: tai.act.invalidated, to: lookup.status(str(a.data.reverted_to_status_id)) ?? "?" }];
+    case "approval.overdue":
+      return [{ text: tai.act.overdue }];
     case "evidence.exported":
       return [{ text: te.act.exported }];
     case "link.added":

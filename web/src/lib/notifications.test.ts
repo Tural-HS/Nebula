@@ -31,6 +31,8 @@ describe("notificationText", () => {
     [{ kind: "approval_applied" }, "Təsdiq sorğunuz qəbul edildi: QA-12 Giriş xətası"],
     [{ kind: "approval_rejected" }, "Alice təsdiq sorğunuzu rədd etdi: QA-12 Giriş xətası"],
     [{ kind: "approval_canceled" }, "Alice təsdiq sorğunuzu ləğv etdi: QA-12 Giriş xətası"],
+    [{ kind: "approval_overdue" }, "Təsdiq sorğusunun müddəti keçib: QA-12 Giriş xətası"],
+    [{ kind: "approval_invalidated" }, "Alice təsdiqlənmiş məzmunu dəyişdi, yenidən təsdiq lazımdır: QA-12 Giriş xətası"],
     // Watcher kinds (ADR-0028)
     [{ kind: "status_changed" }, "Alice statusu dəyişdi: QA-12 Giriş xətası"],
     [{ kind: "assignee_changed" }, "Alice icraçını dəyişdi: QA-12 Giriş xətası"],
