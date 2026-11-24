@@ -1,6 +1,7 @@
 {
   "realm": "${KEYCLOAK_REALM}",
   "displayName": "Nebula",
+  "loginTheme": "nebula",
   "enabled": true,
   "internationalizationEnabled": true,
   "supportedLocales": ["az", "en", "tr", "ru"],

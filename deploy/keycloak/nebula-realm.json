@@ -1,6 +1,7 @@
 {
   "realm": "nebula",
   "displayName": "Nebula (local development only)",
+  "loginTheme": "nebula",
   "enabled": true,
   "internationalizationEnabled": true,
   "supportedLocales": ["az", "en", "tr", "ru"],

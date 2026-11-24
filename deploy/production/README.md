@@ -10,7 +10,7 @@ Bütün əmrlər host-da `root` (və ya `sudo`) ilə, `/opt/nebula/deploy/produc
 | `caddy/Caddyfile` | TLS, HTTP→HTTPS, HSTS, CSP, `/api` proxy, `/admin` bloku |
 | `web.Dockerfile` | Node 26 ilə UI build + Caddy image |
 | `postgres/` | PG 19 + pgBackRest image, `postgresql.conf`, rollar/bazalar (initdb) |
-| `keycloak/` | Optimized Keycloak image, realm şablonu (istifadəçisiz) |
+| `keycloak/` | Optimized Keycloak image, realm şablonu (istifadəçisiz), giriş mövzusu `themes/nebula` (ADR-0036) |
 | `alloy/` | Alloy konfiqurasiyası |
 | `monitoring/` | Alert qaydaları, Alertmanager → Mattermost, Grafana dashboard |
 | `scripts/` | `gen-secrets`, `preflight`, `deploy`, `rollback`, `db-roles`, `backup`, `restore`, `restore-test`, `container-info`, `keycloak-bootstrap-admin` |
@@ -162,6 +162,22 @@ Realm şablonunda (`keycloak/realm/nebula-realm.json`) **heç bir istifadəçi y
 
 > **Giriş səhifəsinin dili (ADR-0025):** realm 2026-11-24-dən əvvəl yaradılıbsa, interfeys dilləri üçün bir dəfə:
 > Admin konsol → Realm settings → Localization → *Internationalization* açın, dillər `az, en, tr, ru`, default `az`.
+
+#### Giriş səhifəsinin mövzusu (ADR-0036)
+
+Image `nebula` giriş mövzusunu (`keycloak/themes/nebula`) daşıyır; yeni realm-lar onu şablondan alır. Realm
+2026-11-24-dən əvvəl yaradılıbsa, yeni image deploy edildikdən sonra **bir dəfə** (parolu interaktiv soruşur, token
+fayla yazılmır):
+
+```bash
+docker compose exec -it keycloak /opt/keycloak/bin/kcadm.sh update realms/nebula -s loginTheme=nebula \
+  --no-config --server http://localhost:8080 --realm master --user <admin>
+```
+
+`realms/nebula` — `KEYCLOAK_REALM` dəyəri. kcadm parol axını ilə daxil olur; OTP məcburi olan admin üçün bu alınmaya
+bilər — onda admin konsol (SSH tunel): Realm settings → Themes → Login theme: `nebula` → Save. Dərhal qüvvəyə minir,
+restart lazım deyil; geri qaytarmaq: `loginTheme=keycloak.v2`. `nebula.css` dəyişəndə `theme.properties`-də `?v=`
+artırılmalıdır (brauzer keşi 30 gün).
 
 1. Müvəqqəti admin (parolu interaktiv soruşur, heç yerdə saxlanmır):
    ```bash

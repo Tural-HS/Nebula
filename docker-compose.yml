@@ -87,6 +87,9 @@ services:
       - "127.0.0.1:8081:8080"
     volumes:
       - ./deploy/keycloak/nebula-realm.json:/opt/keycloak/data/import/nebula-realm.json:ro
+      # Nebula login theme (ADR-0036), the same files the production image copies. start-dev
+      # does not cache themes: edit the CSS and reload the page, no restart needed.
+      - ./deploy/production/keycloak/themes/nebula:/opt/keycloak/themes/nebula:ro
       # Persists the embedded H2 database, so realm keys and sessions survive container recreation.
       - kcdata:/opt/keycloak/data
     cap_drop: [ALL]

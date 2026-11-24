@@ -33,6 +33,7 @@ böyük həcmli məlumatlarda sürətli, tam fərdiləşdirilə bilən, öz serv
 - Komanda növünə görə workspace şablonları (Maliyyə, İT, HR): [ADR-0033](docs/adr/0033-workspace-kinds.md)
 - Təsdiq qutusu, dəyişiklikdə yenidən təsdiq və iş günü ilə təsdiq müddətləri: [ADR-0034](docs/adr/0034-approval-inbox-reapproval-deadlines.md)
 - Rəng rejimi (açıq/tünd/sistem), workspace vurğu rəngi, tapşırıq siyahısı və panelinin "Ledger" dizaynı: [ADR-0035](docs/adr/0035-design-and-theme.md)
+- Nebula brendli Keycloak giriş səhifəsi (`keycloak.v2` üzərində yalnız CSS, açıq/tünd): [ADR-0036](docs/adr/0036-keycloak-login-theme.md)
 - Yol xəritəsi: [docs/ROADMAP.md](docs/ROADMAP.md)
 
 ## Tələblər

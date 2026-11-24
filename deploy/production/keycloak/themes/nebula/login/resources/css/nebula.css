@@ -1,0 +1,269 @@
+/*
+ * Nebula login theme (ADR-0036). Loaded after keycloak.v2's patternfly.min.css and styles.css.
+ *
+ * PatternFly 5 declares its global tokens on :where(:root) and :where(.pf-v5-theme-dark), both
+ * with zero specificity, so plain :root / .pf-v5-theme-dark rules here win without !important.
+ * Component tokens (.pf-v5-c-*) are re-pointed at the --nb-* tokens below; this file loads
+ * last, so equal-specificity rules here win too.
+ *
+ * Colours mirror web/src/index.css (ADR-0035): brand = the teal scale (oklch values converted
+ * to sRGB hex, so older browsers render them too), neutrals = Tailwind zinc. Contrast (WCAG 2.x):
+ *   light: white on brand-600 #16788b 5.1:1; brand-700 #105e77 links on white 7.3:1;
+ *   dark:  brand-300 #80d0d9 links on zinc-900 #18181b 10.6:1; zinc-400 secondary text 7.2:1.
+ * Dark mode: keycloak.v2's darkMode script toggles .pf-v5-theme-dark on <html> from
+ * prefers-color-scheme (theme.properties darkMode=true). No fonts, images or scripts are
+ * loaded from anywhere but this theme.
+ */
+
+:root {
+  --nb-brand-50: #eafbfd;
+  --nb-brand-100: #cdf4f6;
+  --nb-brand-200: #abe5eb;
+  --nb-brand-300: #80d0d9;
+  --nb-brand-400: #50b6c1;
+  --nb-brand-500: #2397a2;
+  --nb-brand-600: #16788b;
+  --nb-brand-700: #105e77;
+  --nb-brand-800: #15466a;
+  --nb-brand-900: #202955;
+
+  --nb-font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  /* Light (default). */
+  --nb-page: #fafafa;          /* zinc-50, the app's body */
+  --nb-surface: #ffffff;
+  --nb-surface-sunken: #f4f4f5; /* zinc-100 */
+  --nb-border: #e4e4e7;        /* zinc-200 */
+  --nb-input-border: #d4d4d8;  /* zinc-300 */
+  --nb-input-underline: #a1a1aa; /* zinc-400 */
+  --nb-text: #18181b;          /* zinc-900 */
+  --nb-text-muted: #52525b;    /* zinc-600: 7.7:1 on white */
+  --nb-heading: var(--nb-brand-900);
+  --nb-primary: var(--nb-brand-600);
+  --nb-primary-hover: var(--nb-brand-700);
+  --nb-on-primary: #ffffff;
+  --nb-link: var(--nb-brand-700);
+  --nb-link-hover: var(--nb-brand-800);
+  --nb-focus: var(--nb-brand-500); /* 3.5:1 on white (non-text minimum 3:1) */
+  --nb-shadow: 0 1px 2px rgb(24 24 27 / 0.06), 0 8px 24px -12px rgb(24 24 27 / 0.12);
+
+  /* PatternFly globals. */
+  --pf-v5-global--FontFamily--text: var(--nb-font);
+  --pf-v5-global--FontFamily--text--vf: var(--nb-font);
+  --pf-v5-global--FontFamily--heading: var(--nb-font);
+  --pf-v5-global--FontFamily--heading--vf: var(--nb-font);
+  --pf-v5-global--primary-color--100: var(--nb-primary);
+  --pf-v5-global--primary-color--200: var(--nb-primary-hover);
+  --pf-v5-global--active-color--100: var(--nb-primary);
+  --pf-v5-global--link--Color: var(--nb-link);
+  --pf-v5-global--link--Color--hover: var(--nb-link-hover);
+  --pf-v5-global--link--Color--visited: var(--nb-link);
+  /* Context variants: .pf-v5-c-form-control (and .pf-v5-t-light) re-point primary/link at the
+     "--dark-*" values, .pf-v5-c-login__header/__footer at the "--light-*" ones. */
+  --pf-v5-global--primary-color--dark-100: var(--nb-primary);
+  --pf-v5-global--primary-color--light-100: var(--nb-brand-300);
+  --pf-v5-global--link--Color--dark: var(--nb-link);
+  --pf-v5-global--link--Color--dark--hover: var(--nb-link-hover);
+  --pf-v5-global--link--Color--light: var(--nb-brand-300);
+  --pf-v5-global--link--Color--light--hover: var(--nb-brand-200);
+  --pf-v5-global--BackgroundColor--100: var(--nb-surface);
+  --pf-v5-global--BackgroundColor--200: var(--nb-page);
+  --pf-v5-global--Color--100: var(--nb-text);
+  --pf-v5-global--Color--200: var(--nb-text-muted);
+  --pf-v5-global--BorderColor--100: var(--nb-border);
+
+  /* keycloak.v2 styles.css hooks: no Keycloak background art, no blue card stripe. */
+  --keycloak-bg-logo-url: none;
+  --keycloak-card-top-color: transparent;
+}
+
+.pf-v5-theme-dark {
+  --nb-page: #09090b;          /* zinc-950 */
+  --nb-surface: #18181b;       /* zinc-900 */
+  --nb-surface-sunken: #09090b;
+  --nb-border: #27272a;        /* zinc-800 */
+  --nb-input-border: #3f3f46;  /* zinc-700 */
+  --nb-input-underline: #71717a; /* zinc-500 */
+  --nb-text: #f4f4f5;          /* zinc-100 */
+  --nb-text-muted: #a1a1aa;    /* zinc-400: 7.2:1 on zinc-900 */
+  --nb-heading: #fafafa;
+  --nb-primary: var(--nb-brand-600); /* white text stays 5.1:1 */
+  --nb-primary-hover: var(--nb-brand-700);
+  --nb-link: var(--nb-brand-300);
+  --nb-link-hover: var(--nb-brand-200);
+  --nb-focus: var(--nb-brand-400);
+  --nb-shadow: 0 1px 2px rgb(0 0 0 / 0.4);
+
+  --pf-v5-global--link--Color: var(--nb-link);
+  --pf-v5-global--link--Color--hover: var(--nb-link-hover);
+  --pf-v5-global--link--Color--visited: var(--nb-link);
+  --pf-v5-global--primary-color--100: var(--nb-brand-400); /* input underline, secondary buttons */
+  --pf-v5-global--primary-color--200: var(--nb-brand-300);
+  --pf-v5-global--active-color--100: var(--nb-brand-400);
+  --pf-v5-global--primary-color--dark-100: var(--nb-brand-400);
+  --pf-v5-global--primary-color--light-100: var(--nb-brand-400);
+  --pf-v5-global--link--Color--dark: var(--nb-link);
+  --pf-v5-global--link--Color--dark--hover: var(--nb-link-hover);
+  --pf-v5-global--link--Color--light: var(--nb-link);
+  --pf-v5-global--link--Color--light--hover: var(--nb-link-hover);
+  --pf-v5-global--BackgroundColor--100: var(--nb-surface);
+  --pf-v5-global--BackgroundColor--200: var(--nb-page);
+  --pf-v5-global--BackgroundColor--300: var(--nb-surface);
+  --pf-v5-global--BackgroundColor--400: var(--nb-surface-sunken);
+  --pf-v5-global--Color--100: var(--nb-text);
+  --pf-v5-global--Color--200: var(--nb-text-muted);
+  --pf-v5-global--BorderColor--100: var(--nb-border);
+}
+
+/* ---- Page ------------------------------------------------------------------------------- */
+
+.login-pf body {
+  background: var(--nb-page);
+  color: var(--nb-text);
+  -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+.pf-v5-c-login {
+  --pf-v5-c-login__main--BackgroundColor: var(--nb-surface);
+  --pf-v5-c-login__main--BoxShadow: var(--nb-shadow);
+}
+
+/* keycloak.v2 fixes the column at 34rem; let it shrink on phones. */
+.pf-v5-c-login__container {
+  grid-template-columns: minmax(0, 30rem);
+}
+
+.pf-v5-c-login__main {
+  border: 1px solid var(--nb-border);
+  border-radius: 12px;
+}
+
+.pf-v5-c-login__main-header {
+  border-top: 0;
+}
+
+/* keycloak.v2 splits title / language picker 70% / 30% from 768 px, which truncates
+   "Azərbaycan" in the narrower card. Give the picker its natural width instead. */
+@media (min-width: 768px) {
+  div.pf-v5-c-login__main-header:has(.pf-v5-c-login__main-header-utilities) {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  /* The select is as wide as its longest option ("азербайджанский (Azərbaycan)" in ru). */
+  .pf-v5-c-login__main-header-utilities {
+    max-width: 11rem;
+  }
+}
+
+/* ---- Brand header: logo + realm display name -------------------------------------------- */
+
+#kc-header-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 1.375rem;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  text-transform: none;
+  color: var(--nb-heading) !important; /* keycloak.v2 sets a light colour with !important */
+}
+
+#kc-header-wrapper::before {
+  content: "";
+  display: block;
+  width: 56px;
+  height: 56px;
+  background: url("../img/logo-mark.png") center / contain no-repeat;
+}
+
+/* ---- Card content ------------------------------------------------------------------------ */
+
+#kc-page-title.pf-v5-c-title {
+  font-size: 1.375rem;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--nb-text);
+}
+
+.pf-v5-c-form-control {
+  --pf-v5-c-form-control--BackgroundColor: var(--nb-surface);
+  --pf-v5-c-form-control--before--BorderTopColor: var(--nb-input-border);
+  --pf-v5-c-form-control--before--BorderRightColor: var(--nb-input-border);
+  --pf-v5-c-form-control--before--BorderLeftColor: var(--nb-input-border);
+  --pf-v5-c-form-control--after--BorderBottomColor: var(--nb-input-underline);
+  --pf-v5-c-form-control--m-readonly--BackgroundColor: var(--nb-surface-sunken);
+}
+
+.pf-v5-theme-dark .pf-v5-c-form-control {
+  --pf-v5-c-form-control--BackgroundColor: var(--nb-surface-sunken);
+}
+
+.pf-v5-c-button {
+  --pf-v5-c-button--BorderRadius: 6px;
+  --pf-v5-c-button--m-primary--BackgroundColor: var(--nb-primary);
+  --pf-v5-c-button--m-primary--Color: var(--nb-on-primary);
+  --pf-v5-c-button--m-primary--hover--BackgroundColor: var(--nb-primary-hover);
+  --pf-v5-c-button--m-primary--hover--Color: var(--nb-on-primary);
+  --pf-v5-c-button--m-primary--focus--BackgroundColor: var(--nb-primary-hover);
+  --pf-v5-c-button--m-primary--focus--Color: var(--nb-on-primary);
+  --pf-v5-c-button--m-primary--active--BackgroundColor: var(--nb-primary-hover);
+  --pf-v5-c-button--m-primary--active--Color: var(--nb-on-primary);
+  --pf-v5-c-button--m-link--Color: var(--nb-link);
+  --pf-v5-c-button--m-link--hover--Color: var(--nb-link-hover);
+  --pf-v5-c-button--m-link--focus--Color: var(--nb-link-hover);
+  --pf-v5-c-button--m-link--active--Color: var(--nb-link-hover);
+}
+
+.pf-v5-c-button.pf-m-primary {
+  font-weight: 600;
+}
+
+/* Logout confirmation (base template markup): the question sits directly on the button. */
+#kc-logout-confirm .instruction {
+  margin-block-end: 1.5rem;
+}
+
+/* One visible focus ring everywhere, as in the app (outline-brand-500). */
+:focus-visible {
+  outline: 2px solid var(--nb-focus);
+  outline-offset: 2px;
+}
+
+/* Inline alerts: keep PatternFly's status colours (AA in both modes), only soften the frame. */
+.pf-v5-c-alert.pf-m-inline {
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+/* ---- Phones ------------------------------------------------------------------------------ */
+
+@media (max-width: 575.98px) {
+  /* PatternFly drops the container gutter below 576 px; keep a 12 px one so the card's
+     border and radius stay visible. */
+  .pf-v5-c-login__container {
+    padding-inline: 0.75rem;
+  }
+
+  .pf-v5-c-login__main-header {
+    padding-block-start: 1.5rem;
+  }
+
+  .pf-v5-c-login__main-header,
+  .pf-v5-c-login__main-body,
+  .pf-v5-c-login__main-footer {
+    padding-inline: 1.25rem;
+  }
+
+  #kc-header-wrapper {
+    font-size: 1.25rem;
+  }
+
+  #kc-header-wrapper::before {
+    width: 48px;
+    height: 48px;
+  }
+}
