@@ -22,9 +22,11 @@ test.describe("authentication", () => {
     const ctx = await browser.newContext({ storageState: authFile("alice") });
     const page = await ctx.newPage();
     await page.goto("/");
-    await expect(page.getByText("Workspace-lər").first()).toBeVisible();
+    // The home page (ADR-0037) greets the user whether or not they have workspaces.
+    const home = page.getByRole("heading", { level: 1, name: /^Salam/ });
+    await expect(home).toBeVisible();
     await page.reload();
-    await expect(page.getByText("Workspace-lər").first()).toBeVisible();
+    await expect(home).toBeVisible();
     const stored = await page.evaluate(() => JSON.stringify([Object.entries(localStorage), Object.entries(sessionStorage)]));
     expect(stored).not.toMatch(/eyJ[A-Za-z0-9_-]{10,}\./); // no JWT persisted anywhere
     await ctx.close();

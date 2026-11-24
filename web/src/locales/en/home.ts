@@ -1,0 +1,52 @@
+// English strings for the home page "My work" (ADR-0037).
+import type { Messages } from "../../i18n/locale";
+import { plural } from "../../i18n/plural";
+
+const n = (count: number, one: string, other: string) => `${String(count)} ${plural("en", count, { one, other })}`;
+
+export const thm = {
+  title: "My work",
+  greeting: (name: string) => (name ? `Hello, ${name}` : "Hello"),
+  counters: "Counters",
+  counter: { overdue: "Overdue", approvals: "Awaiting my approval", week: "Due this week", assigned: "Assigned to me" },
+  counterLabel: (label: string, count: number) => `${label}: ${String(count)}`,
+  attention: "Needs attention",
+  showAll: (count: number) => `Show all (${String(count)})`,
+  list: {
+    attention: "Everything that needs attention",
+    overdue: "My overdue items",
+    approval: "Approvals waiting for my decision",
+    week: "My items due this week",
+    assigned: "Open items assigned to me",
+  },
+  listHint: "From all your workspaces, only projects you can see.",
+  back: "My work",
+  reason: { overdue: "Overdue", approval: "Approval", week: "This week", assigned: "Assigned" },
+  due: (date: string) => `Due ${date}`,
+  waiting: (age: string) => `Waiting ${age}`,
+  truncated: (shown: number, total: number) => `Showing the first ${n(shown, "item", "items")} of ${String(total)}.`,
+  listEmpty: "Nothing in this list.",
+  calm: "Nothing needs your attention right now",
+  calmHint: "You have nothing overdue, no approvals waiting for you and nothing due this week.",
+  recentProjects: "Recent projects",
+  searchHint: (keys: string) => `Inside a workspace, press ${keys} to search items and comments.`,
+  noWorkspaces: "You have no workspace yet",
+  invitedHint: "If you were invited, the link is in your email. Otherwise ask your admin to add you.",
+  createHint: "You can also open a workspace for your team, with a finance, IT or HR template.",
+  createCta: "Create a workspace from a template",
+  notifications: "Recent notifications",
+  noNotifications: "No notifications.",
+  requests: "My requests",
+  allRequests: "All requests",
+  watching: "Items I watch",
+  card: {
+    projects: (count: number) => n(count, "project", "projects"),
+    assigned: "open",
+    overdue: "overdue",
+    approvals: "approvals",
+    lastActivity: (when: string) => `Last change ${when}`,
+    noActivity: "No changes yet",
+    stats: (open: number, overdue: number, approvals: number) =>
+      `Mine: ${String(open)} open, ${String(overdue)} overdue, ${n(approvals, "approval", "approvals")}`,
+  },
+} satisfies Messages["home"];

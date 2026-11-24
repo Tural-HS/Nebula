@@ -34,6 +34,7 @@ böyük həcmli məlumatlarda sürətli, tam fərdiləşdirilə bilən, öz serv
 - Təsdiq qutusu, dəyişiklikdə yenidən təsdiq və iş günü ilə təsdiq müddətləri: [ADR-0034](docs/adr/0034-approval-inbox-reapproval-deadlines.md)
 - Rəng rejimi (açıq/tünd/sistem), workspace vurğu rəngi, tapşırıq siyahısı və panelinin "Ledger" dizaynı: [ADR-0035](docs/adr/0035-design-and-theme.md)
 - Nebula brendli Keycloak giriş səhifəsi (`keycloak.v2` üzərində yalnız CSS, açıq/tünd): [ADR-0036](docs/adr/0036-keycloak-login-theme.md)
+- Ana səhifə "Mənim işlərim" (bütün workspace-lər üzrə sayğaclar, diqqət siyahısı, workspace kartları): [ADR-0037](docs/adr/0037-home-page.md)
 - Yol xəritəsi: [docs/ROADMAP.md](docs/ROADMAP.md)
 
 ## Tələblər
@@ -162,6 +163,7 @@ Bütün `/api/v1` endpoint-ləri (`/version` istisna olmaqla) `Authorization: Be
 | `GET /readyz` | Readiness: baza əlçatandır | — |
 | `GET /api/v1/version` | Build versiyası | ictimai |
 | `GET /api/v1/me` | Cari istifadəçi | — |
+| `GET /api/v1/me/home?show=attention\|overdue\|approval\|week\|assigned&limit=1..200` | Ana səhifə: sayğaclar, siyahı (`items`, `total`), workspace kartları, izlədiyim işlər, son layihələr — yalnız görünən layihələr (ADR-0037) | — |
 | `GET, POST /api/v1/workspaces` | Mənim workspace-lərim / yaratmaq (yaradan owner olur) | — |
 | `GET /api/v1/workspaces/{ws}` | Workspace və mənim rolum | guest+ |
 | `GET, POST /api/v1/workspaces/{ws}/members` | Üzvlər / əlavə etmək | guest+ / admin+ |

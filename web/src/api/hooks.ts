@@ -292,7 +292,8 @@ export function useCreateWorkspace() {
   return useMutation({
     /** kind: team template, ADR-0033 (omitted = general). */
     mutationFn: (body: CreateWorkspaceBody) => api<Workspace>("POST", "/workspaces", body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: keys.workspaces }),
+    // The home page's workspace cards (ADR-0037) come from /me/home.
+    onSuccess: () => Promise.all([qc.invalidateQueries({ queryKey: keys.workspaces }), qc.invalidateQueries({ queryKey: ["home"] })]),
   });
 }
 

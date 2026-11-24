@@ -13,7 +13,7 @@ import { t } from "./i18n";
 import { ItemsPage } from "./pages/ItemsPage";
 import { ApprovalsInboxPage } from "./pages/ApprovalsInboxPage";
 import { ProjectsPage } from "./pages/ProjectsPage";
-import { WorkspacesPage } from "./pages/WorkspacesPage";
+import { HomePage } from "./pages/HomePage";
 
 // Pages that are not needed for the first paint load on demand, each as its
 // own chunk; the workspace, project and item pages stay in the main bundle.
@@ -80,7 +80,7 @@ export function App() {
           <ErrorBoundary>
           <Suspense fallback={<Spinner />}>
           <Routes>
-            <Route path="/" element={<WorkspacesPage />} />
+            <Route path="/" element={<HomePage />} />
             <Route path="/w/:ws" element={<ProjectsPage />} />
             <Route path="/w/:ws/approvals" element={<ApprovalsInboxPage />} />
             <Route path="/w/:ws/p/:project" element={<ItemsPage />} />

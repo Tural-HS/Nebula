@@ -48,7 +48,7 @@ test("system follows the OS setting live", async ({ page }) => {
 test.describe("narrow screens", () => {
   test.use({ viewport: { width: 375, height: 760 } });
 
-  test("pick the theme on the workspace list, not in the header", async ({ page }) => {
+  test("pick the theme on the home page, not in the header", async ({ page }) => {
     await page.emulateMedia({ colorScheme: "light" });
     await page.goto("/");
     await expect(page.getByRole("banner").getByLabel(az.theme, { exact: true })).toBeHidden();

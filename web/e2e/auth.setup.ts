@@ -12,7 +12,7 @@ for (const user of ["alice", "bob"] as User[]) {
     await expect(page).toHaveURL(/localhost:8081\/realms\/nebula\/protocol\/openid-connect\/auth/);
     expect(page.url()).toContain("code_challenge_method=S256");
     await signIn(page, user);
-    await expect(page.getByRole("heading", { level: 1 }).or(page.getByText("Workspace-lər"))).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: /^Salam/ })).toBeVisible(); // the home page (ADR-0037)
     await page.context().storageState({ path: authFile(user) });
   });
 }
