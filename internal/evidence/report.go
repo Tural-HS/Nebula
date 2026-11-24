@@ -126,6 +126,13 @@ func (r resolver) value(v any) string {
 			}
 		}
 		return clip(x, 300)
+	case map[string]any:
+		// A formula field that failed stores {"error": code} (ADR-0030).
+		if code, ok := x["error"].(string); ok && len(x) == 1 {
+			return "⚠ " + clip(code, 60)
+		}
+		b, _ := json.Marshal(x)
+		return clip(string(b), 300)
 	default:
 		b, _ := json.Marshal(x)
 		return clip(string(b), 300)
