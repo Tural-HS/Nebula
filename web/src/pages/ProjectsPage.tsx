@@ -30,8 +30,15 @@ export function ProjectsPage() {
       crumbs={[{ label: t.workspaces, to: "/" }, { label: workspace.data?.name ?? ws }]}
       actions={
         <>
-          <Link to={`/w/${encodeURIComponent(ws)}/settings/members`} className="rounded-md px-3 py-1.5 text-sm whitespace-nowrap text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800">
-            {ta.settings}
+          {/* An icon on phones: with the round-6 header items the text no
+              longer fits 375 px (ADR-0019). */}
+          <Link
+            to={`/w/${encodeURIComponent(ws)}/settings/members`}
+            aria-label={ta.settings}
+            className="inline-flex items-center justify-center rounded-md px-3 py-1.5 text-sm whitespace-nowrap text-zinc-700 hover:bg-zinc-100 max-sm:min-h-11 max-sm:min-w-11 max-sm:px-0 dark:text-zinc-300 dark:hover:bg-zinc-800"
+          >
+            <span className="max-sm:hidden">{ta.settings}</span>
+            <span aria-hidden className="text-lg leading-none sm:hidden">⚙</span>
           </Link>
           {canCreate && (
             <Button variant="primary" aria-label={t.newProject} className="pointer-coarse:min-w-11" onClick={() => { setOpen(true); }}>
