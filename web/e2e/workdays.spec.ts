@@ -35,17 +35,17 @@ test("admin manages weekend, holidays and the Azerbaijan fixed-date preset", asy
   await expect(page.getByText("Yeni tarix yoxdur: hamısı artıq əlavə edilib.")).toBeVisible();
 
   // A lunar holiday is added by hand.
-  await days.getByLabel("Tarix").fill(`${String(YEAR)}-03-20`);
+  await days.getByLabel("Tarix", { exact: true }).fill(`${String(YEAR)}-03-20`);
   await days.getByLabel("Ad", { exact: true }).fill("Sınaq bayramı");
   await days.getByRole("button", { name: "Əlavə et" }).click();
   await expect(days.getByRole("listitem", { name: /Sınaq bayramı/ })).toBeVisible();
 
   // A working-day transfer must be on a weekend date: 3 Mar 2031 is a Monday.
-  await days.getByLabel("Tarix").fill(`${String(YEAR)}-03-03`);
-  await days.getByLabel("Növ").selectOption("workday");
+  await days.getByLabel("Tarix", { exact: true }).fill(`${String(YEAR)}-03-03`);
+  await days.getByLabel("Növ", { exact: true }).selectOption("workday");
   await days.getByRole("button", { name: "Əlavə et" }).click();
   await expect(days.getByRole("alert")).toHaveText("İş günü kimi yalnız həftə sonu günü elan etmək olar.");
-  await days.getByLabel("Tarix").fill(`${String(YEAR)}-03-08`); // Saturday (also 8 March: replaces it)
+  await days.getByLabel("Tarix", { exact: true }).fill(`${String(YEAR)}-03-08`); // Saturday (also 8 March: replaces it)
   await days.getByRole("button", { name: "Əlavə et" }).click();
   await expect(days.getByRole("listitem", { name: /Köçürülmüş iş günü/ })).toBeVisible();
 
@@ -98,10 +98,10 @@ test("a 'last working day' rule skips a holiday and the calendar view shades it"
   await rule.getByRole("button", { name: "Redaktə et" }).click();
   const dialog = page.getByRole("dialog", { name: "Qaydanı redaktə et" });
   await expect(dialog.getByLabel("Gün", { exact: true })).toHaveValue("workday");
-  await expect(dialog.getByLabel("Neçənci iş günü")).toHaveValue("-1");
+  await expect(dialog.getByLabel("Neçənci iş günü", { exact: true })).toHaveValue("-1");
   await dialog.getByLabel("Gün", { exact: true }).selectOption("date");
-  await dialog.getByLabel("Ayın günü").selectOption("-1");
-  await dialog.getByLabel("Qeyri-iş gününə düşərsə").selectOption("previous");
+  await dialog.getByLabel("Ayın günü", { exact: true }).selectOption("-1");
+  await dialog.getByLabel("Qeyri-iş gününə düşərsə", { exact: true }).selectOption("previous");
   await expect(dialog.getByText(/Hər ayın son günü \(qeyri-iş günüdürsə, əvvəlki iş günü\)/)).toBeVisible();
   await dialog.getByRole("button", { name: "Ləğv et" }).click();
 

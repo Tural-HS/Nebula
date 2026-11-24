@@ -86,13 +86,14 @@ export function ApprovalPanel({ ws, project, item }: { ws: string; project: stri
   if (list.isPending) return item.approval ? <Spinner /> : null;
   if (list.isError) return <ErrorState error={list.error} />;
   if (list.data.length === 0) return null;
-  const first = list.data[0];
-  const open = first?.state === "pending" ? first : undefined;
-  const rest = open ? list.data.slice(1) : list.data;
+  // The newest request stays visible: the open one, or else the latest
+  // decision, so whoever just approved or rejected sees the outcome. Older
+  // requests are folded into the history.
+  const [latest, ...rest] = list.data;
   return (
     <section aria-labelledby="approval-heading" className="space-y-3">
       <h3 id="approval-heading" className="text-sm font-semibold">{tap.section}</h3>
-      {open && <RequestCard ws={ws} project={project} n={item.number} req={open} />}
+      {latest && <RequestCard ws={ws} project={project} n={item.number} req={latest} />}
       {rest.length > 0 && (
         <details className="text-sm">
           <summary className="cursor-pointer text-zinc-500 pointer-coarse:min-h-11 pointer-coarse:py-2">{tap.history}</summary>

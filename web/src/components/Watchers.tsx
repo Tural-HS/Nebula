@@ -24,8 +24,20 @@ export function WatchControl({ ws, project, n, isAdmin }: { ws: string; project:
     const onDown = (e: MouseEvent) => {
       if (box.current && !box.current.contains(e.target as Node)) setOpen(false);
     };
+    // Escape closes this panel, not the drawer, wherever focus is: adding a
+    // watcher re-renders the list and focus can fall back to the body. The
+    // capture listener on window runs before the drawer's own window handler.
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      setOpen(false);
+    };
     document.addEventListener("mousedown", onDown);
-    return () => { document.removeEventListener("mousedown", onDown); };
+    window.addEventListener("keydown", onKey, true);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      window.removeEventListener("keydown", onKey, true);
+    };
   }, [open]);
 
   const data = watchers.data;
@@ -69,12 +81,6 @@ export function WatchControl({ ws, project, n, isAdmin }: { ws: string; project:
         <div
           role="dialog"
           aria-label={tl.watchers}
-          onKeyDown={(e) => {
-            if (e.key === "Escape") {
-              e.stopPropagation();
-              setOpen(false);
-            }
-          }}
           className="absolute top-full right-0 z-20 mt-1 w-64 rounded-md bg-white p-3 text-sm shadow-lg ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-700"
         >
           <p className="mb-2 font-semibold">{tl.watchers}</p>
