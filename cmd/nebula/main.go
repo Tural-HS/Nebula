@@ -33,6 +33,7 @@ import (
 	"github.com/Tural-HS/Nebula/internal/engine"
 	"github.com/Tural-HS/Nebula/internal/evidence"
 	"github.com/Tural-HS/Nebula/internal/mail"
+	"github.com/Tural-HS/Nebula/internal/mailroute"
 	"github.com/Tural-HS/Nebula/internal/observability"
 	"github.com/Tural-HS/Nebula/internal/safehttp"
 	"github.com/Tural-HS/Nebula/internal/secretbox"
@@ -176,22 +177,16 @@ func newRuntime(ctx context.Context, cfg config.Config, logger *slog.Logger) (*r
 }
 
 func (rt *runtime) newWorker(ctx context.Context, cfg config.Config, logger *slog.Logger) (*worker.Worker, error) {
-	var sender mail.Sender
-	if cfg.SMTP.Host != "" {
-		s, err := mail.NewSMTPSender(mail.Config{
-			Host: cfg.SMTP.Host, Port: cfg.SMTP.Port, Username: cfg.SMTP.Username, Password: cfg.SMTP.Password,
-			From: cfg.SMTP.From, TLS: cfg.SMTP.TLS,
-		})
-		if err != nil {
-			return nil, err
-		}
-		sender = s
-	} else {
-		logger.Warn("NEBULA_SMTP_HOST not set: email notifications are disabled")
+	sender, err := instanceMail(cfg)
+	if err != nil {
+		return nil, err
+	}
+	if sender == nil {
+		logger.Warn("NEBULA_SMTP_HOST not set: only workspaces with their own SMTP settings send email")
 	}
 	eng := &engine.Engine{
 		Store: rt.store, HTTP: safehttp.NewClient(rt.webhook), HTTPOpts: rt.webhook,
-		Mail: sender, Logger: logger, Version: version, PublicURL: cfg.PublicURL,
+		Mail: sender, MailPolicy: mailPolicy(cfg), Logger: logger, Version: version, PublicURL: cfg.PublicURL,
 		Blobs: rt.blobs, BlobPurgeDelay: cfg.Attachments.PurgeDelay,
 	}
 	return worker.New(rt.store, eng.Handlers(), logger, rt.metrics, worker.Options{
@@ -200,6 +195,23 @@ func (rt *runtime) newWorker(ctx context.Context, cfg config.Config, logger *slo
 		Wake:          worker.Listen(ctx, rt.pool, logger),
 		Tick:          eng.Tick,
 	}), nil
+}
+
+// instanceMail is the operator's SMTP sender (nil when NEBULA_SMTP_HOST is unset).
+func instanceMail(cfg config.Config) (mail.Sender, error) {
+	if cfg.SMTP.Host == "" {
+		return nil, nil
+	}
+	return mail.NewSMTPSender(mail.Config{
+		Host: cfg.SMTP.Host, Port: cfg.SMTP.Port, Username: cfg.SMTP.Username, Password: cfg.SMTP.Password,
+		From: cfg.SMTP.From, TLS: cfg.SMTP.TLS,
+	})
+}
+
+// mailPolicy limits the SMTP servers workspace admins may configure (ADR-0038).
+func mailPolicy(cfg config.Config) store.EmailPolicy {
+	w := cfg.SMTP.Workspace
+	return store.EmailPolicy{AllowPrivate: w.AllowPrivate, AllowPlaintext: w.AllowPlaintext, Ports: w.Ports}
 }
 
 // rotateSecrets re-encrypts secrets sealed with NEBULA_ENCRYPTION_KEYS_OLD.
@@ -263,7 +275,12 @@ func serve(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 		close(workerDone)
 	}
 
+	sender, err := instanceMail(cfg)
+	if err != nil {
+		return err
+	}
 	api := newHTTPServer(cfg.HTTPAddr, server.NewAPIHandler(server.Deps{
+		Mail:      mailroute.Router{Instance: sender, Store: rt.store, Policy: mailPolicy(cfg)},
 		Logger:    logger,
 		Metrics:   metrics,
 		DB:        pool,

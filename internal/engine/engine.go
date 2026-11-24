@@ -25,6 +25,7 @@ import (
 
 	"github.com/Tural-HS/Nebula/internal/blobstore"
 	"github.com/Tural-HS/Nebula/internal/mail"
+	"github.com/Tural-HS/Nebula/internal/mailroute"
 	"github.com/Tural-HS/Nebula/internal/opt"
 	"github.com/Tural-HS/Nebula/internal/safehttp"
 	"github.com/Tural-HS/Nebula/internal/store"
@@ -36,9 +37,15 @@ type Engine struct {
 	Store    *store.Store
 	HTTP     *http.Client
 	HTTPOpts safehttp.Options
-	Mail     mail.Sender // nil: email disabled, email jobs are skipped
-	Logger   *slog.Logger
-	Version  string
+	// Mail is the instance sender (NEBULA_SMTP_*); nil: only workspaces with
+	// their own SMTP settings send email (ADR-0038), other email is skipped.
+	Mail mail.Sender
+	// MailPolicy limits workspace SMTP servers (SSRF, ports, plaintext).
+	MailPolicy store.EmailPolicy
+	// MailTimeout bounds one session with a workspace SMTP server (0: 30s).
+	MailTimeout time.Duration
+	Logger      *slog.Logger
+	Version     string
 	// PublicURL is the web UI base URL for links in chat messages ("" = no links).
 	PublicURL string
 	// Blobs is the attachment store whose orphaned blobs Tick removes (nil: none).
@@ -481,7 +488,7 @@ func (e *Engine) runAutomation(ctx context.Context, j store.Job) error {
 		}
 		subject := strings.NewReplacer("\r", " ", "\n", " ").Replace(Render(a.Subject, item, rule.Name, ev.WorkspaceSlug))
 		body := Render(a.Body, item, rule.Name, ev.WorkspaceSlug)
-		if err := e.Store.EnqueueEmail(ctx, to, truncate(subject, 300), body,
+		if err := e.Store.EnqueueEmail(ctx, wsID, to, truncate(subject, 300), body,
 			fmt.Sprintf("em:%s:%d:%d", rule.ID, ev.ID, i)); err != nil {
 			return err
 		}
@@ -596,21 +603,40 @@ func uuidOrNil(id *uuid.UUID) []uuid.UUID {
 // ---------------------------------------------------------------------------
 
 func (e *Engine) sendEmail(ctx context.Context, j store.Job) error {
-	if e.Mail == nil {
-		e.Logger.Debug("email disabled (NEBULA_SMTP_HOST not set); skipping", "job_id", j.ID)
-		return nil
-	}
-	m, err := decode[mail.Message](j)
+	m, err := decode[store.EmailJob](j)
 	if err != nil {
 		return err
 	}
-	if err := e.Mail.Send(ctx, m); err != nil {
-		if errors.Is(err, mail.ErrInvalidMessage) {
+	var wsID uuid.UUID
+	if m.WorkspaceID != nil {
+		wsID = *m.WorkspaceID
+	}
+	route, err := e.mailRouter().For(ctx, wsID)
+	switch {
+	case errors.Is(err, mailroute.ErrNotConfigured):
+		e.Logger.Debug("email disabled (no workspace or instance SMTP configuration); skipping", "job_id", j.ID)
+		return nil
+	case errors.Is(err, mailroute.ErrPolicy):
+		return worker.Permanent(err)
+	case err != nil:
+		return err
+	}
+	if err := route.Sender.Send(ctx, mail.Message{To: m.To, Subject: m.Subject, Body: m.Body}); err != nil {
+		if errors.Is(err, mail.ErrInvalidMessage) || errors.Is(err, safehttp.ErrBlockedAddress) {
 			return worker.Permanent(err)
+		}
+		if route.Source == mailroute.SourceWorkspace {
+			// The admin-controlled server's reply is reduced to a safe text.
+			return fmt.Errorf("workspace SMTP: %s", mail.Describe(err))
 		}
 		return err
 	}
 	return nil
+}
+
+// mailRouter selects the workspace's SMTP settings or the instance sender (ADR-0038).
+func (e *Engine) mailRouter() *mailroute.Router {
+	return &mailroute.Router{Instance: e.Mail, Store: e.Store, Policy: e.MailPolicy, Timeout: e.MailTimeout}
 }
 
 // truncate cuts s to at most n bytes without splitting a UTF-8 character.

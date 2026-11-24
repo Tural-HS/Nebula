@@ -35,6 +35,7 @@ böyük həcmli məlumatlarda sürətli, tam fərdiləşdirilə bilən, öz serv
 - Rəng rejimi (açıq/tünd/sistem), workspace vurğu rəngi, tapşırıq siyahısı və panelinin "Ledger" dizaynı: [ADR-0035](docs/adr/0035-design-and-theme.md)
 - Nebula brendli Keycloak giriş səhifəsi (`keycloak.v2` üzərində yalnız CSS, açıq/tünd): [ADR-0036](docs/adr/0036-keycloak-login-theme.md)
 - Ana səhifə "Mənim işlərim" (bütün workspace-lər üzrə sayğaclar, diqqət siyahısı, workspace kartları): [ADR-0037](docs/adr/0037-home-page.md)
+- Workspace üzrə SMTP ayarları (şifrələnmiş parol, server konfiqurasiyasına ehtiyat, SSRF qoruması, sınaq məktubu): [ADR-0038](docs/adr/0038-workspace-smtp-settings.md)
 - Yol xəritəsi: [docs/ROADMAP.md](docs/ROADMAP.md)
 
 ## Tələblər
@@ -140,6 +141,9 @@ Yanlış konfiqurasiya zamanı proqram başlamır və bütün problemləri bir d
 | `NEBULA_SMTP_PORT` / `_TLS` | `587` / `starttls` | `starttls`, `tls` və ya `none` (`none` productionda qadağandır) |
 | `NEBULA_SMTP_USERNAME` / `_PASSWORD` / `_FROM` | — | `FROM` email aktiv olduqda məcburidir |
 | `NEBULA_WEBHOOK_ALLOW_PRIVATE` | `false` | Daxili ünvanlara webhook; **yalnız development**, productionda qadağandır (SSRF) |
+| `NEBULA_SMTP_WORKSPACE_ALLOW_PRIVATE` | `false` | Workspace SMTP serveri daxili/loopback ünvanda ola bilər; **yalnız development** (SSRF, ADR-0038) |
+| `NEBULA_SMTP_WORKSPACE_ALLOW_PLAINTEXT` | `false` | Workspace SMTP üçün `tls_mode=none`; **yalnız development** (ADR-0038) |
+| `NEBULA_SMTP_WORKSPACE_PORTS` | `25,465,587,2525` | Workspace SMTP serverinə icazəli portlar (ADR-0038) |
 | `NEBULA_ATTACHMENTS_BACKEND` | `local` | `local`, `s3` və ya `disabled` (ADR-0022) |
 | `NEBULA_ATTACHMENTS_DIR` | `/var/lib/nebula/attachments` | `local`: davamlı volume; startda yazıla bilən olmalıdır. **pgBackRest bunu saxlamır** (runbook §4.1) |
 | `NEBULA_ATTACHMENTS_S3_ENDPOINT` / `_BUCKET` / `_REGION` / `_PREFIX` / `_PATH_STYLE` | — / — / `us-east-1` / boş / `true` | `s3`: istənilən S3-uyğun server; productionda https |
@@ -203,6 +207,8 @@ Bütün `/api/v1` endpoint-ləri (`/version` istisna olmaqla) `Authorization: Be
 | `GET .../items/{number}/activity` | Tapşırığın tarixçəsi (`before`, `limit`) | guest+ |
 | `GET .../{ws}/audit-log` | Workspace audit log (`before`, `limit`, `action`, `actor`) | admin+ |
 | `POST .../{ws}/webhooks/{id}/ping` | Test çatdırılması | admin+ |
+| `GET, PUT, DELETE .../{ws}/email-settings` | Workspace SMTP ayarları: parol heç vaxt qaytarılmır (`password_set`); `PUT`-da `password` yoxdur = saxla, `null` = sil; `DELETE` server konfiqurasiyasına qaytarır (ADR-0038) | admin+ |
+| `POST .../{ws}/email-settings/test` | Sınaq məktubu (`{to?}`: standart öz təsdiqlənmiş emailiniz, başqa ünvan yalnız üzvün emaili; 5 / 10 dəq) | admin+ |
 | `GET, POST .../{ws}/webhooks` | Webhook-lar / yaratmaq (`format`: `nebula` və ya `slack`; secret yalnız bir dəfə qaytarılır, `slack` üçün `null`) | admin+ |
 | `GET, PATCH, DELETE .../{ws}/webhooks/{id}` | Oxumaq / dəyişmək / silmək | admin+ |
 | `POST .../{ws}/webhooks/{id}/rotate-secret` | Yeni secret | admin+ |

@@ -2,6 +2,7 @@ package config
 
 import (
 	"log/slog"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -132,6 +133,9 @@ func TestPhase1SecurityRules(t *testing.T) {
 		{"bad smtp tls", map[string]string{"NEBULA_SMTP_HOST": "smtp.example.com", "NEBULA_SMTP_FROM": "a@example.com", "NEBULA_SMTP_TLS": "ssl"}, "NEBULA_SMTP_TLS"},
 		{"private webhooks in prod", map[string]string{"NEBULA_WEBHOOK_ALLOW_PRIVATE": "true"}, "SSRF"},
 		{"bad worker count", map[string]string{"NEBULA_WORKER_CONCURRENCY": "-1"}, "NEBULA_WORKER_CONCURRENCY"},
+		{"private workspace smtp in prod", map[string]string{"NEBULA_SMTP_WORKSPACE_ALLOW_PRIVATE": "true"}, "NEBULA_SMTP_WORKSPACE_ALLOW_PRIVATE=true is not allowed in production"},
+		{"plaintext workspace smtp in prod", map[string]string{"NEBULA_SMTP_WORKSPACE_ALLOW_PLAINTEXT": "true"}, "NEBULA_SMTP_WORKSPACE_ALLOW_PLAINTEXT=true is not allowed in production"},
+		{"bad workspace smtp ports", map[string]string{"NEBULA_SMTP_WORKSPACE_PORTS": "587,smtp"}, "NEBULA_SMTP_WORKSPACE_PORTS"},
 	}
 	for _, tt := range prodErrors {
 		t.Run(tt.name, func(t *testing.T) {
@@ -144,6 +148,14 @@ func TestPhase1SecurityRules(t *testing.T) {
 		"NEBULA_SMTP_HOST": "mailpit", "NEBULA_SMTP_FROM": "a@localhost.test", "NEBULA_SMTP_TLS": "none"}))
 	if err != nil || !dev.Webhooks.AllowPrivate {
 		t.Fatalf("development must allow private webhooks and plain SMTP: %v", err)
+	}
+	if w := dev.SMTP.Workspace; w.AllowPrivate || w.AllowPlaintext || !slices.Equal(w.Ports, []int{25, 465, 587, 2525}) {
+		t.Fatalf("workspace SMTP defaults: %+v", w)
+	}
+	dev, err = Load(env(map[string]string{"NEBULA_ENV": "development", "NEBULA_SMTP_WORKSPACE_ALLOW_PRIVATE": "true",
+		"NEBULA_SMTP_WORKSPACE_ALLOW_PLAINTEXT": "true", "NEBULA_SMTP_WORKSPACE_PORTS": "587, 1025"}))
+	if w := dev.SMTP.Workspace; err != nil || !w.AllowPrivate || !w.AllowPlaintext || !slices.Equal(w.Ports, []int{587, 1025}) {
+		t.Fatalf("development workspace SMTP flags: %+v %v", w, err)
 	}
 }
 

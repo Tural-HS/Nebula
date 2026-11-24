@@ -428,9 +428,10 @@ func (s *Store) PingWebhook(ctx context.Context, wsID, actorID, id uuid.UUID) (i
 // WebhookPingAction is delivered only to the pinged webhook, never fanned out.
 const WebhookPingAction = "webhook.ping"
 
-// ReencryptSecrets re-seals every webhook secret and encrypted webhook URL
-// still encrypted with a retired key, so the old key can be removed. Safe to
-// run repeatedly; updated counts webhooks with at least one re-sealed value.
+// ReencryptSecrets re-seals every webhook secret, encrypted webhook URL and
+// workspace SMTP password still encrypted with a retired key, so the old key
+// can be removed. Safe to run repeatedly; updated counts the rows (webhooks
+// and workspace email settings) with at least one re-sealed value.
 func (s *Store) ReencryptSecrets(ctx context.Context) (updated int, err error) {
 	if s.box == nil {
 		return 0, errors.New("NEBULA_ENCRYPTION_KEY is not configured")
@@ -482,7 +483,10 @@ func (s *Store) ReencryptSecrets(ctx context.Context) (updated int, err error) {
 			}
 			updated++
 		}
-		return nil
+		// Workspace SMTP passwords (ADR-0038).
+		n, err := s.reencryptEmailPasswords(ctx, tx)
+		updated += n
+		return err
 	})
 	return updated, err
 }

@@ -7,6 +7,7 @@ import { Layout } from "../../components/Layout";
 import { ErrorState, Spinner } from "../../components/ui";
 import { t } from "../../i18n";
 import { ta } from "../../i18n-admin";
+import { tem } from "../../i18n-email";
 import { tw } from "../../i18n-workdays";
 import { cn } from "../../lib/cn";
 
@@ -17,6 +18,7 @@ const sections = [
   ["fields", ta.nav.fields],
   ["item-types", ta.nav.itemTypes],
   ["workflows", ta.nav.workflows],
+  ["email", tem.nav],
   ["webhooks", ta.nav.webhooks],
   ["automations", ta.nav.automations],
   ["audit", ta.nav.audit],

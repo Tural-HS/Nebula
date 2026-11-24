@@ -18,6 +18,7 @@ import (
 	"github.com/Tural-HS/Nebula/internal/auth"
 	"github.com/Tural-HS/Nebula/internal/config"
 	"github.com/Tural-HS/Nebula/internal/evidence"
+	"github.com/Tural-HS/Nebula/internal/mailroute"
 	"github.com/Tural-HS/Nebula/internal/observability"
 	"github.com/Tural-HS/Nebula/internal/ratelimit"
 	"github.com/Tural-HS/Nebula/internal/safehttp"
@@ -47,6 +48,10 @@ type Deps struct {
 	Attachments Attachments
 	// EvidenceSigner signs audit evidence packages (ADR-0029); nil disables export.
 	EvidenceSigner *evidence.Signer
+	// Mail routes test emails of the workspace SMTP settings (ADR-0038): the
+	// instance sender and the policy for workspace servers. Store defaults
+	// to the Store above.
+	Mail mailroute.Router
 }
 
 // NewAPIHandler returns the public HTTP handler.
@@ -88,7 +93,8 @@ func NewAPIHandler(d Deps) http.Handler {
 			}, writeError))
 			(&api{store: d.Store, logger: d.Logger, webhookOpts: d.Webhooks, publicURL: d.PublicURL,
 				attach: d.Attachments, uploadLimiter: newUploadLimiter(d.Attachments.UploadsPerMinute),
-				evidence: newEvidenceExports(d.EvidenceSigner), version: d.Version}).routes(r)
+				evidence: newEvidenceExports(d.EvidenceSigner), version: d.Version,
+				mail: mailRouter(d), emailTestLimiter: newEmailTestLimiter()}).routes(r)
 		})
 	})
 
@@ -185,4 +191,12 @@ func accessLog(logger *slog.Logger, m *observability.Metrics, clientIP func(*htt
 				"client_ip", clientIP(r), "request_id", middleware.GetReqID(r.Context()))
 		})
 	}
+}
+
+func mailRouter(d Deps) mailroute.Router {
+	m := d.Mail
+	if m.Store == nil {
+		m.Store = d.Store
+	}
+	return m
 }

@@ -67,6 +67,15 @@ type SMTP struct {
 	Password string
 	From     string
 	TLS      string // starttls | tls | none
+	// Workspace limits the SMTP servers workspace admins configure (ADR-0038).
+	Workspace WorkspaceSMTP
+}
+
+// WorkspaceSMTP is the operator's policy for per-workspace SMTP settings.
+type WorkspaceSMTP struct {
+	AllowPrivate   bool  // loopback/private/reserved hosts; development only
+	AllowPlaintext bool  // tls_mode "none"; development only
+	Ports          []int // allowed server ports
 }
 
 // Webhooks configures outgoing webhook delivery.
@@ -183,6 +192,10 @@ func Load(rawGetenv func(string) string) (Config, error) {
 		default:
 			errs = append(errs, errors.New("NEBULA_SMTP_TLS must be starttls, tls or none"))
 		}
+	}
+	cfg.SMTP.Workspace, err = loadWorkspaceSMTP(get, cfg.Env)
+	if err != nil {
+		errs = append(errs, err)
 	}
 	allowPrivate, err := strconv.ParseBool(get("NEBULA_WEBHOOK_ALLOW_PRIVATE", "false"))
 	if err != nil {
@@ -354,4 +367,34 @@ func parseDuration(raw, key string, errs *[]error) time.Duration {
 		*errs = append(*errs, fmt.Errorf("%s must be a positive duration like 30s", key))
 	}
 	return d
+}
+
+// loadWorkspaceSMTP reads the limits on workspace SMTP servers. Private
+// targets and plaintext SMTP are development-only, like private webhooks:
+// a workspace admin must not reach the internal network through Nebula.
+func loadWorkspaceSMTP(get func(key, def string) string, env string) (WorkspaceSMTP, error) {
+	var (
+		w    WorkspaceSMTP
+		errs []error
+		err  error
+	)
+	for key, dst := range map[string]*bool{
+		"NEBULA_SMTP_WORKSPACE_ALLOW_PRIVATE":   &w.AllowPrivate,
+		"NEBULA_SMTP_WORKSPACE_ALLOW_PLAINTEXT": &w.AllowPlaintext,
+	} {
+		if *dst, err = strconv.ParseBool(get(key, "false")); err != nil {
+			errs = append(errs, fmt.Errorf("%s must be true or false", key))
+		} else if *dst && env == "production" {
+			errs = append(errs, fmt.Errorf("%s=true is not allowed in production", key))
+		}
+	}
+	for p := range strings.SplitSeq(get("NEBULA_SMTP_WORKSPACE_PORTS", "25,465,587,2525"), ",") {
+		n, err := strconv.Atoi(strings.TrimSpace(p))
+		if err != nil || n < 1 || n > 65535 {
+			errs = append(errs, errors.New("NEBULA_SMTP_WORKSPACE_PORTS must be a comma-separated list of port numbers"))
+			break
+		}
+		w.Ports = append(w.Ports, n)
+	}
+	return w, errors.Join(errs...)
 }
