@@ -58,15 +58,10 @@ export function ItemsPage() {
   const groupBy = state.group;
   const savedId = params.get("saved");
   const openItem = Number(params.get("item")) || null;
-  const [search, setSearch] = useState(state.q);
-  const q = useDebounced(search, 300);
-  // The URL's q changed from outside the search box (a view was applied,
-  // back/forward): show it. Typing changes it to the debounced value itself.
-  const [urlQ, setUrlQ] = useState(state.q);
-  if (state.q !== urlQ) {
-    setUrlQ(state.q);
-    if (state.q !== q) setSearch(state.q);
-  }
+  // The search box writes the URL on every keystroke (history replace), so
+  // the box, the URL, "modified" and a view saved at any moment always agree;
+  // only the list query waits for typing to pause.
+  const q = useDebounced(state.q, 300);
   const [creating, setCreating] = useState(false);
   const [sheet, setSheet] = useState(false);
   const compact = useCompact();
@@ -134,10 +129,6 @@ export function ItemsPage() {
     applyState(v ? stateFromView(v) : emptyState(), v ? v.id : null);
   };
 
-  useEffect(() => {
-    setParam("q", q || null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- sync only when the debounced query changes
-  }, [q]);
 
   // A bare ?saved=<id> link (bookmark, shared URL) applies the view's state;
   // a view that is gone or not shared with this user is dropped with a note.
@@ -235,8 +226,8 @@ export function ItemsPage() {
       type="search"
       aria-label={t.search}
       placeholder={t.search}
-      value={search}
-      onChange={(e) => { setSearch(e.target.value); }}
+      value={state.q}
+      onChange={(e) => { setParam("q", e.target.value || null); }}
       className={className}
       maxLength={500}
     />

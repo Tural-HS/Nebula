@@ -13,10 +13,12 @@ test("the header switches the theme at once and the choice survives a reload", a
   await page.emulateMedia({ colorScheme: "light" });
   await page.goto("/");
   await expect(html(page)).not.toHaveClass(/\bdark\b/);
+  const picker = page.getByRole("banner").getByLabel(az.theme, { exact: true });
+  // The sign-in redirect is a real page load: set the marker once the app runs.
+  await expect(picker).toBeVisible();
 
   // No reload: a marker on window survives the switch.
   await page.evaluate(() => { (window as unknown as { __noReload: boolean }).__noReload = true; });
-  const picker = page.getByRole("banner").getByLabel(az.theme, { exact: true });
   await picker.selectOption("dark");
   await expect(html(page)).toHaveClass(/\bdark\b/);
   expect(await page.evaluate(() => (window as unknown as { __noReload?: boolean }).__noReload)).toBe(true);
@@ -54,6 +56,7 @@ test.describe("narrow screens", () => {
     await expect(html(page)).toHaveClass(/\bdark\b/);
     await page.reload();
     await expect(html(page)).toHaveClass(/\bdark\b/);
+    await expect(page.getByRole("main")).toBeVisible(); // past the sign-in redirect (a page load)
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   });
 });
