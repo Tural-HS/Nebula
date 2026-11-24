@@ -351,3 +351,47 @@ func containsDate(ds []time.Time, t time.Time) bool {
 	}
 	return false
 }
+
+func TestWorkdaysBetween(t *testing.T) {
+	day := func(s string) time.Time {
+		d, err := time.Parse(time.DateOnly, s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return d
+	}
+	// Synthetic calendar: Friday+Saturday weekend, two holidays (one on a
+	// weekend, which changes nothing) and one transferred working Saturday.
+	cal, err := NewCalendar([]time.Weekday{time.Friday, time.Saturday},
+		[]time.Time{day("2026-03-04"), day("2026-03-06")}, []time.Time{day("2026-03-14")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	brute := func(c *Calendar, from, to time.Time) int {
+		sign := 1
+		if to.Before(from) {
+			from, to, sign = to, from, -1
+		}
+		n := 0
+		for x := from.AddDate(0, 0, 1); !x.After(to); x = x.AddDate(0, 0, 1) {
+			if c.IsWorkday(x) {
+				n++
+			}
+		}
+		return sign * n
+	}
+	base := day("2026-02-20")
+	for _, c := range []*Calendar{nil, cal} {
+		for i := range 45 {
+			for j := range 45 {
+				a, b := base.AddDate(0, 0, i), base.AddDate(0, 0, j)
+				if got, want := c.WorkdaysBetween(a, b), brute(c, a, b); got != want {
+					t.Fatalf("WorkdaysBetween(%s, %s) = %d, want %d", a.Format(time.DateOnly), b.Format(time.DateOnly), got, want)
+				}
+			}
+		}
+	}
+	if got := cal.WorkdaysBetween(day("2026-03-03"), day("2026-03-03")); got != 0 {
+		t.Fatalf("same day = %d", got)
+	}
+}

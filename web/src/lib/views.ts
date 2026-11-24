@@ -6,6 +6,9 @@ import type { DueFilter, ItemFilters, ItemSort } from "../api/hooks";
 import type { FieldDefinition, FieldValue, Member, SavedView, ViewConfig } from "../api/types";
 import { t } from "../i18n";
 import { tv } from "../i18n-views";
+import { activeLocale, type Locale } from "../i18n/locale";
+import { tf } from "../i18n-formulas";
+import { isFormulaError, isNumeric, parseSort, valueType } from "./formula";
 import { formatDate, formatDateTime } from "./format";
 import type { GroupBy } from "./board";
 
@@ -70,7 +73,7 @@ export function readState(p: URLSearchParams): PageState {
   }
   const cols = [...new Set(splitList(p.get("cols")).filter((c) => COLUMN.test(c)))].slice(0, MAX_COLUMNS);
   if (cols.length > 0) s.columns = cols;
-  if (p.get("sort") === "due") s.sort = "due";
+  s.sort = parseSort(p.get("sort"));
   if (p.get("group") === "category") s.group = "category";
   s.approval = APPROVAL.find((a) => a === p.get("approval")) ?? "";
   return s;
@@ -91,7 +94,7 @@ export function writeState(s: PageState, base: URLSearchParams = new URLSearchPa
     if (v) p.set("field." + k, v);
   }
   if (!sameList(s.columns, DEFAULT_COLUMNS)) p.set("cols", s.columns.join(","));
-  if (s.sort === "due") p.set("sort", "due");
+  if (s.sort !== "number") p.set("sort", s.sort);
   if (s.group === "category") p.set("group", "category");
   if (s.approval) p.set("approval", s.approval);
   return p;
@@ -119,7 +122,7 @@ export function stateFromView(v: Pick<SavedView, "kind" | "config">): PageState 
   s.status = uniqSorted(f.status ?? []);
   s.fields = { ...(f.fields ?? {}) };
   if (v.config.columns.length > 0) s.columns = [...v.config.columns];
-  s.sort = v.config.sort === "due" ? "due" : "number";
+  s.sort = parseSort(v.config.sort);
   s.group = v.config.group_by === "category" ? "category" : "status";
   return s;
 }
@@ -159,7 +162,7 @@ export function sumFields(columns: readonly string[], fields: ReadonlyMap<string
   return columns
     .filter((c) => {
       const f = isFieldColumn(c) ? fields.get(fieldKey(c)) : undefined;
-      return f?.type === "number" && !f.archived;
+      return isNumeric(f) && !f?.archived;
     })
     .map(fieldKey)
     .slice(0, MAX_SUM_FIELDS);
@@ -181,18 +184,27 @@ export function moveColumn(columns: readonly string[], col: string, dir: -1 | 1)
 
 const NBSP = " ";
 
+/** Digit grouping and decimal mark per UI language (ADR-0025). */
+const NUMBER_STYLE: Record<Locale, { group: string; decimal: string }> = {
+  az: { group: NBSP, decimal: "," }, // 1 234 567,5
+  en: { group: ",", decimal: "." }, // 1,234,567.5
+  tr: { group: ".", decimal: "," }, // 1.234.567,5
+  ru: { group: NBSP, decimal: "," }, // 1 234 567,5
+};
+
 /**
- * Formats a decimal ("1234567.5", "-0.25", or a JS number) the Azerbaijani
- * way: "1 234 567,5". Works on the text, so exact server sums (numeric) are
- * never rounded through a float.
+ * Formats a decimal ("1234567.5", "-0.25", or a JS number) in the UI
+ * language: "1 234 567,5" in Azerbaijani. Works on the text, so exact server
+ * sums (numeric) are never rounded through a float.
  */
-export function formatDecimal(v: string | number): string {
+export function formatDecimal(v: string | number, locale: Locale = activeLocale()): string {
   const s = typeof v === "number" ? (Number.isFinite(v) ? numberText(v) : "") : v.trim();
   const m = /^(-?)(\d+)(?:\.(\d+))?$/.exec(s);
   if (!m) return s || "—";
   const [, sign = "", int = "", frac] = m;
-  const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, NBSP);
-  return sign + grouped + (frac ? "," + frac : "");
+  const { group, decimal } = NUMBER_STYLE[locale];
+  const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, group);
+  return sign + grouped + (frac ? decimal + frac : "");
 }
 
 // Plain notation for every number the API accepts (|v| <= 1e15), no "1e+21".
@@ -205,9 +217,10 @@ function numberText(n: number): string {
 /** A field value as text, by field type ("" when empty). */
 export function formatFieldValue(def: FieldDefinition | undefined, v: FieldValue | undefined, members: ReadonlyMap<string, Member>): string {
   if (v === null || v === undefined || v === "") return "";
+  if (isFormulaError(v)) return tf.errors[v.error] ?? "#" + v.error;
   if (!def) return Array.isArray(v) ? v.join(", ") : String(v);
   const label = (id: string) => def.options.choices?.find((c) => c.id === id)?.label ?? "?";
-  switch (def.type) {
+  switch (valueType(def)) {
     case "number":
       return typeof v === "number" ? formatDecimal(v) : String(v);
     case "date":

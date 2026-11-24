@@ -75,7 +75,7 @@ export const ta = {
   addChoice: "Добавить вариант",
   fieldTypes: {
     text: "Текст", long_text: "Длинный текст", number: "Число", date: "Дата", datetime: "Дата и время", boolean: "Да/Нет",
-    select: "Список", multi_select: "Множественный выбор", user: "Пользователь", url: "URL", email: "Email",
+    select: "Список", multi_select: "Множественный выбор", user: "Пользователь", url: "URL", email: "Email", formula: "Формула",
   },
 
   newType: "Новый тип",

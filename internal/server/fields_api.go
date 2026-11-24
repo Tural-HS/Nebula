@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 
@@ -15,6 +16,8 @@ import (
 func (a *api) fieldRoutes(r chi.Router) {
 	r.Get("/fields", a.listFields)
 	r.With(requireRole(store.RoleAdmin)).Post("/fields", a.createField)
+	// Registered before /fields/{field}: a field key cannot contain "-".
+	r.With(requireRole(store.RoleAdmin)).Post("/fields/formula-preview", a.previewFormula)
 	r.Get("/fields/{field}", a.getField)
 	r.With(requireRole(store.RoleAdmin)).Patch("/fields/{field}", a.updateField)
 }
@@ -28,6 +31,7 @@ func (a *api) itemTypeFieldRoutes(r chi.Router) {
 
 type fieldOptionsBody struct {
 	Choices *[]store.ChoiceInput `json:"choices"`
+	Formula *store.FormulaInput  `json:"formula"`
 }
 
 func (a *api) listFields(w http.ResponseWriter, r *http.Request) {
@@ -50,13 +54,17 @@ func (a *api) createField(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var choices []store.ChoiceInput
-	if body.Options != nil && body.Options.Choices != nil {
-		choices = *body.Options.Choices
+	var formula *store.FormulaInput
+	if body.Options != nil {
+		if body.Options.Choices != nil {
+			choices = *body.Options.Choices
+		}
+		formula = body.Options.Formula
 	}
 	ws := workspaceFrom(r)
 	f, err := a.store.CreateField(r.Context(), store.CreateFieldParams{
 		WorkspaceID: ws.ID, ActorID: principal(r).UserID,
-		Key: body.Key, Name: body.Name, Type: body.Type, Choices: choices,
+		Key: body.Key, Name: body.Name, Type: body.Type, Choices: choices, Formula: formula,
 	})
 	if err != nil {
 		a.fail(w, r, err)
@@ -92,6 +100,7 @@ func (a *api) updateField(w http.ResponseWriter, r *http.Request) {
 	}
 	if body.Options != nil {
 		p.Choices = body.Options.Choices
+		p.Formula = body.Options.Formula
 	}
 	f, err := a.store.UpdateField(r.Context(), p)
 	if err != nil {
@@ -125,4 +134,31 @@ func (a *api) unbindField(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// previewFormula compiles a draft formula and computes it for a sample item
+// and/or sample values, without saving anything (ADR-0030). Compile errors
+// are a normal 200 response with valid=false and the error position, so the
+// field editor can validate while the admin types.
+func (a *api) previewFormula(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Key        string                     `json:"key"`
+		Expression string                     `json:"expression"`
+		Scale      *int                       `json:"scale"`
+		Item       string                     `json:"item"`
+		Values     map[string]json.RawMessage `json:"values"`
+	}
+	if !a.decode(w, r, &body) {
+		return
+	}
+	res, err := a.store.PreviewFormula(r.Context(), store.FormulaPreviewParams{
+		WorkspaceID: workspaceFrom(r).ID, Viewer: viewer(r), Key: body.Key,
+		Formula: store.FormulaInput{Expression: body.Expression, Scale: body.Scale},
+		Item:    body.Item, Values: body.Values,
+	})
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, res)
 }

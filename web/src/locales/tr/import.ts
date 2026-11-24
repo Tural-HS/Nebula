@@ -84,6 +84,7 @@ export const ti = {
     user: "kullanıcı (e-posta)",
     url: "URL",
     email: "e-posta",
+    formula: "formül (içe aktarılmaz)",
   } satisfies Record<FieldType, string>,
 
   // Server error codes (ADR-0011) → messages.

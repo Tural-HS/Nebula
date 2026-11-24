@@ -1,0 +1,32 @@
+// Azerbaijani strings for formula fields (ADR-0030).
+
+export const tf = {
+  expression: "Düstur",
+  expressionHint: "Sahə açarları, rəqəmlər və funksiyalar: amount - paid, round(amount * 0.18, 2), due - today()",
+  help: "Funksiyalar: if, round, min, max, abs, coalesce, today, days, workdays, date. Tapşırığın son tarixi: @due_date. Boş dəyər boş nəticə verir; coalesce(paid, 0) ilə 0 kimi götürün.",
+  helpTitle: "Funksiyalar",
+  scale: "Onluq rəqəmlər",
+  sampleItem: "Nümunə tapşırıq",
+  sampleItemHint: "məs. FIN-12",
+  checking: "Yoxlanılır…",
+  valid: "Düstur düzgündür",
+  errorAt: (pos: number, msg: string) => `Mövqe ${String(pos)}: ${msg}`,
+  result: "Nəticə",
+  resultEmpty: "boş",
+  resultTypes: { number: "rəqəm", date: "tarix", boolean: "bəli/xeyr" } as Record<string, string>,
+  resultType: (type: string) => `Nəticə tipi: ${type}`,
+  refs: (n: number) => `${String(n)} sahədən istifadə edir`,
+  volatile: "today() istifadə edir: hər gün iş saat qurşağına görə yenilənir",
+  calendar: "workdays() istifadə edir: iş təqvimi dəyişəndə yenidən hesablanır",
+  save: "Düsturu saxla",
+  readOnly: "Hesablanan sahə: dəyəri əl ilə dəyişdirilmir",
+  title: (expr: string) => `ƒ = ${expr}`,
+  errors: {
+    division_by_zero: "#SIFIRA BÖLMƏ",
+    overflow: "#ÇOX BÖYÜK",
+    date_out_of_range: "#TARİX",
+    invalid_argument: "#XƏTA",
+  } as Record<string, string>,
+  sortAsc: (name: string) => `${name} ↑`,
+  sortDesc: (name: string) => `${name} ↓`,
+};

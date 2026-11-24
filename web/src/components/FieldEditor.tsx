@@ -1,6 +1,11 @@
 import { useState } from "react";
 
 import type { FieldDefinition, FieldValue, Member } from "../api/types";
+import { tf } from "../i18n-formulas";
+import { cn } from "../lib/cn";
+import { isFormulaError, isNumeric } from "../lib/formula";
+import { draftOf } from "../lib/inline";
+import { formatFieldValue } from "../lib/views";
 import { Input, Select } from "./ui";
 
 /**
@@ -25,6 +30,18 @@ export function FieldEditor({
   const choices = (def.options.choices ?? []).filter((c) => !c.archived || c.id === value || (Array.isArray(value) && value.includes(c.id)));
 
   switch (def.type) {
+    case "formula": {
+      // Computed by the server (ADR-0030): shown, never edited.
+      const expr = def.options.formula?.expression ?? "";
+      return (
+        <output id={id} data-formula="" className="flex min-w-0 items-baseline gap-1.5 text-sm" title={`${tf.readOnly}\n${tf.title(expr)}`}>
+          <span aria-hidden className="font-serif text-zinc-400 italic">ƒ</span>
+          <span className={cn("truncate", isNumeric(def) && "tabular-nums", isFormulaError(value) && "text-red-600 dark:text-red-400")}>
+            {formatFieldValue(def, value, new Map()) || "—"}
+          </span>
+        </output>
+      );
+    }
     case "boolean":
       return (
         <input
@@ -84,7 +101,7 @@ export function FieldEditor({
         </Select>
       );
     default:
-      return <TextLikeEditor key={String(value ?? "")} def={def} value={value} disabled={disabled} onCommit={onCommit} id={id} />;
+      return <TextLikeEditor key={draftOf(value)} def={def} value={value} disabled={disabled} onCommit={onCommit} id={id} />;
   }
 }
 
@@ -97,13 +114,13 @@ const inputType: Partial<Record<FieldDefinition["type"], string>> = {
 };
 
 function toInput(def: FieldDefinition, v: FieldValue | undefined): string {
-  if (v === null || v === undefined) return "";
+  if (v === null || v === undefined || isFormulaError(v)) return "";
   if (def.type === "datetime" && typeof v === "string") {
     const d = new Date(v);
     // datetime-local wants local time without zone
     return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
   }
-  return String(v);
+  return draftOf(v);
 }
 
 function fromInput(def: FieldDefinition, s: string): FieldValue {

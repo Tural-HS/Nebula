@@ -89,6 +89,7 @@ export const ti = {
     user: "user (email)",
     url: "URL",
     email: "email",
+    formula: "formula (not imported)",
   } satisfies Record<FieldType, string>,
 
   // Server error codes (ADR-0011) → messages.

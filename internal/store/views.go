@@ -316,7 +316,10 @@ func validateView(ctx context.Context, q querier, v ViewCaller, view *View) erro
 	c := &view.Config
 	c.Sort = normSort(c.Sort)
 	if !ValidSort(c.Sort) {
-		return invalid("config.sort", "must be number or due")
+		return invalid("config.sort", SortError)
+	}
+	if _, err := resolveFieldSort(ctx, q, v.WorkspaceID, c.Sort, "config.sort"); err != nil {
+		return err
 	}
 	if c.GroupBy == "" {
 		c.GroupBy = "status"

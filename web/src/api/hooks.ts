@@ -81,7 +81,8 @@ export const useFields = (ws: string) =>
   });
 
 export type DueFilter = "" | "overdue" | "today" | "week" | "none";
-export type ItemSort = "number" | "due";
+/** Built-in sorts, or a field sort (ADR-0030): "field.<key>" ascending, "-field.<key>" descending. */
+export type ItemSort = "number" | "due" | `field.${string}` | `-field.${string}`;
 
 export interface ItemFilters {
   q: string;

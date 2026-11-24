@@ -404,7 +404,7 @@ func parseItemFilters(w http.ResponseWriter, r *http.Request) (store.ListItemsPa
 	}
 	p.Sort = q.Get("sort")
 	if !store.ValidSort(p.Sort) {
-		writeError(w, http.StatusBadRequest, "bad_request", "sort must be number or due")
+		writeError(w, http.StatusBadRequest, "bad_request", "sort "+store.SortError)
 		return store.ListItemsParams{}, false
 	}
 	if v := q.Get("cursor"); v != "" {

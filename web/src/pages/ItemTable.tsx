@@ -15,6 +15,8 @@ import { cn } from "../lib/cn";
 import { formatDateTime, formatRelative } from "../lib/format";
 import { displayColumns, FINE_POINTER, useCompact, useMediaQuery } from "../lib/responsive";
 import { columnHeader, fieldKey, formatDecimal, formatFieldValue, isFieldColumn } from "../lib/views";
+import { isFormula, isNumeric } from "../lib/formula";
+import { tf } from "../i18n-formulas";
 
 // ---------------------------------------------------------------------------
 // Table: virtualized, so only visible rows are in the DOM (100k rows stay
@@ -123,7 +125,12 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
     const rem = tracks.reduce((n, [, w]) => n + w, 0) + 0.75 * (tracks.length - 1) + 2; // gaps and padding
     return { gridTemplateColumns: tracks.map(([g]) => g).join(" "), minWidth: `${String(rem)}rem` };
   }, [columns, fields, compact, select]);
-  const numeric = (c: string) => isFieldColumn(c) && fields.get(fieldKey(c))?.type === "number";
+  const numeric = (c: string) => isFieldColumn(c) && isNumeric(fields.get(fieldKey(c)));
+  // Formula columns are computed and read-only (ADR-0030): marked with ƒ.
+  const formulaDef = (c: string) => {
+    const def = isFieldColumn(c) ? fields.get(fieldKey(c)) : undefined;
+    return isFormula(def) ? def : undefined;
+  };
   const showDueInTitle = !columns.includes("due_date");
   const hasSums = columns.some(numeric);
   const labelAt = Math.max(0, columns.findIndex((c) => !numeric(c)));
@@ -169,7 +176,16 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
     }
     const def = fields.get(fieldKey(col));
     const text = formatFieldValue(def, it.fields[fieldKey(col)], members);
-    return <span className={cn("block truncate", numeric(col) && "text-right tabular-nums")} title={text}>{text}</span>;
+    const expr = isFormula(def) ? def?.options.formula?.expression : undefined;
+    return (
+      <span
+        className={cn("block truncate", numeric(col) && "text-right tabular-nums", expr !== undefined && "text-zinc-700 dark:text-zinc-300")}
+        title={expr !== undefined ? `${text}\n${tf.title(expr)}` : text}
+        data-formula={expr !== undefined ? "" : undefined}
+      >
+        {text}
+      </span>
+    );
   };
 
   return (
@@ -187,6 +203,7 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
                 onChange={select.toggleAll}
               />
             )}
+            {formulaDef(c) && <span className="mr-1 font-serif normal-case italic" title={`${tf.readOnly}\n${tf.title(formulaDef(c)?.options.formula?.expression ?? "")}`}>ƒ</span>}
             {c === "title" && keyInTitle ? `${columnHeader("key", fields)} · ${columnHeader(c, fields)}` : columnHeader(c, fields)}
           </span>
         ))}

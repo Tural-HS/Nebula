@@ -26,6 +26,7 @@ böyük həcmli məlumatlarda sürətli, tam fərdiləşdirilə bilən, öz serv
 - Status keçidlərində "dörd göz" təsdiqi (hazırlayan öz işini təsdiqləyə bilməz, N təsdiq): [ADR-0026](docs/adr/0026-four-eyes-approvals.md)
 - İş təqvimi (həftə sonu, bayramlar, köçürmələr) və iş gününə bağlı təkrarlanma: [ADR-0027](docs/adr/0027-working-day-calendar.md)
 - Tapşırıq əlaqələri və izləyicilər: [ADR-0028](docs/adr/0028-item-links-and-watchers.md)
+- Düstur sahələri (dəqiq onluq hesab, `today()`, `workdays()`, cəm və sıralama): [ADR-0030](docs/adr/0030-formula-fields.md)
 - Yol xəritəsi: [docs/ROADMAP.md](docs/ROADMAP.md)
 
 ## Tələblər

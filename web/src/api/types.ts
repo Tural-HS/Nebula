@@ -71,7 +71,7 @@ export interface ItemType {
 
 export type FieldType =
   | "text" | "long_text" | "number" | "date" | "datetime" | "boolean"
-  | "select" | "multi_select" | "user" | "url" | "email";
+  | "select" | "multi_select" | "user" | "url" | "email" | "formula";
 
 export interface Choice {
   id: string;
@@ -85,11 +85,39 @@ export interface FieldDefinition {
   key: string;
   name: string;
   type: FieldType;
-  options: { choices?: Choice[] };
+  options: { choices?: Choice[]; formula?: FormulaOptions };
   archived: boolean;
 }
 
-export type FieldValue = string | number | boolean | string[] | null;
+/** options.formula of a formula field (ADR-0030); all but expression/scale are derived by the server. */
+export interface FormulaOptions {
+  expression: string;
+  /** Decimal places of a number result. */
+  scale?: number;
+  result_type: "number" | "date" | "boolean";
+  refs: string[];
+  volatile?: boolean;
+  calendar?: boolean;
+}
+
+/** A formula value that could not be computed, e.g. {"error": "division_by_zero"}. */
+export interface FormulaErrorValue {
+  error: string;
+}
+
+export type FieldValue = string | number | boolean | string[] | FormulaErrorValue | null;
+
+/** POST /fields/formula-preview. */
+export interface FormulaPreview {
+  valid: boolean;
+  error?: { position: number; message: string };
+  result_type?: FormulaOptions["result_type"];
+  refs?: string[];
+  volatile: boolean;
+  calendar: boolean;
+  value: FieldValue;
+  item?: string;
+}
 
 export interface Item {
   id: string;
@@ -129,7 +157,8 @@ export interface ViewConfig {
     fields?: Record<string, string>;
   };
   columns: string[];
-  sort: "number" | "due";
+  /** "number", "due", or a field sort: "field.<key>" / "-field.<key>" (ADR-0030). */
+  sort: string;
   group_by: "status" | "category";
 }
 

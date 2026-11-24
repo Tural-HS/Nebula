@@ -9,6 +9,7 @@ import (
 const (
 	overdueBatch    = 500
 	recurrenceBatch = 200 // rules per tick; each creates its due items
+	formulaBatches  = 20  // formula recompute batches (of 500 items) per tick
 )
 
 // Tick runs the time-based scans (ADR-0009). The worker calls it every minute
@@ -41,6 +42,7 @@ func (e *Engine) Tick(ctx context.Context) {
 	} else if n > 0 {
 		e.Logger.Info("recurring items created", "count", n)
 	}
+	e.recomputeFormulas(ctx)
 	n, err := e.Store.EmitOverdueDigests(ctx)
 	if err != nil {
 		if ctx.Err() == nil {
@@ -50,5 +52,31 @@ func (e *Engine) Tick(ctx context.Context) {
 	}
 	if n > 0 {
 		e.Logger.Info("overdue digests emitted", "count", n)
+	}
+}
+
+// recomputeFormulas refreshes stored formula values (ADR-0030): first the
+// daily pass of formulas that use today(), then up to formulaBatches
+// batches of pending passes, so one large workspace cannot starve the tick.
+func (e *Engine) recomputeFormulas(ctx context.Context) {
+	if n, err := e.Store.ScheduleVolatileFormulas(ctx); err != nil {
+		if ctx.Err() == nil {
+			e.Logger.Error("schedule formula recompute", "error", err)
+		}
+		return
+	} else if n > 0 {
+		e.Logger.Info("daily formula recompute scheduled", "workspaces", n)
+	}
+	for range formulaBatches {
+		n, err := e.Store.RecomputeFormulas(ctx)
+		if err != nil {
+			if ctx.Err() == nil {
+				e.Logger.Error("formula recompute", "error", err)
+			}
+			return
+		}
+		if n == 0 {
+			return
+		}
 	}
 }

@@ -8,6 +8,7 @@ import { Button, Dialog, FieldError, Input, Label, Select } from "../components/
 import { t } from "../i18n";
 import { tv } from "../i18n-views";
 import { cn } from "../lib/cn";
+import { valueType } from "../lib/formula";
 import { BUILTIN_COLUMNS, columnHeader, DEFAULT_COLUMNS, MAX_COLUMNS, moveColumn, viewFromState, type PageState } from "../lib/views";
 
 /**
@@ -280,7 +281,7 @@ export function FilterPicker({ statuses, fields, status, values, onStatus, onFie
   onClear: () => void;
   inline?: boolean;
 }) {
-  const filterable = [...fields.values()].filter((f) => !f.archived && (f.type === "select" || f.type === "multi_select" || f.type === "boolean"));
+  const filterable = [...fields.values()].filter((f) => !f.archived && (f.type === "select" || f.type === "multi_select" || valueType(f) === "boolean"));
   const active = status.length + Object.keys(values).length;
   return (
     <Popover label={inline ? tv.statusFilter : active > 0 ? tv.activeFilters(active) : tv.filters} inline={inline}>
@@ -306,7 +307,7 @@ export function FilterPicker({ statuses, fields, status, values, onStatus, onFie
           <Label htmlFor={`filter-${f.key}`}>{tv.fieldFilter(f.name)}</Label>
           <Select id={`filter-${f.key}`} value={values[f.key] ?? ""} onChange={(e) => { onField(f.key, e.target.value); }}>
             <option value="">{tv.anyValue}</option>
-            {f.type === "boolean" ? (
+            {valueType(f) === "boolean" ? (
               <>
                 <option value="true">{t.yes}</option>
                 <option value="false">{t.no}</option>
