@@ -25,7 +25,8 @@ export const useWorkspaces = () =>
   useQuery({ queryKey: keys.workspaces, queryFn: async () => (await api<{ workspaces: Workspace[] }>("GET", "/workspaces")).workspaces });
 
 export const useWorkspace = (ws: string) =>
-  useQuery({ queryKey: keys.workspace(ws), queryFn: () => api<Workspace>("GET", path`/workspaces/${ws}`) });
+  // Layout-wide callers (the archived banner) pass "" outside a workspace.
+  useQuery({ queryKey: keys.workspace(ws), queryFn: () => api<Workspace>("GET", path`/workspaces/${ws}`), enabled: ws !== "" });
 
 export const useMembers = (ws: string) =>
   useQuery({
