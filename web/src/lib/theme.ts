@@ -1,22 +1,33 @@
 import { useSyncExternalStore } from "react";
 
 // ---------------------------------------------------------------------------
-// Colour theme per browser (ADR-0035): light, dark or the system setting.
+// Colour theme per browser (ADR-0035, ADR-0049): the system setting, light,
+// dark, or one of three palettes on top of them — paper (warm light, least
+// glare), midnight (the logo's deep blue, dark) and high contrast (light).
 // Stored like the language (ADR-0025) but applied live, without a reload.
 // public/theme-init.js applies the stored choice before the first paint; it
 // duplicates the few lines of resolveTheme/applyTheme because it must run
 // as a classic same-origin script (CSP script-src 'self', no inline code).
 // ---------------------------------------------------------------------------
 
-export const THEMES = ["system", "light", "dark"] as const;
+export const THEMES = ["system", "light", "dark", "paper", "midnight", "contrast"] as const;
 export type ThemePref = (typeof THEMES)[number];
-export type ResolvedTheme = "light" | "dark";
+export type ResolvedTheme = Exclude<ThemePref, "system">;
+
+/** Palettes on a dark base get Tailwind's dark: variant too. */
+export const isDarkTheme = (t: ResolvedTheme): boolean => t === "dark" || t === "midnight";
 
 export const THEME_STORAGE_KEY = "nebula.theme";
 export const DARK_QUERY = "(prefers-color-scheme: dark)";
 
 /** Browser chrome colour (meta theme-color) per resolved theme. */
-export const THEME_COLORS: Record<ResolvedTheme, string> = { light: "#16788b", dark: "#18181b" };
+export const THEME_COLORS: Record<ResolvedTheme, string> = {
+  light: "#16788b",
+  dark: "#18181b",
+  paper: "#f4ecdd",
+  midnight: "#0f1a33",
+  contrast: "#000000",
+};
 
 export const isThemePref = (v: unknown): v is ThemePref => typeof v === "string" && (THEMES as readonly string[]).includes(v);
 
@@ -33,8 +44,12 @@ export function resolveTheme(pref: ThemePref, systemDark: boolean): ResolvedThem
 /** Sets the `dark` class Tailwind's dark: variant keys on, color-scheme and theme-color. */
 export function applyTheme(doc: Document, theme: ResolvedTheme): void {
   const root = doc.documentElement;
-  root.classList.toggle("dark", theme === "dark");
-  root.style.colorScheme = theme; // native controls and scrollbars follow
+  const dark = isDarkTheme(theme);
+  root.classList.toggle("dark", dark);
+  // The palette (index.css :root[data-theme=…]); light and dark need none.
+  if (theme === "light" || theme === "dark") delete root.dataset.theme;
+  else root.dataset.theme = theme;
+  root.style.colorScheme = dark ? "dark" : "light"; // native controls and scrollbars follow
   for (const meta of doc.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')) {
     meta.content = THEME_COLORS[theme];
   }

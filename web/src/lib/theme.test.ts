@@ -152,3 +152,26 @@ describe("theme-init.js", () => {
     expect(resolveTheme(parseTheme(stored), osDark)).toBe(want);
   });
 });
+
+describe("extra palettes", () => {
+  it("keeps the dark variant for midnight and marks palettes with data-theme", () => {
+    applyTheme(document, "midnight");
+    expect(document.documentElement.classList.contains("dark")).toBe(true);
+    expect(document.documentElement.dataset.theme).toBe("midnight");
+    expect(document.documentElement.style.colorScheme).toBe("dark");
+    applyTheme(document, "paper");
+    expect(document.documentElement.classList.contains("dark")).toBe(false);
+    expect(document.documentElement.dataset.theme).toBe("paper");
+    applyTheme(document, "contrast");
+    expect(document.documentElement.dataset.theme).toBe("contrast");
+    expect(document.documentElement.style.colorScheme).toBe("light");
+    applyTheme(document, "light");
+    expect(document.documentElement.dataset.theme).toBeUndefined();
+  });
+  it("parses stored palettes and still falls back to system", () => {
+    expect(parseTheme("paper")).toBe("paper");
+    expect(parseTheme("midnight")).toBe("midnight");
+    expect(parseTheme("sepia")).toBe("system");
+    expect(resolveTheme("contrast", true)).toBe("contrast");
+  });
+});
