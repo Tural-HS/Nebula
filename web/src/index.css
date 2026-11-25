@@ -25,6 +25,22 @@
   --color-brand-800: oklch(0.38 0.08 245);
   --color-brand-900: oklch(0.3 0.08 272);
   --color-brand-950: oklch(0.23 0.065 272);
+  /* Neutrals tinted toward the logo's blue (hue 235-258, low chroma) instead
+     of Tailwind's violet-grey zinc, so light mode is not stark white and dark
+     mode reads navy (ADR-0047). Same names, so every zinc-* utility follows.
+     Contrast (WCAG): 500 on the page (100) 4.96:1, on white 5.59:1; dark 400
+     on 950 7.58:1, on 900 6.76:1. Checked by converting oklch to sRGB luminance. */
+  --color-zinc-50: oklch(0.975 0.006 235);
+  --color-zinc-100: oklch(0.958 0.01 235);
+  --color-zinc-200: oklch(0.905 0.015 235);
+  --color-zinc-300: oklch(0.85 0.02 235);
+  --color-zinc-400: oklch(0.71 0.026 235);
+  --color-zinc-500: oklch(0.515 0.03 238);
+  --color-zinc-600: oklch(0.445 0.03 240);
+  --color-zinc-700: oklch(0.375 0.028 245);
+  --color-zinc-800: oklch(0.285 0.024 250);
+  --color-zinc-900: oklch(0.22 0.022 255);
+  --color-zinc-950: oklch(0.16 0.02 258);
   /* Small labels (due dates, counts, badges) in rem, so they follow the
      reader's browser font size; text-xs is 12px. */
   --text-2xs: 0.6875rem;
@@ -42,7 +58,7 @@
     height: 100%;
   }
   body {
-    @apply bg-zinc-50 text-zinc-900 antialiased dark:bg-zinc-950 dark:text-zinc-100;
+    @apply bg-zinc-100 text-zinc-900 antialiased dark:bg-zinc-950 dark:text-zinc-100;
     /* No double-tap zoom delay, no grey flash on tap; pinch zoom still works. */
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;

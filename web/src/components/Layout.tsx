@@ -141,6 +141,8 @@ export function Layout({ crumbs, actions, children }: { crumbs: Crumb[]; actions
           </span>
         </div>
       </header>
+      {/* The logo's navy → blue → teal gradient as a hairline under the header (ADR-0047); follows the workspace accent. */}
+      <div aria-hidden className="h-0.5 shrink-0 bg-linear-to-r from-brand-900 via-brand-600 to-brand-400" />
       <ArchivedWorkspaceBanner />
       <AbsenceBanner />
       <main className="min-h-0 flex-1">{children}</main>

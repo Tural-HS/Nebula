@@ -15,7 +15,7 @@ import { cn } from "../lib/cn";
 import { formatDateTime, formatRelative } from "../lib/format";
 import { displayColumns, FINE_POINTER, useCompact, useMediaQuery } from "../lib/responsive";
 import { columnHeader, fieldKey, formatDecimal, formatFieldValue, isFieldColumn, withUnit } from "../lib/views";
-import { isAmount, isFormula } from "../lib/formula";
+import { isAmount, isFormula, valueType } from "../lib/formula";
 import { formatMoneyTotals } from "../lib/money";
 import { tm } from "../i18n-money";
 import { tf } from "../i18n-formulas";
@@ -31,51 +31,62 @@ import { ROW_STRIPE, rowSignal } from "../lib/queues";
 // ---------------------------------------------------------------------------
 
 // Dense rows for a mouse (ADR-0035); touch keeps 44 px targets (ADR-0019).
-const ROW_HEIGHT = 36;
+const ROW_HEIGHT = 32; // dense, like a spreadsheet (ADR-0047)
 const TOUCH_ROW_HEIGHT = 44;
 /** Not a user column: always right after the title (ADR-0035). */
 const SIGNALS = "signals";
-const ROW = "grid items-center gap-3 px-3 md:px-4";
+// overflow-clip (not hidden): the column lines below are cut at the row edge
+// without making the row a scroll container, which would break sticky cells.
+const ROW = "grid items-center gap-2 overflow-clip px-3 md:px-4";
+// A column line in the middle of the gap left of a cell (ADR-0047): spreadsheet-
+// like ledgers need columns that read as columns. Taller than any row, clipped.
+const COL_LINE = "relative before:pointer-events-none before:absolute before:-inset-y-10 before:-left-1 before:w-px before:bg-zinc-400 dark:before:bg-zinc-600";
+// The pinned title starts in the gap (TITLE_PIN bleed): its line sits inside it.
+const COL_LINE_PINNED = "relative before:pointer-events-none before:absolute before:-inset-y-10 before:left-1 before:w-px before:bg-zinc-400 dark:before:bg-zinc-600";
 // Sticky cells need an opaque background: the page's.
-const STICKY_LEFT = "sticky left-0 z-[1] bg-zinc-50 dark:bg-zinc-950";
+const STICKY_LEFT = "sticky left-0 z-[1] bg-zinc-100 group-hover:bg-brand-50 dark:bg-zinc-950 dark:group-hover:bg-zinc-900";
+const PINNED_FILL = "flex items-center self-stretch";
+const STICKY_LEFT_HEAD = "sticky left-0 z-[1] bg-brand-50 dark:bg-zinc-900";
 // On phones the pinned title gets a hairline so scrolled cells do not
 // seem to run into it.
 const STICKY_EDGE = "max-md:shadow-[1px_0_0_var(--color-zinc-200)] max-md:dark:shadow-[1px_0_0_var(--color-zinc-800)]";
 // The pinned title beside the key (wide tables on desktop): the hairline on
 // every screen, and a left bleed over the grid gap so cells never show through.
-const TITLE_PIN = "-ml-3 pl-3 shadow-[1px_0_0_var(--color-zinc-200)] dark:shadow-[1px_0_0_var(--color-zinc-800)]";
-const STICKY_LEFT_TOTAL = "sticky left-0 z-[1] bg-zinc-100 dark:bg-zinc-900";
+const TITLE_PIN = "-ml-2 pl-2 shadow-[1px_0_0_var(--color-zinc-400)] dark:shadow-[1px_0_0_var(--color-zinc-600)]";
+const STICKY_LEFT_TOTAL = "sticky left-0 z-[1] bg-zinc-200 dark:bg-zinc-900";
 
 /** Grid track and minimum width (rem) of a column. */
 function track(col: string, def: FieldDefinition | undefined, compact: boolean): [string, number] {
   switch (col) {
     case "key":
-      return ["6.5rem", 6.5];
+      return ["5.5rem", 5.5];
     case SIGNALS:
       return ["10.5rem", 10.5]; // + the SLA slot (ADR-0045)
     case "title":
       // Pinned on phones: leave about half of a 375 px screen for the rest.
       // Desktop: wide enough for full person and company names (ledgers).
-      return compact ? ["minmax(10.5rem,1fr)", 10.5] : ["minmax(18rem,1fr)", 18];
+      return compact ? ["minmax(10.5rem,1fr)", 10.5] : ["minmax(16rem,1fr)", 16];
     case "type":
       return ["7rem", 7];
     case "status":
-      return ["9rem", 9];
+      return ["8rem", 8];
     case "assignee":
-      return ["11rem", 11];
+      return ["9.5rem", 9.5];
     case "due_date":
     case "created_at":
     case "updated_at":
-      return ["8rem", 8];
+      return ["7.5rem", 7.5];
   }
   switch (def?.type) {
     case "number":
+      return ["6.5rem", 6.5];
     case "date":
-      return ["8rem", 8];
+      return ["7rem", 7];
     case "boolean":
-      return ["6rem", 6]; // a check mark; the header truncates with a title
+      return ["4.5rem", 4.5]; // a check mark; the header wraps to two lines
     case "text":
-      return ["10rem", 10];
+    case "select":
+      return ["8.5rem", 8.5];
     case "long_text":
     case "multi_select":
       return ["14rem", 14];
@@ -152,7 +163,7 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
       const [g, w] = first;
       tracks[0] = [g.startsWith("minmax(") ? g.replace(/^minmax\(([\d.]+)rem/, (_m, n: string) => `minmax(${String(Number(n) + 2)}rem`) : `${String(w + 2)}rem`, w + 2];
     }
-    const rem = tracks.reduce((n, [, w]) => n + w, 0) + 0.75 * (tracks.length - 1) + 2; // gaps and padding
+    const rem = tracks.reduce((n, [, w]) => n + w, 0) + 0.5 * (tracks.length - 1) + 2; // gaps and padding
     const g: CSSProperties = { gridTemplateColumns: tracks.map(([t]) => t).join(" "), minWidth: `${String(rem)}rem` };
     return { grid: g, firstWidth: tracks[0]?.[1] ?? 0 };
   }, [columns, fields, compact, select]);
@@ -160,14 +171,18 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
   // (phones already pin the title, which carries the key).
   const pinTitle = columns[0] === "key" && columns[1] === "title";
   const pin = (i: number, sticky: string = STICKY_LEFT): { className: string | false; style: CSSProperties | undefined } =>
+    // Pinned cells fill the row height (self-stretch), so their background
+    // covers taller cells (two-line headers) scrolling underneath.
     i === 0
-      ? { className: cn(sticky, !pinTitle && STICKY_EDGE), style: undefined }
+      ? { className: cn(sticky, PINNED_FILL, !pinTitle && STICKY_EDGE), style: undefined }
       : pinTitle && i === 1
-        ? { className: cn(sticky, TITLE_PIN), style: { left: `${String(firstWidth)}rem` } }
+        ? { className: cn(sticky, PINNED_FILL, TITLE_PIN), style: { left: `${String(firstWidth)}rem` } }
         : { className: false, style: undefined };
+  const line = (i: number) => (i === 0 ? false : pinTitle && i === 1 ? COL_LINE_PINNED : COL_LINE);
   const header = (c: string) => (c === SIGNALS ? tlg.signals : columnHeader(c, fields));
   // Number and money columns: right-aligned tabular figures with a total.
   const numeric = (c: string) => isFieldColumn(c) && isAmount(fields.get(fieldKey(c)));
+  const isBoolCol = (c: string) => isFieldColumn(c) && valueType(fields.get(fieldKey(c))) === "boolean";
   const isMoneyCol = (c: string) => isFieldColumn(c) && fields.get(fieldKey(c))?.type === "money";
   // Formula columns are computed and read-only (ADR-0030): marked with ƒ.
   const formulaDef = (c: string) => {
@@ -220,6 +235,16 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
     }
     const def = fields.get(fieldKey(col));
     const raw = it.fields[fieldKey(col)];
+    // Yes/no columns: a check mark, like the "ok" of the Boards tables; no is blank.
+    if (valueType(def) === "boolean" && typeof raw === "boolean") {
+      return raw ? (
+        <span className="flex justify-center">
+          <span role="img" aria-label={t.yes} title={t.yes} className="inline-flex size-5 items-center justify-center rounded-full bg-emerald-600 text-xs leading-none font-bold text-white dark:bg-emerald-500 dark:text-emerald-950">✓</span>
+        </span>
+      ) : (
+        <span className="sr-only">{t.no}</span>
+      );
+    }
     const text = formatFieldValue(def, raw, members);
     // Tap to call where cells do not edit in place (touch, read-only); a link
     // inside the inline editor's button would be invalid and unclickable.
@@ -244,10 +269,10 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
   };
 
   return (
-    <div ref={scrollRef} className="h-full scroll-pt-8 scroll-pb-10 overflow-auto" role="table" aria-rowcount={items.length}>
-      <div role="row" style={grid} className={cn(ROW, "sticky top-0 z-[2] h-8 border-b border-zinc-200 bg-zinc-50 text-xs font-medium text-zinc-500 dark:text-zinc-400 dark:border-zinc-800 dark:bg-zinc-950")}>
+    <div ref={scrollRef} className="h-full scroll-pt-10 scroll-pb-10 overflow-auto" role="table" aria-rowcount={items.length}>
+      <div role="row" style={grid} className={cn(ROW, "sticky top-0 z-[2] h-10 border-b border-zinc-400 bg-brand-50 text-xs font-semibold text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300")}>
         {columns.map((c, i) => (
-          <span key={c} role="columnheader" title={c === SIGNALS ? tlg.signalsHint : header(c)} style={pin(i).style} className={cn("truncate", numeric(c) && "text-right", pin(i).className, i === 0 && select && "flex items-center gap-3")}>
+          <span key={c} role="columnheader" title={c === SIGNALS ? tlg.signalsHint : header(c)} style={pin(i, STICKY_LEFT_HEAD).style} className={cn(pin(i, STICKY_LEFT_HEAD).className ? "truncate" : "line-clamp-2 leading-tight [overflow-wrap:anywhere]", numeric(c) && "text-right", isBoolCol(c) && "text-center", pin(i, STICKY_LEFT_HEAD).className, line(i), i === 0 && select && "flex items-center gap-3")}>
             {i === 0 && select && (
               <input
                 type="checkbox"
@@ -289,10 +314,10 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
                   onClick={(e) => {
                     if (!(e.target as HTMLElement).closest("button, a")) onOpen(it.number);
                   }}
-                  className={cn(ROW, "h-full w-full cursor-pointer border-b border-zinc-100 text-left text-sm tabular-nums hover:bg-zinc-100/70 dark:border-zinc-800/60 dark:hover:bg-zinc-800/60")}
+                  className={cn(ROW, "group h-full w-full cursor-pointer border-b border-zinc-300 text-left text-sm tabular-nums hover:bg-brand-50/80 dark:border-zinc-700 dark:hover:bg-zinc-800/60")}
                 >
                   {columns.map((c, i) => (
-                    <span key={c} role="cell" style={pin(i).style} className={cn("min-w-0", pin(i).className)}>
+                    <span key={c} role="cell" style={pin(i).style} className={cn("min-w-0", pin(i).className, line(i))}>
                       {c === "title" ? (
                         <button type="button" className="flex min-w-0 max-w-full text-left" onClick={() => { onOpen(it.number); }}>
                           {cell(it, c)}
@@ -315,14 +340,14 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
                   data-selected={select?.selected.has(it.number) || undefined}
                   className={cn(
                     ROW,
-                    "h-full w-full cursor-pointer border-b border-zinc-100 text-left text-sm tabular-nums hover:bg-zinc-100/70 dark:border-zinc-800/60 dark:hover:bg-zinc-800/60",
+                    "group h-full w-full cursor-pointer border-b border-zinc-300 text-left text-sm tabular-nums hover:bg-brand-50/80 dark:border-zinc-700 dark:hover:bg-zinc-800/60",
                     select?.selected.has(it.number) && "bg-brand-50/70 dark:bg-brand-950/30",
                   )}
                 >
                   {columns.map((c, i) => {
                     const kind = edit ? inlineKind(c, fields) : null;
                     return (
-                      <span key={c} role="cell" style={pin(i).style} className={cn("min-w-0", pin(i).className, i === 0 && select && "flex items-center gap-3")}>
+                      <span key={c} role="cell" style={pin(i).style} className={cn("min-w-0", pin(i).className, line(i), i === 0 && select && "flex items-center gap-3")}>
                         {i === 0 && select && (
                           <input
                             type="checkbox"
@@ -359,7 +384,7 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
           role="row"
           aria-label={tv.total}
           style={grid}
-          className={cn(ROW, "sticky bottom-0 z-[2] h-10 border-t border-zinc-300 bg-zinc-100 text-sm font-medium dark:border-zinc-700 dark:bg-zinc-900")}
+          className={cn(ROW, "sticky bottom-0 z-[2] h-10 border-t border-zinc-300 bg-zinc-200 text-sm font-semibold dark:border-zinc-700 dark:bg-zinc-900")}
         >
           {columns.map((c, i) => {
             const s = numeric(c) ? sums?.[fieldKey(c)] : undefined;
@@ -370,7 +395,7 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
                 key={c}
                 role="cell"
                 style={pin(i, STICKY_LEFT_TOTAL).style}
-                className={cn("truncate", numeric(c) && "text-right tabular-nums", pin(i, STICKY_LEFT_TOTAL).className)}
+                className={cn("truncate", numeric(c) && "text-right tabular-nums", pin(i, STICKY_LEFT_TOTAL).className, line(i))}
                 title={s ? (money !== undefined ? `${tm.totalsLabel(money)}\n${tm.noFx}\n${tv.totalHint(s.count)}` : tv.totalHint(s.count)) : undefined}
                 data-money-total={money !== undefined ? "" : undefined}
               >
