@@ -14,6 +14,7 @@ import { useMarkRead, useNotifications } from "../api/notifications";
 import { CreateWorkspaceDialog, NewWorkspaceButton } from "../components/CreateWorkspace";
 import { ArchivedWorkspaces } from "../components/Lifecycle";
 import { LanguageMenu } from "../components/LanguageMenu";
+import { StickyNotes } from "../components/StickyNotes";
 import { Layout } from "../components/Layout";
 import { ThemeMenu } from "../components/ThemeMenu";
 import { Button, ErrorState, Spinner, StatusBadge } from "../components/ui";
@@ -53,6 +54,7 @@ export function HomePage() {
     body = (
       <>
         <CounterStrip home={home} active={show} />
+        {!show && <StickyNotes />}
         {show ? (
           <FullList show={show} home={home} loading={q.isPlaceholderData} />
         ) : (

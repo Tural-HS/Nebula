@@ -64,6 +64,7 @@ func (a *api) routes(r chi.Router) {
 	a.invitationPublicRoutes(r)
 	a.notificationRoutes(r)
 	a.homeRoutes(r)
+	a.noteRoutes(r)
 	a.formPublicRoutes(r)
 	r.Get("/workspaces", a.listWorkspaces)
 	r.Post("/workspaces", a.createWorkspace)
