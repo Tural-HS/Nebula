@@ -13,6 +13,7 @@ import { AbsenceBanner } from "./Absence";
 import { ArchivedWorkspaceBanner } from "./Lifecycle";
 import { LanguageMenu } from "./LanguageMenu";
 import { NotificationBell } from "./NotificationBell";
+import { ProjectSwitcher } from "./ProjectSwitcher";
 import { ThemeMenu } from "./ThemeMenu";
 import { Popover } from "../pages/ViewTools";
 import { Avatar, Button } from "./ui";
@@ -20,6 +21,8 @@ import { Avatar, Button } from "./ui";
 export interface Crumb {
   label: string;
   to?: string;
+  /** A project crumb: a menu to jump to the workspace's other projects. */
+  switcher?: { ws: string; project: string; suffix?: string };
 }
 
 export function Layout({ crumbs, actions, children }: { crumbs: Crumb[]; actions?: ReactNode; children: ReactNode }) {
@@ -42,9 +45,11 @@ export function Layout({ crumbs, actions, children }: { crumbs: Crumb[]; actions
             name is never squeezed to nothing (320 px, long translations). */}
         <nav aria-label="breadcrumb" className="flex min-w-0 items-center gap-1.5 text-sm text-zinc-500 max-sm:order-last max-sm:basis-full max-sm:pb-2 dark:text-zinc-400">
           {crumbs.map((c, i) => (
-            <span key={`${c.label}-${String(i)}`} className={cn("flex min-w-0 items-center gap-1.5", i < crumbs.length - 2 && "max-sm:hidden")}>
+            <span key={`${c.label}-${String(i)}`} className={cn("flex min-w-0 items-center gap-1.5", i < crumbs.length - 2 && "max-2xl:hidden")}>
               <span aria-hidden>/</span>
-              {c.to ? (
+              {c.switcher && !c.to ? (
+                <ProjectSwitcher ws={c.switcher.ws} current={c.switcher.project} label={c.label} />
+              ) : c.to ? (
                 <Link to={c.to} className="truncate hover:text-zinc-900 dark:hover:text-zinc-100">
                   {c.label}
                 </Link>
@@ -53,6 +58,7 @@ export function Layout({ crumbs, actions, children }: { crumbs: Crumb[]; actions
                   {c.label}
                 </span>
               )}
+              {c.switcher && c.to && <ProjectSwitcher ws={c.switcher.ws} current={c.switcher.project} label="" {...(c.switcher.suffix ? { suffix: c.switcher.suffix } : {})} />}
             </span>
           ))}
         </nav>

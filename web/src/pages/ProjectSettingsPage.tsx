@@ -34,7 +34,7 @@ export function ProjectSettingsPage() {
       crumbs={[
         { label: t.workspaces, to: "/" },
         { label: workspace.data?.name ?? ws, to: `/w/${encodeURIComponent(ws)}` },
-        { label: p?.name ?? project, to: projectUrl },
+        { label: p?.name ?? project, to: projectUrl, switcher: { ws, project, suffix: "/settings" } },
         { label: tp.settings },
       ]}
     >

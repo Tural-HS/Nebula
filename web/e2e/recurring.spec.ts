@@ -1,4 +1,4 @@
-import { apiAs, authFile, expect, seedWorkspace, test, type Seed } from "./fixtures";
+import { apiAs, authFile, expect, seedWorkspace, test, type Seed, projectLink } from "./fixtures";
 
 test.use({ storageState: authFile("alice") });
 
@@ -11,7 +11,7 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 test("admin creates monthly and weekly rules; the page explains them in Azerbaijani", async ({ page }) => {
   await page.goto(seed.url);
-  await page.getByRole("link", { name: "Təkrarlanan" }).click();
+  await projectLink(page, "Təkrarlanan");
   await expect(page.getByRole("heading", { name: "Təkrarlanan tapşırıqlar" })).toBeVisible();
 
   await page.getByRole("button", { name: "Yeni qayda" }).click();

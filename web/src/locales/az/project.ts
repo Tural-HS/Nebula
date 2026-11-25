@@ -15,4 +15,6 @@ export const tp = {
     "Gizli layihənin hadisələri yalnız bu layihəni açıq seçmiş webhook-lara göndərilir (Ayarlar → Webhook-lar → Layihələr). Şöbə kanalı üçün webhook-da bu layihəni seçin.",
   makePrivateConfirm: "Layihə gizli olsun? Layihə üzvü olmayan adi üzvlər onu artıq görməyəcək.",
   adminOnly: "Layihə ayarlarını yalnız adminlər dəyişə bilər.",
+  switchProject: "Layihəni dəyiş",
+  privateMark: "gizli layihə",
 } as const;

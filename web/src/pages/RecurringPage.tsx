@@ -33,7 +33,7 @@ export function RecurringPage() {
       crumbs={[
         { label: t.workspaces, to: "/" },
         { label: workspace.data?.name ?? ws, to: `/w/${encodeURIComponent(ws)}` },
-        { label: projectName, to: projectUrl },
+        { label: projectName, to: projectUrl, switcher: { ws, project, suffix: "/recurring" } },
         { label: tr.nav },
       ]}
     >

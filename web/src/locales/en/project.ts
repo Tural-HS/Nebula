@@ -17,4 +17,6 @@ export const tp = {
     "Events from a private project are only sent to webhooks that explicitly select it (Settings → Webhooks → Projects). For a team channel, select this project in the webhook.",
   makePrivateConfirm: "Make the project private? Regular members who are not project members will no longer see it.",
   adminOnly: "Only admins can change project settings.",
+  switchProject: "Switch project",
+  privateMark: "private project",
 } satisfies Messages["project"];

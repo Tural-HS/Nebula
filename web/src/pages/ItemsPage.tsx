@@ -19,7 +19,7 @@ import { ti } from "../i18n-import";
 import { tm } from "../i18n-mobile";
 import { tc } from "../i18n-calendar";
 import { monthOf, parseMonth, todayIn } from "../lib/calendar";
-import { activeFilterCount, useCompact } from "../lib/responsive";
+import { activeFilterCount, useCompact, useMediaQuery } from "../lib/responsive";
 import { flattenPages } from "../lib/board";
 import { fieldSortOptions, isSortable, parseSort, sortFieldKey } from "../lib/formula";
 import { tf } from "../i18n-formulas";
@@ -75,6 +75,7 @@ export function ItemsPage() {
   const [creating, setCreating] = useState(false);
   const [sheet, setSheet] = useState(false);
   const compact = useCompact();
+  const wideHeader = useMediaQuery("(min-width: 96rem)");
   // Rotated to a wider layout with the sheet open: it is gone, do not
   // reopen it on the next rotation.
   if (!compact && sheet) setSheet(false);
@@ -379,13 +380,13 @@ export function ItemsPage() {
       crumbs={[
         { label: t.workspaces, to: "/" },
         { label: workspace.data?.name ?? ws, to: `/w/${encodeURIComponent(ws)}` },
-        { label: projectName },
+        { label: projectName, switcher: { ws, project } },
       ]}
       actions={
         <>
-          {compact ? (
-            // Phones: the project links share one menu, so the header never
-            // wraps or scrolls sideways.
+          {compact || !wideHeader ? (
+            // Phones and screens below 2xl: the project links share one menu,
+            // so the header never wraps and the project name stays readable.
             links.length > 0 && (
               <Popover label={<span aria-hidden>⋯</span>} summaryLabel={tm.moreActions} align="right">
                 <nav aria-label={tm.moreActions} className="flex flex-col">

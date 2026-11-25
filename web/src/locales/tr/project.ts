@@ -17,4 +17,6 @@ export const tp = {
     "Gizli projenin olayları yalnızca bu projeyi açıkça seçmiş webhook'lara gönderilir (Ayarlar → Webhook'lar → Projeler). Bir departman kanalı için webhook'ta bu projeyi seçin.",
   makePrivateConfirm: "Proje gizli yapılsın mı? Proje üyesi olmayan normal üyeler artık onu göremeyecek.",
   adminOnly: "Proje ayarlarını yalnızca yöneticiler değiştirebilir.",
+  switchProject: "Proje değiştir",
+  privateMark: "gizli proje",
 } satisfies Messages["project"];
