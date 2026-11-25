@@ -548,8 +548,13 @@ func closePeriodTx(ctx context.Context, tx pgx.Tx, wsID, projectID, actorID uuid
 		out.ID, out.ItemCount, out.Changed, failed).Scan(&out.CreatedAt); err != nil {
 		return PeriodClose{}, err
 	}
+	var projectKey, projectName string
+	if err := tx.QueryRow(ctx, `SELECT key, name FROM projects WHERE id = $1`, projectID).Scan(&projectKey, &projectName); err != nil {
+		return PeriodClose{}, err
+	}
 	err = appendEvent(ctx, tx, wsID, actorID, "project", projectID, "period.closed", map[string]any{
 		"close_id": out.ID, "period": out.Period, "items": out.ItemCount, "changed": out.Changed, "failed": len(out.Failed),
+		"project_key": projectKey, "project_name": projectName,
 	})
 	return out, err
 }

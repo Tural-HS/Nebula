@@ -68,3 +68,17 @@ func TestFilterDigestDueToday(t *testing.T) {
 		t.Fatalf("both lists: %q", text)
 	}
 }
+
+func TestRenderPeriodClosed(t *testing.T) {
+	ev := store.Event{Action: "period.closed", Payload: map[string]any{
+		"project_name": "Müştəri *Aylıq* Hesabat", "period": "2026-11", "items": 48.0, "changed": 45.0, "failed": 1.0,
+	}}
+	got := RenderChat(ev, ChatContext{})
+	want := "📅 Müştəri \\*Aylıq\\* Hesabat: Noyabr 2026 bağlandı — 48 tapşırıq tarixçəyə yazıldı, 45 yeniləndi; 1 tapşırıq yenilənmədi, əl ilə yoxlayın — Sistem"
+	if got != want {
+		t.Fatalf("got  %q\nwant %q", got, want)
+	}
+	if got := azMonth("bad"); got != "bad" {
+		t.Fatalf("azMonth(bad) = %q", got)
+	}
+}

@@ -82,6 +82,16 @@ func RenderChat(ev store.Event, c ChatContext) string {
 		lines = append(lines, fmt.Sprintf("⏰ %s%s — %s", ref, title, overdueTail(ev.Payload)))
 	case "workspace.overdue_digest":
 		return c.overdueDigest(ev)
+	case "period.closed":
+		line := fmt.Sprintf("📅 %s: %s bağlandı — %s tapşırıq tarixçəyə yazıldı, %s yeniləndi",
+			escapeChat(str(ev.Payload["project_name"])), escapeChat(azMonth(str(ev.Payload["period"]))),
+			count(ev.Payload["items"]), count(ev.Payload["changed"]))
+		if f := count(ev.Payload["failed"]); f != "0" {
+			line += fmt.Sprintf("; %s tapşırıq yenilənmədi, əl ilə yoxlayın", f)
+		}
+		lines = append(lines, line+" — "+who)
+	case "period.close_failed":
+		lines = append(lines, fmt.Sprintf("⚠️ Aylıq dövr bağlanmadı: %s", escapeChat(str(ev.Payload["error"]))))
 	case store.EventApprovalRequested:
 		lines = append(lines, fmt.Sprintf("🔏 %s %s%s üçün təsdiq istədi (%s/%s)", who, ref, title,
 			count(ev.Payload["approvals"]), count(ev.Payload["min_approvals"])))
@@ -217,6 +227,17 @@ func (c ChatContext) digestSection(ev store.Event, b *strings.Builder, heading s
 	if rest := total - shown; rest > 0 {
 		fmt.Fprintf(b, "\n…və daha %d", rest)
 	}
+}
+
+var azMonths = [...]string{"Yanvar", "Fevral", "Mart", "Aprel", "May", "İyun", "İyul", "Avqust", "Sentyabr", "Oktyabr", "Noyabr", "Dekabr"}
+
+// azMonth renders "2026-11" as "Noyabr 2026"; anything else as it is.
+func azMonth(period string) string {
+	var y, m int
+	if n, err := fmt.Sscanf(period, "%d-%d", &y, &m); err != nil || n != 2 || m < 1 || m > 12 {
+		return period
+	}
+	return fmt.Sprintf("%s %d", azMonths[m-1], y)
 }
 
 // todayTail renders the assignee of an item due today.
