@@ -14,6 +14,8 @@ import { ItemEvidenceButton } from "../components/Evidence";
 import { FieldEditor } from "../components/FieldEditor";
 import { LinksSection } from "../components/Links";
 import { KeyFacts } from "../components/KeyFacts";
+import { CallOutcome } from "../components/CallOutcome";
+import { isPhoneField } from "../lib/phone";
 import { useLinks } from "../api/links";
 import { useAttachments } from "../api/attachments";
 import { RequestPanel } from "../components/RequestPanel";
@@ -454,6 +456,11 @@ function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose, nav }: {
 
         <div className="min-w-0 space-y-5 @2xl:col-start-1 @2xl:row-start-1">
           {locked && <p role="status" className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-200">{tap.locked}</p>}
+
+          {/* Ledger records with a phone field: one-click call results (ADR-0050). */}
+          {canEdit && boundFields.some((b) => isPhoneField(defs.get(b.key))) && (
+            <CallOutcome ws={ws} project={project} n={item.number} onPromise={(d) => { setDue(d); save({ due_date: d }); }} />
+          )}
 
           <ApprovalPanel ws={ws} project={project} item={item} />
 

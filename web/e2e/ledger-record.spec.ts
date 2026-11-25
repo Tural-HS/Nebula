@@ -94,6 +94,21 @@ test.describe("as admin", () => {
     await expect(page.getByRole("dialog", { name: "QA-2" })).toBeVisible();
   });
 
+  test("call results write the history; a promise moves the due date", async ({ page }) => {
+    await page.goto(`${seed.url}?item=1`);
+    const panel = page.getByRole("dialog", { name: "QA-1" });
+    const calls = panel.getByRole("region", { name: "Zəng nəticəsi" });
+    await calls.getByRole("button", { name: /Cavab vermədi/ }).click();
+    await expect(panel.getByText("📞 Cavab vermədi")).toBeVisible();
+    await calls.getByRole("button", { name: /Ödəməyə söz verdi/ }).click();
+    await calls.getByLabel("Hansı tarixə").fill("2030-12-05");
+    await calls.getByRole("button", { name: /Saxla/ }).click();
+    await expect(panel.getByText("📞 Ödəməyə söz verdi: 5 dek 2030")).toBeVisible();
+    await expect(panel.getByLabel("Son tarix")).toHaveValue("2030-12-05");
+    await page.reload();
+    await expect(page.getByRole("dialog", { name: "QA-1" }).getByLabel("Son tarix")).toHaveValue("2030-12-05");
+  });
+
   test("the title stays while the table scrolls sideways", async ({ page }) => {
     const many = ["key", "title", "status", "assignee", "due_date", "created_at", "updated_at", "field.balance", "field.phone", "field.nv"];
     await page.setViewportSize({ width: 900, height: 700 });
