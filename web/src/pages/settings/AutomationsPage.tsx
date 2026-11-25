@@ -10,6 +10,7 @@ import { cn } from "../../lib/cn";
 import { conditionText, conditionValue, fieldValue, NO_VALUE_OPS, recipients } from "../../lib/rules";
 import { Card, SettingsLayout } from "./SettingsLayout";
 import { useFeedback } from "./useErrorToast";
+import { useConfirm } from "../../components/confirm-context";
 
 const BASE_FIELDS = ["type", "project", "status", "status_category", "assignee", "reporter", "title", "due_date"];
 const OPS: ConditionOp[] = ["eq", "neq", "in", "not_in", "contains", "is_empty", "is_not_empty"];
@@ -26,6 +27,7 @@ interface Ctx {
 }
 
 function Automations({ ws }: { ws: string }) {
+  const confirm = useConfirm();
   const rules = useRules(ws);
   const types = useItemTypes(ws);
   const members = useMembers(ws);
@@ -69,7 +71,7 @@ function Automations({ ws }: { ws: string }) {
             </span>
             <span className="ml-auto flex gap-2">
               <Button variant="ghost" onClick={() => { setEditing(r); }}>{ta.editRule}</Button>
-              <Button variant="ghost" className="text-red-600" onClick={() => { if (window.confirm(ta.confirm)) adm.deleteRule.mutate(r.id, { onSuccess: fb.ok(), onError: fb.fail }); }}>
+              <Button variant="ghost" className="text-red-600" onClick={() => { void confirm({ title: ta.confirm, action: t.delete, danger: true }).then((ok) => { if (ok) adm.deleteRule.mutate(r.id, { onSuccess: fb.ok(), onError: fb.fail }); }); }}>
                 {t.delete}
               </Button>
             </span>

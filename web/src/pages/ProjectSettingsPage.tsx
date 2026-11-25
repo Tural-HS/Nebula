@@ -14,6 +14,7 @@ import { t } from "../i18n";
 import { ta } from "../i18n-admin";
 import { tf } from "../i18n-forms";
 import { tp } from "../i18n-project";
+import { useConfirm } from "../components/confirm-context";
 
 export function ProjectSettingsPage() {
   const { ws = "", project = "" } = useParams();
@@ -34,7 +35,7 @@ export function ProjectSettingsPage() {
       crumbs={[
         { label: t.workspaces, to: "/" },
         { label: workspace.data?.name ?? ws, to: `/w/${encodeURIComponent(ws)}` },
-        { label: p?.name ?? project, to: projectUrl },
+        { label: p?.name ?? project, to: projectUrl, switcher: { ws, project, suffix: "/settings" } },
         { label: tp.settings },
       ]}
     >
@@ -49,6 +50,7 @@ export function ProjectSettingsPage() {
 }
 
 function Settings({ ws, project, role }: { ws: string; project: Project; role: Workspace["role"] }) {
+  const confirm = useConfirm();
   const qc = useQueryClient();
   const toast = useToast();
   const [name, setName] = useState(project.name);
@@ -68,7 +70,10 @@ function Settings({ ws, project, role }: { ws: string; project: Project; role: W
         className="space-y-4 rounded-xl bg-white p-4 ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-800"
         onSubmit={(e) => {
           e.preventDefault();
-          if (visibility === "private" && project.visibility !== "private" && !window.confirm(tp.makePrivateConfirm)) return;
+          if (visibility === "private" && project.visibility !== "private") {
+            void confirm({ title: t.areYouSure, body: tp.makePrivateConfirm, action: t.proceed }).then((ok) => { if (ok) update.mutate({ name, visibility }); });
+            return;
+          }
           update.mutate({ name, visibility });
         }}
       >

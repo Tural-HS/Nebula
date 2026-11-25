@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { FieldDefinition } from "../api/types";
-import { containsValue, filterKind, operatorText, parseFilter, rangeValue } from "./columnFilter";
+import { choicesValue, containsValue, filterKind, operatorText, parseFilter, pickedChoices, rangeValue } from "./columnFilter";
 
 const base: FieldDefinition = { id: "f", key: "x", name: "X", type: "text", options: {}, archived: false } as unknown as FieldDefinition;
 const def = (patch: Partial<FieldDefinition>): FieldDefinition => ({ ...base, ...patch });
@@ -44,5 +44,24 @@ describe("values", () => {
     expect(operatorText("10..", fmt, words)).toBe("≥ <10>");
     expect(operatorText("..20", fmt, words)).toBe("≤ <20>");
     expect(operatorText("choice-id", fmt, words)).toBeNull();
+  });
+});
+
+describe("empty, set and several choices", () => {
+  it("builds and reads choice lists", () => {
+    expect(choicesValue([])).toBe("");
+    expect(choicesValue(["a"])).toBe("a");
+    expect(choicesValue(["a", "b"])).toBe("in:a,b");
+    expect(pickedChoices("in:a,b")).toEqual(["a", "b"]);
+    expect(pickedChoices("a")).toEqual(["a"]);
+    expect(pickedChoices("is:empty")).toEqual([]);
+    expect(pickedChoices(undefined)).toEqual([]);
+  });
+  it("describes empty and set, and keeps them out of the range inputs", () => {
+    const w = { ...words, empty: "boşdur", set: "doludur" };
+    expect(operatorText("is:empty", (b) => b, w)).toBe("boşdur");
+    expect(operatorText("is:set", (b) => b, w)).toBe("doludur");
+    expect(parseFilter("is:empty")).toEqual({ contains: "", from: "", to: "", exact: "" });
+    expect(parseFilter("in:a,b").exact).toBe("");
   });
 });

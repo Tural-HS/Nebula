@@ -8,10 +8,14 @@
   } catch (e) {
     // storage blocked: follow the system
   }
-  var dark = pref === "dark" || (pref !== "light" && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
+  var known = { light: 1, dark: 1, paper: 1, midnight: 1, contrast: 1 };
+  var theme = known[pref] ? pref : (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+  var dark = theme === "dark" || theme === "midnight";
+  var colors = { light: "#16788b", dark: "#18181b", paper: "#f4ecdd", midnight: "#0f1a33", contrast: "#000000" };
   var root = document.documentElement;
   if (dark) root.classList.add("dark");
+  if (theme !== "light" && theme !== "dark") root.setAttribute("data-theme", theme);
   root.style.colorScheme = dark ? "dark" : "light";
   var metas = document.querySelectorAll('meta[name="theme-color"]');
-  for (var i = 0; i < metas.length; i++) metas[i].content = dark ? "#18181b" : "#16788b";
+  for (var i = 0; i < metas.length; i++) metas[i].content = colors[theme];
 })();

@@ -51,8 +51,11 @@ test("upload, preview, download and delete attachments", async ({ page }) => {
   await panel.getByRole("tab", { name: "Aktivlik" }).click();
   await expect(panel.getByText('"ekran.png" faylını əlavə etdi')).toBeVisible();
 
-  page.once("dialog", (d) => void d.accept());
   await fake.getByRole("button", { name: "Faylı sil: saxta.png" }).click();
+  // The app's own confirmation (ADR-0050) names the file.
+  const confirmDialog = page.getByRole("dialog", { name: "Əminsiniz?" });
+  await expect(confirmDialog).toContainText('"saxta.png" faylı silinsin?');
+  await confirmDialog.getByRole("button", { name: "Sil" }).click();
   await expect(files.getByRole("listitem")).toHaveCount(1);
 });
 

@@ -14,6 +14,8 @@ import { ItemEvidenceButton } from "../components/Evidence";
 import { FieldEditor } from "../components/FieldEditor";
 import { LinksSection } from "../components/Links";
 import { KeyFacts } from "../components/KeyFacts";
+import { CallOutcome } from "../components/CallOutcome";
+import { isPhoneField } from "../lib/phone";
 import { useLinks } from "../api/links";
 import { useAttachments } from "../api/attachments";
 import { RequestPanel } from "../components/RequestPanel";
@@ -29,12 +31,24 @@ import { formatDateTime } from "../lib/format";
 import { useKeyboardInset, useMediaQuery } from "../lib/responsive";
 import { WorkflowSteps } from "../components/WorkflowSteps";
 import { tlg } from "../i18n-ledger";
+import { tm } from "../i18n-mobile";
+import { Popover } from "./ViewTools";
 
 /** Width at which the panel stops being modal (Tailwind lg). */
 const WIDE = "(min-width: 1024px)";
 
-export function ItemDrawer({ ws, project, n, canEdit, isAdmin, onClose }: {
-  ws: string; project: string; n: number; canEdit: boolean; isAdmin: boolean; onClose: () => void;
+/** Previous/next item of the list the panel was opened from (ADR-0050): work through a call list. */
+export interface DrawerNav {
+  prev: number | null;
+  next: number | null;
+  /** 1-based place in the loaded list, and its length. */
+  index: number;
+  total: number;
+  go: (n: number) => void;
+}
+
+export function ItemDrawer({ ws, project, n, canEdit, isAdmin, onClose, nav }: {
+  ws: string; project: string; n: number; canEdit: boolean; isAdmin: boolean; onClose: () => void; nav?: DrawerNav | undefined;
 }) {
   const item = useItem(ws, project, n);
   const panel = useRef<HTMLElement>(null);
@@ -45,6 +59,22 @@ export function ItemDrawer({ ws, project, n, canEdit, isAdmin, onClose }: {
   // no dimming, and clicking another row switches the panel. Below lg it is
   // a modal sheet over the list.
   const wide = useMediaQuery(WIDE);
+  // J / K move to the next / previous item, like mail clients; never while typing.
+  useEffect(() => {
+    if (!nav) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.altKey || e.ctrlKey || e.metaKey || e.repeat) return;
+      const el = e.target as HTMLElement | null;
+      if (el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))) return;
+      if (document.querySelector("dialog[open]")) return;
+      const to = e.key === "j" ? nav.next : e.key === "k" ? nav.prev : null;
+      if (to === null) return;
+      e.preventDefault();
+      nav.go(to);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("keydown", onKey); };
+  }, [nav]);
   useEffect(() => {
     const el = document.activeElement;
     if (inset > 0 && el instanceof HTMLElement && panel.current?.contains(el)) el.scrollIntoView({ block: "nearest" });
@@ -115,7 +145,7 @@ export function ItemDrawer({ ws, project, n, canEdit, isAdmin, onClose }: {
             )}
           </>
         ) : (
-          <ItemDetails key={item.data.id} ws={ws} project={project} item={item.data} canEdit={canEdit} isAdmin={isAdmin} onClose={onClose} />
+          <ItemDetails key={item.data.id} ws={ws} project={project} item={item.data} canEdit={canEdit} isAdmin={isAdmin} onClose={onClose} nav={nav} />
         )}
       </aside>
     </>
@@ -132,8 +162,8 @@ function CloseButton({ onClose }: { onClose: () => void }) {
   );
 }
 
-function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose }: {
-  ws: string; project: string; item: Item; canEdit: boolean; isAdmin: boolean; onClose: () => void;
+function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose, nav }: {
+  ws: string; project: string; item: Item; canEdit: boolean; isAdmin: boolean; onClose: () => void; nav?: DrawerNav | undefined;
 }) {
   const qc = useQueryClient();
   const toast = useToast();
@@ -227,14 +257,28 @@ function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose }: {
         <span className="flex min-w-0 items-center gap-2 self-center text-sm">
           <span className="shrink-0 font-medium text-zinc-500 dark:text-zinc-400 tabular-nums">{item.key}</span>
           <span className="truncate rounded bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-600 max-sm:hidden dark:bg-zinc-800 dark:text-zinc-300">{item.type.name}</span>
+          {nav && nav.total > 1 && (
+            <span className="flex shrink-0 items-center gap-0.5" role="group" aria-label={tlg.listNav}>
+              <Button variant="ghost" className="px-2" disabled={nav.prev === null} aria-label={tlg.prevItem} title={`${tlg.prevItem} (K)`} onClick={() => { if (nav.prev !== null) nav.go(nav.prev); }}>
+                <span aria-hidden>←</span>
+              </Button>
+              <span className="text-xs text-zinc-500 tabular-nums dark:text-zinc-400">{nav.index} / {nav.total}</span>
+              <Button variant="ghost" className="px-2" disabled={nav.next === null} aria-label={tlg.nextItem} title={`${tlg.nextItem} (J)`} onClick={() => { if (nav.next !== null) nav.go(nav.next); }}>
+                <span aria-hidden>→</span>
+              </Button>
+            </span>
+          )}
         </span>
         <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2">
           <WatchControl ws={ws} project={project} n={item.number} isAdmin={isAdmin} />
           {isAdmin && <ItemEvidenceButton ws={ws} project={project} n={item.number} />}
+          {/* Destructive, so not the most visible button (ADR-0050): in the "…" menu. */}
           {canEditContent && (
-            <Button variant="dangerGhost" onClick={() => { setConfirmDelete(true); }}>
-              {t.delete}
-            </Button>
+            <Popover align="right" summaryLabel={tm.moreActions} label={<span aria-hidden>⋯</span>}>
+              <Button variant="dangerGhost" className="w-full justify-start" onClick={() => { setConfirmDelete(true); }}>
+                {t.delete}
+              </Button>
+            </Popover>
           )}
         </div>
         <CloseButton onClose={onClose} />
@@ -417,6 +461,11 @@ function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose }: {
 
         <div className="min-w-0 space-y-5 @2xl:col-start-1 @2xl:row-start-1">
           {locked && <p role="status" className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-200">{tap.locked}</p>}
+
+          {/* Ledger records with a phone field: one-click call results (ADR-0050). */}
+          {canEdit && boundFields.some((b) => isPhoneField(defs.get(b.key))) && (
+            <CallOutcome ws={ws} project={project} n={item.number} onPromise={(d) => { setDue(d); save({ due_date: d }); }} />
+          )}
 
           <ApprovalPanel ws={ws} project={project} item={item} />
 

@@ -1,3 +1,4 @@
+import { t } from "../../i18n";
 import { useState, type ReactNode } from "react";
 
 import { useEmailApi, useEmailSettings, type EmailTestResult } from "../../api/email";
@@ -7,6 +8,7 @@ import { applyPreset, formProblems, initialForm, toInput, type EmailForm, type E
 import { formatDateTime } from "../../lib/format";
 import { Card, SettingsLayout } from "./SettingsLayout";
 import { useFeedback } from "./useErrorToast";
+import { useConfirm } from "../../components/confirm-context";
 
 /** Settings → Email: the workspace's own SMTP server (ADR-0038). Admin only. */
 export function EmailPage() {
@@ -51,6 +53,7 @@ function Field({ label, hint, children }: { label: ReactNode; hint?: string; chi
 }
 
 function SettingsForm({ ws, view }: { ws: string; view: EmailSettingsView }) {
+  const confirm = useConfirm();
   const emailApi = useEmailApi(ws);
   const fb = useFeedback();
   const hadPassword = view.settings?.password_set ?? false;
@@ -126,7 +129,7 @@ function SettingsForm({ ws, view }: { ws: string; view: EmailSettingsView }) {
             <Button
               type="button"
               disabled={emailApi.remove.isPending}
-              onClick={() => { if (window.confirm(tem.removeConfirm)) emailApi.remove.mutate(undefined, { onSuccess: fb.ok(tem.removed), onError: fb.fail }); }}
+              onClick={() => { void confirm({ title: t.areYouSure, body: tem.removeConfirm, action: t.delete, danger: true }).then((ok) => { if (ok) emailApi.remove.mutate(undefined, { onSuccess: fb.ok(tem.removed), onError: fb.fail }); }); }}
             >
               {tem.remove}
             </Button>

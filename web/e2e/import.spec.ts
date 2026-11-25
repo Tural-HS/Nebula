@@ -1,4 +1,4 @@
-import { apiAs, authFile, expect, seedWorkspace, test, type Seed } from "./fixtures";
+import { apiAs, authFile, expect, seedWorkspace, test, type Seed, projectLink } from "./fixtures";
 
 test.use({ storageState: authFile("alice") });
 
@@ -18,7 +18,7 @@ const bad = "Müştəri;Məbləğ\nŞəhla Məmmədova;on manat\n";
 
 test("admin imports a CSV: preview, mapping, dry run, import", async ({ page }) => {
   await page.goto(seed.url);
-  await page.getByRole("link", { name: "İdxal et" }).click();
+  await projectLink(page, "İdxal et");
   await expect(page.getByRole("heading", { name: "Cədvəldən idxal" })).toBeVisible();
 
   // A file with a bad value: the dry run lists the row error and offers no import.
@@ -53,6 +53,9 @@ test.describe("as a member", () => {
   test("members see no import entry", async ({ page }) => {
     await page.goto(seed.url);
     await expect(page.getByRole("button", { name: "Yeni tapşırıq" })).toBeVisible();
+    // The project menu exists for members (Təkrarlanan), without the import entry.
+    await page.getByLabel("Digər əməliyyatlar").click();
+    await expect(page.getByRole("link", { name: "Təkrarlanan" })).toBeVisible();
     await expect(page.getByRole("link", { name: "İdxal et" })).toHaveCount(0);
   });
 });

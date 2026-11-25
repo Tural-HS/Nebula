@@ -1,4 +1,4 @@
-import { authFile, expect, seedWorkspace, test, type Seed } from "./fixtures";
+import { authFile, expect, seedWorkspace, test, type Seed, projectLink } from "./fixtures";
 
 let seed: Seed;
 test.beforeAll(async () => {
@@ -33,7 +33,7 @@ test("a private project is invisible to non-members until an admin adds them", a
   await create.getByRole("button", { name: "Ləğv et" }).click();
 
   // Alice adds Bob in the project settings.
-  await alice.getByRole("link", { name: "Layihə ayarları" }).click();
+  await projectLink(alice, "Layihə ayarları");
   await expect(alice.getByRole("note")).toContainText("webhook");
   const members = alice.getByRole("region", { name: "Layihə üzvləri" });
   await members.getByLabel("Üzv əlavə et").selectOption({ label: "Bob Developer (Üzv)" });

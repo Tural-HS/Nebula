@@ -13,6 +13,7 @@ import { tf } from "../i18n-forms";
 import { tp } from "../i18n-project";
 import { addableFields, formLink, isBuiltin, moveField, newForm, previewTitle, requiredByType, suggestSlug, unknownPlaceholders, type Draft } from "../lib/forms";
 import { slugKey } from "../lib/slug";
+import { useConfirm } from "../components/confirm-context";
 
 /** /w/:ws/p/:project/forms — the intake form builder (ADR-0032), admins only. */
 export function FormsPage() {
@@ -45,6 +46,7 @@ export function FormsPage() {
 }
 
 function Forms({ ws, project }: { ws: string; project: string }) {
+  const confirm = useConfirm();
   const forms = useForms(ws, project);
   const types = useItemTypes(ws);
   const fields = useFields(ws);
@@ -117,7 +119,7 @@ function Forms({ ws, project }: { ws: string; project: string }) {
                   variant="ghost"
                   className="text-red-600"
                   onClick={() => {
-                    if (window.confirm(tf.deleteConfirm(f.title))) del.mutate(f.id, { onSuccess: () => { toast("success", t.deleted); } });
+                    void confirm({ title: t.areYouSure, body: tf.deleteConfirm(f.title), action: t.delete, danger: true }).then((ok) => { if (ok) del.mutate(f.id, { onSuccess: () => { toast("success", t.deleted); } }); });
                   }}
                 >
                   {t.delete}

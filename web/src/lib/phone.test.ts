@@ -34,3 +34,15 @@ describe("telHref", () => {
     expect(telHref("javascript:alert(1)")).toBeNull();
   });
 });
+
+import { amountText } from "./views";
+
+describe("amountText", () => {
+  const num = (unit?: string): FieldDefinition => ({ ...base, type: "number", options: unit ? { unit } : {} });
+  it("shows two decimals for currency units only", () => {
+    expect(amountText(622.2, num("₼"))).toBe("622,20");
+    expect(amountText("1315", num("AZN")).replace(/\s/g, " ")).toBe("1 315,00"); // grouping is a no-break space
+    expect(amountText(12.5, num("%"))).toBe("12,5");
+    expect(amountText(7, num())).toBe("7");
+  });
+});

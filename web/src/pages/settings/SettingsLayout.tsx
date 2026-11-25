@@ -53,7 +53,7 @@ export function SettingsLayout({ title, adminOnly = true, children }: { title: s
               className={({ isActive }) =>
                 cn(
                   "rounded-md px-3 py-1.5 text-sm whitespace-nowrap pointer-coarse:py-3",
-                  isActive ? "bg-zinc-200 font-medium dark:bg-zinc-800" : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-900",
+                  isActive ? "bg-brand-50 font-semibold text-brand-800 ring-1 ring-brand-200 dark:bg-brand-950 dark:text-brand-200 dark:ring-brand-900" : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-900",
                 )
               }
             >

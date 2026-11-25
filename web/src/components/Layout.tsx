@@ -13,6 +13,7 @@ import { AbsenceBanner } from "./Absence";
 import { ArchivedWorkspaceBanner } from "./Lifecycle";
 import { LanguageMenu } from "./LanguageMenu";
 import { NotificationBell } from "./NotificationBell";
+import { ProjectSwitcher } from "./ProjectSwitcher";
 import { ThemeMenu } from "./ThemeMenu";
 import { Popover } from "../pages/ViewTools";
 import { Avatar, Button } from "./ui";
@@ -20,6 +21,8 @@ import { Avatar, Button } from "./ui";
 export interface Crumb {
   label: string;
   to?: string;
+  /** A project crumb: a menu to jump to the workspace's other projects. */
+  switcher?: { ws: string; project: string; suffix?: string };
 }
 
 export function Layout({ crumbs, actions, children }: { crumbs: Crumb[]; actions?: ReactNode; children: ReactNode }) {
@@ -31,6 +34,10 @@ export function Layout({ crumbs, actions, children }: { crumbs: Crumb[]; actions
   const absenceLink = ws ? `/w/${encodeURIComponent(ws)}/absence` : "";
   return (
     <div className="flex h-full flex-col">
+      {/* WCAG 2.4.1: keyboard users skip the header (search, menus) to the page. */}
+      <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-white focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:shadow-lg focus:ring-2 focus:ring-brand-500 dark:focus:bg-zinc-900">
+        {t.skipToContent}
+      </a>
       {/* Phones (ADR-0019): no app name, avatar or upper crumbs, so the
           header fits 375 px; safe-area padding clears notches in landscape. */}
       <header className="flex min-h-12 shrink-0 items-center gap-2 border-b max-sm:flex-wrap max-sm:gap-y-0 border-zinc-200 bg-white pt-[env(safe-area-inset-top)] pr-[max(0.75rem,env(safe-area-inset-right))] pl-[max(0.75rem,env(safe-area-inset-left))] sm:gap-3 sm:pr-[max(1rem,env(safe-area-inset-right))] sm:pl-[max(1rem,env(safe-area-inset-left))] dark:border-zinc-800 dark:bg-zinc-900">
@@ -42,9 +49,11 @@ export function Layout({ crumbs, actions, children }: { crumbs: Crumb[]; actions
             name is never squeezed to nothing (320 px, long translations). */}
         <nav aria-label="breadcrumb" className="flex min-w-0 items-center gap-1.5 text-sm text-zinc-500 max-sm:order-last max-sm:basis-full max-sm:pb-2 dark:text-zinc-400">
           {crumbs.map((c, i) => (
-            <span key={`${c.label}-${String(i)}`} className={cn("flex min-w-0 items-center gap-1.5", i < crumbs.length - 2 && "max-sm:hidden")}>
+            <span key={`${c.label}-${String(i)}`} className={cn("flex min-w-0 items-center gap-1.5", i < crumbs.length - 2 && "max-2xl:hidden")}>
               <span aria-hidden>/</span>
-              {c.to ? (
+              {c.switcher && !c.to ? (
+                <ProjectSwitcher ws={c.switcher.ws} current={c.switcher.project} label={c.label} />
+              ) : c.to ? (
                 <Link to={c.to} className="truncate hover:text-zinc-900 dark:hover:text-zinc-100">
                   {c.label}
                 </Link>
@@ -53,6 +62,7 @@ export function Layout({ crumbs, actions, children }: { crumbs: Crumb[]; actions
                   {c.label}
                 </span>
               )}
+              {c.switcher && c.to && <ProjectSwitcher ws={c.switcher.ws} current={c.switcher.project} label="" {...(c.switcher.suffix ? { suffix: c.switcher.suffix } : {})} />}
             </span>
           ))}
         </nav>
@@ -145,7 +155,7 @@ export function Layout({ crumbs, actions, children }: { crumbs: Crumb[]; actions
       <div aria-hidden className="h-0.5 shrink-0 bg-linear-to-r from-brand-900 via-brand-600 to-brand-400" />
       <ArchivedWorkspaceBanner />
       <AbsenceBanner />
-      <main className="min-h-0 flex-1">{children}</main>
+      <main id="main" tabIndex={-1} className="min-h-0 flex-1">{children}</main>
     </div>
   );
 }

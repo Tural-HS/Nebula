@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 
-import { apiAs, authFile, expect, seedWorkspace, test, type Seed } from "./fixtures";
+import { apiAs, authFile, expect, seedWorkspace, test, type Seed, projectLink } from "./fixtures";
 
 // FinTez migration kit (ADR-0020): Azerbaijani workspace template, project
 // templates and the Mattermost Boards import. Synthetic data only.
@@ -57,7 +57,7 @@ test("a department project is created from another one as a template", async ({ 
 
 test("a Mattermost Boards archive is imported with people mapped to members", async ({ page }) => {
   await page.goto(seed.url);
-  await page.getByRole("link", { name: "İdxal et" }).click();
+  await projectLink(page, "İdxal et");
   await page.getByLabel("Fayl seçin").setInputFiles({
     name: "archive-2026-11-24.boardarchive",
     mimeType: "application/zip",

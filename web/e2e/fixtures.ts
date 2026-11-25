@@ -129,3 +129,13 @@ export async function apiAsCarol(): Promise<{ api: APIRequestContext; email: str
   expect((await api.get("me")).status()).toBe(200);
   return { api, email };
 }
+
+/**
+ * Follows a project header link (Təkrarlanan, Layihə ayarları, İdxal et).
+ * Below 2xl and on phones they sit in the "Digər əməliyyatlar" menu.
+ */
+export async function projectLink(page: Page, name: string): Promise<void> {
+  const link = page.getByRole("link", { name, exact: true });
+  if (!(await link.isVisible())) await page.getByLabel("Digər əməliyyatlar").click();
+  await link.click();
+}

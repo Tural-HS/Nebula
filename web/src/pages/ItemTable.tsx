@@ -14,7 +14,7 @@ import { tv } from "../i18n-views";
 import { cn } from "../lib/cn";
 import { formatDateTime, formatRelative } from "../lib/format";
 import { displayColumns, FINE_POINTER, useCompact, useMediaQuery } from "../lib/responsive";
-import { columnHeader, fieldKey, formatDecimal, formatFieldValue, isFieldColumn, withUnit } from "../lib/views";
+import { amountText, columnHeader, fieldKey, formatFieldValue, isFieldColumn, withUnit } from "../lib/views";
 import { isAmount, isFormula, isSortable, valueType } from "../lib/formula";
 import { filterKind } from "../lib/columnFilter";
 import type { Density } from "../lib/density";
@@ -38,6 +38,7 @@ import { ROW_STRIPE, rowSignal } from "../lib/queues";
 const ROW_HEIGHT = 28; // dense, like a spreadsheet (ADR-0047)
 const COMPACT_ROW_HEIGHT = 24; // "Sıx" density (ADR-0048)
 const TOUCH_ROW_HEIGHT = 44;
+const FACTS_ROW_HEIGHT = 60; // phones with a facts line under the title
 /** Not a user column: always right after the title (ADR-0035). */
 const SIGNALS = "signals";
 // overflow-clip (not hidden): the column lines below are cut at the row edge
@@ -152,7 +153,33 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
     return { ...d, columns: [...d.columns.slice(0, at + 1), SIGNALS, ...d.columns.slice(at + 1)] };
   }, [chosen, compact, items]);
   const dense = density === "compact";
-  const rowHeight = plainRows ? TOUCH_ROW_HEIGHT : dense ? COMPACT_ROW_HEIGHT : ROW_HEIGHT;
+  // Phones (ADR-0047): the pinned title carries a third line with the
+  // collector's facts — the first phone column (tap to call) and up to two
+  // amount columns — so a row is usable without scrolling sideways.
+  const factCols = useMemo(() => {
+    if (!compact || !keyInTitle) return [];
+    const defOf = (c: string) => (isFieldColumn(c) ? fields.get(fieldKey(c)) : undefined);
+    const phone = columns.find((c) => isPhoneField(defOf(c)));
+    const amounts = columns.filter((c) => isAmount(defOf(c))).slice(0, 2);
+    return [...(phone ? [phone] : []), ...amounts];
+  }, [compact, keyInTitle, columns, fields]);
+  const rowHeight = plainRows ? (factCols.length > 0 ? FACTS_ROW_HEIGHT : TOUCH_ROW_HEIGHT) : dense ? COMPACT_ROW_HEIGHT : ROW_HEIGHT;
+  const facts = (it: Item): ReactNode => {
+    const parts = factCols.flatMap((c) => {
+      const def = fields.get(fieldKey(c));
+      const raw = it.fields[fieldKey(c)];
+      const text = formatFieldValue(def, raw, members);
+      if (!text) return [];
+      const tel = isPhoneField(def) ? telHref(raw) : null;
+      return [tel ? (
+        <a key={c} href={tel} className="font-medium text-brand-700 tabular-nums underline-offset-2 hover:underline pointer-coarse:py-1 dark:text-brand-300">{text}</a>
+      ) : (
+        <span key={c} className="tabular-nums" title={def?.name}><span className="text-zinc-500 dark:text-zinc-400">{(def?.name ?? "").split(/\s/)[0]}: </span>{text}</span>
+      )];
+    });
+    if (parts.length === 0) return null;
+    return <span className="flex min-w-0 items-center gap-2 overflow-hidden text-2xs whitespace-nowrap">{parts}</span>;
+  };
   const rowText = dense ? "text-xs" : "text-[0.8125rem]";
   const scrollRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Virtual is designed for this usage
@@ -169,9 +196,12 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
     if (hasMore && !loadingMore && lastIndex >= items.length - 1) loadMore();
   }, [hasMore, loadingMore, lastIndex, items.length, loadMore]);
 
+  const withFacts = factCols.length > 0;
   const { grid, firstWidth } = useMemo(() => {
     const tracks = columns.map((c): [string, number] =>
-      c === SIGNALS && !columns.includes("due_date") ? ["17.75rem", 17.75] : track(c, isFieldColumn(c) ? fields.get(fieldKey(c)) : undefined, compact));
+      c === SIGNALS && !columns.includes("due_date") ? ["17.75rem", 17.75]
+        : c === "title" && withFacts ? ["minmax(14rem,1fr)", 14] // the facts line needs the room
+        : track(c, isFieldColumn(c) ? fields.get(fieldKey(c)) : undefined, compact));
     // The first column also holds the row checkbox: 2 rem wider.
     const first = tracks[0];
     if (select && first) {
@@ -181,7 +211,7 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
     const rem = tracks.reduce((n, [, w]) => n + w, 0) + 0.375 * (tracks.length - 1) + 1; // gaps and padding
     const g: CSSProperties = { gridTemplateColumns: tracks.map(([t]) => t).join(" "), minWidth: `${String(rem)}rem` };
     return { grid: g, firstWidth: tracks[0]?.[1] ?? 0 };
-  }, [columns, fields, compact, select]);
+  }, [columns, fields, compact, select, withFacts]);
   // Desktop: the key and the title both stay while the table scrolls sideways
   // (phones already pin the title, which carries the key).
   const pinTitle = columns[0] === "key" && columns[1] === "title";
@@ -351,9 +381,12 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
                   {columns.map((c, i) => (
                     <span key={c} role="cell" style={pin(i).style} className={cn("min-w-0", pin(i).className, line(i))}>
                       {c === "title" ? (
-                        <button type="button" className="flex min-w-0 max-w-full text-left" onClick={() => { onOpen(it.number); }}>
-                          {cell(it, c)}
-                        </button>
+                        <span className="flex min-w-0 flex-col gap-0.5">
+                          <button type="button" className="flex min-w-0 max-w-full text-left" onClick={() => { onOpen(it.number); }}>
+                            {cell(it, c)}
+                          </button>
+                          {factCols.length > 0 && facts(it)}
+                        </span>
                       ) : (
                         cell(it, c)
                       )}
@@ -432,7 +465,7 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
                 title={s ? (money !== undefined ? `${tm.totalsLabel(money)}\n${tm.noFx}\n${tv.totalHint(s.count)}` : tv.totalHint(s.count)) : undefined}
                 data-money-total={money !== undefined ? "" : undefined}
               >
-                {numeric(c) ? (s ? (money ?? withUnit(formatDecimal(s.sum ?? "0"), fields.get(fieldKey(c)))) : "…") : i === labelAt ? tv.total : ""}
+                {numeric(c) ? (s ? (money ?? withUnit(amountText(s.sum ?? "0", fields.get(fieldKey(c))), fields.get(fieldKey(c)))) : "…") : i === labelAt ? tv.total : ""}
               </span>
             );
           })}

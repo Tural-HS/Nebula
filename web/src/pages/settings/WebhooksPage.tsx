@@ -11,6 +11,7 @@ import { formatRelative } from "../../lib/format";
 import { approvalsByWildcard, defaultEvents, looksLikeChatWebhook, sendsApprovals, WEBHOOK_FORMATS, withApprovals, type WebhookFormat } from "../../lib/webhooks";
 import { Card, SettingsLayout } from "./SettingsLayout";
 import { useFeedback } from "./useErrorToast";
+import { useConfirm } from "../../components/confirm-context";
 
 const parseEvents = (s: string) => s.split(",").map((x) => x.trim()).filter(Boolean);
 const joinEvents = (events: readonly string[]) => events.join(", ");
@@ -175,6 +176,7 @@ function ProjectFilter({ ws, value, onChange }: { ws: string; value: string[]; o
 }
 
 function WebhookCard({ ws, hook, onSecret }: { ws: string; hook: Webhook; onSecret: (s: string) => void }) {
+  const confirm = useConfirm();
   const adm = useAdminApi(ws);
   const fb = useFeedback();
   const [showLog, setShowLog] = useState(false);
@@ -230,7 +232,7 @@ function WebhookCard({ ws, hook, onSecret }: { ws: string; hook: Webhook; onSecr
           <Button
             variant="ghost"
             onClick={() => {
-              if (window.confirm(ta.confirmRotate)) adm.rotateSecret.mutate(hook.id, { onSuccess: (r) => { onSecret(r.secret); }, onError: fb.fail });
+              void confirm({ title: t.areYouSure, body: ta.confirmRotate, action: t.proceed, danger: true }).then((ok) => { if (ok) adm.rotateSecret.mutate(hook.id, { onSuccess: (r) => { onSecret(r.secret); }, onError: fb.fail }); });
             }}
           >
             {ta.rotate}
@@ -239,7 +241,7 @@ function WebhookCard({ ws, hook, onSecret }: { ws: string; hook: Webhook; onSecr
         <Button
           variant="ghost"
           className="ml-auto text-red-600"
-          onClick={() => { if (window.confirm(ta.confirm)) adm.deleteWebhook.mutate(hook.id, { onSuccess: fb.ok(), onError: fb.fail }); }}
+          onClick={() => { void confirm({ title: ta.confirm, action: t.delete, danger: true }).then((ok) => { if (ok) adm.deleteWebhook.mutate(hook.id, { onSuccess: fb.ok(), onError: fb.fail }); }); }}
         >
           {t.delete}
         </Button>

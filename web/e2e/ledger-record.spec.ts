@@ -15,6 +15,7 @@ test.beforeAll(async () => {
   await field({ key: "balance", name: "Qalıq", type: "number", options: { unit: "₼" } }, 1);
   await field({ key: "phone", name: "Əlaqə nömrəsi", type: "text" }, 2);
   await field({ key: "nv", name: "NV nömrəsi", type: "text" }, 3);
+  await field({ key: "paid", name: "Ödədi", type: "boolean" }, 4);
   for (const [title, balance] of [["Rəşad Quliyev Hikmət oğlu", 1200], ["Kullinan MMC", 800]] as const) {
     const data = { title, fields: { balance, phone: "515614145", nv: "10YX930" } };
     expect((await alice.post(`${ws}/projects/QA/items`, { data })).status()).toBe(201);
@@ -27,15 +28,15 @@ test.describe("as admin", () => {
 
   test("units in cells and totals, key facts, folded sections", async ({ page }) => {
     await page.goto(`${seed.url}?cols=key,title,status,field.balance,field.phone,field.nv`);
-    await expect(page.getByRole("row").filter({ hasText: "Kullinan MMC" })).toContainText("800 ₼");
-    await expect(page.getByRole("row", { name: "Cəmi" })).toContainText("2 000 ₼");
+    await expect(page.getByRole("row").filter({ hasText: "Kullinan MMC" })).toContainText("800,00 ₼");
+    await expect(page.getByRole("row", { name: "Cəmi" })).toContainText("2 000,00 ₼");
     // No row has a signal: no empty column.
     await expect(page.getByRole("columnheader", { name: "Siqnal" })).toHaveCount(0);
 
     await page.getByRole("button", { name: "Kullinan MMC" }).click();
     const panel = page.getByRole("dialog", { name: "QA-2" });
     const facts = panel.getByRole("region", { name: "Əsas məlumat" });
-    await expect(facts).toContainText("800 ₼");
+    await expect(facts).toContainText("800,00 ₼");
     await expect(facts.getByRole("link", { name: "515614145" })).toHaveAttribute("href", "tel:515614145");
     // An account-like number is not a phone link.
     await expect(facts.getByRole("link", { name: "10YX930" })).toHaveCount(0);
@@ -45,6 +46,67 @@ test.describe("as admin", () => {
     await panel.getByRole("button", { name: "+ Fayl" }).click();
     await expect(panel.getByRole("heading", { name: /Fayllar/ })).toBeVisible();
     await expect(panel.getByRole("button", { name: "+ Fayl" })).toHaveCount(0);
+  });
+
+  test("a yes/no cell toggles in one click and can be undone", async ({ page }) => {
+    await page.goto(`${seed.url}?cols=key,title,field.paid`);
+    const cell = page.getByRole("checkbox", { name: "Ödədi, QA-2" });
+    await expect(cell).toHaveAttribute("aria-checked", "false");
+    await cell.click();
+    await expect(cell).toHaveAttribute("aria-checked", "true");
+    const toast = page.getByRole("status").filter({ hasText: "QA-2: Ödədi — Bəli" });
+    await expect(toast).toBeVisible();
+    // Stored: a reload shows it.
+    await page.reload();
+    await expect(page.getByRole("checkbox", { name: "Ödədi, QA-2" })).toHaveAttribute("aria-checked", "true");
+    await page.getByRole("checkbox", { name: "Ödədi, QA-2" }).click(); // back to no
+    await expect(page.getByRole("checkbox", { name: "Ödədi, QA-2" })).toHaveAttribute("aria-checked", "false");
+    await page.getByRole("status").filter({ hasText: "QA-2: Ödədi — Xeyr" }).getByRole("button", { name: "Geri qaytar" }).click();
+    await expect(page.getByRole("checkbox", { name: "Ödədi, QA-2" })).toHaveAttribute("aria-checked", "true");
+    await page.reload();
+    await expect(page.getByRole("checkbox", { name: "Ödədi, QA-2" })).toHaveAttribute("aria-checked", "true");
+  });
+
+  test("on a phone each row shows the phone (tap to call) and amounts under the name", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`${seed.url}?cols=key,title,status,field.phone,field.balance`);
+    const row = page.getByRole("row").filter({ hasText: "Kullinan MMC" });
+    await expect(row.getByRole("link", { name: "515614145" }).first()).toHaveAttribute("href", "tel:515614145");
+    await expect(row).toContainText("Qalıq: 800,00 ₼");
+    const link = await row.getByRole("link", { name: "515614145" }).first().boundingBox();
+    expect((link?.x ?? 999) + (link?.width ?? 0)).toBeLessThan(390); // visible without scrolling
+  });
+
+  test("move through the list from the panel with buttons and J/K", async ({ page }) => {
+    await page.goto(`${seed.url}?cols=key,title&sort=number`);
+    await page.getByRole("button", { name: "Kullinan MMC" }).click();
+    const nav = page.getByRole("group", { name: "Siyahıda keçid" });
+    await expect(nav).toContainText("1 / 2");
+    await nav.getByRole("button", { name: "Növbəti tapşırıq" }).click();
+    await expect(page.getByRole("dialog", { name: "QA-1" })).toBeVisible();
+    await expect(nav).toContainText("2 / 2");
+    await expect(nav.getByRole("button", { name: "Növbəti tapşırıq" })).toBeDisabled();
+    await page.keyboard.press("k");
+    await expect(page.getByRole("dialog", { name: "QA-2" })).toBeVisible();
+    // Not while typing.
+    await page.getByRole("dialog", { name: "QA-2" }).getByLabel("Başlıq").focus();
+    await page.keyboard.press("j");
+    await expect(page.getByRole("dialog", { name: "QA-2" })).toBeVisible();
+  });
+
+  test("call results write the history; a promise moves the due date", async ({ page }) => {
+    await page.goto(`${seed.url}?item=1`);
+    const panel = page.getByRole("dialog", { name: "QA-1" });
+    const calls = panel.getByRole("region", { name: "Zəng nəticəsi" });
+    await calls.getByRole("button", { name: /Cavab vermədi/ }).click();
+    await expect(panel.getByText("📞 Cavab vermədi")).toBeVisible();
+    await calls.getByRole("button", { name: /Ödəməyə söz verdi/ }).click();
+    await calls.getByLabel("Hansı tarixə").fill("2030-12-05");
+    await calls.getByRole("button", { name: /Saxla/ }).click();
+    await expect(panel.getByText("📞 Ödəməyə söz verdi: 5 dek 2030")).toBeVisible();
+    await expect(panel.getByLabel("Son tarix")).toHaveValue("2030-12-05");
+    await page.reload();
+    await expect(page.getByRole("dialog", { name: "QA-1" }).getByLabel("Son tarix")).toHaveValue("2030-12-05");
   });
 
   test("the title stays while the table scrolls sideways", async ({ page }) => {
@@ -67,7 +129,47 @@ test.describe("as admin", () => {
     // Saved: the button goes once the field comes back with the new unit.
     await expect(page.getByRole("button", { name: "Vahidi saxla" })).toHaveCount(0);
     await page.goto(`${seed.url}?cols=key,title,field.balance`);
-    await expect(page.getByRole("row").filter({ hasText: "Kullinan MMC" })).toContainText("800 AZN");
+    await expect(page.getByRole("row").filter({ hasText: "Kullinan MMC" })).toContainText("800,00 AZN");
+  });
+});
+
+test.describe("item menu and skip link", () => {
+  test.use({ storageState: authFile("alice") });
+
+  test("delete sits in the panel menu and asks first; the skip link reaches the page", async ({ page }) => {
+    const alice = await apiAs("alice");
+    const r = await alice.post(`workspaces/${seed.ws}/projects/QA/items`, { data: { title: "Silinəcək qeyd" } });
+    const n = ((await r.json()) as { number: number }).number;
+    await alice.dispose();
+    await page.goto(`${seed.url}?item=${String(n)}`);
+    const panel = page.getByRole("dialog", { name: `QA-${String(n)}` });
+    await expect(panel.getByRole("button", { name: "Sil", exact: true })).toHaveCount(0);
+    await panel.getByLabel("Digər əməliyyatlar").click();
+    await panel.getByRole("button", { name: "Sil", exact: true }).click();
+    await page.getByRole("dialog").getByRole("button", { name: /QA-\d+.* sil|Sil/ }).last().click();
+    await expect(page.getByRole("row").filter({ hasText: "Silinəcək qeyd" })).toHaveCount(0);
+
+    await page.goto(seed.url);
+    await expect(page.getByRole("button", { name: "Yeni tapşırıq" })).toBeVisible();
+    await page.locator("body").focus();
+    await page.keyboard.press("Tab");
+    const skip = page.getByRole("link", { name: "Məzmuna keç" });
+    await expect(skip).toBeFocused();
+    await skip.press("Enter");
+    await expect(page.locator("main#main")).toBeFocused();
+  });
+});
+
+test.describe("report amounts", () => {
+  test.use({ storageState: authFile("alice") });
+
+  test("a one-project report sums amount fields over open and closed items", async ({ page }) => {
+    await page.goto(`/w/${seed.ws}/reports?projects=QA`);
+    const w = page.getByTestId("w-amounts");
+    // The unit is ₼ or AZN (another test in this file renames it).
+    const row = w.getByRole("row", { name: /Qalıq/ });
+    await expect(row.getByRole("cell").nth(0)).toHaveText(/2\s000,00\s(₼|AZN)/);
+    await expect(row.getByRole("cell").nth(1)).toHaveText("—"); // nothing closed yet
   });
 });
 
@@ -92,6 +194,17 @@ test.describe("column filters and density", () => {
     await phone.getByLabel("İçində").fill("5614");
     await phone.getByLabel("İçində").press("Enter");
     await expect(page.getByRole("list", { name: "Aktiv filtrlər" })).toContainText('Əlaqə nömrəsi: içində "5614"');
+    await expect(page.getByRole("row").filter({ hasText: "Rəşad Quliyev" })).toHaveCount(1);
+
+    // Empty / not empty: every row has a phone.
+    await page.getByRole("button", { name: /Əlaqə nömrəsi: filtr və sıralama/ }).click();
+    await page.getByRole("dialog", { name: "Əlaqə nömrəsi: filtr və sıralama" }).getByRole("button", { name: "Boş olanlar" }).click();
+    await expect(page.getByRole("list", { name: "Aktiv filtrlər" })).toContainText("Əlaqə nömrəsi: boşdur");
+    await expect(page.getByRole("row").filter({ hasText: "Rəşad Quliyev" })).toHaveCount(0);
+    // No rows left: the table (and its header menus) gives way to the empty state; the chip removes the filter.
+    await page.getByRole("button", { name: "Filtri götür: Əlaqə nömrəsi: boşdur" }).click();
+    await page.getByRole("button", { name: /Əlaqə nömrəsi: filtr və sıralama/ }).click();
+    await page.getByRole("dialog", { name: "Əlaqə nömrəsi: filtr və sıralama" }).getByRole("button", { name: "Dolu olanlar" }).click();
     await expect(page.getByRole("row").filter({ hasText: "Rəşad Quliyev" })).toHaveCount(1);
 
     // Clear from the menu; Escape closes without changes.

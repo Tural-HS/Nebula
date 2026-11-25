@@ -22,6 +22,7 @@ import { badgeText } from "../lib/notifications";
 import { Button, Dialog, ErrorState, Input, Spinner, StatusBadge, touchField } from "./ui";
 import { useToast } from "./toast-context";
 import { ApproverRoster } from "./ApproverRoster";
+import { useConfirm } from "./confirm-context";
 
 export function ApprovalBadge({ approval, className }: { approval?: PendingApproval | null; className?: string }) {
   if (!approval) return null;
@@ -209,6 +210,7 @@ const stateStyle: Record<ApprovalRequest["state"], string> = {
 };
 
 function RequestCard({ ws, project, n, req }: { ws: string; project: string; n: number; req: ApprovalRequest }) {
+  const confirm = useConfirm();
   const actions = useApprovalActions(ws, project, n);
   const toast = useToast();
   // The reject dialog: on the viewer's own account (null) or for an absent approver (ADR-0042).
@@ -311,8 +313,9 @@ function RequestCard({ ws, project, n, req }: { ws: string; project: string; n: 
                   disabled={busy}
                   className="pointer-coarse:min-h-11"
                   onClick={() => {
-                    if (!window.confirm(tap.confirmCancel)) return;
-                    actions.cancel.mutate(req.id, { onSuccess: () => { toast("success", tap.canceledToast); }, onError: fail });
+                    void confirm({ title: tap.confirmCancel, action: tap.cancel, danger: true }).then((ok) => {
+                      if (ok) actions.cancel.mutate(req.id, { onSuccess: () => { toast("success", tap.canceledToast); }, onError: fail });
+                    });
                   }}
                 >
                   {tap.cancel}

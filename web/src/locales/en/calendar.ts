@@ -51,4 +51,6 @@ export const tc = {
   edit: (what: string, key: string) => `${key}: edit ${what}`,
   invalidNumber: (what: string) => `${what}: enter a number, e.g. 1250.50. The value was not changed.`,
   saveFailed: "Change was not saved",
+  toggled: (what: string, value: string, key: string) => `${key}: ${what} — ${value}`,
+  undo: "Undo",
 } satisfies Messages["calendar"];

@@ -6,7 +6,7 @@ import type { FieldDefinition } from "../api/types";
 import { t } from "../i18n";
 import { tv } from "../i18n-views";
 import { cn } from "../lib/cn";
-import { containsValue, filterKind, parseFilter, rangeValue } from "../lib/columnFilter";
+import { choicesValue, containsValue, FILTER_EMPTY, FILTER_SET, filterKind, parseFilter, pickedChoices, rangeValue } from "../lib/columnFilter";
 import { Button, Input, Label, Select } from "./ui";
 
 // A filter or sort reloads the list, which can remount the table (loading
@@ -150,9 +150,56 @@ function FilterEditor({ def, kind, value, onApply }: {
   const [from, setFrom] = useState(p.from);
   const [to, setTo] = useState(p.to);
   const base = useId();
+  const [picked, setPicked] = useState<string[]>(pickedChoices(value));
   const clear = value ? <Button variant="ghost" onClick={() => { onApply(""); }}>{tv.clearColumnFilter}</Button> : null;
+  // Every type: rows with no value, or with any value.
+  const presence = (
+    <div className="flex gap-2 border-t border-zinc-200 pt-2 dark:border-zinc-700">
+      <Button className="flex-1" variant={value === FILTER_EMPTY ? "primary" : "secondary"} aria-pressed={value === FILTER_EMPTY} onClick={() => { onApply(value === FILTER_EMPTY ? "" : FILTER_EMPTY); }}>{tv.emptyOnly}</Button>
+      <Button className="flex-1" variant={value === FILTER_SET ? "primary" : "secondary"} aria-pressed={value === FILTER_SET} onClick={() => { onApply(value === FILTER_SET ? "" : FILTER_SET); }}>{tv.setOnly}</Button>
+    </div>
+  );
 
-  if (kind === "choice" || kind === "boolean" || kind === "money") {
+  if (kind === "choice") {
+    const choices = def.options.choices ?? [];
+    return (
+      <div className="space-y-2">
+        <form
+          className="space-y-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            onApply(choicesValue(picked));
+          }}
+        >
+          <fieldset>
+            <legend className="mb-1 text-xs font-medium text-zinc-600 dark:text-zinc-400">{tv.fieldFilter(def.name)}</legend>
+            <ul className="max-h-56 space-y-1 overflow-y-auto">
+              {choices.filter((c) => !c.archived || picked.includes(c.id)).map((c) => (
+                <li key={c.id}>
+                  <label className="flex items-center gap-2 pointer-coarse:min-h-11">
+                    <input
+                      type="checkbox"
+                      className="size-4 accent-brand-600"
+                      checked={picked.includes(c.id)}
+                      onChange={(e) => { setPicked((p) => (e.target.checked ? [...p, c.id] : p.filter((x) => x !== c.id))); }}
+                    />
+                    {c.label}
+                  </label>
+                </li>
+              ))}
+            </ul>
+          </fieldset>
+          <div className="flex items-center justify-between gap-2">
+            {clear ?? <span />}
+            <Button type="submit" variant="primary">{tv.applyFilter}</Button>
+          </div>
+        </form>
+        {presence}
+      </div>
+    );
+  }
+
+  if (kind === "boolean" || kind === "money") {
     return (
       <div className="space-y-2">
         <Label htmlFor={`${base}-v`}>{tv.fieldFilter(def.name)}</Label>
@@ -163,12 +210,11 @@ function FilterEditor({ def, kind, value, onApply }: {
               <option value="true">{t.yes}</option>
               <option value="false">{t.no}</option>
             </>
-          ) : kind === "money" ? (
-            (def.options.money?.currencies ?? []).map((c) => <option key={c} value={c}>{c}</option>)
           ) : (
-            (def.options.choices ?? []).map((c) => <option key={c.id} value={c.id}>{c.label}</option>)
+            (def.options.money?.currencies ?? []).map((c) => <option key={c} value={c}>{c}</option>)
           )}
         </Select>
+        {presence}
       </div>
     );
   }
@@ -201,6 +247,7 @@ function FilterEditor({ def, kind, value, onApply }: {
         {clear ?? <span />}
         <Button type="submit" variant="primary">{tv.applyFilter}</Button>
       </div>
+      {presence}
     </form>
   );
 }

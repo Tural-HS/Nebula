@@ -19,7 +19,7 @@ import { ti } from "../i18n-import";
 import { tm } from "../i18n-mobile";
 import { tc } from "../i18n-calendar";
 import { monthOf, parseMonth, todayIn } from "../lib/calendar";
-import { activeFilterCount, useCompact } from "../lib/responsive";
+import { activeFilterCount, useCompact, useMediaQuery } from "../lib/responsive";
 import { flattenPages } from "../lib/board";
 import { fieldSortOptions, isSortable, parseSort, sortFieldKey } from "../lib/formula";
 import { tf } from "../i18n-formulas";
@@ -75,6 +75,7 @@ export function ItemsPage() {
   const [creating, setCreating] = useState(false);
   const [sheet, setSheet] = useState(false);
   const compact = useCompact();
+  const wideHeader = useMediaQuery("(min-width: 96rem)");
   // Rotated to a wider layout with the sheet open: it is gone, do not
   // reopen it on the next rotation.
   if (!compact && sheet) setSheet(false);
@@ -248,6 +249,15 @@ export function ItemsPage() {
     ...(canImport ? [{ to: `${base}/settings`, label: tp.settings }, { to: `${base}/import`, label: ti.importAction }] : []),
   ];
   const filterCount = activeFilterCount(state);
+  // Previous/next in the loaded list (table, board or calendar order).
+  const at = openItem === null ? -1 : all.findIndex((i) => i.number === openItem);
+  const drawerNav = at < 0 ? undefined : {
+    prev: at > 0 ? (all[at - 1]?.number ?? null) : null,
+    next: at < all.length - 1 ? (all[at + 1]?.number ?? null) : null,
+    index: at + 1,
+    total: all.length,
+    go: (n: number) => { setParam("item", String(n)); },
+  };
   const viewSwitcher = (
     <ViewSwitcher ws={ws} project={project} views={views.data ?? []} active={active} dirty={dirty} state={state} isAdmin={isAdmin} onSelect={selectView}
       defaultViewId={projectData?.default_view_id ?? null}
@@ -379,13 +389,13 @@ export function ItemsPage() {
       crumbs={[
         { label: t.workspaces, to: "/" },
         { label: workspace.data?.name ?? ws, to: `/w/${encodeURIComponent(ws)}` },
-        { label: projectName },
+        { label: projectName, switcher: { ws, project } },
       ]}
       actions={
         <>
-          {compact ? (
-            // Phones: the project links share one menu, so the header never
-            // wraps or scrolls sideways.
+          {compact || !wideHeader ? (
+            // Phones and screens below 2xl: the project links share one menu,
+            // so the header never wraps and the project name stays readable.
             links.length > 0 && (
               <Popover label={<span aria-hidden>⋯</span>} summaryLabel={tm.moreActions} align="right">
                 <nav aria-label={tm.moreActions} className="flex flex-col">
@@ -565,7 +575,7 @@ export function ItemsPage() {
 
       {openItem !== null && (
         <Suspense fallback={null}>
-          <ItemDrawer ws={ws} project={project} n={openItem} canEdit={canEdit} isAdmin={isAdmin} onClose={() => { setParam("item", null); }} />
+          <ItemDrawer ws={ws} project={project} n={openItem} canEdit={canEdit} isAdmin={isAdmin} onClose={() => { setParam("item", null); }} nav={drawerNav} />
         </Suspense>
       )}
       <CreateItemDialog

@@ -89,4 +89,8 @@ export const tv = {
   chipFrom: (v: string) => `≥ ${v}`,
   chipTo: (v: string) => `≤ ${v}`,
   filterOn: "есть фильтр",
+  emptyOnly: "Пустые",
+  setOnly: "Заполненные",
+  chipEmpty: "пусто",
+  chipSet: "заполнено",
 } as const satisfies Messages["views"];

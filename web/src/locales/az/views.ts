@@ -84,4 +84,8 @@ export const tv = {
   chipFrom: (v: string) => `≥ ${v}`,
   chipTo: (v: string) => `≤ ${v}`,
   filterOn: "filtr var",
+  emptyOnly: "Boş olanlar",
+  setOnly: "Dolu olanlar",
+  chipEmpty: "boşdur",
+  chipSet: "doludur",
 } as const;

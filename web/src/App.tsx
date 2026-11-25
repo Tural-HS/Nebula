@@ -6,6 +6,7 @@ import { setUnauthorizedHandler } from "./api/client";
 import { useAuth } from "./auth/context";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { ToastProvider } from "./components/toast";
+import { ConfirmProvider } from "./components/confirm";
 import { retryDelay, shouldRetry, shouldRetryMutation } from "./lib/retry";
 import { EmptyState, Spinner } from "./components/ui";
 import { WorkspaceAccent } from "./components/WorkspaceAccent";
@@ -80,6 +81,7 @@ export function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ToastProvider>
+      <ConfirmProvider>
         <BrowserRouter>
           <WorkspaceAccent />
           <ErrorBoundary>
@@ -116,6 +118,7 @@ export function App() {
           </Suspense>
           </ErrorBoundary>
         </BrowserRouter>
+      </ConfirmProvider>
       </ToastProvider>
     </QueryClientProvider>
   );

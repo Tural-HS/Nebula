@@ -1,12 +1,13 @@
 import { useCallback, useState, type ReactNode } from "react";
 
 import { t } from "../i18n";
-import { ToastContext, type Kind } from "./toast-context";
+import { ToastContext, type Kind, type ToastAction } from "./toast-context";
 
 interface Toast {
   id: number;
   kind: Kind;
   text: string;
+  action?: ToastAction | undefined;
 }
 
 let nextId = 1;
@@ -16,12 +17,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const dismiss = useCallback((id: number) => {
     setToasts((ts) => ts.filter((x) => x.id !== id));
   }, []);
-  const push = useCallback((kind: Kind, text: string) => {
+  const push = useCallback((kind: Kind, text: string, action?: ToastAction) => {
     const id = nextId++;
-    setToasts((ts) => [...ts.slice(-3), { id, kind, text }]);
+    setToasts((ts) => [...ts.slice(-3), { id, kind, text, action }]);
     // Errors stay until dismissed (WCAG 2.2.1): a failed save must not vanish
-    // before a slow reader or a screen-magnifier user has found it.
-    if (kind !== "error") setTimeout(() => { dismiss(id); }, 3000);
+    // before a slow reader or a screen-magnifier user has found it. A toast
+    // with an action (undo) stays longer, so the button can be reached.
+    if (kind !== "error") setTimeout(() => { dismiss(id); }, action ? 8000 : 3000);
   }, [dismiss]);
   return (
     <ToastContext value={push}>
@@ -44,8 +46,17 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               </button>
             </div>
           ) : (
-            <div key={x.id} role="status" className="pointer-events-auto max-w-sm rounded-lg bg-zinc-900 px-4 py-2.5 text-sm text-white shadow-lg dark:bg-zinc-100 dark:text-zinc-900">
-              {x.text}
+            <div key={x.id} role="status" className="pointer-events-auto flex max-w-sm items-center gap-3 rounded-lg bg-zinc-900 px-4 py-2.5 text-sm text-white shadow-lg dark:bg-zinc-100 dark:text-zinc-900">
+              <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{x.text}</span>
+              {x.action && (
+                <button
+                  type="button"
+                  onClick={() => { x.action?.run(); dismiss(x.id); }}
+                  className="-my-1 shrink-0 rounded px-2 py-1 font-semibold text-brand-300 underline-offset-2 hover:underline focus-visible:outline-white pointer-coarse:min-h-11 dark:text-brand-700"
+                >
+                  {x.action.label}
+                </button>
+              )}
             </div>
           ),
         )}
