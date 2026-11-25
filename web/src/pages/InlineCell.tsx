@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 
 import { useTransitions } from "../api/hooks";
 import type { FieldDefinition, Item, Status } from "../api/types";
 import { useToast } from "../components/toast-context";
+import { MoneyEditor } from "../components/MoneyEditor";
 import { Input, Select } from "../components/ui";
 import { t } from "../i18n";
 import { tc } from "../i18n-calendar";
@@ -111,6 +112,20 @@ export function InlineCell({ item, col, kind, label, edit, fields, children }: {
             const due = s.trim() || null;
             edit.commit(item, { due_date: due }, { ...item, due_date: due, overdue: overdueOn(item, due, edit.today) });
           }}
+        />
+      );
+    case "money":
+      if (!def) return null;
+      return (
+        <MoneyEditor
+          def={def}
+          value={item.fields[key]}
+          label={label}
+          compact
+          autoFocus
+          onCancel={done}
+          onInvalid={(msg) => { toast("error", msg); }}
+          onCommit={(v) => { edit.commit(item, { fields: { [key]: v } }, { ...item, fields: { ...item.fields, [key]: v } }); }}
         />
       );
     default: {

@@ -66,6 +66,7 @@ type fieldSort struct {
 	key     string
 	desc    bool
 	numeric bool // number (else date as text)
+	money   bool // money: the amount, whatever the currency (ADR-0044)
 }
 
 // resolveFieldSort checks that a field sort names a sortable field.
@@ -81,16 +82,21 @@ func resolveFieldSort(ctx context.Context, q querier, wsID uuid.UUID, sort, path
 	switch types[key] {
 	case FieldNumber, "formula:number":
 		return &fieldSort{key: key, desc: desc, numeric: true}, nil
+	case FieldMoney:
+		return &fieldSort{key: key, desc: desc, numeric: true, money: true}, nil
 	case FieldDate, "formula:date":
 		return &fieldSort{key: key, desc: desc}, nil
 	case "":
 		return nil, invalid(path, "unknown field %q", key)
 	}
-	return nil, invalid(path, "field %q cannot be sorted: only number, date and formula fields can", key)
+	return nil, invalid(path, "field %q cannot be sorted: only number, money, date and formula fields can", key)
 }
 
 // expr is the sort value; values not in the field's stored form sort as empty.
 func (f *fieldSort) expr(param string) string {
+	if f.money {
+		return moneyAmountExpr(param)
+	}
 	if f.numeric {
 		return "(CASE WHEN jsonb_typeof(i.fields -> " + param + "::text) = 'number' THEN (i.fields ->> " + param + "::text)::numeric END)"
 	}
@@ -177,14 +183,36 @@ func ParseCursorDue(s string) (string, bool) {
 	return d.Format(time.DateOnly), err == nil && d.Format(time.DateOnly) == s
 }
 
+// moneyAmountPattern is the stored amount text (CanonicalAmount); the cast
+// to numeric runs only on values that match it, so bad data cannot fail a query.
+const moneyAmountPattern = `^-?[0-9]{1,15}(\.[0-9]{1,4})?$`
+
+// moneyAmountExpr is the amount of a money field as numeric, NULL when the
+// value is not in the stored form.
+func moneyAmountExpr(param string) string {
+	a := "(i.fields -> " + param + "::text ->> 'amount')"
+	return "(CASE WHEN jsonb_typeof(i.fields -> " + param + "::text -> 'amount') = 'string' AND " + a +
+		" ~ '" + moneyAmountPattern + "' THEN " + a + "::numeric END)"
+}
+
 // MaxSumFields bounds the number of fields one sums request may total.
 const MaxSumFields = 10
 
 // FieldSum is the total of one number field over the filtered items. Count
 // is how many of them have a numeric value for the field.
 type FieldSum struct {
-	Sum   string `json:"sum"` // exact decimal, as text: never rounded through float64
+	Sum   string `json:"sum,omitempty"` // exact decimal, as text: never rounded through float64 (not for money)
 	Count int64  `json:"count"`
+	// Currencies are the totals of a money field, one per currency in code
+	// order: amounts in different currencies are never added (ADR-0044).
+	Currencies []CurrencySum `json:"currencies,omitempty"`
+}
+
+// CurrencySum is the total of a money field's values in one currency.
+type CurrencySum struct {
+	Currency string `json:"currency"`
+	Sum      string `json:"sum"`
+	Count    int64  `json:"count"`
 }
 
 // SumItemFields totals number fields over every item matching the same
@@ -210,10 +238,18 @@ func (s *Store) SumItemFields(ctx context.Context, p ListItemsParams, keys []str
 		if !ok {
 			return nil, invalid("fields", "unknown field %q", k)
 		}
-		if t != FieldNumber && t != "formula:number" {
-			return nil, invalid("fields", "field %q is not a number field", k)
+		if t != FieldNumber && t != "formula:number" && t != FieldMoney {
+			return nil, invalid("fields", "field %q is not a number or money field", k)
 		}
 	}
+	var money []string
+	keys = slices.DeleteFunc(keys, func(k string) bool {
+		if types[k] == FieldMoney {
+			money = append(money, k)
+			return true
+		}
+		return false
+	})
 
 	where, args, err := s.itemFilter(ctx, p, true)
 	if err != nil {
@@ -233,17 +269,49 @@ func (s *Store) SumItemFields(ctx context.Context, p ListItemsParams, keys []str
 			"count(*) FILTER (WHERE "+isNum+")")
 	}
 	vals := make([]any, 0, 2*len(keys))
-	out := make(map[string]FieldSum, len(keys))
+	out := make(map[string]FieldSum, len(keys)+len(money))
 	sums := make([]FieldSum, len(keys))
 	for i := range sums {
 		vals = append(vals, &sums[i].Sum, &sums[i].Count)
 	}
-	err = s.pool.QueryRow(ctx, "SELECT "+strings.Join(cols, ", ")+" FROM items i WHERE "+strings.Join(where, " AND "), args...).Scan(vals...)
-	if err != nil {
-		return nil, err
+	if len(keys) > 0 {
+		err = s.pool.QueryRow(ctx, "SELECT "+strings.Join(cols, ", ")+" FROM items i WHERE "+strings.Join(where, " AND "), args...).Scan(vals...)
+		if err != nil {
+			return nil, err
+		}
 	}
 	for i, k := range keys {
 		out[k] = sums[i]
+	}
+	// Money: one grouped pass per field (at most MaxSumFields), per currency.
+	base := len(args) - len(keys) // the filter's own parameters
+	for _, k := range money {
+		margs := append(slices.Clone(args[:base]), k)
+		ph := "$" + strconv.Itoa(len(margs))
+		amount := moneyAmountExpr(ph)
+		rows, err := s.pool.Query(ctx, "SELECT i.fields -> "+ph+"::text ->> 'currency', sum("+amount+")::text, count(*)"+
+			" FROM items i WHERE "+strings.Join(where, " AND ")+" AND "+amount+" IS NOT NULL"+
+			" AND jsonb_typeof(i.fields -> "+ph+"::text -> 'currency') = 'string'"+
+			" GROUP BY 1", margs...)
+		if err != nil {
+			return nil, err
+		}
+		fs := FieldSum{Currencies: []CurrencySum{}}
+		for rows.Next() {
+			var c CurrencySum
+			if err := rows.Scan(&c.Currency, &c.Sum, &c.Count); err != nil {
+				rows.Close()
+				return nil, err
+			}
+			fs.Count += c.Count
+			fs.Currencies = append(fs.Currencies, c)
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
+		slices.SortFunc(fs.Currencies, func(a, b CurrencySum) int { return strings.Compare(a.Currency, b.Currency) })
+		out[k] = fs
 	}
 	return out, nil
 }

@@ -1,6 +1,8 @@
 import { useState } from "react";
 
 import { useAdminApi, type FormulaInput } from "../../api/admin";
+import { parseCurrencyList } from "../../lib/money";
+import { MoneySettings } from "./MoneySettings";
 import { useFields } from "../../api/hooks";
 import type { Choice, FieldDefinition } from "../../api/types";
 import { Button, ErrorState, Input, Select, Spinner } from "../../components/ui";
@@ -9,11 +11,12 @@ import { ta } from "../../i18n-admin";
 import { cn } from "../../lib/cn";
 import { slugKey } from "../../lib/slug";
 import { tf } from "../../i18n-formulas";
+import { tm } from "../../i18n-money";
 import { FormulaEditor } from "./FormulaEditor";
 import { Card, SettingsLayout } from "./SettingsLayout";
 import { useFeedback } from "./useErrorToast";
 
-const TYPES = ["text", "long_text", "number", "date", "datetime", "boolean", "select", "multi_select", "user", "url", "email", "formula"];
+const TYPES = ["text", "long_text", "number", "date", "datetime", "boolean", "select", "multi_select", "user", "url", "email", "formula", "money"];
 const isChoice = (type: string) => type === "select" || type === "multi_select";
 
 export function FieldsPage() {
@@ -41,6 +44,8 @@ function NewField({ ws }: { ws: string }) {
   const [type, setType] = useState("text");
   const [choices, setChoices] = useState("");
   const [formula, setFormula] = useState<FormulaInput>({ expression: "" });
+  const [money, setMoney] = useState({ currencies: "AZN, USD, EUR", default_currency: "AZN", scale: 2 });
+  const [moneyError, setMoneyError] = useState("");
 
   return (
     <Card>
@@ -50,7 +55,14 @@ function NewField({ ws }: { ws: string }) {
         onSubmit={(e) => {
           e.preventDefault();
           const list = choices.split("\n").map((s) => s.trim()).filter(Boolean).map((label) => ({ label }));
-          const options = isChoice(type) ? { options: { choices: list } } : type === "formula" ? { options: { formula } } : {};
+          let moneyOpts = null;
+          if (type === "money") {
+            const parsed = parseCurrencyList(money.currencies);
+            if (!parsed.ok) { setMoneyError(parsed.error); return; }
+            setMoneyError("");
+            moneyOpts = { currencies: parsed.codes, default_currency: parsed.codes.includes(money.default_currency) ? money.default_currency : (parsed.codes[0] ?? "AZN"), scale: money.scale };
+          }
+          const options = isChoice(type) ? { options: { choices: list } } : type === "formula" ? { options: { formula } } : moneyOpts ? { options: { money: moneyOpts } } : {};
           adm.createField.mutate(
             { name, key, type, ...options },
             { onSuccess: () => { setName(""); setKey(""); setKeyTouched(false); setChoices(""); setFormula({ expression: "" }); fb.ok()(); }, onError: fb.fail },
@@ -86,6 +98,11 @@ function NewField({ ws }: { ws: string }) {
         {type === "formula" && (
           <div className="sm:col-span-2">
             <FormulaEditor ws={ws} value={formula} onChange={setFormula} />
+          </div>
+        )}
+        {type === "money" && (
+          <div className="sm:col-span-2">
+            <MoneySettings value={money} error={moneyError} onChange={(v) => { setMoney(v); setMoneyError(""); }} />
           </div>
         )}
         <div className="flex items-end sm:col-span-2">
@@ -156,6 +173,8 @@ function FieldCard({ ws, field }: { ws: string; field: FieldDefinition }) {
         <p className="mt-2 font-mono text-xs text-zinc-500 dark:text-zinc-400">{tf.title(saved.expression)}</p>
       )}
 
+      {field.type === "money" && !field.archived && <MoneyFieldCard ws={ws} field={field} />}
+
       {isChoice(field.type) && !field.archived && (
         <div className="mt-3 space-y-2 border-t border-zinc-100 pt-3 dark:border-zinc-800">
           <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">{ta.choices}</p>
@@ -188,5 +207,31 @@ function FieldCard({ ws, field }: { ws: string; field: FieldDefinition }) {
         </div>
       )}
     </Card>
+  );
+}
+
+/** Allowed and default currencies of an existing money field; the scale is fixed (ADR-0044). */
+function MoneyFieldCard({ ws, field }: { ws: string; field: FieldDefinition }) {
+  const adm = useAdminApi(ws);
+  const fb = useFeedback();
+  const saved = field.options.money ?? { currencies: ["AZN", "USD", "EUR"], default_currency: "AZN", scale: 2 };
+  const [value, setValue] = useState({ currencies: saved.currencies.join(", "), default_currency: saved.default_currency, scale: saved.scale });
+  const [error, setError] = useState("");
+  const dirty = value.currencies !== saved.currencies.join(", ") || value.default_currency !== saved.default_currency;
+  return (
+    <form
+      className="mt-3 space-y-2 border-t border-zinc-100 pt-3 dark:border-zinc-800"
+      onSubmit={(e) => {
+        e.preventDefault();
+        const parsed = parseCurrencyList(value.currencies);
+        if (!parsed.ok) { setError(parsed.error); return; }
+        setError("");
+        const def = parsed.codes.includes(value.default_currency) ? value.default_currency : (parsed.codes[0] ?? "AZN");
+        adm.updateField.mutate({ key: field.key, body: { options: { money: { currencies: parsed.codes, default_currency: def } } } }, { onSuccess: fb.ok(), onError: fb.fail });
+      }}
+    >
+      <MoneySettings value={value} error={error} scaleFixed onChange={(v) => { setValue(v); setError(""); }} />
+      {dirty && <Button type="submit" variant="primary" disabled={adm.updateField.isPending}>{tm.saveCurrencies}</Button>}
+    </form>
   );
 }

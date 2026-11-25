@@ -84,7 +84,7 @@ export interface ItemType {
 
 export type FieldType =
   | "text" | "long_text" | "number" | "date" | "datetime" | "boolean"
-  | "select" | "multi_select" | "user" | "url" | "email" | "formula";
+  | "select" | "multi_select" | "user" | "url" | "email" | "formula" | "money";
 
 export interface Choice {
   id: string;
@@ -98,7 +98,7 @@ export interface FieldDefinition {
   key: string;
   name: string;
   type: FieldType;
-  options: { choices?: Choice[]; formula?: FormulaOptions };
+  options: { choices?: Choice[]; formula?: FormulaOptions; money?: MoneyOptions };
   archived: boolean;
 }
 
@@ -113,12 +113,25 @@ export interface FormulaOptions {
   calendar?: boolean;
 }
 
+/** options.money of a money field (ADR-0044). The scale is fixed at creation. */
+export interface MoneyOptions {
+  currencies: string[];
+  default_currency: string;
+  scale: number;
+}
+
+/** A money value: exact decimal text with the field's scale and an ISO 4217 code. */
+export interface MoneyValue {
+  amount: string;
+  currency: string;
+}
+
 /** A formula value that could not be computed, e.g. {"error": "division_by_zero"}. */
 export interface FormulaErrorValue {
   error: string;
 }
 
-export type FieldValue = string | number | boolean | string[] | FormulaErrorValue | null;
+export type FieldValue = string | number | boolean | string[] | FormulaErrorValue | MoneyValue | null;
 
 /** POST /fields/formula-preview. */
 export interface FormulaPreview {
@@ -190,8 +203,11 @@ export interface SavedView {
   updated_at: string;
 }
 
-/** Totals of number fields over the whole filtered list; sum is an exact decimal string. */
-export type FieldSums = Record<string, { sum: string; count: number }>;
+/**
+ * Totals of number fields over the whole filtered list; sum is an exact
+ * decimal string. Money fields have no sum but one total per currency.
+ */
+export type FieldSums = Record<string, { sum?: string; count: number; currencies?: { currency: string; sum: string; count: number }[] }>;
 
 export interface ItemPage {
   items: Item[];

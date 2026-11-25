@@ -23,8 +23,11 @@ export function valueType(def: FieldDefinition | undefined): FieldDefinition["ty
 
 export const isNumeric = (def: FieldDefinition | undefined): boolean => valueType(def) === "number";
 
+/** Number and money fields: right-aligned, tabular figures, a total in the table (ADR-0044). */
+export const isAmount = (def: FieldDefinition | undefined): boolean => isNumeric(def) || def?.type === "money";
+
 export function isFormulaError(v: FieldValue | undefined): v is FormulaErrorValue {
-  return typeof v === "object" && v !== null && !Array.isArray(v) && typeof v.error === "string";
+  return typeof v === "object" && v !== null && !Array.isArray(v) && "error" in v && typeof v.error === "string";
 }
 
 /** "field.<key>" ascending or "-field.<key>" descending (server-side keyset sort). */
@@ -36,10 +39,10 @@ export function parseSort(s: string | null | undefined): ItemSort {
   return "number";
 }
 
-/** Number, date and formula (number/date result) fields can be sorted. */
+/** Number, money (by amount, ADR-0044), date and formula (number/date result) fields can be sorted. */
 export function isSortable(def: FieldDefinition | undefined): boolean {
   const t = valueType(def);
-  return !!def && !def.archived && (t === "number" || t === "date");
+  return !!def && !def.archived && (t === "number" || t === "date" || t === "money");
 }
 
 /** The field a sort is on, or "" for the built-in sorts. */

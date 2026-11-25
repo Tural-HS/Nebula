@@ -301,7 +301,7 @@ export function FilterPicker({ statuses, fields, status, values, onStatus, onFie
   onClear: () => void;
   inline?: boolean;
 }) {
-  const filterable = [...fields.values()].filter((f) => !f.archived && (f.type === "select" || f.type === "multi_select" || valueType(f) === "boolean"));
+  const filterable = [...fields.values()].filter((f) => !f.archived && (f.type === "select" || f.type === "multi_select" || f.type === "money" || valueType(f) === "boolean"));
   const active = status.length + Object.keys(values).length;
   return (
     <Popover label={inline ? tv.statusFilter : active > 0 ? tv.activeFilters(active) : tv.filters} inline={inline}>
@@ -332,6 +332,9 @@ export function FilterPicker({ statuses, fields, status, values, onStatus, onFie
                 <option value="true">{t.yes}</option>
                 <option value="false">{t.no}</option>
               </>
+            ) : f.type === "money" ? (
+              // Money filters by currency (ADR-0044).
+              (f.options.money?.currencies ?? []).map((c) => <option key={c} value={c}>{c}</option>)
             ) : (
               (f.options.choices ?? []).map((c) => <option key={c.id} value={c.id}>{c.label}</option>)
             )}

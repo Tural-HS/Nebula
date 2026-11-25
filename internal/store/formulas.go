@@ -134,6 +134,11 @@ func formulaResolver(defs map[string]formulaDef, self string) formula.Resolver {
 		if t, ok := plainFormulaType(d.typ); ok {
 			return t, nil
 		}
+		if d.typ == FieldMoney {
+			// Amounts in different currencies must never be mixed, and a
+			// formula has no currency of its own yet (ADR-0044).
+			return 0, fmt.Errorf("field %q is a money field; formulas cannot use money fields yet (amounts may be in different currencies)", ref)
+		}
 		return 0, fmt.Errorf("field %q is a %s field; formulas can use number, date, boolean and formula fields", ref, d.typ)
 	}
 }

@@ -90,6 +90,7 @@ export const ti = {
     url: "URL",
     email: "email",
     formula: "formula (not imported)",
+    money: "money (1250.50 AZN, $300)",
   } satisfies Record<FieldType, string>,
 
   // Server error codes (ADR-0011) → messages.

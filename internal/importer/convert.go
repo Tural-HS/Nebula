@@ -3,6 +3,7 @@ package importer
 import (
 	"errors"
 	"math"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -263,4 +264,96 @@ func SplitList(s string) []string {
 		}
 	}
 	return out
+}
+
+// ErrTwoCurrencies means a money cell names more than one currency.
+var ErrTwoCurrencies = errors.New("names two currencies: keep one, e.g. 1250.50 AZN")
+
+var errNotMoney = errors.New(`must be an amount with an optional currency, e.g. 1250.50 AZN, 1 250,50 ₼ or $300`)
+
+// moneySymbols are the currency symbols and words recognized in a money cell
+// (compared after Fold, longest first); the store maps them to codes.
+var moneySymbols = []string{"manat", "man.", "₼", "$", "€", "£", "₽", "₺", "₾", "₴", "₸", "¥", "₹"}
+
+// ParseMoney reads a money cell (ADR-0044) such as "1250.50 AZN",
+// "1 250,50 ₼", "$300" or "-12,5 USD". It returns the exact amount as
+// decimal text ("1250.50", never a float) and the currency token as written
+// (an upper-case three-letter code, a symbol, or "" when none). The number
+// rules are ParseNumber's, including the refusal of ambiguous separators.
+func ParseMoney(s string, canonical bool) (amount, currency string, err error) {
+	s = strings.TrimSpace(s)
+	if canonical && plainDecimalRe.MatchString(s) {
+		return s, "", nil
+	}
+	f := Fold(s)
+	// A three-letter code at either end: "AZN 1250", "1250 azn".
+	if len(f) >= 3 {
+		if head := f[:3]; isLetters(head) && (len(f) == 3 || !isLetter(rune(f[3]))) {
+			currency, f = strings.ToUpper(head), f[3:]
+		} else if tail := f[len(f)-3:]; isLetters(tail) && (len(f) == 3 || !isLetter(rune(f[len(f)-4]))) {
+			currency, f = strings.ToUpper(tail), f[:len(f)-3]
+		}
+	}
+	for _, sym := range moneySymbols {
+		if strings.Contains(f, sym) {
+			if currency != "" {
+				return "", "", ErrTwoCurrencies
+			}
+			currency, f = sym, strings.Replace(f, sym, "", 1)
+		}
+	}
+	f = strings.Map(func(r rune) rune {
+		if unicode.IsSpace(r) || r == '\'' || r == '’' {
+			return -1
+		}
+		if r == '−' {
+			return '-'
+		}
+		return r
+	}, f)
+	neg := false
+	switch {
+	case strings.HasPrefix(f, "(") && strings.HasSuffix(f, ")"):
+		neg, f = true, f[1:len(f)-1]
+	case strings.HasPrefix(f, "-"):
+		neg, f = true, f[1:]
+	case strings.HasPrefix(f, "+"):
+		f = f[1:]
+	}
+	if f == "" {
+		return "", "", errNotMoney
+	}
+	for _, r := range f {
+		if (r < '0' || r > '9') && r != ',' && r != '.' {
+			return "", "", errNotMoney
+		}
+	}
+	intPart, frac, err := splitDecimal(f)
+	if err != nil {
+		if errors.Is(err, ErrAmbiguousNumber) {
+			return "", "", err
+		}
+		return "", "", errNotMoney
+	}
+	amount = intPart
+	if frac != "" {
+		amount += "." + frac
+	}
+	if neg {
+		amount = "-" + amount
+	}
+	return amount, currency, nil
+}
+
+var plainDecimalRe = regexp.MustCompile(`^-?[0-9]+(\.[0-9]+)?$`)
+
+func isLetter(r rune) bool { return (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') }
+
+func isLetters(s string) bool {
+	for _, r := range s {
+		if !isLetter(r) {
+			return false
+		}
+	}
+	return true
 }

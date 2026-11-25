@@ -70,13 +70,13 @@ var exportWords = map[string]struct {
 	yes, no string
 }{
 	"az": {map[string]string{"key": "#", "title": "Başlıq", "type": "Tip", "status": "Status", "assignee": "İcraçı",
-		"due_date": "Son tarix", "created_at": "Yaradılıb", "updated_at": "Yenilənib"}, "Bəli", "Xeyr"},
+		"due_date": "Son tarix", "created_at": "Yaradılıb", "updated_at": "Yenilənib", "currency": "valyuta"}, "Bəli", "Xeyr"},
 	"en": {map[string]string{"key": "#", "title": "Title", "type": "Type", "status": "Status", "assignee": "Assignee",
-		"due_date": "Due date", "created_at": "Created", "updated_at": "Updated"}, "Yes", "No"},
+		"due_date": "Due date", "created_at": "Created", "updated_at": "Updated", "currency": "currency"}, "Yes", "No"},
 	"tr": {map[string]string{"key": "#", "title": "Başlık", "type": "Tür", "status": "Durum", "assignee": "Sorumlu",
-		"due_date": "Bitiş tarihi", "created_at": "Oluşturuldu", "updated_at": "Güncellendi"}, "Evet", "Hayır"},
+		"due_date": "Bitiş tarihi", "created_at": "Oluşturuldu", "updated_at": "Güncellendi", "currency": "para birimi"}, "Evet", "Hayır"},
 	"ru": {map[string]string{"key": "#", "title": "Заголовок", "type": "Тип", "status": "Статус", "assignee": "Исполнитель",
-		"due_date": "Срок", "created_at": "Создано", "updated_at": "Обновлено"}, "Да", "Нет"},
+		"due_date": "Срок", "created_at": "Создано", "updated_at": "Обновлено", "currency": "валюта"}, "Да", "Нет"},
 }
 
 type exportRequest struct {
@@ -147,6 +147,9 @@ type exportColumn struct {
 	id    string
 	field *store.FieldDefinition
 	spec  tableexport.Column
+	// currency is the second column of a money field (ADR-0044): the
+	// amount stays a numeric cell, its currency code goes next to it.
+	currency bool
 }
 
 // resolveExportColumns drops unknown and archived fields (as the table
@@ -201,6 +204,17 @@ func resolveExportColumns(ids []string, defs []store.FieldDefinition, lang strin
 			spec.Kind = tableexport.DateTime
 		case store.FieldBoolean:
 			spec.Kind = tableexport.Bool
+		case store.FieldMoney:
+			spec.Kind = tableexport.Number
+			scale := 2
+			if def.Options.Money != nil {
+				scale = def.Options.Money.Scale
+			}
+			spec.Scale = &scale
+			out = append(out, exportColumn{id: id, field: def, spec: spec},
+				exportColumn{id: id, field: def, currency: true,
+					spec: tableexport.Column{Header: def.Name + " (" + words["currency"] + ")", Kind: tableexport.Text}})
+			continue
 		}
 		out = append(out, exportColumn{id: id, field: def, spec: spec})
 	}
@@ -269,7 +283,29 @@ func (e *exportRow) cell(c exportColumn, it store.Item) tableexport.Cell {
 	if c.field == nil {
 		return tableexport.Cell{}
 	}
+	if c.field.Type == store.FieldMoney {
+		return moneyCell(it.Fields[c.field.Key], c.currency)
+	}
 	return e.fieldCell(c.field, it.Fields[c.field.Key])
+}
+
+// moneyCell is the amount (numeric: amounts have at most 15 digits, exact
+// in a float64 and in Excel) or the currency code of a money value.
+func moneyCell(v any, currency bool) tableexport.Cell {
+	m, ok := v.(map[string]any)
+	if !ok {
+		return tableexport.Cell{}
+	}
+	if currency {
+		c, _ := m["currency"].(string)
+		return tableexport.TextCell(c)
+	}
+	a, _ := m["amount"].(string)
+	n, err := strconv.ParseFloat(a, 64)
+	if err != nil || a == "" {
+		return tableexport.Cell{}
+	}
+	return tableexport.NumberCell(n)
 }
 
 func (e *exportRow) fieldCell(def *store.FieldDefinition, v any) tableexport.Cell {

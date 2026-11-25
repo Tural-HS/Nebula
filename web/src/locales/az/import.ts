@@ -84,6 +84,7 @@ export const ti = {
     url: "URL",
     email: "e-poçt",
     formula: "düstur (idxal edilmir)",
+    money: "pul məbləği (1250,50 AZN, $300)",
   } satisfies Record<FieldType, string>,
 
   // Server error codes (ADR-0011) → messages.

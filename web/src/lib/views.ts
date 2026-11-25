@@ -8,7 +8,8 @@ import { t } from "../i18n";
 import { tv } from "../i18n-views";
 import { activeLocale, type Locale } from "../i18n/locale";
 import { tf } from "../i18n-formulas";
-import { isFormulaError, isNumeric, parseSort, valueType } from "./formula";
+import { isAmount, isFormulaError, parseSort, valueType } from "./formula";
+import { formatMoney, isMoneyValue } from "./money";
 import { formatDate, formatDateTime } from "./format";
 import type { GroupBy } from "./board";
 
@@ -161,12 +162,12 @@ export function columnHeader(col: string, fields: ReadonlyMap<string, FieldDefin
   return tv.col[col as BuiltinColumn];
 }
 
-/** Number fields among the columns: these get a server-computed total. */
+/** Number and money fields among the columns: these get a server-computed total (money: per currency). */
 export function sumFields(columns: readonly string[], fields: ReadonlyMap<string, FieldDefinition>): string[] {
   return columns
     .filter((c) => {
       const f = isFieldColumn(c) ? fields.get(fieldKey(c)) : undefined;
-      return isNumeric(f) && !f?.archived;
+      return isAmount(f) && !f?.archived;
     })
     .map(fieldKey)
     .slice(0, MAX_SUM_FIELDS);
@@ -222,11 +223,14 @@ function numberText(n: number): string {
 export function formatFieldValue(def: FieldDefinition | undefined, v: FieldValue | undefined, members: ReadonlyMap<string, Member>): string {
   if (v === null || v === undefined || v === "") return "";
   if (isFormulaError(v)) return tf.errors[v.error] ?? "#" + v.error;
+  if (isMoneyValue(v)) return def?.type === "money" ? formatMoney(v) : `${v.amount} ${v.currency}`;
   if (!def) return Array.isArray(v) ? v.join(", ") : String(v);
   const label = (id: string) => def.options.choices?.find((c) => c.id === id)?.label ?? "?";
   switch (valueType(def)) {
     case "number":
       return typeof v === "number" ? formatDecimal(v) : String(v);
+    case "money":
+      return ""; // not in the stored form
     case "date":
       return typeof v === "string" ? formatDate(v) : String(v);
     case "datetime":

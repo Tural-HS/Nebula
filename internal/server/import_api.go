@@ -711,6 +711,17 @@ func (c *converter) fieldValue(def store.FieldDefinition, v string) (any, error)
 	switch def.Type {
 	case store.FieldNumber:
 		return importer.ParseNumber(v, xlsx)
+	case store.FieldMoney:
+		// "1250.50 AZN", "1 250,50 ₼", "$300"; the store checks the scale.
+		amount, token, err := importer.ParseMoney(v, xlsx)
+		if err != nil {
+			return nil, err
+		}
+		cur, err := store.ResolveCurrency(def, token)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"amount": amount, "currency": cur}, nil
 	case store.FieldDate:
 		return importer.ParseDate(v, xlsx, c.table.Date1904)
 	case store.FieldDateTime:

@@ -53,7 +53,7 @@ func TestCustomFields(t *testing.T) {
 		t.Fatalf("duplicate key: %d %s", r.Status, r.Raw)
 	}
 	for name, body := range map[string]map[string]any{
-		"bad type":            {"key": "x", "name": "X", "type": "money"},
+		"bad type":            {"key": "x", "name": "X", "type": "currency"},
 		"bad key":             {"key": "Bad-Key", "name": "X", "type": "text"},
 		"choices on text":     {"key": "x", "name": "X", "type": "text", "options": map[string]any{"choices": []any{map[string]any{"label": "a"}}}},
 		"duplicate choice":    {"key": "x", "name": "X", "type": "select", "options": map[string]any{"choices": []any{map[string]any{"label": "a"}, map[string]any{"label": "A"}}}},
