@@ -249,6 +249,15 @@ export function ItemsPage() {
     ...(canImport ? [{ to: `${base}/settings`, label: tp.settings }, { to: `${base}/import`, label: ti.importAction }] : []),
   ];
   const filterCount = activeFilterCount(state);
+  // Previous/next in the loaded list (table, board or calendar order).
+  const at = openItem === null ? -1 : all.findIndex((i) => i.number === openItem);
+  const drawerNav = at < 0 ? undefined : {
+    prev: at > 0 ? (all[at - 1]?.number ?? null) : null,
+    next: at < all.length - 1 ? (all[at + 1]?.number ?? null) : null,
+    index: at + 1,
+    total: all.length,
+    go: (n: number) => { setParam("item", String(n)); },
+  };
   const viewSwitcher = (
     <ViewSwitcher ws={ws} project={project} views={views.data ?? []} active={active} dirty={dirty} state={state} isAdmin={isAdmin} onSelect={selectView}
       defaultViewId={projectData?.default_view_id ?? null}
@@ -566,7 +575,7 @@ export function ItemsPage() {
 
       {openItem !== null && (
         <Suspense fallback={null}>
-          <ItemDrawer ws={ws} project={project} n={openItem} canEdit={canEdit} isAdmin={isAdmin} onClose={() => { setParam("item", null); }} />
+          <ItemDrawer ws={ws} project={project} n={openItem} canEdit={canEdit} isAdmin={isAdmin} onClose={() => { setParam("item", null); }} nav={drawerNav} />
         </Suspense>
       )}
       <CreateItemDialog

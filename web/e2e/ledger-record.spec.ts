@@ -77,6 +77,23 @@ test.describe("as admin", () => {
     expect((link?.x ?? 999) + (link?.width ?? 0)).toBeLessThan(390); // visible without scrolling
   });
 
+  test("move through the list from the panel with buttons and J/K", async ({ page }) => {
+    await page.goto(`${seed.url}?cols=key,title&sort=number`);
+    await page.getByRole("button", { name: "Kullinan MMC" }).click();
+    const nav = page.getByRole("group", { name: "Siyahıda keçid" });
+    await expect(nav).toContainText("1 / 2");
+    await nav.getByRole("button", { name: "Növbəti tapşırıq" }).click();
+    await expect(page.getByRole("dialog", { name: "QA-1" })).toBeVisible();
+    await expect(nav).toContainText("2 / 2");
+    await expect(nav.getByRole("button", { name: "Növbəti tapşırıq" })).toBeDisabled();
+    await page.keyboard.press("k");
+    await expect(page.getByRole("dialog", { name: "QA-2" })).toBeVisible();
+    // Not while typing.
+    await page.getByRole("dialog", { name: "QA-2" }).getByLabel("Başlıq").focus();
+    await page.keyboard.press("j");
+    await expect(page.getByRole("dialog", { name: "QA-2" })).toBeVisible();
+  });
+
   test("the title stays while the table scrolls sideways", async ({ page }) => {
     const many = ["key", "title", "status", "assignee", "due_date", "created_at", "updated_at", "field.balance", "field.phone", "field.nv"];
     await page.setViewportSize({ width: 900, height: 700 });
