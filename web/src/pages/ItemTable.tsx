@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, type CSSProperties, type ReactNode } from "
 
 import type { FieldDefinition, FieldSums, Item, Member } from "../api/types";
 import { SignalCell, StatusText } from "../components/Signals";
+import { hasSignal } from "../lib/signals";
 import { tc } from "../i18n-calendar";
 import { inlineKind, type InlineEdit } from "../lib/inline";
 import { InlineCell } from "./InlineCell";
@@ -39,6 +40,10 @@ const STICKY_LEFT = "sticky left-0 z-[1] bg-zinc-50 dark:bg-zinc-950";
 // On phones the pinned title gets a hairline so scrolled cells do not
 // seem to run into it.
 const STICKY_EDGE = "max-md:shadow-[1px_0_0_var(--color-zinc-200)] max-md:dark:shadow-[1px_0_0_var(--color-zinc-800)]";
+// The pinned title beside the key (wide tables on desktop): the hairline on
+// every screen, and a left bleed over the grid gap so cells never show through.
+const TITLE_PIN = "-ml-3 pl-3 shadow-[1px_0_0_var(--color-zinc-200)] dark:shadow-[1px_0_0_var(--color-zinc-800)]";
+const STICKY_LEFT_TOTAL = "sticky left-0 z-[1] bg-zinc-100 dark:bg-zinc-900";
 
 /** Grid track and minimum width (rem) of a column. */
 function track(col: string, def: FieldDefinition | undefined, compact: boolean): [string, number] {
@@ -64,8 +69,11 @@ function track(col: string, def: FieldDefinition | undefined, compact: boolean):
   switch (def?.type) {
     case "number":
     case "date":
-    case "boolean":
       return ["8rem", 8];
+    case "boolean":
+      return ["6rem", 6]; // a check mark; the header truncates with a title
+    case "text":
+      return ["10rem", 10];
     case "long_text":
     case "multi_select":
       return ["14rem", 14];
@@ -111,9 +119,12 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
     // Phones: the signals ride on the key line of the pinned title column, so
     // they are never scrolled out of view; no separate column.
     if (compact && d.keyInTitle) return d;
+    // No loaded row has a signal: no empty 10 rem column.
+    const withDue = !d.columns.includes("due_date");
+    if (!items.some((it) => hasSignal(it, withDue))) return d;
     const at = d.columns.indexOf("title");
     return { ...d, columns: [...d.columns.slice(0, at + 1), SIGNALS, ...d.columns.slice(at + 1)] };
-  }, [chosen, compact]);
+  }, [chosen, compact, items]);
   const rowHeight = plainRows ? TOUCH_ROW_HEIGHT : ROW_HEIGHT;
   const scrollRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Virtual is designed for this usage
@@ -130,7 +141,7 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
     if (hasMore && !loadingMore && lastIndex >= items.length - 1) loadMore();
   }, [hasMore, loadingMore, lastIndex, items.length, loadMore]);
 
-  const grid = useMemo<CSSProperties>(() => {
+  const { grid, firstWidth } = useMemo(() => {
     const tracks = columns.map((c): [string, number] =>
       c === SIGNALS && !columns.includes("due_date") ? ["17.75rem", 17.75] : track(c, isFieldColumn(c) ? fields.get(fieldKey(c)) : undefined, compact));
     // The first column also holds the row checkbox: 2 rem wider.
@@ -140,8 +151,18 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
       tracks[0] = [g.startsWith("minmax(") ? g.replace(/^minmax\(([\d.]+)rem/, (_m, n: string) => `minmax(${String(Number(n) + 2)}rem`) : `${String(w + 2)}rem`, w + 2];
     }
     const rem = tracks.reduce((n, [, w]) => n + w, 0) + 0.75 * (tracks.length - 1) + 2; // gaps and padding
-    return { gridTemplateColumns: tracks.map(([g]) => g).join(" "), minWidth: `${String(rem)}rem` };
+    const g: CSSProperties = { gridTemplateColumns: tracks.map(([t]) => t).join(" "), minWidth: `${String(rem)}rem` };
+    return { grid: g, firstWidth: tracks[0]?.[1] ?? 0 };
   }, [columns, fields, compact, select]);
+  // Desktop: the key and the title both stay while the table scrolls sideways
+  // (phones already pin the title, which carries the key).
+  const pinTitle = columns[0] === "key" && columns[1] === "title";
+  const pin = (i: number, sticky: string = STICKY_LEFT): { className: string | false; style: CSSProperties | undefined } =>
+    i === 0
+      ? { className: cn(sticky, !pinTitle && STICKY_EDGE), style: undefined }
+      : pinTitle && i === 1
+        ? { className: cn(sticky, TITLE_PIN), style: { left: `${String(firstWidth)}rem` } }
+        : { className: false, style: undefined };
   const header = (c: string) => (c === SIGNALS ? tlg.signals : columnHeader(c, fields));
   // Number and money columns: right-aligned tabular figures with a total.
   const numeric = (c: string) => isFieldColumn(c) && isAmount(fields.get(fieldKey(c)));
@@ -162,7 +183,7 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
       case "title": {
         const title = (
           <span className="flex min-w-0 items-center gap-2">
-            <span className="truncate font-medium">{it.title}</span>
+            <span className="truncate font-medium" title={it.title}>{it.title}</span>
           </span>
         );
         return keyInTitle ? (
@@ -213,7 +234,7 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
     <div ref={scrollRef} className="h-full scroll-pt-8 scroll-pb-10 overflow-auto" role="table" aria-rowcount={items.length}>
       <div role="row" style={grid} className={cn(ROW, "sticky top-0 z-[2] h-8 border-b border-zinc-200 bg-zinc-50 text-xs font-medium text-zinc-500 dark:text-zinc-400 dark:border-zinc-800 dark:bg-zinc-950")}>
         {columns.map((c, i) => (
-          <span key={c} role="columnheader" title={c === SIGNALS ? tlg.signalsHint : header(c)} className={cn("truncate", numeric(c) && "text-right", i === 0 && STICKY_LEFT, i === 0 && STICKY_EDGE, i === 0 && select && "flex items-center gap-3")}>
+          <span key={c} role="columnheader" title={c === SIGNALS ? tlg.signalsHint : header(c)} style={pin(i).style} className={cn("truncate", numeric(c) && "text-right", pin(i).className, i === 0 && select && "flex items-center gap-3")}>
             {i === 0 && select && (
               <input
                 type="checkbox"
@@ -258,9 +279,9 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
                   className={cn(ROW, "h-full w-full cursor-pointer border-b border-zinc-100 text-left text-sm tabular-nums hover:bg-zinc-100/70 dark:border-zinc-800/60 dark:hover:bg-zinc-800/60")}
                 >
                   {columns.map((c, i) => (
-                    <span key={c} role="cell" className={cn("min-w-0", i === 0 && STICKY_LEFT, i === 0 && STICKY_EDGE)}>
+                    <span key={c} role="cell" style={pin(i).style} className={cn("min-w-0", pin(i).className)}>
                       {c === "title" ? (
-                        <button type="button" className="flex min-w-0 text-left" onClick={() => { onOpen(it.number); }}>
+                        <button type="button" className="flex min-w-0 max-w-full text-left" onClick={() => { onOpen(it.number); }}>
                           {cell(it, c)}
                         </button>
                       ) : (
@@ -288,7 +309,7 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
                   {columns.map((c, i) => {
                     const kind = edit ? inlineKind(c, fields) : null;
                     return (
-                      <span key={c} role="cell" className={cn("min-w-0", i === 0 && STICKY_LEFT, i === 0 && STICKY_EDGE, i === 0 && select && "flex items-center gap-3")}>
+                      <span key={c} role="cell" style={pin(i).style} className={cn("min-w-0", pin(i).className, i === 0 && select && "flex items-center gap-3")}>
                         {i === 0 && select && (
                           <input
                             type="checkbox"
@@ -299,7 +320,7 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
                           />
                         )}
                         {c === "title" ? (
-                          <button type="button" className="flex min-w-0 flex-1 text-left hover:underline" onClick={() => { onOpen(it.number); }}>
+                          <button type="button" className="flex w-full min-w-0 flex-1 text-left hover:underline" onClick={() => { onOpen(it.number); }}>
                             {cell(it, c)}
                           </button>
                         ) : kind && edit ? (
@@ -335,7 +356,8 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
               <span
                 key={c}
                 role="cell"
-                className={cn("truncate", numeric(c) && "text-right tabular-nums", i === 0 && "sticky left-0 z-[1] bg-zinc-100 dark:bg-zinc-900", i === 0 && STICKY_EDGE)}
+                style={pin(i, STICKY_LEFT_TOTAL).style}
+                className={cn("truncate", numeric(c) && "text-right tabular-nums", pin(i, STICKY_LEFT_TOTAL).className)}
                 title={s ? (money !== undefined ? `${tm.totalsLabel(money)}\n${tm.noFx}\n${tv.totalHint(s.count)}` : tv.totalHint(s.count)) : undefined}
                 data-money-total={money !== undefined ? "" : undefined}
               >
