@@ -32,6 +32,9 @@ Toplu dəyişiklikdən (status, icraçı, son tarix, bir sahə) sonra bildirişd
 dəyərlərinə görə qruplaşdırılır və hər qrup üçün bir toplu sorğu göndərilir (redaktənin qaytardığı versiyalarla —
 arada başqası dəyişibsə, konflikt olur, heç nə üstünə yazılmır). Toplu silmə geri qaytarılmır (təsdiq dialoqu qalır).
 
+Cədvəldə **↑/↓**: tapşırığın başlığında (klaviaturanın sətir düyməsi) olarkən yuxarı/aşağı sətrə keçir (virtual
+siyahı əvvəlcə sətri görünüşə gətirir, sonuncu sətirdən sonra növbəti səhifəni yükləyir); **Enter** tapşırığı açır.
+
 ## Açıq suallar
 
-- Klaviatura ilə cədvəldə hərəkət (↑↓, Space ilə bəli/xeyr).
+- Klaviatura ilə xanalar arasında hərəkət (←/→) və Space ilə bəli/xeyr.

@@ -1,4 +1,4 @@
-import { authFile, expect, seedWorkspace, test, type Seed } from "./fixtures";
+import { apiAs, authFile, expect, seedWorkspace, test, type Seed } from "./fixtures";
 
 test.use({ storageState: authFile("alice") });
 
@@ -49,4 +49,23 @@ test("search filters the table", async ({ page }) => {
   await expect(page.getByRole("row").filter({ hasText: "zebra" })).toHaveCount(1);
   await expect(page.getByRole("row").filter({ hasText: "Ödəniş" })).toHaveCount(0);
   await expect(page).toHaveURL(/q=zebra/); // filters are shareable links
+});
+
+test("arrow keys move between rows; Enter opens the focused one", async ({ page }) => {
+  const alice = await apiAs("alice");
+  for (const title of ["Ox birinci", "Ox ikinci", "Ox üçüncü"]) {
+    expect((await alice.post(`workspaces/${seed.ws}/projects/QA/items`, { data: { title } })).status()).toBe(201);
+  }
+  await alice.dispose();
+  await page.goto(seed.url + "?q=Ox"); // newest first
+  await expect(page.getByRole("row").filter({ hasText: "Ox " })).toHaveCount(3);
+  await page.getByRole("button", { name: "Ox üçüncü" }).focus();
+  await page.keyboard.press("ArrowDown");
+  await expect(page.getByRole("button", { name: "Ox ikinci" })).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(page.getByRole("button", { name: "Ox birinci" })).toBeFocused();
+  await page.keyboard.press("ArrowUp");
+  await expect(page.getByRole("button", { name: "Ox ikinci" })).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/[?&]item=4/);
 });

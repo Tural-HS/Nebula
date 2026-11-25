@@ -1,5 +1,5 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { useEffect, useMemo, useRef, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
 
 import type { FieldDefinition, FieldSums, Item, Member } from "../api/types";
 import { SignalCell, StatusText } from "../components/Signals";
@@ -313,8 +313,30 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
     );
   };
 
+  // ↑/↓ on a row's title moves to the row above/below (UI audit): the list
+  // is virtualized, so scroll the row in first, then focus its title.
+  const moveFocus = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+    const at = (e.target as HTMLElement).dataset.row;
+    if (at === undefined) return;
+    e.preventDefault();
+    const next = Number(at) + (e.key === "ArrowDown" ? 1 : -1);
+    if (next < 0) return;
+    if (next >= items.length) {
+      if (hasMore && !loadingMore) loadMore();
+      return;
+    }
+    virtualizer.scrollToIndex(next, { align: "auto" });
+    const focus = (tries: number) => {
+      const el = scrollRef.current?.querySelector<HTMLElement>(`[data-row="${String(next)}"]`);
+      if (el) el.focus();
+      else if (tries > 0) requestAnimationFrame(() => { focus(tries - 1); });
+    };
+    requestAnimationFrame(() => { focus(5); });
+  };
+
   return (
-    <div ref={scrollRef} className="h-full scroll-pt-10 scroll-pb-10 overflow-auto" role="table" aria-rowcount={items.length}>
+    <div ref={scrollRef} className="h-full scroll-pt-10 scroll-pb-10 overflow-auto" role="table" aria-rowcount={items.length} onKeyDown={moveFocus}>
       <div role="row" style={grid} className={cn(ROW, "sticky top-0 z-[2] h-10 border-b border-zinc-400 bg-brand-50 text-2xs font-semibold text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300")}>
         {columns.map((c, i) => {
           const def = isFieldColumn(c) ? fields.get(fieldKey(c)) : undefined;
@@ -382,7 +404,7 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
                     <span key={c} role="cell" style={pin(i).style} className={cn("min-w-0", pin(i).className, line(i))}>
                       {c === "title" ? (
                         <span className="flex min-w-0 flex-col gap-0.5">
-                          <button type="button" className="flex min-w-0 max-w-full text-left" onClick={() => { onOpen(it.number); }}>
+                          <button type="button" data-row={row.index} className="flex min-w-0 max-w-full text-left" onClick={() => { onOpen(it.number); }}>
                             {cell(it, c)}
                           </button>
                           {factCols.length > 0 && facts(it)}
@@ -424,7 +446,7 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
                           />
                         )}
                         {c === "title" ? (
-                          <button type="button" className="flex w-full min-w-0 flex-1 text-left hover:underline" onClick={() => { onOpen(it.number); }}>
+                          <button type="button" data-row={row.index} className="flex w-full min-w-0 flex-1 text-left hover:underline" onClick={() => { onOpen(it.number); }}>
                             {cell(it, c)}
                           </button>
                         ) : kind && edit ? (
