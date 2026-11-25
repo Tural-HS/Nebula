@@ -4,7 +4,7 @@ export const WEBHOOK_FORMATS: readonly WebhookFormat[] = ["nebula", "slack"];
 
 /** Events a chat channel usually wants; the Nebula default stays "item.*". */
 export function defaultEvents(format: WebhookFormat): string {
-  return format === "slack" ? "item.*, comment.created, approval.*" : "item.*";
+  return format === "slack" ? "item.*, comment.created, approval.*, workspace.overdue_digest" : "item.*";
 }
 
 /** The pattern the "send approval events" toggle adds (ADR-0031). */

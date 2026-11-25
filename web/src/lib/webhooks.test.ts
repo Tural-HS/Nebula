@@ -20,7 +20,7 @@ describe("looksLikeChatWebhook", () => {
 describe("defaultEvents", () => {
   it("keeps the Nebula default and adds comments for chat", () => {
     expect(defaultEvents("nebula")).toBe("item.*");
-    expect(defaultEvents("slack")).toBe("item.*, comment.created, approval.*");
+    expect(defaultEvents("slack")).toBe("item.*, comment.created, approval.*, workspace.overdue_digest");
   });
 });
 

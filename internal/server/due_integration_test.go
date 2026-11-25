@@ -173,8 +173,28 @@ func TestOverdueScanTriggersRulesWebhooksAndDigest(t *testing.T) {
 	rc.mu.Lock()
 	last := rc.bodies[len(rc.bodies)-1]
 	rc.mu.Unlock()
-	if err := json.Unmarshal(last, &got); err != nil || got.Type != "workspace.overdue_digest" || got.Data["total"] != 1.0 {
+	if err := json.Unmarshal(last, &got); err != nil || got.Type != "workspace.overdue_digest" || got.Data["total"] != 1.0 ||
+		got.Data["today_total"] != 0.0 {
 		t.Fatalf("digest body: %s", last)
+	}
+
+	// Items due today make a digest too, even with nothing overdue (ADR-0051).
+	v = e.must(200, "alice", "GET", items+"/1", nil).Body["version"]
+	e.must(200, "alice", "PATCH", items+"/1", map[string]any{"version": v, "due_date": ymd(e.today().AddDate(0, 0, 3))})
+	e.must(201, "alice", "POST", items, map[string]any{"title": "Bu günkü zəng", "due_date": ymd(e.today())})
+	if _, err := e.pool.Exec(ctx, `DELETE FROM workspace_digest_runs`); err != nil {
+		t.Fatal(err)
+	}
+	if n, _ = e.st.EmitOverdueDigests(ctx); n != 1 {
+		t.Fatalf("digest with items due today: %d", n)
+	}
+	e.drain()
+	rc.mu.Lock()
+	last = rc.bodies[len(rc.bodies)-1]
+	rc.mu.Unlock()
+	if err := json.Unmarshal(last, &got); err != nil || got.Data["total"] != 0.0 || got.Data["today_total"] != 1.0 ||
+		got.Data["today"].([]any)[0].(map[string]any)["title"] != "Bu günkü zəng" {
+		t.Fatalf("today digest body: %s", last)
 	}
 }
 

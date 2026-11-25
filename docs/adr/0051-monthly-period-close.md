@@ -36,6 +36,14 @@ audit yox idi.
 - Geri qaytarma: bağlanışın özü geri alınmır (köhnə dəyərlər snapshot-dadır, lazım olsa əl ilə və ya toplu
   redaktə ilə). Konfiqurasiyanı söndürmək növbəti bağlanışları dayandırır.
 
+## Əlavə: səhər xülasəsində "bu gün son tarix"
+
+Köhnə skript hər səhər hər şöbənin kanalına günü çatan kartları da göndərirdi. Gündəlik xülasə (ADR-0013) indi iki
+siyahıdır: **📅 Bu gün son tarix** (açıq, son tarixi bu gün) və **⚠️ Gecikmədə olanlar**; ikisi də boşdursa, heç nə
+göndərilmir. Layihəyə bağlı webhook yalnız öz layihələrinin sətirlərini alır — hər şöbənin kanalı üçün bir webhook
+köhnə quruluşu əvəz edir. Payload-a `today`, `today_total`, `today_by_project` əlavə olundu (köhnə sahələr dəyişmir).
+Mattermost/Slack formatlı yeni webhook-un standart hadisələrinə `workspace.overdue_digest` də daxildir.
+
 ## Açıq suallar
 
 - Snapshot-dan "bu ayın dəyərlərini geri yaz" düyməsi.

@@ -17,7 +17,7 @@ test("admin adds a Mattermost webhook; its URL is never shown again", async ({ p
   await expect(page.getByText(/Mattermost\/Slack webhook URL-inə oxşayır/)).toBeVisible();
   await page.getByRole("button", { name: "Mattermost / Slack formatına keç" }).click();
   await expect(page.getByLabel("Format")).toHaveValue("slack");
-  await expect(page.getByLabel(/^Hadisələr/)).toHaveValue("item.*, comment.created, approval.*");
+  await expect(page.getByLabel(/^Hadisələr/)).toHaveValue("item.*, comment.created, approval.*, workspace.overdue_digest");
   await page.getByRole("button", { name: "Yarat" }).click();
 
   const masked = page.getByText("https://chat.example.com/…wx9z", { exact: false }); // scheme, host, last 4

@@ -26,22 +26,22 @@ test("chat webhooks send approval events by default; the toggle edits the events
   await form.getByLabel("Format").selectOption("slack");
   const toggle = form.getByLabel("Təsdiq hadisələrini göndər");
   await expect(toggle).toBeChecked();
-  await expect(form.getByLabel(/^Hadisələr/)).toHaveValue("item.*, comment.created, approval.*");
+  await expect(form.getByLabel(/^Hadisələr/)).toHaveValue("item.*, comment.created, approval.*, workspace.overdue_digest");
   await expect(page.getByText(/«Nebula-da aç» keçidi gedir/)).toBeVisible();
 
   await toggle.uncheck();
-  await expect(form.getByLabel(/^Hadisələr/)).toHaveValue("item.*, comment.created");
+  await expect(form.getByLabel(/^Hadisələr/)).toHaveValue("item.*, comment.created, workspace.overdue_digest");
   await form.getByLabel("URL").fill("https://chat.example.com/hooks/abcdefghijklmnopqrstuvwxyz");
   await form.getByRole("button", { name: "Yarat" }).click();
-  await expect.poll(async () => (await hooks(seed.ws)).map((h) => h.events)).toEqual([["comment.created", "item.*"]]);
+  await expect.poll(async () => (await hooks(seed.ws)).map((h) => h.events)).toEqual([["comment.created", "item.*", "workspace.overdue_digest"]]);
 
   // Ticking it on the saved webhook's card saves at once.
   const card = page.getByText("https://chat.example.com/…wxyz").locator("xpath=ancestor::*[.//button[normalize-space()='Test göndər']][1]");
   const cardToggle = card.getByLabel("Təsdiq hadisələrini göndər");
   await expect(cardToggle).not.toBeChecked();
   await cardToggle.check();
-  await expect.poll(async () => (await hooks(seed.ws))[0]?.events).toEqual(["approval.*", "comment.created", "item.*"]);
-  await expect(card.getByLabel("Hadisələr", { exact: true })).toHaveValue("comment.created, item.*, approval.*");
+  await expect.poll(async () => (await hooks(seed.ws))[0]?.events).toEqual(["approval.*", "comment.created", "item.*", "workspace.overdue_digest"]);
+  await expect(card.getByLabel("Hadisələr", { exact: true })).toHaveValue("comment.created, item.*, workspace.overdue_digest, approval.*");
 });
 
 test("a '*' subscription already includes approvals and cannot untick them", async ({ page }) => {

@@ -167,14 +167,31 @@ func overdueTail(p map[string]any) string {
 	return out
 }
 
-// overdueDigest renders the daily overdue list, stopping before the message
-// limit and saying how many entries were left out.
+// overdueDigest renders the daily digest: items due today, then overdue
+// items, stopping before the message limit and saying how many entries of
+// each list were left out.
 func (c ChatContext) overdueDigest(ev store.Event) string {
+	var b strings.Builder
+	todayTotal, _ := ev.Payload["today_total"].(float64)
+	if today, _ := ev.Payload["today"].([]any); len(today) > 0 || todayTotal > 0 {
+		c.digestSection(ev, &b, fmt.Sprintf("📅 Bu gün son tarix (%d):", max(int(todayTotal), len(today))),
+			today, max(int(todayTotal), len(today)), todayTail, maxChatText/2)
+	}
 	entries, _ := ev.Payload["items"].([]any)
 	total, _ := ev.Payload["total"].(float64)
-	shownTotal := max(int(total), len(entries))
-	var b strings.Builder
-	fmt.Fprintf(&b, "⚠️ Gecikmədə olanlar (%d):", shownTotal)
+	if shownTotal := max(int(total), len(entries)); shownTotal > 0 {
+		if b.Len() > 0 {
+			b.WriteString("\n\n")
+		}
+		c.digestSection(ev, &b, fmt.Sprintf("⚠️ Gecikmədə olanlar (%d):", shownTotal), entries, shownTotal, overdueTail, maxChatText)
+	}
+	return b.String()
+}
+
+// digestSection appends a heading and its entries while b stays under limit.
+func (c ChatContext) digestSection(ev store.Event, b *strings.Builder, heading string, entries []any, total int,
+	tail func(map[string]any) string, limit int) {
+	b.WriteString(heading)
 	shown := 0
 	for _, x := range entries {
 		it, ok := x.(map[string]any)
@@ -189,18 +206,25 @@ func (c ChatContext) overdueDigest(ev store.Event) string {
 		if t := escapeChat(str(it["title"])); t != "" {
 			line += " " + t
 		}
-		line += " — " + overdueTail(it)
+		line += " — " + tail(it)
 		// Reserve room for the "…və daha N" line.
-		if b.Len()+len(line) > maxChatText-40 {
+		if b.Len()+len(line) > limit-40 {
 			break
 		}
 		b.WriteString(line)
 		shown++
 	}
-	if rest := shownTotal - shown; rest > 0 {
-		fmt.Fprintf(&b, "\n…və daha %d", rest)
+	if rest := total - shown; rest > 0 {
+		fmt.Fprintf(b, "\n…və daha %d", rest)
 	}
-	return b.String()
+}
+
+// todayTail renders the assignee of an item due today.
+func todayTail(p map[string]any) string {
+	if n := str(p["assignee_name"]); n != "" {
+		return escapeChat(n)
+	}
+	return "icraçı yoxdur"
 }
 
 func (c ChatContext) digestURL(wsSlug string, it map[string]any) string {

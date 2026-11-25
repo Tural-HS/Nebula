@@ -1,6 +1,11 @@
 package engine
 
-import "testing"
+import (
+	"strings"
+	"testing"
+
+	"github.com/Tural-HS/Nebula/internal/store"
+)
 
 func TestFilterDigest(t *testing.T) {
 	payload := map[string]any{
@@ -28,5 +33,38 @@ func TestFilterDigest(t *testing.T) {
 	}
 	if _, ok := FilterDigest(payload, map[string]bool{"SEC": true}); ok {
 		t.Fatal("a webhook without overdue items in its projects gets no digest")
+	}
+}
+
+func TestFilterDigestDueToday(t *testing.T) {
+	payload := map[string]any{
+		"total": 0.0, "by_project": map[string]any{}, "items": []any{},
+		"today_total": 2.0, "today_by_project": map[string]any{"YIG": 1.0, "HR": 1.0},
+		"today": []any{
+			map[string]any{"key": "YIG-7", "project": "YIG", "title": "Əli", "assignee_name": "Elmar"},
+			map[string]any{"key": "HR-2", "project": "HR", "title": "Məzuniyyət"},
+		},
+	}
+	out, ok := FilterDigest(payload, map[string]bool{"YIG": true})
+	if !ok {
+		t.Fatal("YIG has an item due today")
+	}
+	if today := out["today"].([]any); len(today) != 1 || out["today_total"] != 1 {
+		t.Fatalf("today filtered: %v", out)
+	}
+	text := ChatContext{}.overdueDigest(store.Event{Action: store.ActionOverdueDigest, Payload: out})
+	if !strings.Contains(text, "📅 Bu gün son tarix (1):") || !strings.Contains(text, "YIG-7 Əli — Elmar") || strings.Contains(text, "Gecikmədə") {
+		t.Fatalf("rendered: %q", text)
+	}
+	if _, ok := FilterDigest(payload, map[string]bool{"SEC": true}); ok {
+		t.Fatal("nothing due or overdue in SEC: no digest")
+	}
+	// Both lists: today first, then overdue.
+	payload["total"], payload["by_project"] = 1.0, map[string]any{"YIG": 1.0}
+	payload["items"] = []any{map[string]any{"key": "YIG-1", "project": "YIG", "title": "Köhnə", "days_overdue": 3.0, "due_date": "2026-11-23"}}
+	out, _ = FilterDigest(payload, map[string]bool{"YIG": true})
+	text = ChatContext{}.overdueDigest(store.Event{Action: store.ActionOverdueDigest, Payload: out})
+	if i, j := strings.Index(text, "Bu gün"), strings.Index(text, "Gecikmədə olanlar (1)"); i < 0 || j < i || !strings.Contains(text, "3 gün gecikir") {
+		t.Fatalf("both lists: %q", text)
 	}
 }

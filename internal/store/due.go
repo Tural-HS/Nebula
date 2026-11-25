@@ -94,6 +94,62 @@ func (s *Store) EmitOverdue(ctx context.Context, limit int) (int, error) {
 	return n, err
 }
 
+// openDueToday selects open items due today in the workspace's time zone.
+const openDueToday = `i.deleted_at IS NULL AND i.due_date = ` + localToday + `
+	AND s.category IN ('todo', 'in_progress')`
+
+// digestList returns the entries (oldest maxDigestPerProject per project, at
+// most maxDigestItems), the total and the per-project counts of the open
+// items of a workspace that match cond.
+func digestList(ctx context.Context, tx pgx.Tx, wsID uuid.UUID, cond string) ([]map[string]any, int, map[string]int, error) {
+	counts, err := tx.Query(ctx, `SELECT p.key, count(*) FROM items i
+		JOIN workspaces w ON w.id = i.workspace_id JOIN statuses s ON s.id = i.status_id
+		JOIN projects p ON p.id = i.project_id AND p.archived_at IS NULL
+		WHERE i.workspace_id = $1 AND `+cond+` GROUP BY p.key`, wsID)
+	if err != nil {
+		return nil, 0, nil, err
+	}
+	byProject := map[string]int{}
+	total := 0
+	var key string
+	var cnt int
+	if _, err := pgx.ForEachRow(counts, []any{&key, &cnt}, func() error {
+		byProject[key] = cnt
+		total += cnt
+		return nil
+	}); err != nil {
+		return nil, 0, nil, err
+	}
+	items := []map[string]any{}
+	if total == 0 {
+		return items, 0, byProject, nil
+	}
+	rows, err := tx.Query(ctx, `SELECT id FROM (
+			SELECT i.id, i.due_date, i.number,
+				row_number() OVER (PARTITION BY i.project_id ORDER BY i.due_date, i.number) AS rn
+			FROM items i
+			JOIN workspaces w ON w.id = i.workspace_id JOIN statuses s ON s.id = i.status_id
+			JOIN projects p ON p.id = i.project_id AND p.archived_at IS NULL
+			WHERE i.workspace_id = $1 AND `+cond+`) x
+		WHERE rn <= $3
+		ORDER BY due_date, number LIMIT $2`, wsID, maxDigestItems, maxDigestPerProject)
+	if err != nil {
+		return nil, 0, nil, err
+	}
+	ids, err := pgx.CollectRows(rows, pgx.RowTo[uuid.UUID])
+	if err != nil {
+		return nil, 0, nil, err
+	}
+	for _, id := range ids {
+		e, err := overdueEntry(ctx, tx, id)
+		if err != nil {
+			return nil, 0, nil, err
+		}
+		items = append(items, e)
+	}
+	return items, total, byProject, nil
+}
+
 // overdueEntry describes one overdue item for events and digests.
 func overdueEntry(ctx context.Context, q querier, itemID uuid.UUID) (map[string]any, error) {
 	var (
@@ -175,7 +231,12 @@ func (s *Store) EmitOverdueDigests(ctx context.Context) (int, error) {
 			}); err != nil {
 				return err
 			}
-			if total == 0 {
+			// Due today (open items): the morning reminder of what is due now.
+			today, todayTotal, todayByProject, err := digestList(ctx, tx, r.ws, openDueToday)
+			if err != nil {
+				return err
+			}
+			if total == 0 && todayTotal == 0 {
 				continue
 			}
 			ids, err := tx.Query(ctx, `SELECT id FROM (
@@ -205,6 +266,7 @@ func (s *Store) EmitOverdueDigests(ctx context.Context) (int, error) {
 			payload := map[string]any{
 				"date": r.date, "timezone": r.tz, "total": total, "truncated": total > len(items), "items": items,
 				"by_project": byProject,
+				"today":      today, "today_total": todayTotal, "today_by_project": todayByProject,
 			}
 			if err := appendEvent(ctx, tx, r.ws, uuid.Nil, "workspace", r.ws, ActionOverdueDigest, payload); err != nil {
 				return err
