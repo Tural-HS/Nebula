@@ -42,7 +42,7 @@ export const trp: Messages["reports"] = {
   kpiHint: {
     open: "Şu anda Yapılacak veya Devam ediyor durumunda",
     created: "Dönemde oluşturulan işler",
-    completed: "Dönemde Tamamlandı kategorisindeki bir duruma geçen",
+    completed: "Dönemde Tamamlandı kategorisindeki bir duruma geçen (içe aktarılan tamamlanmış görevler sayılmaz)",
     overdue: "Bitiş tarihi geçmiş açık işler",
     awaiting: "Şu anda bekleyen onay talepleri",
   },

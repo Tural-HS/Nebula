@@ -46,7 +46,7 @@ export const trp = {
   kpiHint: {
     open: "Hazırda “Görüləcək” və ya “İcrada” statusunda",
     created: "Dövrdə yaradılan tapşırıqlar",
-    completed: "Dövrdə “Hazır” kateqoriyalı statusa keçən",
+    completed: "Dövrdə Nebula-da “Hazır” kateqoriyalı statusa keçən (idxal olunmuş hazır tapşırıqlar sayılmır)",
     overdue: "Son tarixi keçmiş açıq tapşırıqlar",
     awaiting: "Hazırda gözləyən təsdiq sorğuları",
   },

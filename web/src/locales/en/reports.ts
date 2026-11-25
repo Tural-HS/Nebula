@@ -45,7 +45,7 @@ export const trp: Messages["reports"] = {
   kpiHint: {
     open: "Currently in a To Do or In Progress status",
     created: "Items created in the period",
-    completed: "Moved to a Done-category status in the period",
+    completed: "Moved to a Done-category status in Nebula in the period (imported done items are not counted)",
     overdue: "Open items past their due date",
     awaiting: "Approval requests pending now",
   },
