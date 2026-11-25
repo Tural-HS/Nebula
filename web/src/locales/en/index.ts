@@ -6,6 +6,7 @@ import { tai as approvalInbox } from "./approvalInbox";
 import { tap as approvals } from "./approvals";
 import { ta as attach } from "./attach";
 import { tc as calendar } from "./calendar";
+import { tcy as cycle } from "./cycle";
 import { tf as formulas } from "./formulas";
 import { tm as money } from "./money";
 import { t as core } from "./core";
@@ -34,4 +35,4 @@ import { tv as views } from "./views";
 import { twc as webhookChat } from "./webhookChat";
 import { tw as workdays } from "./workdays";
 
-export const en: Messages = { absences, admin, approvalInbox, approvals, attach, calendar, core, email, evidence, forms, formulas, home, importer, invite, kinds, ledger, lifecycle, links, mobile, money, notifications, project, recur, reports, search, sla, subtasks, templates, theme, tokens, views, webhookChat, workdays };
+export const en: Messages = { absences, admin, approvalInbox, approvals, attach, calendar, core, cycle, email, evidence, forms, formulas, home, importer, invite, kinds, ledger, lifecycle, links, mobile, money, notifications, project, recur, reports, search, sla, subtasks, templates, theme, tokens, views, webhookChat, workdays };

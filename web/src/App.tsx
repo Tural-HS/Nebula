@@ -25,6 +25,7 @@ const named = <K extends string>(load: () => Promise<Record<K, ComponentType>>, 
   lazy(async () => ({ default: (await load())[name] }));
 const ImportPage = named(() => import("./pages/ImportPage"), "ImportPage");
 const RecurringPage = named(() => import("./pages/RecurringPage"), "RecurringPage");
+const CyclePage = named(() => import("./pages/CyclePage"), "CyclePage");
 const ProjectSettingsPage = named(() => import("./pages/ProjectSettingsPage"), "ProjectSettingsPage");
 const InvitePage = named(() => import("./pages/InvitePage"), "InvitePage");
 const FormPage = named(() => import("./pages/FormPage"), "FormPage");
@@ -95,6 +96,7 @@ export function App() {
             <Route path="/w/:ws/p/:project" element={<ProjectGate><ItemsPage /></ProjectGate>} />
             <Route path="/w/:ws/p/:project/import" element={<ProjectGate><ImportPage /></ProjectGate>} />
             <Route path="/w/:ws/p/:project/recurring" element={<ProjectGate><RecurringPage /></ProjectGate>} />
+            <Route path="/w/:ws/p/:project/cycle" element={<ProjectGate><CyclePage /></ProjectGate>} />
             <Route path="/w/:ws/p/:project/settings" element={<ProjectGate><ProjectSettingsPage /></ProjectGate>} />
             <Route path="/invite/:token" element={<InvitePage />} />
             <Route path="/f/:ref" element={<FormPage />} />

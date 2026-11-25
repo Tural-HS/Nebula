@@ -15,6 +15,7 @@ import { t } from "../i18n";
 import { tap } from "../i18n-approvals";
 import { tp } from "../i18n-project";
 import { tr } from "../i18n-recur";
+import { tcy } from "../i18n-cycle";
 import { ti } from "../i18n-import";
 import { tm } from "../i18n-mobile";
 import { tc } from "../i18n-calendar";
@@ -245,7 +246,7 @@ export function ItemsPage() {
   // on phones (only one layout is rendered at a time, ADR-0019).
   const base = `/w/${encodeURIComponent(ws)}/p/${encodeURIComponent(project)}`;
   const links = [
-    ...(canEdit ? [{ to: `${base}/recurring`, label: tr.nav }] : []),
+    ...(canEdit ? [{ to: `${base}/recurring`, label: tr.nav }, { to: `${base}/cycle`, label: tcy.nav }] : []),
     ...(canImport ? [{ to: `${base}/settings`, label: tp.settings }, { to: `${base}/import`, label: ti.importAction }] : []),
   ];
   const filterCount = activeFilterCount(state);
