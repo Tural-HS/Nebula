@@ -1,5 +1,6 @@
 // English UI dictionary (ADR-0025); keys mirror the Azerbaijani source of truth.
 import type { Messages } from "../../i18n/locale";
+import { tab as absences } from "./absences";
 import { ta as admin } from "./admin";
 import { tai as approvalInbox } from "./approvalInbox";
 import { tap as approvals } from "./approvals";
@@ -30,4 +31,4 @@ import { tv as views } from "./views";
 import { twc as webhookChat } from "./webhookChat";
 import { tw as workdays } from "./workdays";
 
-export const en: Messages = { admin, approvalInbox, approvals, attach, calendar, core, email, evidence, forms, formulas, home, importer, invite, kinds, ledger, lifecycle, links, mobile, notifications, project, recur, reports, search, subtasks, templates, theme, views, webhookChat, workdays };
+export const en: Messages = { absences, admin, approvalInbox, approvals, attach, calendar, core, email, evidence, forms, formulas, home, importer, invite, kinds, ledger, lifecycle, links, mobile, notifications, project, recur, reports, search, subtasks, templates, theme, views, webhookChat, workdays };

@@ -195,10 +195,12 @@ Bütün `/api/v1` endpoint-ləri (`/version` istisna olmaqla) `Authorization: Be
 | `GET, PATCH, DELETE .../items/{number}` | Oxumaq / `version` ilə qismən yeniləmək / soft delete | guest+ / member+ |
 | `GET .../items/{number}/transitions` | Növbəti mümkün statuslar (`requires_approval`: təsdiq tələb edir, ADR-0026) | guest+ |
 | `GET, POST .../items/{number}/approvals` | Təsdiq sorğuları / qorunan statusa keçid üçün sorğu (`to_status_id`, `version`, `comment`) | guest+ / member+ |
-| `POST .../items/{number}/approvals/{id}/approve\|reject\|cancel` | Təsdiqlə (`comment`), rədd et (`reason` məcburi), ləğv et (sorğunu göndərən və ya admin) | member+ |
+| `POST .../items/{number}/approvals/{id}/approve\|reject\|cancel` | Təsdiqlə (`comment`), rədd et (`reason` məcburi), ləğv et (sorğunu göndərən və ya admin); `on_behalf_of`: məzuniyyətdə olan təsdiqçinin adına (ADR-0042) | member+ |
 | `PUT, DELETE .../{ws}/workflows/{id}/statuses/{sid}/approval-policy` | Statusa daxil olmaq üçün təsdiq siyasəti (`min_approvals`, `approver_roles`, `approver_user_ids`; ADR-0034: `reapprove_on_change`, `reapprove_fields`, `due_in_working_days`) | admin+ |
 | `GET .../{ws}/approvals?state=pending&mine=true\|false` | Workspace üzrə gözləyən təsdiq sorğuları (yalnız görünən layihələr; `mine`: qərar verə biləcəkləriniz), `limit`, `cursor` (ADR-0034) | guest+ |
 | `GET .../{ws}/approvals/count?mine=true` | Nişan: `count` (ən çox 100), `overdue` (ADR-0034) | guest+ |
+| `GET, POST .../{ws}/absences` | Cari və gələcək məzuniyyətlər (`user_id` filtri; qeyd yalnız özünə, əvəzləyənə və adminə) / məzuniyyət qeyd etmək (`starts_on`, `ends_on` workspace tarixi, `delegate_id`, `note`; başqası üçün `user_id` yalnız admin) (ADR-0042) | member+ |
+| `PATCH .../{ws}/absences/{id}`, `POST .../{id}/end` | Əvəzləyəni, tarixləri, qeydi dəyişmək / vaxtından əvvəl bitirmək və ya ləğv etmək (özü və ya admin) | member+ |
 | `GET, POST .../items/{number}/comments` | Şərhlər (`cursor`, `limit`) / yazmaq; `<@user-id>` ilə qeydetmə | guest+ / member+ |
 | `PATCH, DELETE .../items/{number}/comments/{id}` | Redaktə (yalnız müəllif) / silmə (müəllif və ya admin) | member+ |
 | `GET, POST .../items/{number}/attachments` | Fayllar və limitlər / yükləmə (`multipart/form-data`: `file`, istəyə bağlı `comment_id`) | guest+ / member+ |

@@ -260,6 +260,10 @@ func (c ChatContext) itemRef() (ref, title string) {
 func actorLabel(ev store.Event, c ChatContext) string {
 	switch {
 	case c.Actor != "":
+		// A delegate decided for an absent approver (ADR-0042): name both.
+		if id, ok := uuidOf(ev.Payload["on_behalf_of"]); ok {
+			return escapeChat(c.Actor) + " (" + c.user(id) + " adına)"
+		}
 		return escapeChat(c.Actor)
 	case ev.Source == "automation":
 		return "Avtomatlaşdırma"
@@ -404,8 +408,10 @@ func (e *Engine) chatContext(ctx context.Context, ev store.Event) (ChatContext, 
 	}
 	users = append(users, uuids(ev.Payload["mentions"])...)
 	if isApprovalEvent(ev.Action) {
-		if id, ok := uuidOf(ev.Payload["requested_by"]); ok {
-			users = append(users, id)
+		for _, k := range []string{"requested_by", "on_behalf_of"} {
+			if id, ok := uuidOf(ev.Payload[k]); ok {
+				users = append(users, id)
+			}
 		}
 		for _, k := range []string{"from_status_id", "to_status_id"} {
 			if id, ok := uuidOf(ev.Payload[k]); ok {
@@ -436,6 +442,12 @@ func (e *Engine) chatContext(ctx context.Context, ev store.Event) (ChatContext, 
 			if c.Approvers, c.ApproversTotal, err = e.Store.PendingApprovers(ctx, ev.WorkspaceID, id, maxChatApprovers); err != nil {
 				return c, err
 			}
+			// Delegates of absent approvers can decide too (ADR-0042).
+			delegates, err := e.Store.PendingDelegates(ctx, ev.WorkspaceID, id, maxChatApprovers)
+			if err != nil {
+				return c, err
+			}
+			c.Approvers, c.ApproversTotal = withDelegates(c.Approvers, c.ApproversTotal, delegates)
 		}
 	}
 	if ev.EntityType == "item" {

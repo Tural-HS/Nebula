@@ -11,6 +11,7 @@ import { DueChip } from "../components/Approvals";
 import { Layout } from "../components/Layout";
 import { Button, EmptyState, ErrorState, Spinner, StatusBadge } from "../components/ui";
 import { t } from "../i18n";
+import { tab } from "../i18n-absences";
 import { tai } from "../i18n-approval-inbox";
 import { tap } from "../i18n-approvals";
 import { ageDays, inboxHref, overdueFirst } from "../lib/approvalInbox";
@@ -110,6 +111,11 @@ function Row({ ws, e }: { ws: string; e: InboxEntry }) {
           <span title={formatDateTime(e.created_at)}>· {tai.age(ageDays(e.created_at))}</span>
           <DueChip dueOn={e.due_on} overdue={e.overdue} />
           {e.can_decide && <span className="rounded bg-brand-50 px-1.5 py-0.5 font-medium text-brand-700 dark:bg-brand-900 dark:text-brand-100">{tai.yourTurn}</span>}
+          {(e.on_behalf_of ?? []).map((p) => (
+            <span key={p.id} data-testid="inbox-on-behalf" className="rounded bg-sky-50 px-1.5 py-0.5 font-medium text-sky-800 dark:bg-sky-950 dark:text-sky-100 [overflow-wrap:anywhere]">
+              <span aria-hidden>🌴 </span>{tab.onBehalf(p.display_name)}
+            </span>
+          ))}
         </span>
       </Link>
     </li>

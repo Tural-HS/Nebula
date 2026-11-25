@@ -355,3 +355,23 @@ func TestParseSigningKey(t *testing.T) {
 		t.Fatal(s.Fingerprint())
 	}
 }
+
+// ADR-0042: a decision made by a delegate names both people in the report.
+func TestReportNamesDelegatedDecisions(t *testing.T) {
+	set := testSet()
+	alice, elmar := set.People[0].ID, uuid.New()
+	set.People = append(set.People, store.EvidencePerson{ID: elmar, DisplayName: "Elmar", Email: "elmar@example.com"})
+	at := set.AsOf.Add(-time.Minute)
+	set.Approvals = []store.EvidenceApproval{{ID: uuid.New(), ItemID: set.Items[0].ID, ItemKey: "FIN-1", State: "approved",
+		RequestedBy: elmar, MinApprovals: 1, Approvals: 1, ApproverRoles: []string{}, ApproverUserIDs: []uuid.UUID{elmar}, CreatedAt: at,
+		Decisions: []store.EvidenceDecision{{UserID: alice, Decision: "approve", CreatedAt: at, OnBehalfOf: &elmar}}}}
+	for lang, want := range map[string]string{
+		"az": "Alice &lt;alice@example.com&gt; (Elmar &lt;elmar@example.com&gt; adına)",
+		"en": "Alice &lt;alice@example.com&gt; (on behalf of Elmar &lt;elmar@example.com&gt;)",
+	} {
+		html, _ := open(t, build(t, testSigner(t), set, KindItem, Params{ItemKey: "FIN-1", Language: lang})).File(ReportFile)
+		if !strings.Contains(string(html), want) {
+			t.Errorf("%s report lacks %q", lang, want)
+		}
+	}
+}

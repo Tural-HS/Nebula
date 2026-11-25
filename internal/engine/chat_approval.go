@@ -177,6 +177,19 @@ func optQuote(v any) string {
 	return ""
 }
 
+// withDelegates adds the delegates of absent approvers to the names on a
+// request card, "Nəzirə (Elmar adına)", keeping at most maxChatApprovers
+// names (the rest count in total).
+func withDelegates(names []string, total int, delegates []store.PendingDelegate) ([]string, int) {
+	for _, d := range delegates {
+		total++
+		if len(names) < maxChatApprovers {
+			names = append(names, d.Name+" ("+strings.Join(d.For, ", ")+" adına)")
+		}
+	}
+	return names, total
+}
+
 // approverList names who may still decide, "Ad1, Ad2 və daha 3 nəfər".
 func (c ChatContext) approverList() string {
 	if len(c.Approvers) == 0 {

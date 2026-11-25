@@ -226,12 +226,14 @@ func (s *Store) CreateNotifications(ctx context.Context, e Event) (int, error) {
 			}
 			addWatchers(NotifyLinkAdded)
 		case EventApprovalRequested:
-			if err := addApprovers(ctx, tx, e, projectID, NotifyApprovalRequested, add); err != nil {
+			if err := addApprovers(ctx, tx, e, projectID, NotifyApprovalRequested, false, add); err != nil {
 				return err
 			}
 		case EventApprovalOverdue:
-			// One reminder (the scan emits the event once per request).
-			if err := addApprovers(ctx, tx, e, projectID, NotifyApprovalOverdue, add); err != nil {
+			// One reminder (the scan emits the event once per request). The
+			// reminder goes to the delegates of absent approvers, not to the
+			// absent approvers themselves (ADR-0042).
+			if err := addApprovers(ctx, tx, e, projectID, NotifyApprovalOverdue, true, add); err != nil {
 				return err
 			}
 			add(payloadUUID(e.Payload["requested_by"]), NotifyApprovalOverdue)
@@ -291,9 +293,12 @@ func (s *Store) CreateNotifications(ctx context.Context, e Event) (int, error) {
 }
 
 // addApprovers adds the people who may decide on a new approval request,
-// from the request's policy snapshot (at most maxApproverNotifyees). Project
-// access is part of eligibility and checked again by the caller.
-func addApprovers(ctx context.Context, tx pgx.Tx, e Event, projectID uuid.UUID, kind string, add func(*uuid.UUID, string)) error {
+// from the request's policy snapshot (at most maxApproverNotifyees), and
+// the delegates who may decide on an absent approver's behalf now
+// (ADR-0042). An absent approver still gets the request notification (it
+// is waiting when they are back) but, with skipAbsent, no reminder.
+// Project access is part of eligibility and checked again by the caller.
+func addApprovers(ctx context.Context, tx pgx.Tx, e Event, projectID uuid.UUID, kind string, skipAbsent bool, add func(*uuid.UUID, string)) error {
 	reqID := payloadUUID(e.Payload["request_id"])
 	if reqID == nil {
 		return nil
@@ -314,8 +319,23 @@ func addApprovers(ctx context.Context, tx pgx.Tx, e Event, projectID uuid.UUID, 
 	if err != nil {
 		return err
 	}
+	var absent []uuid.UUID
+	if skipAbsent {
+		if absent, err = absentToday(ctx, tx, e.WorkspaceID); err != nil {
+			return err
+		}
+	}
 	for _, p := range people {
-		add(&p.ID, kind)
+		if !slices.Contains(absent, p.ID) {
+			add(&p.ID, kind)
+		}
+	}
+	delegates, err := requestDelegates(ctx, tx, r.id, maxApproverNotifyees)
+	if err != nil {
+		return err
+	}
+	for _, d := range delegates {
+		add(&d.ID, kind)
 	}
 	return nil
 }

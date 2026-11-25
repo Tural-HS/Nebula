@@ -45,6 +45,8 @@ type api struct {
 	exports *itemExports
 	// reportsLimiter: workspace reports (reports_api.go).
 	reportsLimiter *ratelimit.Limiter
+	// absenceLimiter: absence changes (absences_api.go).
+	absenceLimiter *ratelimit.Limiter
 }
 
 type ctxKey int
@@ -79,6 +81,7 @@ func (a *api) routes(r chi.Router) {
 		a.calendarRoutes(r)
 		a.evidenceRoutes(r)
 		a.approvalInboxRoutes(r)
+		a.absenceRoutes(r)
 		a.reportsRoutes(r)
 		r.Get("/members", a.listMembers)
 		r.With(requireRole(store.RoleAdmin)).Post("/members", a.addMember)

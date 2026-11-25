@@ -290,6 +290,9 @@ func renderReport(m Manifest, d *store.EvidenceSet) ([]byte, error) {
 		}
 		for _, dec := range a.Decisions {
 			vd := viewDecision{Who: r.person(&dec.UserID), Verb: l.Approve, Time: r.time(dec.CreatedAt)}
+			if dec.OnBehalfOf != nil {
+				vd.Who += " (" + fmt.Sprintf(l.OnBehalf, r.person(dec.OnBehalfOf)) + ")"
+			}
 			if dec.Decision == "reject" {
 				vd.Verb = l.Reject
 			}

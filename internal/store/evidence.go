@@ -115,6 +115,9 @@ type EvidenceDecision struct {
 	Decision  string    `json:"decision"`
 	Comment   *string   `json:"comment"`
 	CreatedAt time.Time `json:"created_at"`
+	// OnBehalfOf: the absent approver this decision was given for by their
+	// delegate (ADR-0042); UserID is always the person who acted.
+	OnBehalfOf *uuid.UUID `json:"on_behalf_of"`
 }
 
 // EvidenceApproval is an approval request (ADR-0026) with its policy
@@ -434,7 +437,8 @@ func evidenceItems(ctx context.Context, tx pgx.Tx, ids []uuid.UUID) ([]EvidenceI
 
 // evidenceEvents are the items' events (link events only when the viewer can
 // see the other item, as in the activity feed) and, for a scope export, the
-// projects' own events and approval policy changes.
+// projects' own events, approval policy changes and absences (who stood in
+// for whom, ADR-0042).
 func evidenceEvents(ctx context.Context, tx pgx.Tx, q EvidenceQuery, set *EvidenceSet, itemIDs []uuid.UUID, keys map[uuid.UUID]string) ([]EvidenceEvent, error) {
 	var projects []uuid.UUID
 	if !q.IsItem() {
@@ -448,7 +452,8 @@ func evidenceEvents(ctx context.Context, tx pgx.Tx, q EvidenceQuery, set *Eviden
 		WHERE e.workspace_id = $1
 		  AND ((e.entity_type = 'item' AND e.entity_id = ANY($2))
 		       OR (e.entity_type = 'project' AND e.entity_id = ANY($3))
-		       OR (NOT $4 AND e.entity_type = 'workflow' AND e.action LIKE 'approval\_policy.%'))
+		       OR (NOT $4 AND e.entity_type = 'workflow' AND e.action LIKE 'approval\_policy.%')
+		       OR (NOT $4 AND e.entity_type = 'absence'))
 		  AND ($5::timestamptz IS NULL OR (e.occurred_at >= $5 AND e.occurred_at < $6))
 		  AND (e.action NOT IN ('link.added', 'link.removed') OR EXISTS (
 		       SELECT 1 FROM items o JOIN projects op ON op.id = o.project_id
@@ -531,7 +536,7 @@ func evidenceApprovals(ctx context.Context, tx pgx.Tx, q EvidenceQuery, itemIDs 
 	for i, a := range list {
 		ids[i], index[a.ID] = a.ID, i
 	}
-	rows, err = tx.Query(ctx, `SELECT request_id, user_id, decision, comment, created_at FROM approval_decisions
+	rows, err = tx.Query(ctx, `SELECT request_id, user_id, decision, comment, created_at, on_behalf_of FROM approval_decisions
 		WHERE request_id = ANY($1) ORDER BY created_at, user_id`, ids)
 	if err != nil {
 		return nil, err
@@ -540,7 +545,7 @@ func evidenceApprovals(ctx context.Context, tx pgx.Tx, q EvidenceQuery, itemIDs 
 	for rows.Next() {
 		var reqID uuid.UUID
 		var d EvidenceDecision
-		if err := rows.Scan(&reqID, &d.UserID, &d.Decision, &d.Comment, &d.CreatedAt); err != nil {
+		if err := rows.Scan(&reqID, &d.UserID, &d.Decision, &d.Comment, &d.CreatedAt, &d.OnBehalfOf); err != nil {
 			return nil, err
 		}
 		a := &list[index[reqID]]
@@ -640,6 +645,7 @@ func evidencePeople(ctx context.Context, tx pgx.Tx, wsID uuid.UUID, set *Evidenc
 		}
 		for _, d := range a.Decisions {
 			add(&d.UserID)
+			add(d.OnBehalfOf)
 		}
 	}
 	for _, l := range set.Links {

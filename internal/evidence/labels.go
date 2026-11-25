@@ -11,6 +11,7 @@ type labels struct {
 	History, ProjectEvents, Requested, By, Transition, State, Required, Decisions, Approve, Reject string
 	CommentDeleted, File, Size, SHA256, Uploader, Time, Who, Action, Details, System, None, Edited string
 	Invalidated                                                                                    string
+	OnBehalf                                                                                       string // fmt: the absent approver (ADR-0042)
 	States                                                                                         map[string]string
 	LinkTypes                                                                                      map[string]string
 }
@@ -26,11 +27,11 @@ var allLabels = map[string]labels{
 		Summary:    "Xülasə", Items: "Tapşırıqlar", Events: "Hadisələr", Comments: "Şərhlər", Approvals: "Təsdiqlər", Links: "Əlaqələr",
 		Attachments: "Fayllar", Project: "Layihə", Type: "Növ", Status: "Status", Assignee: "İcraçı", Reporter: "Yaradan",
 		Created: "Yaradılıb", Updated: "Yenilənib", Due: "Son tarix", Deleted: "Silinib", Fields: "Sahələr", Description: "Təsvir",
-		History: "Tarixçə", ProjectEvents: "Layihə və təsdiq qaydası hadisələri", Requested: "Sorğu", By: "Kim",
+		History: "Tarixçə", ProjectEvents: "Layihə, təsdiq qaydası və əvəzləmə hadisələri", Requested: "Sorğu", By: "Kim",
 		Transition: "Keçid", State: "Vəziyyət", Required: "Tələb olunan", Decisions: "Qərarlar", Approve: "təsdiqlədi",
 		Reject: "rədd etdi", CommentDeleted: "(şərh silinib)", File: "Fayl", Size: "Ölçü", SHA256: "SHA-256",
 		Uploader: "Yükləyən", Time: "Vaxt", Who: "Kim", Action: "Hadisə", Details: "Təfərrüat", System: "sistem / avtomatlaşdırma",
-		None: "—", Edited: "redaktə olunub", Invalidated: "məzmun dəyişdi, təsdiq etibarsızdır",
+		None: "—", Edited: "redaktə olunub", Invalidated: "məzmun dəyişdi, təsdiq etibarsızdır", OnBehalf: "%s adına",
 		States:    map[string]string{"pending": "gözləyir", "approved": "təsdiqlənib", "rejected": "rədd edilib", "canceled": "ləğv edilib"},
 		LinkTypes: map[string]string{"blocks": "bloklayır", "relates": "əlaqəlidir", "duplicates": "təkrarlayır"},
 	},
@@ -44,11 +45,11 @@ var allLabels = map[string]labels{
 		Summary:    "Summary", Items: "Items", Events: "Events", Comments: "Comments", Approvals: "Approvals", Links: "Links",
 		Attachments: "Attachments", Project: "Project", Type: "Type", Status: "Status", Assignee: "Assignee", Reporter: "Reporter",
 		Created: "Created", Updated: "Updated", Due: "Due date", Deleted: "Deleted", Fields: "Fields", Description: "Description",
-		History: "History", ProjectEvents: "Project and approval policy events", Requested: "Requested", By: "By",
+		History: "History", ProjectEvents: "Project, approval policy and delegation events", Requested: "Requested", By: "By",
 		Transition: "Transition", State: "State", Required: "Required", Decisions: "Decisions", Approve: "approved",
 		Reject: "rejected", CommentDeleted: "(comment deleted)", File: "File", Size: "Size", SHA256: "SHA-256",
 		Uploader: "Uploaded by", Time: "Time", Who: "Who", Action: "Event", Details: "Details", System: "system / automation",
-		None: "—", Edited: "edited", Invalidated: "content changed, approval invalidated",
+		None: "—", Edited: "edited", Invalidated: "content changed, approval invalidated", OnBehalf: "on behalf of %s",
 		States:    map[string]string{"pending": "pending", "approved": "approved", "rejected": "rejected", "canceled": "canceled"},
 		LinkTypes: map[string]string{"blocks": "blocks", "relates": "relates to", "duplicates": "duplicates"},
 	},
@@ -62,11 +63,11 @@ var allLabels = map[string]labels{
 		Summary:    "Özet", Items: "Görevler", Events: "Olaylar", Comments: "Yorumlar", Approvals: "Onaylar", Links: "Bağlantılar",
 		Attachments: "Dosyalar", Project: "Proje", Type: "Tür", Status: "Durum", Assignee: "Atanan", Reporter: "Oluşturan",
 		Created: "Oluşturuldu", Updated: "Güncellendi", Due: "Bitiş tarihi", Deleted: "Silindi", Fields: "Alanlar", Description: "Açıklama",
-		History: "Geçmiş", ProjectEvents: "Proje ve onay kuralı olayları", Requested: "Talep", By: "Kim",
+		History: "Geçmiş", ProjectEvents: "Proje, onay kuralı ve vekâlet olayları", Requested: "Talep", By: "Kim",
 		Transition: "Geçiş", State: "Durum", Required: "Gerekli", Decisions: "Kararlar", Approve: "onayladı",
 		Reject: "reddetti", CommentDeleted: "(yorum silindi)", File: "Dosya", Size: "Boyut", SHA256: "SHA-256",
 		Uploader: "Yükleyen", Time: "Zaman", Who: "Kim", Action: "Olay", Details: "Ayrıntı", System: "sistem / otomasyon",
-		None: "—", Edited: "düzenlendi", Invalidated: "içerik değişti, onay geçersiz",
+		None: "—", Edited: "düzenlendi", Invalidated: "içerik değişti, onay geçersiz", OnBehalf: "%s adına",
 		States:    map[string]string{"pending": "bekliyor", "approved": "onaylandı", "rejected": "reddedildi", "canceled": "iptal edildi"},
 		LinkTypes: map[string]string{"blocks": "engelliyor", "relates": "ilişkili", "duplicates": "yineliyor"},
 	},
@@ -80,11 +81,11 @@ var allLabels = map[string]labels{
 		Summary:    "Сводка", Items: "Задачи", Events: "События", Comments: "Комментарии", Approvals: "Согласования", Links: "Связи",
 		Attachments: "Файлы", Project: "Проект", Type: "Тип", Status: "Статус", Assignee: "Исполнитель", Reporter: "Автор",
 		Created: "Создана", Updated: "Обновлена", Due: "Срок", Deleted: "Удалена", Fields: "Поля", Description: "Описание",
-		History: "История", ProjectEvents: "События проекта и правил согласования", Requested: "Запрос", By: "Кто",
+		History: "История", ProjectEvents: "События проекта, правил согласования и замещения", Requested: "Запрос", By: "Кто",
 		Transition: "Переход", State: "Состояние", Required: "Требуется", Decisions: "Решения", Approve: "согласовал(а)",
 		Reject: "отклонил(а)", CommentDeleted: "(комментарий удалён)", File: "Файл", Size: "Размер", SHA256: "SHA-256",
 		Uploader: "Загрузил(а)", Time: "Время", Who: "Кто", Action: "Событие", Details: "Подробности", System: "система / автоматизация",
-		None: "—", Edited: "изменён", Invalidated: "содержание изменено, согласование аннулировано",
+		None: "—", Edited: "изменён", Invalidated: "содержание изменено, согласование аннулировано", OnBehalf: "за %s",
 		States:    map[string]string{"pending": "ожидает", "approved": "согласовано", "rejected": "отклонено", "canceled": "отменено"},
 		LinkTypes: map[string]string{"blocks": "блокирует", "relates": "связана с", "duplicates": "дублирует"},
 	},

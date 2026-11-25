@@ -96,7 +96,7 @@ func NewAPIHandler(d Deps) http.Handler {
 			(&api{store: d.Store, logger: d.Logger, webhookOpts: d.Webhooks, publicURL: d.PublicURL,
 				attach: d.Attachments, uploadLimiter: newUploadLimiter(d.Attachments.UploadsPerMinute),
 				evidence: newEvidenceExports(d.EvidenceSigner), version: d.Version,
-				mail: mailRouter(d), emailTestLimiter: newEmailTestLimiter(), exports: newItemExports(d.ExportMaxRows), reportsLimiter: newReportsLimiter()}).routes(r)
+				mail: mailRouter(d), emailTestLimiter: newEmailTestLimiter(), exports: newItemExports(d.ExportMaxRows), reportsLimiter: newReportsLimiter(), absenceLimiter: newAbsenceLimiter()}).routes(r)
 		})
 	})
 

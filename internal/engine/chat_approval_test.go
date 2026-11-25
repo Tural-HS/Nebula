@@ -234,3 +234,29 @@ func TestRenderChatMessageReapprovalAndOverdue(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// ADR-0042: a delegate's decision names both people; the request card
+// lists delegates of absent approvers.
+func TestApprovalCardDelegation(t *testing.T) {
+	c, p, eve := approvalFixture()
+	elmar := uuid.New()
+	c.Users[elmar] = "Elmar"
+	ev := store.Event{Action: store.EventApprovalApproved, ActorID: &eve, EntityType: "item",
+		Payload: withPayload(p, map[string]any{"approvals": 1.0, "on_behalf_of": elmar.String()})}
+	msg := RenderChatMessage(ev, c)
+	if got := fieldMap(msg.Attachments[0])["Təsdiqləyən"]; got != "Eve (Elmar adına)" {
+		t.Fatalf("approver field: %q", got)
+	}
+	if !strings.Contains(msg.Text, "Eve (Elmar adına) ") {
+		t.Fatalf("text: %q", msg.Text)
+	}
+	names, total := withDelegates([]string{"Erin"}, 1, []store.PendingDelegate{{Name: "Nəzirə", For: []string{"Elmar"}}})
+	if total != 2 || strings.Join(names, "|") != "Erin|Nəzirə (Elmar adına)" {
+		t.Fatalf("delegates: %v %d", names, total)
+	}
+	full := make([]string, maxChatApprovers)
+	names, total = withDelegates(full, maxChatApprovers, []store.PendingDelegate{{Name: "X", For: []string{"Y"}}})
+	if len(names) != maxChatApprovers || total != maxChatApprovers+1 {
+		t.Fatalf("cap: %d %d", len(names), total)
+	}
+}

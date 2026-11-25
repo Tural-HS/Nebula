@@ -11,6 +11,7 @@ import { EmptyState, Spinner } from "./components/ui";
 import { WorkspaceAccent } from "./components/WorkspaceAccent";
 import { t } from "./i18n";
 import { ItemsPage } from "./pages/ItemsPage";
+import { AbsencePage } from "./pages/AbsencePage";
 import { ApprovalsInboxPage } from "./pages/ApprovalsInboxPage";
 import { ReportsPage } from "./pages/ReportsPage";
 import { ProjectsPage } from "./pages/ProjectsPage";
@@ -86,6 +87,7 @@ export function App() {
             <Route path="/" element={<HomePage />} />
             <Route path="/w/:ws" element={<ProjectsPage />} />
             <Route path="/w/:ws/approvals" element={<ApprovalsInboxPage />} />
+            <Route path="/w/:ws/absence" element={<AbsencePage />} />
             <Route path="/w/:ws/reports" element={<ReportsPage />} />
             <Route path="/w/:ws/p/:project" element={<ProjectGate><ItemsPage /></ProjectGate>} />
             <Route path="/w/:ws/p/:project/import" element={<ProjectGate><ImportPage /></ProjectGate>} />

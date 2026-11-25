@@ -427,7 +427,8 @@ func (s *Store) itemFilter(ctx context.Context, p ListItemsParams, withStatus bo
 		where = append(where, `EXISTS (SELECT 1 FROM approval_requests far WHERE far.item_id = i.id AND far.state = 'pending'
 			AND far.requested_by <> `+u+` AND `+r+`::text <> 'guest'
 			AND (`+r+`::text = ANY(far.approver_roles) OR `+u+`::uuid = ANY(far.approver_user_ids))
-			AND NOT EXISTS (SELECT 1 FROM approval_decisions fd WHERE fd.request_id = far.id AND fd.user_id = `+u+`))`)
+			AND NOT EXISTS (SELECT 1 FROM approval_decisions fd WHERE fd.request_id = far.id
+			    AND (fd.user_id = `+u+` OR fd.on_behalf_of = `+u+`)))`)
 	default:
 		return nil, nil, invalid("approval", "must be pending or mine")
 	}

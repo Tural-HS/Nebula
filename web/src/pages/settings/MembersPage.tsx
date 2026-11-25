@@ -1,11 +1,15 @@
 import { useState } from "react";
 
+import { useAbsences } from "../../api/absences";
 import { useAdminApi, useInvitations } from "../../api/admin";
 import { useMe, useMembers, useWorkspace } from "../../api/hooks";
 import { roleAtLeast, type Role } from "../../api/types";
+import { AbsenceDialog, AbsenceList } from "../../components/Absence";
 import { Avatar, Button, ErrorState, Input, Select, Spinner } from "../../components/ui";
+import { tab } from "../../i18n-absences";
 import { ta } from "../../i18n-admin";
-import { formatDateTime } from "../../lib/format";
+import { absenceOf, canBeAbsent } from "../../lib/absences";
+import { formatDate, formatDateTime } from "../../lib/format";
 import { Card, SettingsLayout } from "./SettingsLayout";
 import { useFeedback } from "./useErrorToast";
 
@@ -27,6 +31,9 @@ function Members({ ws }: { ws: string }) {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<Role>("member");
   const invitations = useInvitations(ws, isAdmin);
+  // ADR-0042: who is away (members and up see it), admins manage it.
+  const absences = useAbsences(ws, myRole !== undefined && myRole !== "guest");
+  const [recording, setRecording] = useState(false);
 
   if (members.isPending) return <Spinner />;
   if (members.isError) return <ErrorState error={members.error} />;
@@ -87,6 +94,20 @@ function Members({ ws }: { ws: string }) {
           </ul>
         </Card>
       )}
+      {isAdmin && (
+        <Card label={tab.admin.title}>
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <h2 className="text-sm font-semibold">{tab.admin.title}</h2>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">{tab.admin.hint}</p>
+            </div>
+            <Button onClick={() => { setRecording(true); }}>{tab.admin.set}</Button>
+          </div>
+          {absences.isError && <ErrorState error={absences.error} onRetry={() => void absences.refetch()} />}
+          {absences.data && absences.data.length > 0 && <AbsenceList ws={ws} list={absences.data} showUser />}
+          <AbsenceDialog ws={ws} open={recording} onClose={() => { setRecording(false); }} members={members.data.filter(canBeAbsent)} />
+        </Card>
+      )}
       <Card className="p-0">
         <ul className="divide-y divide-zinc-200 dark:divide-zinc-800">
           {members.data.map((m) => {
@@ -98,6 +119,7 @@ function Members({ ws }: { ws: string }) {
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">{m.display_name}{self && <span className="text-zinc-500 dark:text-zinc-400"> ({ta.you})</span>}</p>
                   <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">{m.email}</p>
+                  <AwayLine absence={absenceOf(absences.data, m.user_id)} />
                 </div>
                 {canChange ? (
                   <Select
@@ -128,5 +150,17 @@ function Members({ ws }: { ws: string }) {
         </ul>
       </Card>
     </div>
+  );
+}
+
+/** "Away until 28 Nov" / "Away from 1 Dec" under a member's name (ADR-0042). */
+function AwayLine({ absence }: { absence: ReturnType<typeof absenceOf> }) {
+  if (!absence) return null;
+  return (
+    <p data-testid="member-away" className="text-xs text-sky-800 dark:text-sky-200 [overflow-wrap:anywhere]">
+      <span aria-hidden>🌴 </span>
+      {absence.active ? tab.admin.awayUntil(formatDate(absence.ends_on)) : tab.admin.awayFrom(formatDate(absence.starts_on))}
+      {absence.delegate && <> · {tab.panelDelegate(absence.delegate.display_name)}</>}
+    </p>
   );
 }
