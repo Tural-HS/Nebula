@@ -11,6 +11,7 @@ import { Markdown } from "./Markdown";
 import { useToast } from "./toast-context";
 import { Avatar, Button, ErrorState, Spinner } from "./ui";
 import { WritePreview } from "./WritePreview";
+import { useConfirm } from "./confirm-context";
 
 interface Props {
   ws: string;
@@ -25,6 +26,7 @@ interface Props {
 }
 
 export function Comments({ ws, project, n, members, mentionable, meId, canWrite, isAdmin }: Props) {
+  const confirm = useConfirm();
   const q = useComments(ws, project, n);
   const m = useCommentMutations(ws, project, n);
   const toast = useToast();
@@ -58,7 +60,7 @@ export function Comments({ ws, project, n, members, mentionable, meId, canWrite,
               m.update.mutate({ id: c.id, body }, { onError });
             }}
             onDelete={() => {
-              if (window.confirm(t.confirmDeleteComment)) m.remove.mutate(c.id, { onError });
+              void confirm({ title: t.areYouSure, body: t.confirmDeleteComment, action: t.delete, danger: true }).then((ok) => { if (ok) m.remove.mutate(c.id, { onError }); });
             }}
           />
         ))}

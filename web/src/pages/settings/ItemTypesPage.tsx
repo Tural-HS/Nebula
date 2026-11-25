@@ -9,6 +9,7 @@ import { ta } from "../../i18n-admin";
 import { slugKey } from "../../lib/slug";
 import { Card, SettingsLayout } from "./SettingsLayout";
 import { useFeedback } from "./useErrorToast";
+import { useConfirm } from "../../components/confirm-context";
 
 export function ItemTypesPage() {
   return <SettingsLayout title={ta.nav.itemTypes}>{(ws) => <ItemTypes ws={ws} />}</SettingsLayout>;
@@ -70,6 +71,7 @@ function NewType({ ws }: { ws: string }) {
 }
 
 function TypeCard({ ws, type, workflowName, fields }: { ws: string; type: ItemType; workflowName: string; fields: FieldDefinition[] }) {
+  const confirm = useConfirm();
   const adm = useAdminApi(ws);
   const fb = useFeedback();
   const [name, setName] = useState(type.name);
@@ -95,7 +97,7 @@ function TypeCard({ ws, type, workflowName, fields }: { ws: string; type: ItemTy
         <Button
           variant="ghost"
           className="ml-auto text-red-600"
-          onClick={() => { if (window.confirm(ta.confirm)) adm.archiveType.mutate(type.key, { onSuccess: fb.ok(), onError: fb.fail }); }}
+          onClick={() => { void confirm({ title: ta.confirm, action: t.proceed }).then((ok) => { if (ok) adm.archiveType.mutate(type.key, { onSuccess: fb.ok(), onError: fb.fail }); }); }}
         >
           {ta.archive}
         </Button>

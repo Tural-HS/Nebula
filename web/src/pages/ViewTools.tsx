@@ -10,6 +10,7 @@ import { tv } from "../i18n-views";
 import { cn } from "../lib/cn";
 import { valueType } from "../lib/formula";
 import { BUILTIN_COLUMNS, columnHeader, DEFAULT_COLUMNS, MAX_COLUMNS, moveColumn, viewFromState, type PageState } from "../lib/views";
+import { useConfirm } from "../components/confirm-context";
 
 /**
  * A small disclosure panel that closes on outside click and Escape. Inline,
@@ -87,6 +88,7 @@ export function ViewSwitcher({ ws, project, views, active, dirty, state, isAdmin
   defaultViewId?: string | null;
   onSetDefault?: (id: string | null) => Promise<unknown>;
 }) {
+  const confirm = useConfirm();
   const toast = useToast();
   const m = useViewMutations(ws, project);
   const [dialog, setDialog] = useState<"create" | "rename" | null>(null);
@@ -189,8 +191,9 @@ export function ViewSwitcher({ ws, project, views, active, dirty, state, isAdmin
               variant="ghost"
               className="justify-start text-red-700 dark:text-red-400"
               onClick={() => {
-                if (!window.confirm(tv.confirmDelete(active.name))) return;
-                void run(m.remove.mutateAsync(active.id).then(() => { onSelect(null); }), t.deleted);
+                void confirm({ title: tv.confirmDelete(active.name), action: t.delete, danger: true }).then((ok) => {
+                  if (ok) void run(m.remove.mutateAsync(active.id).then(() => { onSelect(null); }), t.deleted);
+                });
               }}
             >
               {tv.remove}

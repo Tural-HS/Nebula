@@ -46,8 +46,8 @@ test("admin points the workspace at Mailpit and the test email arrives", async (
   await expect(page.getByRole("alert").filter({ hasText: "member of this workspace" })).toBeVisible();
 
   // Back to the server configuration.
-  page.once("dialog", (d) => void d.accept());
   await page.getByRole("button", { name: "Server konfiqurasiyasına qayıt" }).click();
+  await page.getByRole("dialog", { name: "Əminsiniz?" }).getByRole("button", { name: "Sil" }).click();
   await expect(page.getByRole("status").filter({ hasText: "Hazırda server konfiqurasiyası istifadə olunur" })).toBeVisible();
 });
 

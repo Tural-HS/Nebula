@@ -10,6 +10,8 @@ export const t = {
   signOut: "Sign out",
   retry: "Try again",
   cancel: "Cancel",
+  proceed: "Continue",
+  areYouSure: "Are you sure?",
   save: "Save",
   create: "Create",
   delete: "Delete",

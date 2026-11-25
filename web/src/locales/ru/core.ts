@@ -12,6 +12,8 @@ export const t = {
   signOut: "Выйти",
   retry: "Повторить",
   cancel: "Отмена",
+  proceed: "Продолжить",
+  areYouSure: "Вы уверены?",
   save: "Сохранить",
   create: "Создать",
   delete: "Удалить",

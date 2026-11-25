@@ -28,15 +28,15 @@ test.describe("as admin", () => {
 
   test("units in cells and totals, key facts, folded sections", async ({ page }) => {
     await page.goto(`${seed.url}?cols=key,title,status,field.balance,field.phone,field.nv`);
-    await expect(page.getByRole("row").filter({ hasText: "Kullinan MMC" })).toContainText("800 ₼");
-    await expect(page.getByRole("row", { name: "Cəmi" })).toContainText("2 000 ₼");
+    await expect(page.getByRole("row").filter({ hasText: "Kullinan MMC" })).toContainText("800,00 ₼");
+    await expect(page.getByRole("row", { name: "Cəmi" })).toContainText("2 000,00 ₼");
     // No row has a signal: no empty column.
     await expect(page.getByRole("columnheader", { name: "Siqnal" })).toHaveCount(0);
 
     await page.getByRole("button", { name: "Kullinan MMC" }).click();
     const panel = page.getByRole("dialog", { name: "QA-2" });
     const facts = panel.getByRole("region", { name: "Əsas məlumat" });
-    await expect(facts).toContainText("800 ₼");
+    await expect(facts).toContainText("800,00 ₼");
     await expect(facts.getByRole("link", { name: "515614145" })).toHaveAttribute("href", "tel:515614145");
     // An account-like number is not a phone link.
     await expect(facts.getByRole("link", { name: "10YX930" })).toHaveCount(0);
@@ -87,7 +87,7 @@ test.describe("as admin", () => {
     // Saved: the button goes once the field comes back with the new unit.
     await expect(page.getByRole("button", { name: "Vahidi saxla" })).toHaveCount(0);
     await page.goto(`${seed.url}?cols=key,title,field.balance`);
-    await expect(page.getByRole("row").filter({ hasText: "Kullinan MMC" })).toContainText("800 AZN");
+    await expect(page.getByRole("row").filter({ hasText: "Kullinan MMC" })).toContainText("800,00 AZN");
   });
 });
 

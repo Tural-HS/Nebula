@@ -15,6 +15,7 @@ import { cn } from "../lib/cn";
 import { formatBytes, formatRelative } from "../lib/format";
 import { useToast } from "./toast-context";
 import { Button, ErrorState, Spinner } from "./ui";
+import { useConfirm } from "./confirm-context";
 
 interface Props {
   ws: string;
@@ -27,6 +28,7 @@ interface Props {
 
 /** An item's files: list, image previews, upload by button or drag & drop. */
 export function Attachments({ ws, project, n, meId, canWrite, isAdmin }: Props) {
+  const confirm = useConfirm();
   const q = useAttachments(ws, project, n);
   const m = useAttachmentMutations(ws, project, n);
   const toast = useToast();
@@ -131,8 +133,9 @@ export function Attachments({ ws, project, n, meId, canWrite, isAdmin }: Props) 
                 canDelete={canWrite && (a.uploader?.id === meId || isAdmin)}
                 onDownload={() => { downloadAttachment(ws, project, n, a).catch(error); }}
                 onDelete={() => {
-                  if (!window.confirm(ta.confirmRemove(a.filename))) return;
-                  m.remove.mutate(a.id, { onSuccess: () => { toast("success", ta.removed); }, onError: error });
+                  void confirm({ title: t.areYouSure, body: ta.confirmRemove(a.filename), action: t.delete, danger: true }).then((ok) => {
+                    if (ok) m.remove.mutate(a.id, { onSuccess: () => { toast("success", ta.removed); }, onError: error });
+                  });
                 }}
               />
             ))}

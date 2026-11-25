@@ -225,6 +225,16 @@ function numberText(n: number): string {
 }
 
 /** A field value as text, by field type ("" when empty). */
+// Units that are currencies show two decimals ("622,20 ₼" beside "1 315,00 ₼").
+const CURRENCY_UNITS = new Set(["₼", "AZN", "USD", "$", "EUR", "€", "RUB", "₽", "TRY", "₺", "GBP", "£"]);
+
+/** Two decimals for a currency unit, else the number as given. */
+export function amountText(v: string | number, def: FieldDefinition | undefined): string {
+  const unit = def?.type === "number" ? def.options.unit : undefined;
+  if (unit && CURRENCY_UNITS.has(unit.toUpperCase()) && Number.isFinite(Number(v))) return formatDecimal(Number(v).toFixed(2));
+  return formatDecimal(v);
+}
+
 /** A number with its field's display unit ("2 665 ₼"); a no-break space keeps them together. */
 export function withUnit(text: string, def: FieldDefinition | undefined): string {
   const unit = def?.type === "number" ? def.options.unit : undefined;
@@ -239,7 +249,7 @@ export function formatFieldValue(def: FieldDefinition | undefined, v: FieldValue
   const label = (id: string) => def.options.choices?.find((c) => c.id === id)?.label ?? "?";
   switch (valueType(def)) {
     case "number":
-      return typeof v === "number" ? withUnit(formatDecimal(v), def) : String(v);
+      return typeof v === "number" ? withUnit(amountText(v, def), def) : String(v);
     case "money":
       return ""; // not in the stored form
     case "date":

@@ -14,6 +14,7 @@ import { tw } from "../i18n-workdays";
 import { cn } from "../lib/cn";
 import { formatDate } from "../lib/format";
 import { describeSchedule, renderTitle, WEEKDAYS } from "../lib/recurrence";
+import { useConfirm } from "../components/confirm-context";
 
 export function RecurringPage() {
   const { ws = "", project = "" } = useParams();
@@ -84,6 +85,7 @@ function Rules({ ws, project, isAdmin }: { ws: string; project: string; isAdmin:
 function RuleRow({ rule, assignee, isAdmin, onEdit, ws, project }: {
   rule: Recurrence; assignee: Member | undefined; isAdmin: boolean; onEdit: () => void; ws: string; project: string;
 }) {
+  const confirm = useConfirm();
   const rapi = useRecurrenceApi(ws, project);
   const toast = useToast();
   const state = rule.last_error ? tr.failed : !rule.enabled ? tr.disabled : rule.next_due === null ? tr.ended : null;
@@ -108,7 +110,7 @@ function RuleRow({ rule, assignee, isAdmin, onEdit, ws, project }: {
               variant="ghost"
               className="text-red-600"
               onClick={() => {
-                if (window.confirm(tr.confirmDelete)) rapi.remove.mutate(rule.id, { onError: () => { toast("error", t.errorGeneric); } });
+                void confirm({ title: t.areYouSure, body: tr.confirmDelete, action: t.delete, danger: true }).then((ok) => { if (ok) rapi.remove.mutate(rule.id, { onError: () => { toast("error", t.errorGeneric); } }); });
               }}
             >
               {t.delete}

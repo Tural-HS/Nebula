@@ -1,3 +1,4 @@
+import { t } from "../../i18n";
 import { useState } from "react";
 
 import { useAbsences } from "../../api/absences";
@@ -12,6 +13,7 @@ import { absenceOf, canBeAbsent } from "../../lib/absences";
 import { formatDate, formatDateTime } from "../../lib/format";
 import { Card, SettingsLayout } from "./SettingsLayout";
 import { useFeedback } from "./useErrorToast";
+import { useConfirm } from "../../components/confirm-context";
 
 const ROLES: Role[] = ["guest", "member", "admin", "owner"];
 
@@ -20,6 +22,7 @@ export function MembersPage() {
 }
 
 function Members({ ws }: { ws: string }) {
+  const confirm = useConfirm();
   const members = useMembers(ws);
   const me = useMe();
   const workspace = useWorkspace(ws);
@@ -85,7 +88,7 @@ function Members({ ws }: { ws: string }) {
                 <Button
                   variant="ghost"
                   className="text-red-600"
-                  onClick={() => { if (window.confirm(ta.confirmRevoke)) adm.revokeInvite.mutate(inv.id, { onSuccess: fb.ok(), onError: fb.fail }); }}
+                  onClick={() => { void confirm({ title: t.areYouSure, body: ta.confirmRevoke, action: t.proceed, danger: true }).then((ok) => { if (ok) adm.revokeInvite.mutate(inv.id, { onSuccess: fb.ok(), onError: fb.fail }); }); }}
                 >
                   {ta.revoke}
                 </Button>
@@ -138,7 +141,7 @@ function Members({ ws }: { ws: string }) {
                     variant="ghost"
                     className="text-red-600"
                     onClick={() => {
-                      if (window.confirm(ta.confirmRemoveMember(m.display_name))) adm.removeMember.mutate(m.user_id, { onSuccess: fb.ok(), onError: fb.fail });
+                      void confirm({ title: t.areYouSure, body: ta.confirmRemoveMember(m.display_name), action: t.proceed, danger: true }).then((ok) => { if (ok) adm.removeMember.mutate(m.user_id, { onSuccess: fb.ok(), onError: fb.fail }); });
                     }}
                   >
                     {self ? ta.leave : ta.remove}

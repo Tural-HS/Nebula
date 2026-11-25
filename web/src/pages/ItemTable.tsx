@@ -14,7 +14,7 @@ import { tv } from "../i18n-views";
 import { cn } from "../lib/cn";
 import { formatDateTime, formatRelative } from "../lib/format";
 import { displayColumns, FINE_POINTER, useCompact, useMediaQuery } from "../lib/responsive";
-import { columnHeader, fieldKey, formatDecimal, formatFieldValue, isFieldColumn, withUnit } from "../lib/views";
+import { amountText, columnHeader, fieldKey, formatFieldValue, isFieldColumn, withUnit } from "../lib/views";
 import { isAmount, isFormula, isSortable, valueType } from "../lib/formula";
 import { filterKind } from "../lib/columnFilter";
 import type { Density } from "../lib/density";
@@ -432,7 +432,7 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
                 title={s ? (money !== undefined ? `${tm.totalsLabel(money)}\n${tm.noFx}\n${tv.totalHint(s.count)}` : tv.totalHint(s.count)) : undefined}
                 data-money-total={money !== undefined ? "" : undefined}
               >
-                {numeric(c) ? (s ? (money ?? withUnit(formatDecimal(s.sum ?? "0"), fields.get(fieldKey(c)))) : "…") : i === labelAt ? tv.total : ""}
+                {numeric(c) ? (s ? (money ?? withUnit(amountText(s.sum ?? "0", fields.get(fieldKey(c))), fields.get(fieldKey(c)))) : "…") : i === labelAt ? tv.total : ""}
               </span>
             );
           })}
