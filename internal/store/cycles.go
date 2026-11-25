@@ -25,12 +25,17 @@ import (
 
 const (
 	maxCycleFields = 20
-	// maxCycleItems bounds one close (a few statements per item in one
-	// transaction). A bigger project fails with a clear error instead of
-	// running into the statement timeout.
-	maxCycleItems = 5000
-	cycleBatch    = 50 // projects per scheduler tick
-	periodLayout  = "2006-01"
+	// maxCycleItems bounds one close: each reset item is a full edit (about a
+	// dozen statements, ~7 ms), so 2000 items take ~15 s, well inside the
+	// scheduler's close budget (engine.cycleBudget). A bigger project fails
+	// with a clear error instead of timing out.
+	maxCycleItems = 2000
+	// maxLateDays: a scheduled close this many days late is not applied by
+	// itself: resetting now would wipe marks people already set this month
+	// and snapshot them under the old month. An admin closes it by hand.
+	maxLateDays  = 3
+	cycleBatch   = 50 // projects per scheduler tick
+	periodLayout = "2006-01"
 )
 
 // CycleRefill sets Target to the value of Source when a month is closed.
@@ -113,15 +118,6 @@ func nextRunAfter(today time.Time, day int) time.Time {
 	d := time.Date(today.Year(), today.Month(), day, 0, 0, 0, 0, time.UTC)
 	if !d.After(today) {
 		d = d.AddDate(0, 1, 0)
-	}
-	return d
-}
-
-// lastRunOnOrBefore is the latest date on or before today that falls on day.
-func lastRunOnOrBefore(today time.Time, day int) time.Time {
-	d := time.Date(today.Year(), today.Month(), day, 0, 0, 0, 0, time.UTC)
-	if d.After(today) {
-		d = d.AddDate(0, -1, 0)
 	}
 	return d
 }
@@ -391,9 +387,10 @@ func (c Cycle) input() CycleInput {
 		IncludeClosed: c.IncludeClosed, ResetStatusID: c.ResetStatusID}
 }
 
-// parsePeriod reads an explicit YYYY-MM for a manual close: any past month
-// that is not closed yet, or the current one (closing it early on purpose;
-// the scheduled close of that month is then skipped).
+// parsePeriod reads an explicit YYYY-MM for a manual close: last month or
+// the current one (closing it early on purpose; its scheduled close is then
+// skipped). Older months are refused: closing them now would snapshot
+// today's values under their names and reset this month's marks.
 func parsePeriod(v string, today time.Time) (time.Time, error) {
 	p, err := time.Parse(periodLayout, v)
 	if err != nil {
@@ -402,10 +399,25 @@ func parsePeriod(v string, today time.Time) (time.Time, error) {
 	if p.After(periodStart(today)) {
 		return time.Time{}, invalid("period", "cannot close a future month")
 	}
-	if p.Year() < 2000 {
-		return time.Time{}, invalid("period", "must be YYYY-MM")
+	if p.Before(periodStart(today).AddDate(0, -1, 0)) {
+		return time.Time{}, invalid("period", "only last month or the current one can be closed")
 	}
 	return p, nil
+}
+
+// notBeforeLatest refuses a month older than the latest closed one: closes
+// go forward, so a snapshot never mixes a later month's values into an
+// earlier one.
+func notBeforeLatest(ctx context.Context, q querier, wsID, projectID uuid.UUID, p time.Time) error {
+	var latest *time.Time
+	if err := q.QueryRow(ctx, `SELECT max(period) FROM period_closes WHERE workspace_id = $1 AND project_id = $2`,
+		wsID, projectID).Scan(&latest); err != nil {
+		return err
+	}
+	if latest != nil && p.Before(*latest) {
+		return invalid("period", "%s is already closed; months are closed in order", latest.Format(periodLayout))
+	}
+	return nil
 }
 
 // PreviewCycle tells what closing period (YYYY-MM; empty = last month) now would do.
@@ -472,6 +484,9 @@ func (s *Store) CloseCycle(ctx context.Context, wsID, projectID, actorID uuid.UU
 			if p, err = parsePeriod(period, today); err != nil {
 				return err
 			}
+		}
+		if err := notBeforeLatest(ctx, tx, wsID, projectID, p); err != nil {
+			return err
 		}
 		out, err = closePeriodTx(ctx, tx, wsID, projectID, actorID, p, in)
 		return err
@@ -627,12 +642,12 @@ func (s *Store) GetCloseSnapshot(ctx context.Context, wsID, projectID uuid.UUID,
 
 // EmitCycles runs the scheduled closes that are due, for up to cycleBatch
 // projects, and returns how many months it closed. Each project runs in its
-// own transaction; one that fails records last_error and moves on to its
-// next date, so it does not fail every minute.
+// own transaction; one that fails records last_error and the loop goes on,
+// so a broken project never holds back the others.
 func (s *Store) EmitCycles(ctx context.Context) (int, error) {
 	rows, err := s.pool.Query(ctx, `SELECT c.project_id FROM period_cycles c
-		JOIN workspaces w ON w.id = c.workspace_id AND w.archived_at IS NULL
-		JOIN projects p ON p.id = c.project_id AND p.archived_at IS NULL
+		JOIN workspaces w ON w.id = c.workspace_id AND w.archived_at IS NULL AND w.deletion_requested_at IS NULL
+		JOIN projects p ON p.id = c.project_id AND p.archived_at IS NULL AND p.deletion_requested_at IS NULL
 		WHERE c.is_enabled AND c.next_run IS NOT NULL AND c.next_run <= (now() AT TIME ZONE w.timezone)::date
 		ORDER BY c.next_run, c.project_id LIMIT $1`, cycleBatch)
 	if err != nil {
@@ -643,16 +658,35 @@ func (s *Store) EmitCycles(ctx context.Context) (int, error) {
 		return 0, err
 	}
 	closed := 0
+	var errs []error
 	for _, id := range ids {
+		if ctx.Err() != nil {
+			break
+		}
 		ok, err := s.runCycle(ctx, id)
 		if err != nil {
-			return closed, err
+			errs = append(errs, fmt.Errorf("project %s: %w", id, err))
+			s.recordCycleError(ctx, id, err)
+			continue
 		}
 		if ok {
 			closed++
 		}
 	}
-	return closed, nil
+	return closed, errors.Join(errs...)
+}
+
+// recordCycleError notes an unexpected failure (database error, timeout) on
+// the project's cycle so admins see it; the scheduler retries next tick. It
+// uses its own short context: the tick's may be what ran out.
+func (s *Store) recordCycleError(ctx context.Context, projectID uuid.UUID, cause error) {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+	msg := "the monthly close failed and will be retried: " + cause.Error()
+	if errors.Is(cause, context.DeadlineExceeded) || errors.Is(cause, context.Canceled) {
+		msg = "the monthly close took too long and will be retried; if this repeats, close the month by hand"
+	}
+	_, _ = s.pool.Exec(ctx, `UPDATE period_cycles SET last_error = $2 WHERE project_id = $1`, projectID, msg)
 }
 
 func (s *Store) runCycle(ctx context.Context, projectID uuid.UUID) (bool, error) {
@@ -681,10 +715,18 @@ func (s *Store) runCycle(ctx context.Context, projectID uuid.UUID) (bool, error)
 		if err != nil {
 			return err
 		}
-		// After downtime only the latest due month is closed: closing older
-		// months now would snapshot today's values under their names.
+		if run.After(today) {
+			return nil // another replica closed it and moved on meanwhile
+		}
+		// The month due is the one before the scheduled date (not before
+		// today): after downtime the right month is closed, or none.
+		period := closedPeriodFor(run)
 		next = nextRunAfter(today, c.DayOfMonth)
-		period := closedPeriodFor(lastRunOnOrBefore(today, c.DayOfMonth))
+		if late := int(today.Sub(run).Hours() / 24); late > maxLateDays {
+			failure = fmt.Errorf("the close of %s was due on %s, %d days ago; it was not applied automatically so this month's marks are kept: close %s by hand if it is still needed",
+				period.Format(periodLayout), run.Format(time.DateOnly), late, period.Format(periodLayout))
+			return nil
+		}
 		if verr := validateCycle(ctx, tx, wsID, &c); verr != nil {
 			failure = verr
 			return nil

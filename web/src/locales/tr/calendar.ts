@@ -52,4 +52,5 @@ export const tc = {
   undo: "Geri al",
   bulkUndone: (n: number) => `${String(n)} görev eski haline getirildi`,
   bulkUndoFailed: "Geri alınamadı: bazı görevleri bu arada başkası değiştirdi",
+  bulkUndoPartial: (done: number, total: number) => `${String(total)} görevden yalnızca ${String(done)} tanesi geri alındı: kalanları bu arada başkası değiştirdi`,
 } satisfies Messages["calendar"];

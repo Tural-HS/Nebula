@@ -169,6 +169,12 @@ func (e *Engine) deliverWebhook(ctx context.Context, j store.Job) error {
 	if !p.Force && (!target.Active || !store.MatchEvent(target.Events, ev.Action)) {
 		return nil // disabled or unsubscribed since the event happened
 	}
+	if !p.Force && target.Format == store.WebhookFormatSlack && isCycleReset(ev) {
+		// A monthly close resets every item at once (ADR-0051): a chat
+		// channel gets the one period.closed summary, not a line per item.
+		// Integrations (nebula format) still get every change.
+		return nil
+	}
 	if ev.WorkspaceArchived {
 		return nil // archived (or being deleted) since the event: nothing fires (ADR-0039)
 	}
@@ -671,4 +677,10 @@ func truncate(s string, n int) string {
 		n--
 	}
 	return s[:n]
+}
+
+// isCycleReset reports an item.updated written by a monthly close.
+func isCycleReset(ev store.Event) bool {
+	_, ok := ev.Payload["cycle"]
+	return ev.Action == "item.updated" && ok
 }

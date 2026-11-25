@@ -58,4 +58,5 @@ export const tc = {
   undo: "Отменить",
   bulkUndone: (n: number) => `Восстановлено задач: ${String(n)}`,
   bulkUndoFailed: "Не удалось отменить: кто-то уже изменил часть задач",
+  bulkUndoPartial: (done: number, total: number) => `Восстановлено только ${String(done)} из ${String(total)}: остальные уже кто-то изменил`,
 } satisfies Messages["calendar"];

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"slices"
@@ -116,6 +117,14 @@ func (a *api) exportClose(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusTooManyRequests, "rate_limited", "too many exports; try again later")
 		return
 	}
+	select {
+	case ex.slots <- struct{}{}:
+		defer func() { <-ex.slots }()
+	default:
+		w.Header().Set("Retry-After", "10")
+		writeError(w, http.StatusTooManyRequests, "export_busy", "other exports are running; try again shortly")
+		return
+	}
 	ctx := r.Context()
 	ws, proj := workspaceFrom(r), projectFrom(r)
 	c, rows, err := a.store.GetCloseSnapshot(ctx, ws.ID, proj.ID, chi.URLParam(r, "period"))
@@ -188,6 +197,12 @@ func (a *api) exportClose(w http.ResponseWriter, r *http.Request) {
 		it.Status.Name = sr.StatusName
 		if err := out.Row(row.build(it)); err != nil {
 			tableexport.Abort(out)
+			if errors.Is(err, tableexport.ErrTooLarge) {
+				writeJSON(w, http.StatusUnprocessableEntity, map[string]any{"error": map[string]any{
+					"code": "export_too_large", "message": "too much data for one Excel file; export CSV",
+					"field": "bytes", "limit": ex.maxBytes}})
+				return
+			}
 			a.fail(w, r, err)
 			return
 		}

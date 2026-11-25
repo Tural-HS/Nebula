@@ -38,7 +38,7 @@ export const tcy = {
   lastError: (msg: string) => `Son avtomatik bağlanış alınmadı: ${msg}`,
   closeNow: "İndi bağla",
   closeTitle: "Ayı əl ilə bağlamaq",
-  closeHint: "Avtomatik bağlanış buraxılıbsa və ya ayı tez bağlamaq lazımdırsa. Bağlanmış ay ikinci dəfə bağlanmır.",
+  closeHint: "Avtomatik bağlanış buraxılıbsa və ya ayı tez bağlamaq lazımdırsa: yalnız keçən ay və ya cari ay, sıra ilə. Bağlanmış ay ikinci dəfə bağlanmır.",
   period: "Ay",
   preview: (items: number, open: number, reset: number) => `${String(items)} tapşırıq tarixçəyə yazılacaq; sıfırlanan ${String(open)} tapşırıqdan ${String(reset)}-nin dəyərləri dəyişəcək.`,
   alreadyClosed: "Bu ay artıq bağlanıb.",

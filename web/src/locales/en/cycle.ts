@@ -39,7 +39,7 @@ export const tcy = {
   lastError: (msg: string) => `The last automatic close failed: ${msg}`,
   closeNow: "Close now",
   closeTitle: "Close a month by hand",
-  closeHint: "When the automatic close was missed or a month must close early. A closed month is never closed twice.",
+  closeHint: "When the automatic close was missed or a month must close early: last month or the current one, in order. A closed month is never closed twice.",
   period: "Month",
   preview: (items: number, open: number, reset: number) => `${String(items)} items will be saved to history; ${String(reset)} of the ${String(open)} items in scope will change.`,
   alreadyClosed: "This month is already closed.",

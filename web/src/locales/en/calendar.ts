@@ -55,4 +55,5 @@ export const tc = {
   undo: "Undo",
   bulkUndone: (n: number) => `${items(n)} restored`,
   bulkUndoFailed: "Could not undo: someone has changed some of the items since",
+  bulkUndoPartial: (done: number, total: number) => `Only ${String(done)} of ${String(total)} items were restored: someone has changed the rest since`,
 } satisfies Messages["calendar"];

@@ -234,4 +234,28 @@ func TestMonthlyCycleClose(t *testing.T) {
 	if it3["status"].(map[string]any)["id"] != todoID || it3["fields"].(map[string]any)["paid"] != nil || it3["fields"].(map[string]any)["balance"] != 100.0 {
 		t.Fatalf("closed item after a close with include_closed: %v", it3)
 	}
+
+	// Months close in order and only recent ones by hand.
+	e.must(422, "alice", "POST", cyclePath+"/close", map[string]any{"period": lastMonth})
+	e.must(422, "alice", "POST", cyclePath+"/close", map[string]any{"period": today.AddDate(0, -3, 0).Format("2006-01")})
+
+	// A scheduled close many days late is not applied: it would wipe this
+	// month's marks. It is reported and the next date is set.
+	e.must(200, "alice", "PATCH", items+"/1", map[string]any{"version": e.must(200, "alice", "GET", items+"/1", nil).Body["version"], "fields": map[string]any{"paid": true}})
+	if _, err := e.pool.Exec(ctx, `UPDATE period_cycles SET next_run = $1`, today.AddDate(0, 0, -10)); err != nil {
+		t.Fatal(err)
+	}
+	if n, err = e.st.EmitCycles(ctx); err != nil || n != 0 {
+		t.Fatalf("late run: n=%d err=%v", n, err)
+	}
+	c = e.must(200, "alice", "GET", cyclePath, nil).Body
+	if msg, _ := c["last_error"].(string); !strings.Contains(msg, "days ago") || c["next_run"].(string) <= ymd(today) {
+		t.Fatalf("late run not reported: %v", c)
+	}
+	if f := get("1"); f["paid"] != true {
+		t.Fatalf("late run reset a mark: %v", f)
+	}
+	if n := e.countEvents(`action = 'period.close_failed'`); n != 1 {
+		t.Fatalf("close_failed events: %d", n)
+	}
 }

@@ -53,11 +53,17 @@ export function BulkBar({ ws, project, projectKey, selected, statuses, assignabl
             label: tc.undo,
             run: () => {
               void (async () => {
+                // One request per previous value: each is all-or-nothing, the
+                // set is not, so a failure says how many were put back.
+                let restored = 0;
                 try {
-                  for (const st of steps) await postBulk(ws, project, st.targets, st.change);
-                  toast("success", tc.bulkUndone(res.changed));
+                  for (const st of steps) {
+                    await postBulk(ws, project, st.targets, st.change);
+                    restored += st.targets.length;
+                  }
+                  toast("success", tc.bulkUndone(restored));
                 } catch {
-                  toast("error", tc.bulkUndoFailed);
+                  toast("error", restored > 0 ? tc.bulkUndoPartial(restored, res.changed) : tc.bulkUndoFailed);
                 } finally {
                   void qc.invalidateQueries({ queryKey: keys.items(ws, project) });
                 }

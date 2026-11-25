@@ -82,3 +82,12 @@ func TestRenderPeriodClosed(t *testing.T) {
 		t.Fatalf("azMonth(bad) = %q", got)
 	}
 }
+
+func TestIsCycleReset(t *testing.T) {
+	if !isCycleReset(store.Event{Action: "item.updated", Payload: map[string]any{"cycle": map[string]any{"period": "2026-11"}}}) {
+		t.Fatal("a monthly reset is not recognised")
+	}
+	if isCycleReset(store.Event{Action: "item.updated", Payload: map[string]any{}}) || isCycleReset(store.Event{Action: "period.closed", Payload: map[string]any{"cycle": 1}}) {
+		t.Fatal("other events are skipped too")
+	}
+}

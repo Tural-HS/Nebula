@@ -18,6 +18,9 @@ const (
 func (e *Engine) Tick(ctx context.Context) {
 	e.purgeBlobs(ctx)
 	e.purgeDeletions(ctx)
+	// Monthly closes last, on their own budget: one close can take seconds
+	// and must neither starve the digests nor be cut by the scans' 30 s.
+	defer e.closeMonths(ctx)
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	for range 10 { // up to 10 batches per tick, then let jobs run
@@ -43,15 +46,6 @@ func (e *Engine) Tick(ctx context.Context) {
 	} else if n > 0 {
 		e.Logger.Info("recurring items created", "count", n)
 	}
-	// Monthly closes (ADR-0051) after recurring items, before formulas, so a
-	// refilled field is recomputed in the same tick.
-	if n, err := e.Store.EmitCycles(ctx); err != nil {
-		if ctx.Err() == nil {
-			e.Logger.Error("monthly close", "error", err)
-		}
-	} else if n > 0 {
-		e.Logger.Info("months closed", "count", n)
-	}
 	e.recomputeFormulas(ctx)
 	// Approval deadlines (ADR-0034): one approval.overdue per request.
 	if n, err := e.Store.EmitApprovalOverdue(ctx, overdueBatch); err != nil {
@@ -71,6 +65,24 @@ func (e *Engine) Tick(ctx context.Context) {
 	}
 	if n > 0 {
 		e.Logger.Info("overdue digests emitted", "count", n)
+	}
+}
+
+// cycleBudget bounds the monthly closes of one tick (ADR-0051); a close is
+// at most store.maxCycleItems edits, about 15 s.
+const cycleBudget = 2 * time.Minute
+
+// closeMonths runs the due monthly closes (ADR-0051). A project that fails
+// is recorded on its cycle and the others still run.
+func (e *Engine) closeMonths(parent context.Context) {
+	ctx, cancel := context.WithTimeout(parent, cycleBudget)
+	defer cancel()
+	n, err := e.Store.EmitCycles(ctx)
+	if err != nil && parent.Err() == nil {
+		e.Logger.Error("monthly close", "error", err)
+	}
+	if n > 0 {
+		e.Logger.Info("months closed", "count", n)
 	}
 }
 

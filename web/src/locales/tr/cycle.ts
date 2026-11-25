@@ -39,7 +39,7 @@ export const tcy = {
   lastError: (msg: string) => `Son otomatik kapanış başarısız: ${msg}`,
   closeNow: "Şimdi kapat",
   closeTitle: "Ayı elle kapatmak",
-  closeHint: "Otomatik kapanış kaçırıldıysa veya ay erken kapanmalıysa. Kapanmış bir ay ikinci kez kapanmaz.",
+  closeHint: "Otomatik kapanış kaçırıldıysa veya ay erken kapanmalıysa: yalnızca geçen ay veya bu ay, sırayla. Kapanmış bir ay ikinci kez kapanmaz.",
   period: "Ay",
   preview: (items: number, open: number, reset: number) => `${String(items)} iş geçmişe kaydedilecek; kapsamdaki ${String(open)} işten ${String(reset)} tanesinin değerleri değişecek.`,
   alreadyClosed: "Bu ay zaten kapandı.",

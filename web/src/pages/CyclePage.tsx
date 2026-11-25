@@ -252,7 +252,7 @@ function CloseNow({ ws, project }: { ws: string; project: string }) {
       <div className="flex flex-wrap items-end gap-3">
         <div>
           <Label htmlFor={`${id}-period`}>{tcy.period}</Label>
-          <Input id={`${id}-period`} type="month" min="2000-01" max={thisMonth()} value={period} onChange={(e) => { setPeriod(e.target.value); }} />
+          <Input id={`${id}-period`} type="month" min={lastMonth()} max={thisMonth()} value={period} onChange={(e) => { setPeriod(e.target.value); }} />
         </div>
         <Button variant="primary" onClick={close} disabled={!p || p.closed || capi.close.isPending}>{tcy.closeNow}</Button>
       </div>

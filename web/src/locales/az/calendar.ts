@@ -50,4 +50,5 @@ export const tc = {
   undo: "Geri qaytar",
   bulkUndone: (n: number) => `${String(n)} tapşırıq əvvəlki vəziyyətinə qaytarıldı`,
   bulkUndoFailed: "Geri qaytarmaq alınmadı: bəzi tapşırıqları artıq başqası dəyişib",
+  bulkUndoPartial: (done: number, total: number) => `${String(total)} tapşırıqdan yalnız ${String(done)}-i qaytarıldı: qalanlarını artıq başqası dəyişib`,
 };
