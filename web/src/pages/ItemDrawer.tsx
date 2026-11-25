@@ -6,6 +6,7 @@ import { keys, useAssignable, useDeleteItem, useMe, useFields, useItem, useItemT
 import type { FieldValue, Item } from "../api/types";
 import { ActivityFeed } from "../components/ActivityFeed";
 import { ApprovalBadge, ApprovalPanel, RequestApprovalDialog } from "../components/Approvals";
+import { SlaPanel } from "../components/Sla";
 import { Attachments } from "../components/Attachments";
 import { Comments } from "../components/Comments";
 import { DescriptionField } from "../components/DescriptionField";
@@ -298,6 +299,7 @@ function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose }: {
                 <ApprovalBadge approval={item.approval} /> → {item.approval.to_status.name}
               </span>
             )}
+            {item.sla && <SlaPanel sla={item.sla} />}
           </dd>
 
           <dt className="text-zinc-500 dark:text-zinc-400">{t.assignee}</dt>

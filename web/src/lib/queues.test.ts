@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { activeQueue, QUEUES, queueState, rowSignal } from "./queues";
+import { activeQueue, QUEUES, queueState, queueVisible, rowSignal } from "./queues";
 import { emptyState, readState, writeState } from "./views";
 
 describe("queues", () => {
@@ -30,5 +30,18 @@ describe("queues", () => {
     expect(rowSignal({ overdue: false, approval: {}, blocked: true })).toBe("approval");
     expect(rowSignal({ overdue: false, approval: null, blocked: true })).toBe("blocked");
     expect(rowSignal({ overdue: false })).toBeNull();
+  });
+});
+
+describe("SLA queues", () => {
+  it("are hidden until they can matter, and survive the URL", () => {
+    expect(queueVisible("sla_breached", 0, false)).toBe(false);
+    expect(queueVisible("sla_breached", 2, false)).toBe(true);
+    expect(queueVisible("sla_at_risk", 0, true)).toBe(true);
+    expect(queueVisible("overdue", 0, false)).toBe(true);
+    const back = readState(writeState({ ...emptyState(), ...queueState("sla_breached") }));
+    expect(back.sla).toBe("breached");
+    expect(activeQueue(back)).toBe("sla_breached");
+    expect(readState(new URLSearchParams("sla=late")).sla).toBe("");
   });
 });

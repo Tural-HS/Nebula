@@ -7,12 +7,12 @@ import type { PageState } from "./views";
 // (GET …/items/queue-counts).
 // ---------------------------------------------------------------------------
 
-export const QUEUES = ["all", "mine", "overdue", "approval", "blocked", "week"] as const;
+export const QUEUES = ["all", "mine", "overdue", "approval", "blocked", "week", "sla_breached", "sla_at_risk"] as const;
 export type Queue = (typeof QUEUES)[number];
 
-type QueueDims = Pick<PageState, "assignee" | "due" | "approval" | "blocked">;
+type QueueDims = Pick<PageState, "assignee" | "due" | "approval" | "blocked"> & { sla?: PageState["sla"] };
 
-const NONE: QueueDims = { assignee: "", due: "", approval: "", blocked: false };
+const NONE: QueueDims = { assignee: "", due: "", approval: "", blocked: false, sla: "" };
 
 export function queueState(q: Queue): QueueDims {
   switch (q) {
@@ -28,6 +28,10 @@ export function queueState(q: Queue): QueueDims {
       return { ...NONE, blocked: true };
     case "week":
       return { ...NONE, due: "week" };
+    case "sla_breached":
+      return { ...NONE, sla: "breached" };
+    case "sla_at_risk":
+      return { ...NONE, sla: "at_risk" };
   }
 }
 
@@ -35,8 +39,14 @@ export function queueState(q: Queue): QueueDims {
 export function activeQueue(s: QueueDims): Queue | null {
   return QUEUES.find((q) => {
     const p = queueState(q);
-    return p.assignee === s.assignee && p.due === s.due && p.approval === s.approval && p.blocked === s.blocked;
+    return p.assignee === s.assignee && p.due === s.due && p.approval === s.approval && p.blocked === s.blocked && p.sla === (s.sla ?? "");
   }) ?? null;
+}
+
+/** SLA queues are shown only where they can be non-empty or are in use. */
+export function queueVisible(q: Queue, n: number | undefined, active: boolean): boolean {
+  if (q !== "sla_breached" && q !== "sla_at_risk") return true;
+  return active || (n ?? 0) > 0;
 }
 
 /** Severity shown by the row stripe: the most urgent signal wins. */

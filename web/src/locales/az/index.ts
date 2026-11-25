@@ -18,6 +18,7 @@ import { tk as kinds } from "./kinds";
 import { tlg as ledger } from "./ledger";
 import { tlc as lifecycle } from "./lifecycle";
 import { tl as links } from "./links";
+import { tsl as sla } from "./sla";
 import { tm as mobile } from "./mobile";
 import { tn as notifications } from "./notifications";
 import { tp as project } from "./project";
@@ -32,4 +33,4 @@ import { tv as views } from "./views";
 import { twc as webhookChat } from "./webhookChat";
 import { tw as workdays } from "./workdays";
 
-export const az = { absences, admin, approvalInbox, approvals, attach, calendar, core, email, evidence, forms, formulas, home, importer, invite, kinds, ledger, lifecycle, links, mobile, money, notifications, project, recur, reports, search, subtasks, templates, theme, tokens, views, webhookChat, workdays };
+export const az = { absences, admin, approvalInbox, approvals, attach, calendar, core, email, evidence, forms, formulas, home, importer, invite, kinds, ledger, lifecycle, links, mobile, money, notifications, project, recur, reports, search, sla, subtasks, templates, theme, tokens, views, webhookChat, workdays };

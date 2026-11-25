@@ -1,7 +1,7 @@
 // Azerbaijani strings for the item list and panel layout (ADR-0035).
 export const tlg = {
   queues: "Tez filtrlər",
-  queue: { all: "Hamısı", mine: "Mənə təyin", overdue: "Gecikən", approval: "Təsdiq gözləyir", blocked: "Bloklanmış", week: "Bu həftə bitir" },
+  queue: { all: "Hamısı", mine: "Mənə təyin", overdue: "Gecikən", approval: "Təsdiq gözləyir", blocked: "Bloklanmış", week: "Bu həftə bitir", sla_breached: "SLA pozulub", sla_at_risk: "SLA riski" },
   queueCount: (label: string, n: number) => `${label}: ${String(n)}`,
   signals: "Siqnal",
   signalsHint: "Təsdiq, bloklanma, alt tapşırıqlar və gecikmiş son tarix",

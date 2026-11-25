@@ -1,0 +1,25 @@
+// SLA targets (ADR-0045).
+export const tsl = {
+  state: { on_track: "SLA yolunda", at_risk: "SLA riski", breached: "SLA ihlal edildi", met: "SLA karşılandı" },
+  short: { on_track: "SLA", at_risk: "SLA !", breached: "SLA ✕", met: "SLA ✓" },
+  responseDue: (when: string) => `İlk yanıt: ${when}`,
+  resolutionDue: (when: string) => `Çözüm: ${when}`,
+  answered: "yanıtlandı",
+  resolved: "çözüldü",
+  notify: { atRisk: "SLA süresi dolmak üzere", breached: "SLA ihlal edildi" },
+  settings: {
+    heading: "SLA hedefleri",
+    intro: "Talepler ve işler için ilk yanıt ve çözüm süresi — çalışma alanı iş takvimine göre iş günü (hafta sonu ve tatiller sayılmaz). Saat oluşturulma anında başlar; hedef günün sonuna kadar süre vardır.",
+    response: "İlk yanıt (iş günü)",
+    responseHint: "Durum başlangıç aşamasından çıkar veya talep sahibi dışında biri ilk yorumu yazar.",
+    resolution: "Çözüm (iş günü)",
+    resolutionHint: "Durum tamamlandı veya iptal kategorisine geçtiğinde.",
+    empty: "Boş — izlenmez",
+    save: "Kaydet",
+    saved: "SLA hedefleri kaydedildi",
+    off: "SLA kapatıldı",
+    adminOnly: "SLA hedeflerini yalnızca yöneticiler değiştirebilir.",
+    riskNote: "Sürenin %25'inden azı kalınca \"SLA riski\", geçince \"SLA ihlal edildi\": atanan kişiye, ihlalde yöneticilere de bildirim gider.",
+    loadError: "SLA hedefleri yüklenemedi. Sayfayı yenileyin.",
+  },
+};

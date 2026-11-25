@@ -145,6 +145,23 @@ export interface FormulaPreview {
   item?: string;
 }
 
+export type SlaState = "on_track" | "at_risk" | "breached" | "met";
+
+export interface ItemSla {
+  state: SlaState;
+  started_at: string | null;
+  response_due: string | null;
+  resolution_due: string | null;
+  responded_at: string | null;
+  resolved_at: string | null;
+}
+
+export interface SlaPolicy {
+  response_days: number | null;
+  resolution_days: number | null;
+  since: string | null;
+}
+
 export interface Item {
   id: string;
   key: string;
@@ -169,6 +186,8 @@ export interface Item {
   approval?: PendingApproval | null;
   /** An open item the viewer can see blocks this one (ADR-0028); list responses only. */
   blocked?: boolean;
+  /** SLA clock (ADR-0045); null when the project has no SLA policy. */
+  sla?: ItemSla | null;
   version: number;
   created_at: string;
   updated_at: string;

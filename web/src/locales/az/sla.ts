@@ -1,0 +1,25 @@
+// SLA targets (ADR-0045).
+export const tsl = {
+  state: { on_track: "SLA qaydasındadır", at_risk: "SLA riski", breached: "SLA pozulub", met: "SLA yerinə yetirilib" },
+  short: { on_track: "SLA", at_risk: "SLA !", breached: "SLA ✕", met: "SLA ✓" },
+  responseDue: (when: string) => `İlk cavab: ${when}`,
+  resolutionDue: (when: string) => `Həll: ${when}`,
+  answered: "cavab verilib",
+  resolved: "həll olunub",
+  notify: { atRisk: "SLA müddəti bitmək üzrədir", breached: "SLA pozulub" },
+  settings: {
+    heading: "SLA hədəfləri",
+    intro: "Sorğular və tapşırıqlar üçün ilk cavab və həll müddəti — workspace iş təqviminə görə iş günlərində (həftə sonu və bayramlar sayılmır). Saat yaranma anından başlayır; hədəf gününün sonuna qədər vaxt var.",
+    response: "İlk cavab (iş günü)",
+    responseHint: "Statusun başlanğıc mərhələdən çıxması və ya sorğu sahibindən başqa birinin ilk şərhi.",
+    resolution: "Həll (iş günü)",
+    resolutionHint: "Status «tamamlandı» və ya «ləğv edildi» kateqoriyasına keçəndə.",
+    empty: "Boş — izlənilmir",
+    save: "Saxla",
+    saved: "SLA hədəfləri saxlanıldı",
+    off: "SLA söndürülüb",
+    adminOnly: "SLA hədəflərini yalnız adminlər dəyişə bilər.",
+    riskNote: "Vaxtın 25%-dən azı qalanda «SLA riski», keçəndə «SLA pozulub»: təyin olunan şəxsə, pozulanda həm də adminlərə bildiriş gedir.",
+    loadError: "SLA hədəfləri yüklənmədi. Səhifəni yeniləyin.",
+  },
+};

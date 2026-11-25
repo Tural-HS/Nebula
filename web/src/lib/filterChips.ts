@@ -34,6 +34,7 @@ export function filterChips(
   if (s.due) out.push({ key: "due", label: `${t.dueFilter}: ${DUE_LABEL()[s.due]}`, clear: { due: "" } });
   if (s.approval) out.push({ key: "approval", label: s.approval === "mine" ? tap.filter.mine : tap.filter.pending, clear: { approval: "" } });
   if (s.blocked) out.push({ key: "blocked", label: tlg.blockedChip, clear: { blocked: false } });
+  if (s.sla) out.push({ key: "sla", label: s.sla === "breached" ? tlg.queue.sla_breached : tlg.queue.sla_at_risk, clear: { sla: "" } });
   if (s.status.length > 0) {
     const names = s.status.map((id) => statuses.find((x) => x.id === id)?.name ?? "…").join(", ");
     out.push({ key: "status", label: tlg.statuses(names), clear: { status: [] } });

@@ -7,6 +7,7 @@ import { keys, useMembers, useProjectMembers, useProjects, useWorkspace } from "
 import { roleAtLeast, type Project, type Workspace } from "../api/types";
 import { Layout } from "../components/Layout";
 import { ProjectDangerZone } from "../components/Lifecycle";
+import { SlaSettings } from "../components/SlaSettings";
 import { useToast } from "../components/toast-context";
 import { Avatar, Button, EmptyState, ErrorState, FieldError, Input, Label, Select, Spinner } from "../components/ui";
 import { t } from "../i18n";
@@ -91,6 +92,7 @@ function Settings({ ws, project, role }: { ws: string; project: Project; role: W
         <Button type="submit" variant="primary" disabled={update.isPending}>{t.save}</Button>
       </form>
       {project.visibility === "private" && <Members ws={ws} project={project} />}
+      <SlaSettings ws={ws} project={project.key} />
       <section aria-labelledby="ps-forms" className="space-y-2 rounded-xl bg-white p-4 ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-800">
         <h2 id="ps-forms" className="text-sm font-semibold">{tf.section}</h2>
         <p className="text-xs text-zinc-500 dark:text-zinc-400">{tf.sectionHint}</p>

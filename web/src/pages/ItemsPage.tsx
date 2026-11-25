@@ -53,7 +53,7 @@ const VIEW_ICON = { table: "☰", board: "▥", calendar: "📅" } as const;
 
 /** Every filter back to "any" (search and view settings stay). */
 function clearFilters(): Partial<PageState> {
-  return { assignee: "", due: "", approval: "", blocked: false, status: [], fields: {} };
+  return { assignee: "", due: "", approval: "", blocked: false, sla: "", status: [], fields: {} };
 }
 
 export function ItemsPage() {

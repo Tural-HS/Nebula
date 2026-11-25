@@ -110,7 +110,11 @@ export interface ItemFilters {
   approval?: "" | "pending" | "mine";
   /** Only items with an open blocker the viewer can see (ADR-0028). */
   blocked?: boolean;
+  /** Open SLA targets past due or in their last quarter (ADR-0045). */
+  sla?: SlaFilter;
 }
+
+export type SlaFilter = "" | "breached" | "at_risk";
 
 const PAGE_SIZE = 100;
 
@@ -127,6 +131,7 @@ export function itemsQueryString(f: ItemFilters, cursor: string | null): string 
   if (f.parent) p.set("parent", String(f.parent));
   if (f.approval) p.set("approval", f.approval);
   if (f.blocked) p.set("blocked", "true");
+  if (f.sla) p.set("sla", f.sla);
   if (cursor) p.set("cursor", cursor);
   return p.toString();
 }
@@ -179,6 +184,8 @@ export interface QueueCounts {
   approval: number;
   blocked: number;
   week: number;
+  sla_breached: number;
+  sla_at_risk: number;
 }
 
 /**

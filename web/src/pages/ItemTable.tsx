@@ -46,7 +46,7 @@ function track(col: string, def: FieldDefinition | undefined, compact: boolean):
     case "key":
       return ["6.5rem", 6.5];
     case SIGNALS:
-      return ["7.25rem", 7.25];
+      return ["10.5rem", 10.5]; // + the SLA slot (ADR-0045)
     case "title":
       // Pinned on phones: leave about half of a 375 px screen for the rest.
       return compact ? ["minmax(10.5rem,1fr)", 10.5] : ["minmax(14rem,1fr)", 14];
@@ -132,7 +132,7 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
 
   const grid = useMemo<CSSProperties>(() => {
     const tracks = columns.map((c): [string, number] =>
-      c === SIGNALS && !columns.includes("due_date") ? ["14.5rem", 14.5] : track(c, isFieldColumn(c) ? fields.get(fieldKey(c)) : undefined, compact));
+      c === SIGNALS && !columns.includes("due_date") ? ["17.75rem", 17.75] : track(c, isFieldColumn(c) ? fields.get(fieldKey(c)) : undefined, compact));
     // The first column also holds the row checkbox: 2 rem wider.
     const first = tracks[0];
     if (select && first) {

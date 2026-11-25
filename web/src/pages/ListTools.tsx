@@ -1,7 +1,7 @@
 import type { QueueCounts } from "../api/hooks";
 import { tlg } from "../i18n-ledger";
 import { cn } from "../lib/cn";
-import { activeQueue, QUEUES, queueState, type Queue } from "../lib/queues";
+import { activeQueue, QUEUES, queueState, queueVisible, type Queue } from "../lib/queues";
 import type { FilterChip } from "../lib/filterChips";
 import type { PageState } from "../lib/views";
 
@@ -13,6 +13,8 @@ import type { PageState } from "../lib/views";
 const TONE: Partial<Record<Queue, string>> = {
   overdue: "text-red-700 dark:text-red-400",
   approval: "text-amber-700 dark:text-amber-400",
+  sla_breached: "text-red-700 dark:text-red-400",
+  sla_at_risk: "text-amber-700 dark:text-amber-400",
 };
 
 export function QueueStrip({ state, counts, onPick }: {
@@ -30,6 +32,7 @@ export function QueueStrip({ state, counts, onPick }: {
       {QUEUES.map((q) => {
         const n = counts?.[q];
         const on = active === q;
+        if (!queueVisible(q, n, on)) return null;
         return (
           <button
             key={q}

@@ -71,7 +71,7 @@ func notifiable(e Event) bool {
 	switch e.Action {
 	case TriggerItemCreated, TriggerItemOverdue, "comment.created", "comment.updated", "link.added",
 		EventApprovalRequested, EventApprovalApplied, EventApprovalRejected, EventApprovalCanceled,
-		EventApprovalOverdue, EventApprovalInvalidated:
+		EventApprovalOverdue, EventApprovalInvalidated, EventSLAAtRisk, EventSLABreached:
 		return true
 	case TriggerItemUpdated:
 		changes, _ := e.Payload["changes"].(map[string]any)
@@ -237,6 +237,10 @@ func (s *Store) CreateNotifications(ctx context.Context, e Event) (int, error) {
 				return err
 			}
 			add(payloadUUID(e.Payload["requested_by"]), NotifyApprovalOverdue)
+		case EventSLAAtRisk, EventSLABreached:
+			if err := addSLARecipients(ctx, tx, e, add); err != nil {
+				return err
+			}
 		case EventApprovalInvalidated:
 			add(payloadUUID(e.Payload["requested_by"]), NotifyApprovalInvalidated)
 			if reqID := payloadUUID(e.Payload["request_id"]); reqID != nil {
