@@ -37,6 +37,11 @@ type Project struct {
 type Viewer struct {
 	UserID uuid.UUID
 	Role   string // workspace role
+	// AllowedProjects is a service token's project allow-list (ADR-0043):
+	// nil for people and unrestricted tokens; non-nil (possibly empty) means
+	// exactly these projects, private ones included. Only the link queries
+	// read it; routes are scoped by the project loader.
+	AllowedProjects []uuid.UUID
 }
 
 var projectKeyRe = regexp.MustCompile(`^[A-Z][A-Z0-9]{1,9}$`)

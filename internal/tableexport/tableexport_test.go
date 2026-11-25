@@ -149,8 +149,15 @@ func TestXLSX(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(rows) != 3 || rows[0][1] != "Başlıq" || rows[1][1] != "'=HYPERLINK(\"http://x\")" {
+	// Text is kept verbatim (no apostrophe) as an inline string, never a formula.
+	if len(rows) != 3 || rows[0][1] != "Başlıq" || rows[1][1] != "=HYPERLINK(\"http://x\")" {
 		t.Fatalf("rows: %q", rows)
+	}
+	if typ, _ := f.GetCellType("ACME", "B2"); typ != excelize.CellTypeInlineString {
+		t.Errorf("text cell type %v, want inline string", typ)
+	}
+	if formula, err := f.GetCellFormula("ACME", "B2"); err != nil || formula != "" {
+		t.Errorf("text cell has a formula: %q %v", formula, err)
 	}
 	// Typed cells: the amount is a number, the dates are date serials.
 	if typ, _ := f.GetCellType("ACME", "C2"); typ != excelize.CellTypeUnset && typ != excelize.CellTypeNumber {

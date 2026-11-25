@@ -437,6 +437,35 @@ func (s *Store) PurgeProject(ctx context.Context, wsID, projectID uuid.UUID, dea
 			WHERE workspace_id = $1 AND $2 = ANY(project_ids)`, wsID, projectID); err != nil {
 			return err
 		}
+		// A token restricted to this project only would be left with an
+		// empty allow-list: revoke it (and deactivate its principal) rather
+		// than leave it to the empty-list rule alone (ADR-0043).
+		rows, err := tx.Query(ctx, `UPDATE service_tokens t SET revoked_at = now()
+			WHERE t.workspace_id = $1 AND t.revoked_at IS NULL AND t.project_restricted
+			  AND EXISTS (SELECT 1 FROM service_token_projects sp WHERE sp.token_id = t.id AND sp.project_id = $2)
+			  AND NOT EXISTS (SELECT 1 FROM service_token_projects sp WHERE sp.token_id = t.id AND sp.project_id <> $2)
+			RETURNING t.id, t.user_id, t.name`, wsID, projectID)
+		if err != nil {
+			return err
+		}
+		type revokedToken struct {
+			ID, UserID uuid.UUID
+			Name       string
+		}
+		revoked, err := pgx.CollectRows(rows, pgx.RowToStructByPos[revokedToken])
+		if err != nil {
+			return err
+		}
+		for _, rt := range revoked {
+			if _, err := tx.Exec(ctx, `UPDATE users SET is_active = false WHERE id = $1`, rt.UserID); err != nil {
+				return err
+			}
+			if err := appendEvent(ctx, tx, wsID, uuid.Nil, serviceTokenEntity, rt.ID, ServiceTokenRevokedAction, map[string]any{
+				"name": rt.Name, "reason": "its only project was deleted", "project_key": key,
+			}); err != nil {
+				return err
+			}
+		}
 		// Recurrences reference item types without a cascade; delete them
 		// explicitly before the project (which would cascade to them anyway).
 		if _, err := tx.Exec(ctx, `DELETE FROM recurrences WHERE workspace_id = $1 AND project_id = $2`, wsID, projectID); err != nil {
@@ -480,6 +509,12 @@ func (s *Store) PurgeWorkspace(ctx context.Context, wsID uuid.UUID, deadline tim
 			if _, err := tx.Exec(ctx, `DELETE FROM `+table+` WHERE workspace_id = $1`, wsID); err != nil {
 				return err
 			}
+		}
+		// Token principals outlive the workspace (users rows are kept for
+		// history); make sure none of them can sign in as anything again.
+		if _, err := tx.Exec(ctx, `UPDATE users SET is_active = false
+			WHERE id IN (SELECT user_id FROM service_tokens WHERE workspace_id = $1)`, wsID); err != nil {
+			return err
 		}
 		if _, err := tx.Exec(ctx, `DELETE FROM workspaces WHERE id = $1`, wsID); err != nil {
 			return err

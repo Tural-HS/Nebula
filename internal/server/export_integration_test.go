@@ -165,8 +165,9 @@ func TestItemExportXLSX(t *testing.T) {
 	if len(rows) != 3 || rows[0][2] != "Amount" || rows[0][7] != "Yenilənib" {
 		t.Fatalf("rows: %q", rows)
 	}
-	// Numbers and dates are typed cells; text that looks like a formula is not one.
-	if rows[2][1] != `'=HYPERLINK("http://x.test","y")` || rows[2][2] != "-1500.5" || rows[2][3] != "-1500.5" {
+	// Numbers and dates are typed cells; text that looks like a formula is
+	// an inline string, kept verbatim (CSV alone gets the apostrophe).
+	if rows[2][1] != `=HYPERLINK("http://x.test","y")` || rows[2][5] != "-ödənilməyib" || rows[2][2] != "-1500.5" || rows[2][3] != "-1500.5" {
 		t.Errorf("row 2: %q", rows[2])
 	}
 	if rows[2][4] != "46357" { // 2026-12-01

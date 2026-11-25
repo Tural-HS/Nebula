@@ -150,7 +150,7 @@ func TestReportsLargeDataset(t *testing.T) {
 				durs = append(durs, time.Since(s))
 			}
 		}
-		if c.p.Viewer == member {
+		if c.p.Viewer.UserID == member.UserID && c.p.Viewer.Role == member.Role {
 			for _, s := range r.Status {
 				if s.Key == "R4" {
 					t.Fatal("private project counted for a member")

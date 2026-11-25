@@ -128,7 +128,7 @@ func (x *xlsxWriter) Header(cols []Column) error {
 		return err
 	}
 	for i, c := range cols {
-		x.vals[i] = excelize.Cell{StyleID: x.header, Value: Neutralize(c.Header)}
+		x.vals[i] = excelize.Cell{StyleID: x.header, Value: c.Header} // an inline string, like text cells
 	}
 	return x.write()
 }
@@ -165,9 +165,12 @@ func (x *xlsxWriter) Row(cells []Cell) error {
 			}
 			x.bytes += 8
 		default:
-			s := Neutralize(v.Text)
-			x.vals[i] = s
-			x.bytes += int64(len(s)) + 24 // inline string markup, escaping
+			// Written as-is: an inline string cell (t="inlineStr", no <f>)
+			// is never evaluated, so "=…" or "-foo" stays the exact text
+			// (ADR-0040). Neutralize is for CSV only, where every value is
+			// re-parsed by the spreadsheet; here it would alter the data.
+			x.vals[i] = v.Text
+			x.bytes += int64(len(v.Text)) + 24 // inline string markup, escaping
 		}
 	}
 	if x.opts.MaxBytes > 0 && x.bytes > x.opts.MaxBytes {

@@ -22,6 +22,7 @@ export const ttk = {
   guestReadOnly: "A guest token can only read.",
   projects: "Projects",
   allProjects: "Every project the role can see",
+  noProjects: "None (its projects were deleted)",
   projectsHint: "If you pick projects, the token reaches only those (private ones included); workspace-wide reports are closed to it.",
   expires: "Expires in",
   days: (n: number) => `${n} days`,

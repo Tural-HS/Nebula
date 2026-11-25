@@ -43,7 +43,8 @@ hələ yerinin boş olduğu gözləyən sorğulardır.
 ## Nəticələr
 
 - Miqrasiya **00032**: `workspace_absences` (+ iki qismən indeks), `approval_decisions.on_behalf_of` + `CHECK` + unikal indeks
-  `approval_decisions_principal_idx`. Kilid qeydləri faylın başlığında; Down cədvəli, sütunu və indeksi silir (kimin adına olduğu
+  `approval_decisions_principal_idx`. Kilid qeydləri faylın başlığında; Down cədvəli, sütunu və indeksi silir (gözləyən sorğuda əvəzləyən
+  qərarı varsa Down dayanır — köhnə image onu əvəzləyənin öz səsi sayardı; kimin adına olduğu
   hadisələrdə qalır), deploy README §9-da sətir.
 - API: `GET, POST /workspaces/{ws}/absences` (`?user_id=`), `PATCH /absences/{id}`, `POST /absences/{id}/end`;
   `POST …/approvals/{id}/approve|reject` gövdəsində `on_behalf_of`; `ApprovalRequest`-də `on_behalf_of` (baxanın kimin adına qərar

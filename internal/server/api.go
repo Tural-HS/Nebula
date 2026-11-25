@@ -228,7 +228,11 @@ func (a *api) projectLoader(anyState bool, next http.Handler) http.Handler {
 
 // viewer is the signed-in user with their workspace role, for access checks.
 func viewer(r *http.Request) store.Viewer {
-	return store.Viewer{UserID: principal(r).UserID, Role: workspaceFrom(r).Role}
+	v := store.Viewer{UserID: principal(r).UserID, Role: workspaceFrom(r).Role}
+	if t, ok := serviceToken(r); ok {
+		v.AllowedProjects = t.ProjectIDs
+	}
+	return v
 }
 
 func requireRole(minRole string) func(http.Handler) http.Handler {

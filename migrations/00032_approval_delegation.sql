@@ -63,7 +63,21 @@ CREATE UNIQUE INDEX approval_decisions_principal_idx ON approval_decisions (requ
 -- they stood in for stays in the approval.approved / approval.rejected
 -- event payloads (on_behalf_of) and so in the audit log and evidence
 -- exports. The previous image ignores both.
+-- Refuses while a pending request has a delegated decision: the previous
+-- image would count it as the delegate's own vote (the absent approver's
+-- slot would open again and the delegate's slot would be taken), changing
+-- who still has to approve. Let those requests close (or cancel them) first.
 SET LOCAL lock_timeout = '5s';
+-- +goose StatementBegin
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM approval_decisions d JOIN approval_requests r ON r.id = d.request_id
+               WHERE d.on_behalf_of IS NOT NULL AND r.state = 'pending') THEN
+        RAISE EXCEPTION 'pending approval requests have delegated decisions; let them close (or cancel them) before rolling back 00032';
+    END IF;
+END
+$$;
+-- +goose StatementEnd
 DROP INDEX IF EXISTS approval_decisions_principal_idx;
 ALTER TABLE approval_decisions DROP CONSTRAINT IF EXISTS approval_decisions_on_behalf_check;
 ALTER TABLE approval_decisions DROP COLUMN IF EXISTS on_behalf_of;

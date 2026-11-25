@@ -22,6 +22,7 @@ export const ttk = {
   guestReadOnly: "Misafir token'ı yalnızca okuyabilir.",
   projects: "Projeler",
   allProjects: "Rolün gördüğü tüm projeler",
+  noProjects: "Hiçbiri (projeleri silindi)",
   projectsHint: "Proje seçerseniz token yalnızca bunlara (gizli projeler dahil) erişir; çalışma alanı genelindeki raporlar kapanır.",
   expires: "Süre",
   days: (n: number) => `${n} gün`,

@@ -20,6 +20,7 @@ export const ttk = {
   guestReadOnly: "Qonaq tokeni yalnız oxuya bilər.",
   projects: "Layihələr",
   allProjects: "Rolun gördüyü bütün layihələr",
+  noProjects: "Heç biri (layihələri silinib)",
   projectsHint: "Seçsəniz, token yalnız bu layihələrə (gizli layihələr də daxil) çata bilər; workspace üzrə hesabatlar bağlanır.",
   expires: "Müddət",
   days: (n: number) => `${n} gün`,

@@ -58,19 +58,22 @@ var (
 
 // ServiceToken is a token as admins see it; the secret is never included.
 type ServiceToken struct {
-	ID            uuid.UUID        `json:"id"`
-	Name          string           `json:"name"`
-	DisplayName   string           `json:"display_name"`
-	Role          string           `json:"role"`
-	Scopes        []string         `json:"scopes"`
-	Projects      []ServiceProject `json:"projects"` // empty: every project the role can see
-	CreatedBy     *uuid.UUID       `json:"created_by"`
-	CreatedByName *string          `json:"created_by_name"`
-	CreatedAt     time.Time        `json:"created_at"`
-	ExpiresAt     time.Time        `json:"expires_at"`
-	RevokedAt     *time.Time       `json:"revoked_at"`
-	LastUsedAt    *time.Time       `json:"last_used_at"`
-	LastUsedIP    *string          `json:"last_used_ip"`
+	ID          uuid.UUID        `json:"id"`
+	Name        string           `json:"name"`
+	DisplayName string           `json:"display_name"`
+	Role        string           `json:"role"`
+	Scopes      []string         `json:"scopes"`
+	Projects    []ServiceProject `json:"projects"` // empty and not restricted: every project the role can see
+	// ProjectRestricted: the token was created with an allow-list; with
+	// Projects empty (all deleted) it reaches no project.
+	ProjectRestricted bool       `json:"project_restricted"`
+	CreatedBy         *uuid.UUID `json:"created_by"`
+	CreatedByName     *string    `json:"created_by_name"`
+	CreatedAt         time.Time  `json:"created_at"`
+	ExpiresAt         time.Time  `json:"expires_at"`
+	RevokedAt         *time.Time `json:"revoked_at"`
+	LastUsedAt        *time.Time `json:"last_used_at"`
+	LastUsedIP        *string    `json:"last_used_ip"`
 }
 
 // ServiceProject is one entry of a token's project allow-list.
@@ -90,6 +93,8 @@ type TokenPrincipal struct {
 	Role          string
 	Scopes        []string
 	// ProjectIDs is the allow-list; nil means every project the role sees.
+	// A restricted token always has a non-nil list, empty when its last
+	// project was deleted: it then reaches no project (ADR-0043).
 	ProjectIDs []uuid.UUID
 }
 
@@ -212,9 +217,9 @@ func (s *Store) CreateServiceToken(ctx context.Context, p CreateServiceTokenPara
 			userID, serviceTokenIssuer, id.String(), id.String()+serviceTokenEmailDomain, serviceTokenDisplayPrefix+name); err != nil {
 			return err
 		}
-		if _, err := tx.Exec(ctx, `INSERT INTO service_tokens (id, workspace_id, user_id, name, role, scopes, secret_hash, created_by, expires_at)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now() + make_interval(days => $9))`,
-			id, p.WorkspaceID, userID, name, p.Role, scopes, hash, p.ActorID, p.ExpiresDays); err != nil {
+		if _, err := tx.Exec(ctx, `INSERT INTO service_tokens (id, workspace_id, user_id, name, role, scopes, secret_hash, created_by, expires_at, project_restricted)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now() + make_interval(days => $9), $10)`,
+			id, p.WorkspaceID, userID, name, p.Role, scopes, hash, p.ActorID, p.ExpiresDays, len(projects) > 0); err != nil {
 			return err
 		}
 		if len(projects) > 0 {
@@ -240,13 +245,13 @@ func (s *Store) CreateServiceToken(ctx context.Context, p CreateServiceTokenPara
 const integrationSelect = `SELECT t.id, t.name, u.display_name, t.role, t.scopes,
 		COALESCE((SELECT json_agg(json_build_object('id', p.id, 'key', p.key, 'name', p.name) ORDER BY p.key)
 		          FROM service_token_projects sp JOIN projects p ON p.id = sp.project_id
-		          WHERE sp.token_id = t.id), '[]'::json),
+		          WHERE sp.token_id = t.id), '[]'::json), t.project_restricted,
 		t.created_by, c.display_name, t.created_at, t.expires_at, t.revoked_at, t.last_used_at, host(t.last_used_ip)
 	FROM service_tokens t JOIN users u ON u.id = t.user_id LEFT JOIN users c ON c.id = t.created_by`
 
 func scanServiceToken(r pgx.CollectableRow) (ServiceToken, error) {
 	var t ServiceToken
-	err := r.Scan(&t.ID, &t.Name, &t.DisplayName, &t.Role, &t.Scopes, &t.Projects, &t.CreatedBy, &t.CreatedByName,
+	err := r.Scan(&t.ID, &t.Name, &t.DisplayName, &t.Role, &t.Scopes, &t.Projects, &t.ProjectRestricted, &t.CreatedBy, &t.CreatedByName,
 		&t.CreatedAt, &t.ExpiresAt, &t.RevokedAt, &t.LastUsedAt, &t.LastUsedIP)
 	return t, err
 }
@@ -311,15 +316,15 @@ func (s *Store) ResolveServiceToken(ctx context.Context, raw, clientIP string) (
 	}
 	var t TokenPrincipal
 	var hash []byte
-	var expired, revoked, archived, touch bool
+	var expired, revoked, archived, touch, restricted bool
 	err = s.pool.QueryRow(ctx, `SELECT t.user_id, t.workspace_id, w.slug, u.display_name, t.role, t.scopes, t.secret_hash,
-			t.expires_at <= now(), t.revoked_at IS NOT NULL, w.archived_at IS NOT NULL,
+			t.project_restricted, t.expires_at <= now(), t.revoked_at IS NOT NULL, w.archived_at IS NOT NULL,
 			t.last_used_at IS NULL OR t.last_used_at < now() - interval '1 minute',
 			ARRAY(SELECT project_id FROM service_token_projects WHERE token_id = t.id ORDER BY project_id)
 		FROM service_tokens t JOIN workspaces w ON w.id = t.workspace_id JOIN users u ON u.id = t.user_id
 		WHERE t.id = $1`, id).
 		Scan(&t.UserID, &t.WorkspaceID, &t.WorkspaceSlug, &t.DisplayName, &t.Role, &t.Scopes, &hash,
-			&expired, &revoked, &archived, &touch, &t.ProjectIDs)
+			&restricted, &expired, &revoked, &archived, &touch, &t.ProjectIDs)
 	if errors.Is(err, pgx.ErrNoRows) {
 		apitoken.Verify(secret, dummyHash)
 		return TokenPrincipal{}, ErrTokenInvalid
@@ -331,7 +336,12 @@ func (s *Store) ResolveServiceToken(ctx context.Context, raw, clientIP string) (
 		return TokenPrincipal{}, ErrTokenInvalid
 	}
 	t.TokenID = id
-	if len(t.ProjectIDs) == 0 {
+	switch {
+	case restricted && len(t.ProjectIDs) == 0:
+		// Its last project was deleted: deny everything rather than widen
+		// to the whole workspace (ADR-0043).
+		t.ProjectIDs = []uuid.UUID{}
+	case !restricted:
 		t.ProjectIDs = nil
 	}
 	switch {

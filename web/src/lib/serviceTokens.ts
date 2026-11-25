@@ -14,6 +14,8 @@ export interface ServiceToken {
   role: TokenRole;
   scopes: TokenScope[];
   projects: { id: string; key: string; name: string }[];
+  /** Created with an allow-list: an empty list then means no project (ADR-0043). */
+  project_restricted?: boolean;
   created_by: string | null;
   created_by_name: string | null;
   created_at: string;

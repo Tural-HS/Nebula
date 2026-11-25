@@ -72,7 +72,7 @@ function TokenCard({ ws, tok }: { ws: string; tok: ServiceToken }) {
               {tok.scopes.map((s) => <code key={s} className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs dark:bg-zinc-800">{s}</code>)}
             </span>
           </Row>
-          <Row label={ttk.projects}>{tok.projects.length === 0 ? ttk.allProjects : tok.projects.map((p) => p.key).join(", ")}</Row>
+          <Row label={ttk.projects}>{tok.projects.length > 0 ? tok.projects.map((p) => p.key).join(", ") : tok.project_restricted ? ttk.noProjects : ttk.allProjects}</Row>
           <Row label={ttk.cols.createdBy}>
             {tok.created_by_name ?? "—"} <span className="text-xs text-zinc-500 dark:text-zinc-400">({formatDateTime(tok.created_at)})</span>
           </Row>
