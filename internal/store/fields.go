@@ -912,11 +912,76 @@ func activeChoice(def FieldDefinition, id, path string) error {
 	return invalid(path, "unknown choice %q", id)
 }
 
+// fieldCond is one SQL condition of a field filter, with "?" placeholders
+// for its arguments (the caller numbers them).
+type fieldCond struct {
+	SQL  string
+	Args []any
+}
+
+// Field filter operators beyond the exact match (ADR-0048), in the value of
+// ?field.<key>=:
+//   - "~text" on text-like fields: contains, ignoring case and Azerbaijani
+//     letter variants (search_fold), up to 100 characters;
+//   - "min..max" on number and date fields (either side may be empty):
+//     an inclusive range.
+const maxContainsFilter = 100
+
+var textLike = map[string]bool{FieldText: true, FieldLongText: true, FieldURL: true, FieldEmail: true}
+
+// likeEscape escapes LIKE wildcards with a backslash (the default escape).
+func likeEscape(v string) string {
+	return strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`).Replace(v)
+}
+
+// rangeConds builds the conditions of a "min..max" filter on a number or
+// date field (resultType "number" or "date"). Values of another JSON type
+// never match, so a bad stored value cannot break the cast.
+func rangeConds(key, value, resultType, path string) ([]fieldCond, error) {
+	lo, hi, _ := strings.Cut(value, "..")
+	lo, hi = strings.TrimSpace(lo), strings.TrimSpace(hi)
+	if lo == "" && hi == "" {
+		return nil, invalid(path, "range needs a lower or an upper bound")
+	}
+	var out []fieldCond
+	for _, b := range []struct {
+		v  string
+		op string
+	}{{lo, ">="}, {hi, "<="}} {
+		if b.v == "" {
+			continue
+		}
+		switch resultType {
+		case FieldNumber:
+			n, err := strconv.ParseFloat(b.v, 64)
+			if err != nil || math.IsNaN(n) || math.IsInf(n, 0) {
+				return nil, invalid(path, "range bounds must be numbers")
+			}
+			out = append(out, fieldCond{
+				SQL:  "(jsonb_typeof(i.fields -> ?::text) = 'number' AND (i.fields ->> ?::text)::numeric " + b.op + " ?::numeric)",
+				Args: []any{key, key, strconv.FormatFloat(n, 'f', -1, 64)},
+			})
+		case FieldDate:
+			if _, err := time.Parse(time.DateOnly, b.v); err != nil {
+				return nil, invalid(path, "range bounds must be dates (YYYY-MM-DD)")
+			}
+			// ISO dates compare as text.
+			out = append(out, fieldCond{
+				SQL:  "(jsonb_typeof(i.fields -> ?::text) = 'string' AND (i.fields ->> ?::text) " + b.op + " ?::text)",
+				Args: []any{key, key, b.v},
+			})
+		default:
+			return nil, invalid(path, "ranges apply to number and date fields")
+		}
+	}
+	return out, nil
+}
+
 // fieldFilterConditions turns filters into JSONB containment fragments, which
 // the items_fields_idx GIN (jsonb_path_ops) index serves directly.
 // filters come from ?field.<key>=<value>; for multi_select they match items
 // containing the choice.
-func fieldFilterConditions(ctx context.Context, q querier, wsID uuid.UUID, filters map[string]string) ([]string, error) {
+func fieldFilterConditions(ctx context.Context, q querier, wsID uuid.UUID, filters map[string]string) ([]fieldCond, error) {
 	if len(filters) == 0 {
 		return nil, nil
 	}
@@ -941,13 +1006,36 @@ func fieldFilterConditions(ctx context.Context, q querier, wsID uuid.UUID, filte
 		byKey[d.Key] = d
 	}
 
-	out := make([]string, 0, len(keys))
+	out := make([]fieldCond, 0, len(keys))
 	for _, key := range keys {
 		f := struct{ Key, Value string }{key, filters[key]}
 		path := "field." + f.Key
 		def, ok := byKey[f.Key]
 		if !ok {
 			return nil, invalid(path, "unknown field")
+		}
+		result := def.Type
+		if def.Type == FieldFormula && def.Options.Formula != nil {
+			result = map[string]string{"number": FieldNumber, "date": FieldDate, "boolean": FieldBoolean}[def.Options.Formula.ResultType]
+		}
+		if rest, ok := strings.CutPrefix(f.Value, "~"); ok && textLike[def.Type] {
+			v, err := text(path, rest, 1, maxContainsFilter)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, fieldCond{
+				SQL:  "lower(search_fold(i.fields ->> ?::text)) LIKE '%' || lower(search_fold(?::text)) || '%'",
+				Args: []any{f.Key, likeEscape(v)},
+			})
+			continue
+		}
+		if strings.Contains(f.Value, "..") && (result == FieldNumber || result == FieldDate) {
+			conds, err := rangeConds(f.Key, f.Value, result, path)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, conds...)
+			continue
 		}
 		var raw any = f.Value
 		switch def.Type {
@@ -975,7 +1063,7 @@ func fieldFilterConditions(ctx context.Context, q querier, wsID uuid.UUID, filte
 			if err != nil {
 				return nil, err
 			}
-			out = append(out, string(frag))
+			out = append(out, fieldCond{SQL: "i.fields @> ?::jsonb", Args: []any{string(frag)}})
 			continue
 		}
 		if def.Type == FieldFormula {
@@ -1019,7 +1107,7 @@ func fieldFilterConditions(ctx context.Context, q querier, wsID uuid.UUID, filte
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, string(frag))
+		out = append(out, fieldCond{SQL: "i.fields @> ?::jsonb", Args: []any{string(frag)}})
 	}
 	return out, nil
 }

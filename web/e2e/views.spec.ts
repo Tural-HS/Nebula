@@ -41,7 +41,7 @@ test.describe("as admin", () => {
     await expect(total).toContainText("800");
 
     await page.getByLabel("Axtar…").fill("");
-    await page.getByLabel("Sıralama").selectOption("due");
+    await page.getByLabel("Sıralama", { exact: true }).selectOption("due");
     await expect(page).toHaveURL(/sort=due/);
     const keys = page.getByRole("row").filter({ hasText: "QA-" }).locator("[role=cell]").first();
     await expect(keys).toHaveText("QA-2"); // soonest due date first

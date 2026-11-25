@@ -474,7 +474,13 @@ func (s *Store) itemFilter(ctx context.Context, p ListItemsParams, withStatus bo
 			return nil, nil, err
 		}
 		for _, c := range conds {
-			add("i.fields @> ?::jsonb", c)
+			// Number the condition's own placeholders in order.
+			sql := c.SQL
+			for _, v := range c.Args {
+				args = append(args, v)
+				sql = strings.Replace(sql, "?", "$"+strconv.Itoa(len(args)), 1)
+			}
+			where = append(where, sql)
 		}
 	}
 	if q := strings.TrimSpace(p.Query); q != "" {

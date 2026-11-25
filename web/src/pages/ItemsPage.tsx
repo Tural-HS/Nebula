@@ -26,6 +26,7 @@ import { tf } from "../i18n-formulas";
 import { emptyState, filtersOf, hasState, readState, sameState, stateFromView, sumFields, visibleColumns, writeState, type PageState } from "../lib/views";
 import { CreateItemDialog } from "./CreateItemDialog";
 import { BulkBar } from "./BulkBar";
+import { useDensity, setDensity } from "../lib/density";
 import { ItemTable, type TableSelection } from "./ItemTable";
 import type { InlineEdit } from "../lib/inline";
 import { ColumnPicker, FilterPicker, Popover, ViewSwitcher } from "./ViewTools";
@@ -57,6 +58,7 @@ function clearFilters(): Partial<PageState> {
 }
 
 export function ItemsPage() {
+  const density = useDensity();
   const { ws = "", project = "" } = useParams();
   const [params, setParams] = useSearchParams();
   // Filters, columns, sort and grouping live in the URL (lib/views), so any
@@ -432,6 +434,16 @@ export function ItemsPage() {
               <div className="ml-auto flex shrink-0 items-center gap-2">
                 {view !== "calendar" && sortSelect("max-w-44")}
                 {view === "table" && columnPicker(false)}
+                {view === "table" && (
+                  <Button
+                    aria-pressed={density === "compact"}
+                    title={tv.densityHint}
+                    className={cn("max-md:hidden", density === "compact" && "bg-brand-50 ring-brand-500 dark:bg-brand-950")}
+                    onClick={() => { setDensity(density === "compact" ? "normal" : "compact"); }}
+                  >
+                    {tv.density}
+                  </Button>
+                )}
                 {view === "table" && exportMenu(false)}
                 {view === "board" && groupSelect("max-w-44")}
                 {viewTabs}
@@ -538,6 +550,14 @@ export function ItemsPage() {
               onOpen={(n) => { setParam("item", String(n)); }}
               selection={tableSelection}
               inline={inline}
+              filters={state.fields}
+              onFilter={(key, value) => {
+                const rest = Object.fromEntries(Object.entries(state.fields).filter(([k]) => k !== key));
+                applyState({ fields: value ? { ...rest, [key]: value } : rest });
+              }}
+              sort={state.sort}
+              onSort={(sort) => { applyState({ sort }); }}
+              density={density}
             />
           )}
         </div>

@@ -3,6 +3,9 @@ import { t } from "../i18n";
 import { tap } from "../i18n-approvals";
 import { tlg } from "../i18n-ledger";
 import { valueType } from "./formula";
+import { operatorText } from "./columnFilter";
+import { formatDate } from "./format";
+import { tv } from "../i18n-views";
 import type { PageState } from "./views";
 
 // Active filters as removable chips (ADR-0035): label and the state patch
@@ -41,7 +44,10 @@ export function filterChips(
   }
   for (const [k, v] of Object.entries(s.fields)) {
     const f = fields.get(k);
-    const value = f && valueType(f) === "boolean" ? (v === "true" ? t.yes : t.no) : (f?.options.choices?.find((c) => c.id === v)?.label ?? v);
+    // Column operators (ADR-0048): "~text" contains, "a..b" ranges (dates shown as dates).
+    const bound = (b: string) => (f && valueType(f) === "date" ? formatDate(b) : b);
+    const op = operatorText(v, bound, { contains: tv.chipContains, from: tv.chipFrom, to: tv.chipTo });
+    const value = op ?? (f && valueType(f) === "boolean" ? (v === "true" ? t.yes : t.no) : (f?.options.choices?.find((c) => c.id === v)?.label ?? v));
     const rest = Object.fromEntries(Object.entries(s.fields).filter(([x]) => x !== k));
     out.push({ key: "field." + k, label: `${f?.name ?? k}: ${value}`, clear: { fields: rest } });
   }

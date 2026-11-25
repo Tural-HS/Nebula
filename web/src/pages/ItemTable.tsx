@@ -15,7 +15,11 @@ import { cn } from "../lib/cn";
 import { formatDateTime, formatRelative } from "../lib/format";
 import { displayColumns, FINE_POINTER, useCompact, useMediaQuery } from "../lib/responsive";
 import { columnHeader, fieldKey, formatDecimal, formatFieldValue, isFieldColumn, withUnit } from "../lib/views";
-import { isAmount, isFormula, valueType } from "../lib/formula";
+import { isAmount, isFormula, isSortable, valueType } from "../lib/formula";
+import { filterKind } from "../lib/columnFilter";
+import type { Density } from "../lib/density";
+import { ColumnMenu } from "../components/ColumnMenu";
+import type { ItemSort } from "../api/hooks";
 import { formatMoneyTotals } from "../lib/money";
 import { tm } from "../i18n-money";
 import { tf } from "../i18n-formulas";
@@ -31,18 +35,19 @@ import { ROW_STRIPE, rowSignal } from "../lib/queues";
 // ---------------------------------------------------------------------------
 
 // Dense rows for a mouse (ADR-0035); touch keeps 44 px targets (ADR-0019).
-const ROW_HEIGHT = 32; // dense, like a spreadsheet (ADR-0047)
+const ROW_HEIGHT = 28; // dense, like a spreadsheet (ADR-0047)
+const COMPACT_ROW_HEIGHT = 24; // "Sıx" density (ADR-0048)
 const TOUCH_ROW_HEIGHT = 44;
 /** Not a user column: always right after the title (ADR-0035). */
 const SIGNALS = "signals";
 // overflow-clip (not hidden): the column lines below are cut at the row edge
 // without making the row a scroll container, which would break sticky cells.
-const ROW = "grid items-center gap-2 overflow-clip px-3 md:px-4";
+const ROW = "grid items-center gap-1.5 overflow-clip px-2";
 // A column line in the middle of the gap left of a cell (ADR-0047): spreadsheet-
 // like ledgers need columns that read as columns. Taller than any row, clipped.
-const COL_LINE = "relative before:pointer-events-none before:absolute before:-inset-y-10 before:-left-1 before:w-px before:bg-zinc-400 dark:before:bg-zinc-600";
+const COL_LINE = "relative before:pointer-events-none before:absolute before:-inset-y-10 before:-left-[3px] before:w-px before:bg-zinc-400 dark:before:bg-zinc-600";
 // The pinned title starts in the gap (TITLE_PIN bleed): its line sits inside it.
-const COL_LINE_PINNED = "relative before:pointer-events-none before:absolute before:-inset-y-10 before:left-1 before:w-px before:bg-zinc-400 dark:before:bg-zinc-600";
+const COL_LINE_PINNED = "relative before:pointer-events-none before:absolute before:-inset-y-10 before:left-[3px] before:w-px before:bg-zinc-400 dark:before:bg-zinc-600";
 // Sticky cells need an opaque background: the page's.
 const STICKY_LEFT = "sticky left-0 z-[1] bg-zinc-100 group-hover:bg-brand-50 dark:bg-zinc-950 dark:group-hover:bg-zinc-900";
 const PINNED_FILL = "flex items-center self-stretch";
@@ -52,41 +57,42 @@ const STICKY_LEFT_HEAD = "sticky left-0 z-[1] bg-brand-50 dark:bg-zinc-900";
 const STICKY_EDGE = "max-md:shadow-[1px_0_0_var(--color-zinc-200)] max-md:dark:shadow-[1px_0_0_var(--color-zinc-800)]";
 // The pinned title beside the key (wide tables on desktop): the hairline on
 // every screen, and a left bleed over the grid gap so cells never show through.
-const TITLE_PIN = "-ml-2 pl-2 shadow-[1px_0_0_var(--color-zinc-400)] dark:shadow-[1px_0_0_var(--color-zinc-600)]";
+const TITLE_PIN = "-ml-1.5 pl-1.5 shadow-[1px_0_0_var(--color-zinc-400)] dark:shadow-[1px_0_0_var(--color-zinc-600)]";
 const STICKY_LEFT_TOTAL = "sticky left-0 z-[1] bg-zinc-200 dark:bg-zinc-900";
 
 /** Grid track and minimum width (rem) of a column. */
 function track(col: string, def: FieldDefinition | undefined, compact: boolean): [string, number] {
   switch (col) {
     case "key":
-      return ["5.5rem", 5.5];
+      return ["4.5rem", 4.5];
     case SIGNALS:
       return ["10.5rem", 10.5]; // + the SLA slot (ADR-0045)
     case "title":
       // Pinned on phones: leave about half of a 375 px screen for the rest.
       // Desktop: wide enough for full person and company names (ledgers).
-      return compact ? ["minmax(10.5rem,1fr)", 10.5] : ["minmax(16rem,1fr)", 16];
+      return compact ? ["minmax(10.5rem,1fr)", 10.5] : ["minmax(14rem,1fr)", 14];
     case "type":
       return ["7rem", 7];
     case "status":
-      return ["8rem", 8];
+      return ["7rem", 7];
     case "assignee":
-      return ["9.5rem", 9.5];
+      return ["8.5rem", 8.5];
     case "due_date":
     case "created_at":
     case "updated_at":
-      return ["7.5rem", 7.5];
+      return ["6.5rem", 6.5];
   }
   switch (def?.type) {
     case "number":
-      return ["6.5rem", 6.5];
+      return ["5.5rem", 5.5];
     case "date":
-      return ["7rem", 7];
+      return ["6rem", 6];
     case "boolean":
-      return ["4.5rem", 4.5]; // a check mark; the header wraps to two lines
+      return ["5rem", 5]; // a check mark; the header (with its filter button) wraps to two lines
     case "text":
+      return ["7.5rem", 7.5];
     case "select":
-      return ["8.5rem", 8.5];
+      return ["6.5rem", 6.5];
     case "long_text":
     case "multi_select":
       return ["14rem", 14];
@@ -104,7 +110,7 @@ export interface TableSelection {
   toggleAll: () => void;
 }
 
-export function ItemTable({ items, columns: chosen, fields, members, sums, hasMore, loadingMore, loadMore, onOpen, selection, inline }: {
+export function ItemTable({ items, columns: chosen, fields, members, sums, hasMore, loadingMore, loadMore, onOpen, selection, inline, filters, onFilter, sort, onSort, density = "normal" }: {
   items: Item[];
   columns: string[];
   fields: ReadonlyMap<string, FieldDefinition>;
@@ -118,6 +124,13 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
   selection?: TableSelection | undefined;
   /** Inline cell editing; absent for read-only users. */
   inline?: InlineEdit | undefined;
+  /** Field filters of the list (?field.<key>=) and their setter: column header menus (ADR-0048). */
+  filters?: Readonly<Record<string, string>> | undefined;
+  onFilter?: ((key: string, value: string) => void) | undefined;
+  sort?: ItemSort | undefined;
+  onSort?: ((s: ItemSort) => void) | undefined;
+  /** Row height and text size, chosen per browser (lib/density). */
+  density?: Density;
 }) {
   const compact = useCompact();
   // Touch screens keep one tap target per row (ADR-0019): no checkboxes,
@@ -138,7 +151,9 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
     const at = d.columns.indexOf("title");
     return { ...d, columns: [...d.columns.slice(0, at + 1), SIGNALS, ...d.columns.slice(at + 1)] };
   }, [chosen, compact, items]);
-  const rowHeight = plainRows ? TOUCH_ROW_HEIGHT : ROW_HEIGHT;
+  const dense = density === "compact";
+  const rowHeight = plainRows ? TOUCH_ROW_HEIGHT : dense ? COMPACT_ROW_HEIGHT : ROW_HEIGHT;
+  const rowText = dense ? "text-xs" : "text-[0.8125rem]";
   const scrollRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Virtual is designed for this usage
   const virtualizer = useVirtualizer({
@@ -161,9 +176,9 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
     const first = tracks[0];
     if (select && first) {
       const [g, w] = first;
-      tracks[0] = [g.startsWith("minmax(") ? g.replace(/^minmax\(([\d.]+)rem/, (_m, n: string) => `minmax(${String(Number(n) + 2)}rem`) : `${String(w + 2)}rem`, w + 2];
+      tracks[0] = [g.startsWith("minmax(") ? g.replace(/^minmax\(([\d.]+)rem/, (_m, n: string) => `minmax(${String(Number(n) + 1.5)}rem`) : `${String(w + 1.5)}rem`, w + 1.5];
     }
-    const rem = tracks.reduce((n, [, w]) => n + w, 0) + 0.5 * (tracks.length - 1) + 2; // gaps and padding
+    const rem = tracks.reduce((n, [, w]) => n + w, 0) + 0.375 * (tracks.length - 1) + 1; // gaps and padding
     const g: CSSProperties = { gridTemplateColumns: tracks.map(([t]) => t).join(" "), minWidth: `${String(rem)}rem` };
     return { grid: g, firstWidth: tracks[0]?.[1] ?? 0 };
   }, [columns, fields, compact, select]);
@@ -239,7 +254,7 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
     if (valueType(def) === "boolean" && typeof raw === "boolean") {
       return raw ? (
         <span className="flex justify-center">
-          <span role="img" aria-label={t.yes} title={t.yes} className="inline-flex size-5 items-center justify-center rounded-full bg-emerald-600 text-xs leading-none font-bold text-white dark:bg-emerald-500 dark:text-emerald-950">✓</span>
+          <span role="img" aria-label={t.yes} title={t.yes} className="inline-flex size-4 items-center justify-center rounded-full bg-emerald-600 text-2xs leading-none font-bold text-white dark:bg-emerald-500 dark:text-emerald-950">✓</span>
         </span>
       ) : (
         <span className="sr-only">{t.no}</span>
@@ -270,9 +285,13 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
 
   return (
     <div ref={scrollRef} className="h-full scroll-pt-10 scroll-pb-10 overflow-auto" role="table" aria-rowcount={items.length}>
-      <div role="row" style={grid} className={cn(ROW, "sticky top-0 z-[2] h-10 border-b border-zinc-400 bg-brand-50 text-xs font-semibold text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300")}>
-        {columns.map((c, i) => (
-          <span key={c} role="columnheader" title={c === SIGNALS ? tlg.signalsHint : header(c)} style={pin(i, STICKY_LEFT_HEAD).style} className={cn(pin(i, STICKY_LEFT_HEAD).className ? "truncate" : "line-clamp-2 leading-tight [overflow-wrap:anywhere]", numeric(c) && "text-right", isBoolCol(c) && "text-center", pin(i, STICKY_LEFT_HEAD).className, line(i), i === 0 && select && "flex items-center gap-3")}>
+      <div role="row" style={grid} className={cn(ROW, "sticky top-0 z-[2] h-10 border-b border-zinc-400 bg-brand-50 text-2xs font-semibold text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300")}>
+        {columns.map((c, i) => {
+          const def = isFieldColumn(c) ? fields.get(fieldKey(c)) : undefined;
+          const menu = def && onFilter && (filterKind(def) || (onSort && isSortable(def))) ? def : undefined;
+          const clamp = cn("line-clamp-2 leading-tight [overflow-wrap:break-word]", numeric(c) && "text-right", isBoolCol(c) && "text-center");
+          return (
+          <span key={c} role="columnheader" title={c === SIGNALS ? tlg.signalsHint : header(c)} style={pin(i, STICKY_LEFT_HEAD).style} className={cn(menu ? "flex items-center gap-1" : pin(i, STICKY_LEFT_HEAD).className ? "truncate" : clamp, pin(i, STICKY_LEFT_HEAD).className, line(i), i === 0 && select && "flex items-center gap-2")}>
             {i === 0 && select && (
               <input
                 type="checkbox"
@@ -284,9 +303,22 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
               />
             )}
             {formulaDef(c) && <span className="mr-1 font-serif italic" title={`${tf.readOnly}\n${tf.title(formulaDef(c)?.options.formula?.expression ?? "")}`}>ƒ</span>}
-            {c === "title" && keyInTitle ? `${columnHeader("key", fields)} / ${header(c)}` : header(c)}
+            {menu && onFilter ? (
+              <>
+                <span className={cn("min-w-0 flex-1", clamp)}>{header(c)}</span>
+                <ColumnMenu
+                  def={menu}
+                  label={header(c)}
+                  value={filters?.[menu.key]}
+                  onFilter={(v) => { onFilter(menu.key, v); }}
+                  sort={sort}
+                  onSort={onSort && isSortable(menu) ? onSort : undefined}
+                />
+              </>
+            ) : c === "title" && keyInTitle ? `${columnHeader("key", fields)} / ${header(c)}` : header(c)}
           </span>
-        ))}
+          );
+        })}
       </div>
       <div style={{ height: virtualizer.getTotalSize(), position: "relative", minWidth: grid.minWidth }}>
         {rows.map((row) => {
@@ -314,7 +346,7 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
                   onClick={(e) => {
                     if (!(e.target as HTMLElement).closest("button, a")) onOpen(it.number);
                   }}
-                  className={cn(ROW, "group h-full w-full cursor-pointer border-b border-zinc-300 text-left text-sm tabular-nums hover:bg-brand-50/80 dark:border-zinc-700 dark:hover:bg-zinc-800/60")}
+                  className={cn(ROW, rowText, "group h-full w-full cursor-pointer border-b border-zinc-300 text-left tabular-nums hover:bg-brand-50/80 dark:border-zinc-700 dark:hover:bg-zinc-800/60")}
                 >
                   {columns.map((c, i) => (
                     <span key={c} role="cell" style={pin(i).style} className={cn("min-w-0", pin(i).className, line(i))}>
@@ -340,14 +372,15 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
                   data-selected={select?.selected.has(it.number) || undefined}
                   className={cn(
                     ROW,
-                    "group h-full w-full cursor-pointer border-b border-zinc-300 text-left text-sm tabular-nums hover:bg-brand-50/80 dark:border-zinc-700 dark:hover:bg-zinc-800/60",
+                    rowText,
+                    "group h-full w-full cursor-pointer border-b border-zinc-300 text-left tabular-nums hover:bg-brand-50/80 dark:border-zinc-700 dark:hover:bg-zinc-800/60",
                     select?.selected.has(it.number) && "bg-brand-50/70 dark:bg-brand-950/30",
                   )}
                 >
                   {columns.map((c, i) => {
                     const kind = edit ? inlineKind(c, fields) : null;
                     return (
-                      <span key={c} role="cell" style={pin(i).style} className={cn("min-w-0", pin(i).className, line(i), i === 0 && select && "flex items-center gap-3")}>
+                      <span key={c} role="cell" style={pin(i).style} className={cn("min-w-0", pin(i).className, line(i), i === 0 && select && "flex items-center gap-2")}>
                         {i === 0 && select && (
                           <input
                             type="checkbox"
@@ -384,7 +417,7 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
           role="row"
           aria-label={tv.total}
           style={grid}
-          className={cn(ROW, "sticky bottom-0 z-[2] h-10 border-t border-zinc-300 bg-zinc-200 text-sm font-semibold dark:border-zinc-700 dark:bg-zinc-900")}
+          className={cn(ROW, "sticky bottom-0 z-[2] h-8 border-t border-zinc-300 bg-zinc-200 text-[0.8125rem] font-semibold dark:border-zinc-700 dark:bg-zinc-900")}
         >
           {columns.map((c, i) => {
             const s = numeric(c) ? sums?.[fieldKey(c)] : undefined;

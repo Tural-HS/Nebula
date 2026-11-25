@@ -71,6 +71,58 @@ test.describe("as admin", () => {
   });
 });
 
+test.describe("column filters and density", () => {
+  test.use({ storageState: authFile("alice") });
+
+  test("a column menu filters by range and by contained text; chips describe them", async ({ page }) => {
+    await page.goto(`${seed.url}?cols=key,title,field.balance,field.phone`);
+    await page.getByRole("button", { name: "Qalıq: filtr və sıralama" }).click();
+    const menu = page.getByRole("dialog", { name: "Qalıq: filtr və sıralama" });
+    await menu.getByLabel("Başlanğıc").fill("1000");
+    await menu.getByRole("button", { name: "Tətbiq et" }).click();
+    await expect(page).toHaveURL(/field\.balance=1000\.\./);
+    await expect(page.getByRole("row").filter({ hasText: "Kullinan MMC" })).toHaveCount(0);
+    await expect(page.getByRole("row").filter({ hasText: "Rəşad Quliyev" })).toHaveCount(1);
+    await expect(page.getByRole("list", { name: "Aktiv filtrlər" })).toContainText("Qalıq: ≥ 1000");
+    // Focus returns to the column button (WCAG 2.4.3).
+    await expect(page.getByRole("button", { name: /Qalıq: filtr və sıralama, filtr var/ })).toBeFocused();
+
+    await page.getByRole("button", { name: /Əlaqə nömrəsi: filtr və sıralama/ }).click();
+    const phone = page.getByRole("dialog", { name: "Əlaqə nömrəsi: filtr və sıralama" });
+    await phone.getByLabel("İçində").fill("5614");
+    await phone.getByLabel("İçində").press("Enter");
+    await expect(page.getByRole("list", { name: "Aktiv filtrlər" })).toContainText('Əlaqə nömrəsi: içində "5614"');
+    await expect(page.getByRole("row").filter({ hasText: "Rəşad Quliyev" })).toHaveCount(1);
+
+    // Clear from the menu; Escape closes without changes.
+    await page.getByRole("button", { name: /Qalıq: filtr və sıralama/ }).click();
+    await page.getByRole("dialog", { name: "Qalıq: filtr və sıralama" }).getByRole("button", { name: "Təmizlə" }).click();
+    await expect(page).not.toHaveURL(/field\.balance=/);
+    await page.getByRole("button", { name: /Əlaqə nömrəsi: filtr və sıralama/ }).click();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog", { name: "Əlaqə nömrəsi: filtr və sıralama" })).toHaveCount(0);
+  });
+
+  test("sort from the column menu, and the compact density is remembered", async ({ page }) => {
+    await page.goto(`${seed.url}?cols=key,title,field.balance`);
+    await page.getByRole("button", { name: "Qalıq: filtr və sıralama" }).click();
+    await page.getByRole("dialog", { name: "Qalıq: filtr və sıralama" }).getByRole("button", { name: /Azalan sırala/ }).click();
+    await expect(page).toHaveURL(/sort=-field\.balance/);
+    await expect(page.getByRole("row").nth(1)).toContainText("Rəşad Quliyev");
+
+    const toggle = page.getByRole("button", { name: "Sıx" });
+    await expect(toggle).toHaveAttribute("aria-pressed", "false");
+    const before = (await page.getByRole("row").nth(1).boundingBox())?.height ?? 0;
+    await toggle.click();
+    await expect(toggle).toHaveAttribute("aria-pressed", "true");
+    await page.reload();
+    await expect(page.getByRole("button", { name: "Sıx" })).toHaveAttribute("aria-pressed", "true");
+    const after = (await page.getByRole("row").nth(1).boundingBox())?.height ?? 0;
+    expect(after).toBeLessThan(before);
+    await page.getByRole("button", { name: "Sıx" }).click(); // leave the browser state as found
+  });
+});
+
 test.describe("as guest", () => {
   test.use({ storageState: authFile("bob") });
 

@@ -60,11 +60,11 @@ test.describe("as admin", () => {
     await expect(page.getByRole("row", { name: "Cəmi" })).toContainText("1 050");
 
     // Sorting by the formula, descending, is a server-side sort in the URL.
-    await page.getByLabel("Sıralama").selectOption("-field.remaining");
+    await page.getByLabel("Sıralama", { exact: true }).selectOption("-field.remaining");
     await expect(page).toHaveURL(/sort=-field\.remaining/);
     const firstKey = page.getByRole("row").filter({ hasText: "QA-" }).first().locator("[role=cell]").first();
     await expect(firstKey).toHaveText("QA-2");
-    await page.getByLabel("Sıralama").selectOption("field.remaining");
+    await page.getByLabel("Sıralama", { exact: true }).selectOption("field.remaining");
     await expect(firstKey).toHaveText("QA-3");
 
     // The drawer shows the value read-only, with the formula as a hint.
