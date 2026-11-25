@@ -68,6 +68,9 @@ export const ta = {
   choices: "Seçimlər",
   choicesHint: "Hər sətirdə bir seçim",
   addChoice: "Seçim əlavə et",
+  unit: "Vahid",
+  unitHint: "rəqəmin yanında görünür, məsələn ₼, AZN, %; 8 simvola qədər",
+  saveUnit: "Vahidi saxla",
   fieldTypes: {
     text: "Mətn", long_text: "Uzun mətn", number: "Rəqəm", date: "Tarix", datetime: "Tarix və vaxt", boolean: "Bəli/Xeyr",
     select: "Seçim", multi_select: "Çoxlu seçim", user: "İstifadəçi", url: "URL", email: "Email", formula: "Düstur",

@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/google/uuid"
@@ -79,6 +80,24 @@ type FieldOptions struct {
 	Choices []Choice        `json:"choices,omitempty"`
 	Formula *FormulaOptions `json:"formula,omitempty"` // formula fields only (ADR-0030)
 	Money   *MoneyOptions   `json:"money,omitempty"`   // money fields only (ADR-0044)
+	Unit    string          `json:"unit,omitempty"`    // number fields only: a display suffix such as "₼" or "%"
+}
+
+const maxFieldUnit = 8
+
+// normalizeUnit validates a number field's display unit: up to 8 printable
+// characters, no digits (they would read as part of the value). Blank clears it.
+func normalizeUnit(v string) (string, error) {
+	u, err := text("options.unit", v, 0, maxFieldUnit)
+	if err != nil {
+		return "", err
+	}
+	for _, r := range u {
+		if unicode.IsControl(r) || unicode.IsDigit(r) {
+			return "", invalid("options.unit", "must not contain digits or control characters")
+		}
+	}
+	return u, nil
 }
 
 // FieldDefinition is a workspace-level custom field.
@@ -133,6 +152,7 @@ type CreateFieldParams struct {
 	Choices     []ChoiceInput
 	Formula     *FormulaInput // required for formula fields, refused otherwise
 	Money       *MoneyInput   // money fields only; nil means the defaults
+	Unit        *string       // number fields only; nil or blank: no unit
 }
 
 // CreateField adds a custom field definition to a workspace.
@@ -185,6 +205,14 @@ func createField(ctx context.Context, tx pgx.Tx, p CreateFieldParams) (FieldDefi
 		}
 	case p.Money != nil:
 		return FieldDefinition{}, invalid("options.money", "only money fields have money options")
+	}
+	if p.Unit != nil {
+		if p.Type != FieldNumber {
+			return FieldDefinition{}, invalid("options.unit", "only number fields have a unit")
+		}
+		if opts.Unit, err = normalizeUnit(*p.Unit); err != nil {
+			return FieldDefinition{}, err
+		}
 	}
 
 	var f FieldDefinition
@@ -324,6 +352,7 @@ type UpdateFieldParams struct {
 	Choices     *[]ChoiceInput // nil: unchanged; else the complete new list
 	Formula     *FormulaInput  // nil: unchanged; formula fields only
 	Money       *MoneyInput    // nil: unchanged; money fields only
+	Unit        *string        // nil: unchanged; "" clears; number fields only
 	Archived    opt.Field[bool]
 }
 
@@ -375,6 +404,17 @@ func (s *Store) UpdateField(ctx context.Context, p UpdateFieldParams) (FieldDefi
 			}
 			if !reflect.DeepEqual(cur.Options.Money, next.Options.Money) {
 				changes["options.money"] = diff(cur.Options.Money, next.Options.Money)
+			}
+		}
+		if p.Unit != nil {
+			if cur.Type != FieldNumber {
+				return invalid("options.unit", "only number fields have a unit")
+			}
+			if next.Options.Unit, err = normalizeUnit(*p.Unit); err != nil {
+				return err
+			}
+			if next.Options.Unit != cur.Options.Unit {
+				changes["options.unit"] = diff(cur.Options.Unit, next.Options.Unit)
 			}
 		}
 		if p.Archived.Set {

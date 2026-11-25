@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, type CSSProperties, type ReactNode } from "
 import type { FieldDefinition, FieldSums, Item, Member } from "../api/types";
 import { SignalCell, StatusText } from "../components/Signals";
 import { hasSignal } from "../lib/signals";
+import { isPhoneField, telHref } from "../lib/phone";
 import { tc } from "../i18n-calendar";
 import { inlineKind, type InlineEdit } from "../lib/inline";
 import { InlineCell } from "./InlineCell";
@@ -13,7 +14,7 @@ import { tv } from "../i18n-views";
 import { cn } from "../lib/cn";
 import { formatDateTime, formatRelative } from "../lib/format";
 import { displayColumns, FINE_POINTER, useCompact, useMediaQuery } from "../lib/responsive";
-import { columnHeader, fieldKey, formatDecimal, formatFieldValue, isFieldColumn } from "../lib/views";
+import { columnHeader, fieldKey, formatDecimal, formatFieldValue, isFieldColumn, withUnit } from "../lib/views";
 import { isAmount, isFormula } from "../lib/formula";
 import { formatMoneyTotals } from "../lib/money";
 import { tm } from "../i18n-money";
@@ -54,7 +55,8 @@ function track(col: string, def: FieldDefinition | undefined, compact: boolean):
       return ["10.5rem", 10.5]; // + the SLA slot (ADR-0045)
     case "title":
       // Pinned on phones: leave about half of a 375 px screen for the rest.
-      return compact ? ["minmax(10.5rem,1fr)", 10.5] : ["minmax(14rem,1fr)", 14];
+      // Desktop: wide enough for full person and company names (ledgers).
+      return compact ? ["minmax(10.5rem,1fr)", 10.5] : ["minmax(18rem,1fr)", 18];
     case "type":
       return ["7rem", 7];
     case "status":
@@ -217,7 +219,18 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
       }
     }
     const def = fields.get(fieldKey(col));
-    const text = formatFieldValue(def, it.fields[fieldKey(col)], members);
+    const raw = it.fields[fieldKey(col)];
+    const text = formatFieldValue(def, raw, members);
+    // Tap to call where cells do not edit in place (touch, read-only); a link
+    // inside the inline editor's button would be invalid and unclickable.
+    const tel = !edit && isPhoneField(def) ? telHref(raw) : null;
+    if (tel) {
+      return (
+        <a href={tel} className="block min-w-0 truncate text-brand-700 tabular-nums hover:underline dark:text-brand-300" title={text}>
+          {text}
+        </a>
+      );
+    }
     const expr = isFormula(def) ? def?.options.formula?.expression : undefined;
     return (
       <span
@@ -361,7 +374,7 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
                 title={s ? (money !== undefined ? `${tm.totalsLabel(money)}\n${tm.noFx}\n${tv.totalHint(s.count)}` : tv.totalHint(s.count)) : undefined}
                 data-money-total={money !== undefined ? "" : undefined}
               >
-                {numeric(c) ? (s ? (money ?? formatDecimal(s.sum ?? "0")) : "…") : i === labelAt ? tv.total : ""}
+                {numeric(c) ? (s ? (money ?? withUnit(formatDecimal(s.sum ?? "0"), fields.get(fieldKey(c)))) : "…") : i === labelAt ? tv.total : ""}
               </span>
             );
           })}

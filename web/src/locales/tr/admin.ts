@@ -69,6 +69,9 @@ export const ta = {
   choices: "Seçenekler",
   choicesHint: "Her satıra bir seçenek",
   addChoice: "Seçenek ekle",
+  unit: "Birim",
+  unitHint: "sayının yanında gösterilir, örn. ₼, AZN, %; en fazla 8 karakter",
+  saveUnit: "Birimi kaydet",
   fieldTypes: {
     text: "Metin", long_text: "Uzun metin", number: "Sayı", date: "Tarih", datetime: "Tarih ve saat", boolean: "Evet/Hayır",
     select: "Seçim", multi_select: "Çoklu seçim", user: "Kullanıcı", url: "URL", email: "E-posta", formula: "Formül",

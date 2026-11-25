@@ -46,6 +46,7 @@ function NewField({ ws }: { ws: string }) {
   const [formula, setFormula] = useState<FormulaInput>({ expression: "" });
   const [money, setMoney] = useState({ currencies: "AZN, USD, EUR", default_currency: "AZN", scale: 2 });
   const [moneyError, setMoneyError] = useState("");
+  const [unit, setUnit] = useState("");
 
   return (
     <Card>
@@ -62,10 +63,10 @@ function NewField({ ws }: { ws: string }) {
             setMoneyError("");
             moneyOpts = { currencies: parsed.codes, default_currency: parsed.codes.includes(money.default_currency) ? money.default_currency : (parsed.codes[0] ?? "AZN"), scale: money.scale };
           }
-          const options = isChoice(type) ? { options: { choices: list } } : type === "formula" ? { options: { formula } } : moneyOpts ? { options: { money: moneyOpts } } : {};
+          const options = isChoice(type) ? { options: { choices: list } } : type === "formula" ? { options: { formula } } : moneyOpts ? { options: { money: moneyOpts } } : type === "number" && unit.trim() ? { options: { unit } } : {};
           adm.createField.mutate(
             { name, key, type, ...options },
-            { onSuccess: () => { setName(""); setKey(""); setKeyTouched(false); setChoices(""); setFormula({ expression: "" }); fb.ok()(); }, onError: fb.fail },
+            { onSuccess: () => { setName(""); setKey(""); setKeyTouched(false); setChoices(""); setFormula({ expression: "" }); setUnit(""); fb.ok()(); }, onError: fb.fail },
           );
         }}
       >
@@ -93,6 +94,12 @@ function NewField({ ws }: { ws: string }) {
               onChange={(e) => { setChoices(e.target.value); }}
               className="w-full rounded-md bg-white px-2.5 py-1.5 text-sm ring-1 ring-zinc-300 dark:bg-zinc-900 dark:ring-zinc-700"
             />
+          </label>
+        )}
+        {type === "number" && (
+          <label className="text-xs text-zinc-500 dark:text-zinc-400">
+            {ta.unit} <span className="text-zinc-500 dark:text-zinc-400">({ta.unitHint})</span>
+            <Input maxLength={8} value={unit} onChange={(e) => { setUnit(e.target.value); }} />
           </label>
         )}
         {type === "formula" && (
@@ -174,6 +181,7 @@ function FieldCard({ ws, field }: { ws: string; field: FieldDefinition }) {
       )}
 
       {field.type === "money" && !field.archived && <MoneyFieldCard ws={ws} field={field} />}
+      {field.type === "number" && !field.archived && <UnitFieldCard ws={ws} field={field} />}
 
       {isChoice(field.type) && !field.archived && (
         <div className="mt-3 space-y-2 border-t border-zinc-100 pt-3 dark:border-zinc-800">
@@ -232,6 +240,29 @@ function MoneyFieldCard({ ws, field }: { ws: string; field: FieldDefinition }) {
     >
       <MoneySettings value={value} error={error} scaleFixed onChange={(v) => { setValue(v); setError(""); }} />
       {dirty && <Button type="submit" variant="primary" disabled={adm.updateField.isPending}>{tm.saveCurrencies}</Button>}
+    </form>
+  );
+}
+
+/** Display unit of a number field ("₼", "%"): only how the value is shown, never stored with it. */
+function UnitFieldCard({ ws, field }: { ws: string; field: FieldDefinition }) {
+  const adm = useAdminApi(ws);
+  const fb = useFeedback();
+  const saved = field.options.unit ?? "";
+  const [unit, setUnit] = useState(saved);
+  return (
+    <form
+      className="mt-3 flex flex-wrap items-end gap-2 border-t border-zinc-100 pt-3 dark:border-zinc-800"
+      onSubmit={(e) => {
+        e.preventDefault();
+        adm.updateField.mutate({ key: field.key, body: { options: { unit: unit.trim() } } }, { onSuccess: fb.ok(), onError: fb.fail });
+      }}
+    >
+      <label className="text-xs text-zinc-500 dark:text-zinc-400">
+        {ta.unit} <span className="text-zinc-500 dark:text-zinc-400">({ta.unitHint})</span>
+        <Input maxLength={8} value={unit} className="max-w-32" onChange={(e) => { setUnit(e.target.value); }} />
+      </label>
+      {unit.trim() !== saved && <Button type="submit" variant="primary" disabled={adm.updateField.isPending}>{ta.saveUnit}</Button>}
     </form>
   );
 }

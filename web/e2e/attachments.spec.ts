@@ -20,6 +20,9 @@ test.beforeAll(async () => {
 test("upload, preview, download and delete attachments", async ({ page }) => {
   await page.goto(seed.url + "?item=1");
   const panel = page.getByRole("dialog", { name: "QA-1" });
+  // Empty sections fold into "Əlavə et: …" (ADR-0047).
+  await expect(panel.getByTestId("attachments")).toHaveCount(0);
+  await panel.getByRole("button", { name: "+ Fayl" }).click();
   const files = panel.getByTestId("attachments");
   await expect(files).toContainText("Fayl yoxdur.");
 
@@ -85,6 +88,7 @@ test("descriptions and comments render Markdown safely", async ({ page }) => {
   await page.goto(seed.url + "?item=1");
   const panel = page.getByRole("dialog", { name: "QA-1" });
 
+  await panel.getByRole("button", { name: "+ Təsvir" }).click();
   await panel.getByRole("button", { name: "Təsviri redaktə et" }).click();
   const editor = panel.getByLabel("Təsvir");
   await editor.fill("## Plan\n\n- [x] **hazır**\n- [ ] növbəti\n\n[pis](javascript:alert(1)) <img src=x onerror=alert(1)>\n\n| A | B |\n|---|---|\n| 1 | 2 |");

@@ -19,6 +19,7 @@ test.beforeAll(async () => {
 test("add a link from the drawer; both sides and the history show it", async ({ page }) => {
   await page.goto(seed.url + "?item=1");
   const panel = page.getByRole("dialog", { name: "QA-1" });
+  await panel.getByRole("button", { name: "+ Əlaqə" }).click(); // folded while empty (ADR-0047)
   const section = panel.getByRole("region", { name: "Əlaqələr" });
   await expect(section.getByText("Əlaqə yoxdur.")).toBeVisible();
 

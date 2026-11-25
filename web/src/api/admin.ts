@@ -197,11 +197,11 @@ export function useAdminApi(ws: string) {
     revokeInvite: useAdminMutation((id: string) => api<undefined>("DELETE", base + path`/invitations/${id}`), [["ws", ws, "invitations"]]),
 
     createField: useAdminMutation(
-      (b: { key: string; name: string; type: string; options?: { choices: { label: string }[] } | { formula: FormulaInput } | { money: MoneyInput } }) => api<FieldDefinition>("POST", base + "/fields", b),
+      (b: { key: string; name: string; type: string; options?: { choices: { label: string }[] } | { formula: FormulaInput } | { money: MoneyInput } | { unit: string } }) => api<FieldDefinition>("POST", base + "/fields", b),
       [fields],
     ),
     updateField: useAdminMutation(
-      (v: { key: string; body: { name?: string; archived?: boolean; options?: { choices: { id?: string; label: string; archived?: boolean }[] } | { formula: FormulaInput } | { money: MoneyInput } } }) =>
+      (v: { key: string; body: { name?: string; archived?: boolean; options?: { choices: { id?: string; label: string; archived?: boolean }[] } | { formula: FormulaInput } | { money: MoneyInput } | { unit: string } } }) =>
         api<FieldDefinition>("PATCH", base + path`/fields/${v.key}`, v.body),
       [fields, types],
     ),

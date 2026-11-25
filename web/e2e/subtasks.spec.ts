@@ -66,7 +66,8 @@ test("detaching a subtask is recorded in its history", async ({ page }) => {
   const sub = page.getByRole("dialog", { name: "QA-4" });
   await sub.getByRole("button", { name: "Əsas tapşırıqdan ayır" }).click();
   await expect(sub.getByRole("navigation", { name: "Əsas tapşırıq" })).toHaveCount(0);
-  // Now top-level, it may get subtasks of its own.
+  // Now top-level, it may get subtasks of its own (behind "+ Alt tapşırıq" while it has none).
+  await sub.getByRole("button", { name: "+ Alt tapşırıq" }).click();
   await expect(sub.getByRole("region", { name: "Alt tapşırıqlar" })).toBeVisible();
 
   await sub.getByRole("tab", { name: "Aktivlik" }).click();

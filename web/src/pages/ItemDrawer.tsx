@@ -13,6 +13,9 @@ import { DescriptionField } from "../components/DescriptionField";
 import { ItemEvidenceButton } from "../components/Evidence";
 import { FieldEditor } from "../components/FieldEditor";
 import { LinksSection } from "../components/Links";
+import { KeyFacts } from "../components/KeyFacts";
+import { useLinks } from "../api/links";
+import { useAttachments } from "../api/attachments";
 import { RequestPanel } from "../components/RequestPanel";
 import { ParentCrumb, SubtaskSection } from "../components/Subtasks";
 import { useToast } from "../components/toast-context";
@@ -145,6 +148,18 @@ function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose }: {
   const [title, setTitle] = useState(item.title);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [due, setDue] = useState(item.due_date ?? "");
+  // Sections with content always show; empty ones wait behind "+ …" (same queries as the sections: cached once).
+  const links = useLinks(ws, project, item.number);
+  const files = useAttachments(ws, project, item.number);
+  const [opened, setOpened] = useState<ReadonlySet<Extra>>(new Set());
+  const filled: Record<Extra, boolean> = {
+    description: Boolean(item.description),
+    subtasks: (item.subtasks?.count ?? 0) > 0,
+    links: (links.data?.length ?? 0) > 0,
+    files: (files.data?.attachments.length ?? 0) > 0,
+  };
+  const show = (x: Extra) => filled[x] || opened.has(x);
+  const collapsed = (["description", "subtasks", "links", "files"] as const).filter((x) => !show(x) && !(x === "subtasks" && item.parent));
 
   const memberName = (id: string | null) => (id ? (members.data?.find((m) => m.user_id === id)?.display_name ?? "…") : null);
 
@@ -188,6 +203,7 @@ function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose }: {
   const type = types.data?.find((x) => x.id === item.type.id);
   const boundFields = [...(type?.fields ?? [])].sort((a, b) => a.position - b.position);
   const defs = new Map((fields.data ?? []).map((f) => [f.key, f]));
+  const memberMap = new Map((members.data ?? []).map((m) => [m.user_id, m]));
   const statusOptions = [item.status, ...(transitions.data ?? [])];
   // While approval is pending the content approvers sign off on is frozen.
   const locked = isLocked(item);
@@ -271,6 +287,8 @@ function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose }: {
           className="w-full resize-none rounded-md bg-transparent text-xl leading-snug font-semibold tracking-tight [overflow-wrap:anywhere] hover:bg-zinc-50 focus:bg-zinc-50 dark:hover:bg-zinc-800 dark:focus:bg-zinc-800"
         />
         <WorkflowSteps statuses={workflow} item={item} />
+        {/* Above the two columns: first on phones, full width on desktop. */}
+        <KeyFacts keys={boundFields.map((b) => b.key)} defs={defs} values={item.fields} members={memberMap} />
       </div>
 
       <div className="grid gap-5 p-4 md:p-5 @2xl:grid-cols-[minmax(0,1fr)_16.5rem] @2xl:gap-6">
@@ -402,16 +420,28 @@ function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose }: {
 
           <ApprovalPanel ws={ws} project={project} item={item} />
 
-          <DescriptionField value={item.description} canEdit={canEditContent} onSave={(v) => { save({ description: v }); }} />
+          {show("description") && <DescriptionField value={item.description} canEdit={canEditContent} onSave={(v) => { save({ description: v }); }} />}
 
           {/* One level only: a subtask has no subtasks of its own (ADR-0021). */}
-          {!item.parent && <SubtaskSection ws={ws} project={project} item={item} canEdit={canEdit} />}
+          {!item.parent && show("subtasks") && <SubtaskSection ws={ws} project={project} item={item} canEdit={canEdit} />}
 
-          <LinksSection ws={ws} project={project} item={item} canEdit={canEdit} />
+          {show("links") && <LinksSection ws={ws} project={project} item={item} canEdit={canEdit} />}
 
           <RequestPanel ws={ws} project={project} n={item.number} canWrite={canEdit} />
 
-          <Attachments ws={ws} project={project} n={item.number} meId={me.data?.id} canWrite={canEditContent} isAdmin={isAdmin} />
+          {show("files") && <Attachments ws={ws} project={project} n={item.number} meId={me.data?.id} canWrite={canEditContent} isAdmin={isAdmin} />}
+
+          {/* Empty sections fold into one row, so a record opens on its data. */}
+          {canEditContent && collapsed.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              <span className="text-zinc-500 dark:text-zinc-400">{tlg.addMore}</span>
+              {collapsed.map((x) => (
+                <Button key={x} variant="ghost" onClick={() => { setOpened((o) => new Set(o).add(x)); }}>
+                  + {EXTRA_LABEL[x]}
+                </Button>
+              ))}
+            </div>
+          )}
 
           <RequestApprovalDialog ws={ws} project={project} item={item} version={() => version.current} target={approvalTarget} onClose={() => { setApprovalTarget(null); }} />
 
@@ -421,6 +451,9 @@ function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose }: {
     </div>
   );
 }
+
+type Extra = "description" | "subtasks" | "links" | "files";
+const EXTRA_LABEL: Record<Extra, string> = { description: tlg.addDescription, subtasks: tlg.addSubtask, links: tlg.addLink, files: tlg.addFile };
 
 function FieldRow({ id, label, children }: { id: string; label: string; children: React.ReactNode }) {
   return (

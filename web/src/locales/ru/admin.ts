@@ -73,6 +73,9 @@ export const ta = {
   choices: "Варианты",
   choicesHint: "По одному варианту на строку",
   addChoice: "Добавить вариант",
+  unit: "Единица",
+  unitHint: "показывается рядом с числом, например ₼, AZN, %; до 8 символов",
+  saveUnit: "Сохранить единицу",
   fieldTypes: {
     text: "Текст", long_text: "Длинный текст", number: "Число", date: "Дата", datetime: "Дата и время", boolean: "Да/Нет",
     select: "Список", multi_select: "Множественный выбор", user: "Пользователь", url: "URL", email: "Email", formula: "Формула",

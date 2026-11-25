@@ -33,6 +33,7 @@ type fieldOptionsBody struct {
 	Choices *[]store.ChoiceInput `json:"choices"`
 	Formula *store.FormulaInput  `json:"formula"`
 	Money   *store.MoneyInput    `json:"money"`
+	Unit    *string              `json:"unit"`
 }
 
 func (a *api) listFields(w http.ResponseWriter, r *http.Request) {
@@ -57,8 +58,10 @@ func (a *api) createField(w http.ResponseWriter, r *http.Request) {
 	var choices []store.ChoiceInput
 	var formula *store.FormulaInput
 	var money *store.MoneyInput
+	var unit *string
 	if body.Options != nil {
 		money = body.Options.Money
+		unit = body.Options.Unit
 		if body.Options.Choices != nil {
 			choices = *body.Options.Choices
 		}
@@ -67,7 +70,7 @@ func (a *api) createField(w http.ResponseWriter, r *http.Request) {
 	ws := workspaceFrom(r)
 	f, err := a.store.CreateField(r.Context(), store.CreateFieldParams{
 		WorkspaceID: ws.ID, ActorID: principal(r).UserID,
-		Key: body.Key, Name: body.Name, Type: body.Type, Choices: choices, Formula: formula, Money: money,
+		Key: body.Key, Name: body.Name, Type: body.Type, Choices: choices, Formula: formula, Money: money, Unit: unit,
 	})
 	if err != nil {
 		a.fail(w, r, err)
@@ -105,6 +108,7 @@ func (a *api) updateField(w http.ResponseWriter, r *http.Request) {
 		p.Choices = body.Options.Choices
 		p.Formula = body.Options.Formula
 		p.Money = body.Options.Money
+		p.Unit = body.Options.Unit
 	}
 	f, err := a.store.UpdateField(r.Context(), p)
 	if err != nil {

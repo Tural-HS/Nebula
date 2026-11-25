@@ -98,7 +98,8 @@ export interface FieldDefinition {
   key: string;
   name: string;
   type: FieldType;
-  options: { choices?: Choice[]; formula?: FormulaOptions; money?: MoneyOptions };
+  /** unit: number fields only, a display suffix such as "₼". */
+  options: { choices?: Choice[]; formula?: FormulaOptions; money?: MoneyOptions; unit?: string };
   archived: boolean;
 }
 

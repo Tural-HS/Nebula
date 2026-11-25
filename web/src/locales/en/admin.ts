@@ -70,6 +70,9 @@ export const ta = {
   choices: "Options",
   choicesHint: "One option per line",
   addChoice: "Add option",
+  unit: "Unit",
+  unitHint: "shown next to the number, e.g. ₼, AZN, %; up to 8 characters",
+  saveUnit: "Save unit",
   fieldTypes: {
     text: "Text", long_text: "Long text", number: "Number", date: "Date", datetime: "Date and time", boolean: "Yes/No",
     select: "Select", multi_select: "Multi-select", user: "User", url: "URL", email: "Email", formula: "Formula",

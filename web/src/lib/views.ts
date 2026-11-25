@@ -225,6 +225,12 @@ function numberText(n: number): string {
 }
 
 /** A field value as text, by field type ("" when empty). */
+/** A number with its field's display unit ("2 665 ₼"); a no-break space keeps them together. */
+export function withUnit(text: string, def: FieldDefinition | undefined): string {
+  const unit = def?.type === "number" ? def.options.unit : undefined;
+  return unit ? `${text}\u00a0${unit}` : text;
+}
+
 export function formatFieldValue(def: FieldDefinition | undefined, v: FieldValue | undefined, members: ReadonlyMap<string, Member>): string {
   if (v === null || v === undefined || v === "") return "";
   if (isFormulaError(v)) return tf.errors[v.error] ?? "#" + v.error;
@@ -233,7 +239,7 @@ export function formatFieldValue(def: FieldDefinition | undefined, v: FieldValue
   const label = (id: string) => def.options.choices?.find((c) => c.id === id)?.label ?? "?";
   switch (valueType(def)) {
     case "number":
-      return typeof v === "number" ? formatDecimal(v) : String(v);
+      return typeof v === "number" ? withUnit(formatDecimal(v), def) : String(v);
     case "money":
       return ""; // not in the stored form
     case "date":
