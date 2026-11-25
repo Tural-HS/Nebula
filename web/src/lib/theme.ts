@@ -2,15 +2,15 @@ import { useSyncExternalStore } from "react";
 
 // ---------------------------------------------------------------------------
 // Colour theme per browser (ADR-0035, ADR-0049): the system setting, light,
-// dark, or one of three palettes on top of them — paper (warm light, least
-// glare), midnight (the logo's deep blue, dark) and high contrast (light).
+// dark, or one of four palettes on top of them — green (FinTez green, light),
+// paper (warm light, least glare), midnight (the logo's deep blue, dark) and high contrast (light).
 // Stored like the language (ADR-0025) but applied live, without a reload.
 // public/theme-init.js applies the stored choice before the first paint; it
 // duplicates the few lines of resolveTheme/applyTheme because it must run
 // as a classic same-origin script (CSP script-src 'self', no inline code).
 // ---------------------------------------------------------------------------
 
-export const THEMES = ["system", "light", "dark", "paper", "midnight", "contrast"] as const;
+export const THEMES = ["system", "light", "dark", "green", "paper", "midnight", "contrast"] as const;
 export type ThemePref = (typeof THEMES)[number];
 export type ResolvedTheme = Exclude<ThemePref, "system">;
 
@@ -24,6 +24,7 @@ export const DARK_QUERY = "(prefers-color-scheme: dark)";
 export const THEME_COLORS: Record<ResolvedTheme, string> = {
   light: "#16788b",
   dark: "#18181b",
+  green: "#00524d",
   paper: "#f4ecdd",
   midnight: "#0f1a33",
   contrast: "#000000",

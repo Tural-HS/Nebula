@@ -52,6 +52,34 @@
    dark). Checked to WCAG AA like the default scale: paper grey 500 on the page
    5.54:1; midnight 400 on 950 7.99:1; contrast 500 on the page 8.57:1, lines
    (300) 3.67:1. */
+:root[data-theme="green"] {
+  /* FinTez green (#11b67a, #00524d) on a light base: neutrals tinted green
+     (hue 165-184), the brand scale is green. White text on brand 600 5.21:1,
+     700 7.44:1; 500 focus ring on white 3.42:1; grey 500 on the page 5.12:1.
+     A workspace accent (ADR-0035) still wins: it is set on the element. */
+  --color-zinc-50: oklch(0.975 0.008 165);
+  --color-zinc-100: oklch(0.958 0.013 165);
+  --color-zinc-200: oklch(0.905 0.02 165);
+  --color-zinc-300: oklch(0.85 0.026 165);
+  --color-zinc-400: oklch(0.71 0.032 168);
+  --color-zinc-500: oklch(0.505 0.035 172);
+  --color-zinc-600: oklch(0.44 0.035 175);
+  --color-zinc-700: oklch(0.37 0.032 178);
+  --color-zinc-800: oklch(0.285 0.028 180);
+  --color-zinc-900: oklch(0.22 0.024 182);
+  --color-zinc-950: oklch(0.16 0.02 184);
+  --color-brand-50: oklch(0.975 0.022 165);
+  --color-brand-100: oklch(0.945 0.05 163);
+  --color-brand-200: oklch(0.89 0.085 162);
+  --color-brand-300: oklch(0.82 0.12 161);
+  --color-brand-400: oklch(0.74 0.145 160);
+  --color-brand-500: oklch(0.62 0.13 162);
+  --color-brand-600: oklch(0.52 0.108 165);
+  --color-brand-700: oklch(0.44 0.08 175);
+  --color-brand-800: oklch(0.39 0.068 184);
+  --color-brand-900: oklch(0.32 0.054 188);
+  --color-brand-950: oklch(0.25 0.044 190);
+}
 :root[data-theme="paper"] {
   --color-white: oklch(0.985 0.012 85);
   --color-zinc-50: oklch(0.975 0.012 80);

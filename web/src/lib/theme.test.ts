@@ -162,6 +162,9 @@ describe("extra palettes", () => {
     applyTheme(document, "paper");
     expect(document.documentElement.classList.contains("dark")).toBe(false);
     expect(document.documentElement.dataset.theme).toBe("paper");
+    applyTheme(document, "green");
+    expect(document.documentElement.classList.contains("dark")).toBe(false);
+    expect(document.documentElement.dataset.theme).toBe("green");
     applyTheme(document, "contrast");
     expect(document.documentElement.dataset.theme).toBe("contrast");
     expect(document.documentElement.style.colorScheme).toBe("light");
@@ -171,6 +174,7 @@ describe("extra palettes", () => {
   it("parses stored palettes and still falls back to system", () => {
     expect(parseTheme("paper")).toBe("paper");
     expect(parseTheme("midnight")).toBe("midnight");
+    expect(parseTheme("green")).toBe("green");
     expect(parseTheme("sepia")).toBe("system");
     expect(resolveTheme("contrast", true)).toBe("contrast");
   });

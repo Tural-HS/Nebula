@@ -8,10 +8,10 @@
   } catch (e) {
     // storage blocked: follow the system
   }
-  var known = { light: 1, dark: 1, paper: 1, midnight: 1, contrast: 1 };
+  var known = { light: 1, dark: 1, green: 1, paper: 1, midnight: 1, contrast: 1 };
   var theme = known[pref] ? pref : (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
   var dark = theme === "dark" || theme === "midnight";
-  var colors = { light: "#16788b", dark: "#18181b", paper: "#f4ecdd", midnight: "#0f1a33", contrast: "#000000" };
+  var colors = { light: "#16788b", dark: "#18181b", green: "#00524d", paper: "#f4ecdd", midnight: "#0f1a33", contrast: "#000000" };
   var root = document.documentElement;
   if (dark) root.classList.add("dark");
   if (theme !== "light" && theme !== "dark") root.setAttribute("data-theme", theme);

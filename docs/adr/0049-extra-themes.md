@@ -22,6 +22,13 @@ kifayət etmir: isti, az parlayan fon, brendə uyğun tünd variant və zəif g�
 - Miqrasiya və server dəyişikliyi yoxdur. Köhnə versiyaya qayıdanda saxlanmış yeni dəyər "Sistem" kimi oxunur.
 - Testlər: vitest (`data-theme`, `dark` sinfi, parse), E2E (seçim, reload-dan sonra qalması, Gecə göyünün tünd bazası).
 
+## Əlavə (2026-11-26): Yaşıl (FinTez)
+
+Dördüncü palitra `green`: açıq əsas, neytral şkala yaşıla çalır (hue 165–184), **brend şkalası da yaşıldır**
+(FinTez rəngləri #11b67a və #00524d əsasında). Kontrast: brend 600 üzərində ağ mətn 5.21:1, 700 — 7.44:1; 500
+fokus halqası ağ fonda 3.42:1; boz 500 səhifədə 5.12:1. İş yerinin öz aksent rəngi (ADR-0035) elementin üzərində
+təyin olunduğu üçün yenə üstündür.
+
 ## Açıq suallar
 
 - Workspace səviyyəsində standart tema (admin seçir, istifadəçi dəyişə bilər).

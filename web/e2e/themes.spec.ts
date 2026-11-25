@@ -4,7 +4,7 @@ import { authFile, expect, test } from "./fixtures";
 // reload (applied before the first paint), and dark palettes keep dark mode.
 test.use({ storageState: authFile("alice") });
 
-test("pick paper, midnight and high contrast; back to system", async ({ page }) => {
+test("pick paper, midnight, green and high contrast; back to system", async ({ page }) => {
   await page.goto("/");
   const picker = page.getByRole("combobox", { name: "Rəng rejimi" }).first();
   const root = page.locator("html");
@@ -21,6 +21,15 @@ test("pick paper, midnight and high contrast; back to system", async ({ page }) 
   // The palette replaces the neutral scale: the page background is navy, not zinc.
   const bg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
   expect(bg).not.toBe("rgb(9, 9, 11)");
+
+  // FinTez green: a light palette whose brand colour is green, not teal.
+  await page.getByRole("combobox", { name: "Rəng rejimi" }).first().selectOption("green");
+  await expect(root).toHaveAttribute("data-theme", "green");
+  await expect(root).not.toHaveClass(/dark/);
+  const brand = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--color-brand-600"));
+  expect(brand).toContain("165");
+  await page.reload();
+  await expect(root).toHaveAttribute("data-theme", "green");
 
   await page.getByRole("combobox", { name: "Rəng rejimi" }).first().selectOption("contrast");
   await expect(root).toHaveAttribute("data-theme", "contrast");
