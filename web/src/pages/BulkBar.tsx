@@ -1,12 +1,15 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { BulkFailedError, useBulkItems, type BulkChange, type BulkItemError } from "../api/bulk";
+import { BulkFailedError, postBulk, useBulkItems, type BulkChange, type BulkItemError } from "../api/bulk";
 import { ApiError } from "../api/client";
+import { keys } from "../api/hooks";
 import type { FieldDefinition, FieldValue, Item, Member, Status } from "../api/types";
 import { useToast } from "../components/toast-context";
 import { Button, Dialog, Input, Select } from "../components/ui";
 import { t } from "../i18n";
 import { tc } from "../i18n-calendar";
+import { undoPlan } from "../lib/bulkUndo";
 import { parseDraft } from "../lib/inline";
 
 // ---------------------------------------------------------------------------
@@ -29,6 +32,7 @@ export function BulkBar({ ws, project, projectKey, selected, statuses, assignabl
   onClear: () => void;
 }) {
   const toast = useToast();
+  const qc = useQueryClient();
   const bulk = useBulkItems(ws, project);
   const [due, setDue] = useState("");
   const [fieldKey, setFieldKey] = useState("");
@@ -44,7 +48,23 @@ export function BulkBar({ ws, project, projectKey, selected, statuses, assignabl
       { targets: selected, change },
       {
         onSuccess: (res) => {
-          toast("success", change.delete ? tc.bulkDeleted(res.changed) : tc.bulkDone(res.changed));
+          const steps = undoPlan(change, selected, res.items);
+          const undo = steps.length === 0 ? undefined : {
+            label: tc.undo,
+            run: () => {
+              void (async () => {
+                try {
+                  for (const st of steps) await postBulk(ws, project, st.targets, st.change);
+                  toast("success", tc.bulkUndone(res.changed));
+                } catch {
+                  toast("error", tc.bulkUndoFailed);
+                } finally {
+                  void qc.invalidateQueries({ queryKey: keys.items(ws, project) });
+                }
+              })();
+            },
+          };
+          toast("success", change.delete ? tc.bulkDeleted(res.changed) : tc.bulkDone(res.changed), undo);
           onClear();
           setConfirmDelete(false);
         },

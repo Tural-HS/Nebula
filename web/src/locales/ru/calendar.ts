@@ -56,4 +56,6 @@ export const tc = {
   saveFailed: "Не удалось сохранить изменение",
   toggled: (what: string, value: string, key: string) => `${key}: ${what} — ${value}`,
   undo: "Отменить",
+  bulkUndone: (n: number) => `Восстановлено задач: ${String(n)}`,
+  bulkUndoFailed: "Не удалось отменить: кто-то уже изменил часть задач",
 } satisfies Messages["calendar"];

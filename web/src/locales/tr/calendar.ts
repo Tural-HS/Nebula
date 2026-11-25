@@ -50,4 +50,6 @@ export const tc = {
   saveFailed: "Değişiklik kaydedilemedi",
   toggled: (what: string, value: string, key: string) => `${key}: ${what} — ${value}`,
   undo: "Geri al",
+  bulkUndone: (n: number) => `${String(n)} görev eski haline getirildi`,
+  bulkUndoFailed: "Geri alınamadı: bazı görevleri bu arada başkası değiştirdi",
 } satisfies Messages["calendar"];

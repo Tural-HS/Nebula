@@ -53,4 +53,6 @@ export const tc = {
   saveFailed: "Change was not saved",
   toggled: (what: string, value: string, key: string) => `${key}: ${what} — ${value}`,
   undo: "Undo",
+  bulkUndone: (n: number) => `${items(n)} restored`,
+  bulkUndoFailed: "Could not undo: someone has changed some of the items since",
 } satisfies Messages["calendar"];

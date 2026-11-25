@@ -50,6 +50,12 @@ test.describe("bulk and inline editing", () => {
     await expect(page.getByRole("row").filter({ hasText: "QA-1" })).toContainText("In Progress");
     await expect(page.getByRole("row").filter({ hasText: "QA-3" })).toContainText("To Do");
 
+    // Undo puts both back, each with its own previous value.
+    await page.getByRole("button", { name: "Geri qaytar" }).click();
+    await expect(page.getByRole("status").filter({ hasText: "2 tapşırıq əvvəlki vəziyyətinə qaytarıldı" })).toBeVisible();
+    await expect(page.getByRole("row").filter({ hasText: "QA-1" })).toContainText("To Do");
+    expect((await get(alice, seed.ws, 2)).status.name).toBe("To Do");
+
     // Select all: every row of the filtered list.
     await page.getByRole("checkbox", { name: "Hamısını seç" }).check();
     await expect(bar.getByRole("status")).toHaveText("4 seçilib");

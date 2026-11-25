@@ -48,4 +48,6 @@ export const tc = {
   saveFailed: "Dəyişiklik saxlanılmadı",
   toggled: (what: string, value: string, key: string) => `${key}: ${what} — ${value}`,
   undo: "Geri qaytar",
+  bulkUndone: (n: number) => `${String(n)} tapşırıq əvvəlki vəziyyətinə qaytarıldı`,
+  bulkUndoFailed: "Geri qaytarmaq alınmadı: bəzi tapşırıqları artıq başqası dəyişib",
 };

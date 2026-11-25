@@ -26,7 +26,12 @@ aydın adlandırmır, düymələri "OK/Cancel"-dir.
 - Cədvəldə valyuta vahidli (₼, AZN, USD, …) rəqəmlər həmişə 2 onluqla göstərilir ("622,20 ₼"); ayarlar menyusunda
   aktiv səhifə brend rəngi ilə seçilir.
 
+## Əlavə (2026-11-26): toplu redaktədə geri qaytarma
+
+Toplu dəyişiklikdən (status, icraçı, son tarix, bir sahə) sonra bildirişdə **"Geri qaytar"**: tapşırıqlar əvvəlki
+dəyərlərinə görə qruplaşdırılır və hər qrup üçün bir toplu sorğu göndərilir (redaktənin qaytardığı versiyalarla —
+arada başqası dəyişibsə, konflikt olur, heç nə üstünə yazılmır). Toplu silmə geri qaytarılmır (təsdiq dialoqu qalır).
+
 ## Açıq suallar
 
-- Toplu redaktədə "N tapşırıq dəyişəcək" önizləməsi və geri qaytarma.
 - Klaviatura ilə cədvəldə hərəkət (↑↓, Space ilə bəli/xeyr).
