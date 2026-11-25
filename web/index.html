@@ -15,9 +15,10 @@
     <!-- Applies the stored colour theme before the first paint (ADR-0035).
          Same-origin classic script: the CSP allows no inline code. -->
     <script src="/theme-init.js"></script>
+    <link rel="stylesheet" href="/splash.css" />
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root"><div class="nb-splash" role="status" aria-label="Nebula"><img src="/logo-mark.png" alt="" /></div></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -1,0 +1,26 @@
+/* Loading screen until the app has signed in and rendered (index.html, and
+   AuthProvider while it restores the session). A same-origin stylesheet: the
+   CSP allows no inline styles. Transparent, so the theme's canvas shows. */
+.nb-splash {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+.nb-splash img {
+  width: 56px;
+  height: 56px;
+  opacity: 0;
+  /* Shown only if loading takes a moment, so fast loads do not flash. */
+  animation: nb-in 0.2s ease-out 0.25s forwards, nb-pulse 1.6s ease-in-out 0.45s infinite;
+}
+@keyframes nb-in {
+  to { opacity: 0.9; }
+}
+@keyframes nb-pulse {
+  0%, 100% { opacity: 0.9; transform: scale(1); }
+  50% { opacity: 0.55; transform: scale(0.94); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nb-splash img { animation: nb-in 0.2s ease-out 0.25s forwards; }
+}

@@ -83,6 +83,7 @@ export function AuthProvider({ manager, children }: { manager: UserManager; chil
     },
   };
 
-  if (!ready) return null;
+  // The same loading screen as index.html, so restoring the session does not blank the page.
+  if (!ready) return <div className="nb-splash" role="status" aria-label="Nebula"><img src="/logo-mark.png" alt="" /></div>;
   return <AuthContext value={state}>{children}</AuthContext>;
 }
