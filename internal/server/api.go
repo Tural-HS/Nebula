@@ -43,6 +43,8 @@ type api struct {
 	emailTestLimiter *ratelimit.Limiter
 	// exports: item table export (export_api.go).
 	exports *itemExports
+	// reportsLimiter: workspace reports (reports_api.go).
+	reportsLimiter *ratelimit.Limiter
 }
 
 type ctxKey int
@@ -77,6 +79,7 @@ func (a *api) routes(r chi.Router) {
 		a.calendarRoutes(r)
 		a.evidenceRoutes(r)
 		a.approvalInboxRoutes(r)
+		a.reportsRoutes(r)
 		r.Get("/members", a.listMembers)
 		r.With(requireRole(store.RoleAdmin)).Post("/members", a.addMember)
 		r.With(requireRole(store.RoleAdmin)).Patch("/members/{userID}", a.updateMemberRole)

@@ -12,6 +12,7 @@ import { WorkspaceAccent } from "./components/WorkspaceAccent";
 import { t } from "./i18n";
 import { ItemsPage } from "./pages/ItemsPage";
 import { ApprovalsInboxPage } from "./pages/ApprovalsInboxPage";
+import { ReportsPage } from "./pages/ReportsPage";
 import { ProjectsPage } from "./pages/ProjectsPage";
 import { HomePage } from "./pages/HomePage";
 import { ProjectGate } from "./pages/ProjectGate";
@@ -85,6 +86,7 @@ export function App() {
             <Route path="/" element={<HomePage />} />
             <Route path="/w/:ws" element={<ProjectsPage />} />
             <Route path="/w/:ws/approvals" element={<ApprovalsInboxPage />} />
+            <Route path="/w/:ws/reports" element={<ReportsPage />} />
             <Route path="/w/:ws/p/:project" element={<ProjectGate><ItemsPage /></ProjectGate>} />
             <Route path="/w/:ws/p/:project/import" element={<ProjectGate><ImportPage /></ProjectGate>} />
             <Route path="/w/:ws/p/:project/recurring" element={<ProjectGate><RecurringPage /></ProjectGate>} />

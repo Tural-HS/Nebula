@@ -9,6 +9,7 @@ import { ArchivedProjectsList } from "../components/Lifecycle";
 import { Button, Dialog, EmptyState, ErrorState, FieldError, Input, Label, Select, Spinner } from "../components/ui";
 import { t } from "../i18n";
 import { tp } from "../i18n-project";
+import { trp } from "../i18n-reports";
 import { ta } from "../i18n-admin";
 import { tt } from "../i18n-templates";
 
@@ -54,7 +55,20 @@ export function ProjectsPage() {
       <div className="mx-auto max-w-3xl p-4 md:p-6">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <h1 className="text-lg font-semibold">{t.projects}</h1>
-          <ApprovalInboxLink ws={ws} />
+          <div className="flex flex-wrap gap-2">
+            {/* Guests see it only with at least one visible project: the
+                report counts nothing else (ADR-0041). */}
+            {(projects.data?.length ?? 0) > 0 && (
+              <Link
+                to={`/w/${encodeURIComponent(ws)}/reports`}
+                className="inline-flex min-w-0 items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm ring-1 ring-zinc-200 hover:ring-brand-500 pointer-coarse:min-h-11 dark:bg-zinc-900 dark:ring-zinc-800"
+              >
+                <span aria-hidden>📊</span>
+                <span className="truncate font-medium">{trp.nav}</span>
+              </Link>
+            )}
+            <ApprovalInboxLink ws={ws} />
+          </div>
         </div>
         {projects.isPending ? (
           <Spinner />

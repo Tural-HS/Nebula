@@ -20,6 +20,7 @@ import { tm as mobile } from "./mobile";
 import { tn as notifications } from "./notifications";
 import { tp as project } from "./project";
 import { tr as recur } from "./recur";
+import { trp as reports } from "./reports";
 import { ts as search } from "./search";
 import { ts as subtasks } from "./subtasks";
 import { tt as templates } from "./templates";
@@ -28,4 +29,4 @@ import { tv as views } from "./views";
 import { twc as webhookChat } from "./webhookChat";
 import { tw as workdays } from "./workdays";
 
-export const az = { admin, approvalInbox, approvals, attach, calendar, core, email, evidence, forms, formulas, home, importer, invite, kinds, ledger, lifecycle, links, mobile, notifications, project, recur, search, subtasks, templates, theme, views, webhookChat, workdays };
+export const az = { admin, approvalInbox, approvals, attach, calendar, core, email, evidence, forms, formulas, home, importer, invite, kinds, ledger, lifecycle, links, mobile, notifications, project, recur, reports, search, subtasks, templates, theme, views, webhookChat, workdays };

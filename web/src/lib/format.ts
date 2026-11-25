@@ -68,3 +68,23 @@ export function formatBytes(n: number, locale: Locale = activeLocale()): string 
 export function formatCount(n: number, locale: Locale = activeLocale()): string {
   return n.toLocaleString(locale === "az" ? "az" : BCP47[locale]);
 }
+
+/** A calendar date without the year ("2026-01-05" → "5 yan"), for chart axes. */
+export function formatShortDate(date: string, locale: Locale = activeLocale()): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  const month = m ? AZ_MONTHS[Number(m[2]) - 1] : undefined;
+  if (!m || !month) return "—";
+  if (locale === "az") return `${String(Number(m[3]))} ${month}`;
+  const utc = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+  return new Intl.DateTimeFormat(BCP47[locale], { day: "numeric", month: "short", timeZone: "UTC" }).format(utc);
+}
+
+/** The month of a calendar date ("2026-01-01" → "yan 2026"). */
+export function formatMonthYear(date: string, locale: Locale = activeLocale()): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  const month = m ? AZ_MONTHS[Number(m[2]) - 1] : undefined;
+  if (!m || !month) return "—";
+  if (locale === "az") return `${month} ${m[1] ?? ""}`;
+  const utc = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, 1));
+  return new Intl.DateTimeFormat(BCP47[locale], { month: "short", year: "numeric", timeZone: "UTC" }).format(utc);
+}
