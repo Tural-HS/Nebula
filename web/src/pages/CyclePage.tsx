@@ -129,14 +129,14 @@ function Settings({ ws, project, cycle, fields }: { ws: string; project: string;
   return (
     <form onSubmit={submit} className={cn(card, "space-y-5")} aria-labelledby={`${id}-h`}>
       <h2 id={`${id}-h`} className="text-sm font-semibold">{tcy.settings}</h2>
-      <div className="flex flex-wrap items-end gap-6">
-        <label className="flex items-center gap-2 text-sm">
+      <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
+        <label className="flex h-9 items-center gap-2 text-sm">
           <input type="checkbox" className="size-4 accent-brand-600" checked={enabled} onChange={(e) => { setEnabled(e.target.checked); }} />
           {tcy.enabled}
         </label>
         <div>
           <Label htmlFor={`${id}-day`}>{tcy.day}</Label>
-          <Select id={`${id}-day`} value={day} onChange={(e) => { setDay(Number(e.target.value)); }} aria-describedby={`${id}-dayhint`}>
+          <Select id={`${id}-day`} className="w-24" value={day} onChange={(e) => { setDay(Number(e.target.value)); }} aria-describedby={`${id}-dayhint`}>
             {Array.from({ length: 28 }, (_, i) => i + 1).map((d) => <option key={d} value={d}>{d}</option>)}
           </Select>
         </div>
@@ -198,7 +198,7 @@ function Settings({ ws, project, cycle, fields }: { ws: string; project: string;
         </label>
         <div>
           <Label htmlFor={`${id}-status`}>{tcy.resetStatus}</Label>
-          <Select id={`${id}-status`} value={resetStatus} onChange={(e) => { setResetStatus(e.target.value); }}>
+          <Select id={`${id}-status`} className="w-auto max-w-full min-w-56" value={resetStatus} onChange={(e) => { setResetStatus(e.target.value); }}>
             <option value="">{tcy.keepStatus}</option>
             {statuses.map((st) => <option key={st.id} value={st.id}>{st.label}</option>)}
           </Select>
