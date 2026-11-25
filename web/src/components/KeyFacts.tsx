@@ -3,7 +3,7 @@ import { useId } from "react";
 import type { FieldDefinition, FieldValue, Member } from "../api/types";
 import { tlg } from "../i18n-ledger";
 import { isAmount } from "../lib/formula";
-import { isPhoneField, telHref } from "../lib/phone";
+import { isPhoneField, phoneText, telHref } from "../lib/phone";
 import { formatFieldValue } from "../lib/views";
 import { cn } from "../lib/cn";
 
@@ -39,7 +39,7 @@ export function KeyFacts({ keys, defs, values, members }: {
             <dt className="truncate text-xs text-zinc-500 dark:text-zinc-400" title={f.def.name}>{f.def.name}</dt>
             <dd className={cn("truncate text-base font-medium", isAmount(f.def) && "tabular-nums")} title={f.text}>
               {f.tel ? (
-                <a href={f.tel} className="text-brand-700 hover:underline dark:text-brand-300">{f.text}</a>
+                <a href={f.tel} className="text-brand-700 tabular-nums hover:underline dark:text-brand-300">{phoneText(values[f.key], f.text)}</a>
               ) : (
                 f.text
               )}

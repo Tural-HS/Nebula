@@ -37,7 +37,7 @@ test.describe("as admin", () => {
     const panel = page.getByRole("dialog", { name: "QA-2" });
     const facts = panel.getByRole("region", { name: "Əsas məlumat" });
     await expect(facts).toContainText("800,00 ₼");
-    await expect(facts.getByRole("link", { name: "515614145" })).toHaveAttribute("href", "tel:515614145");
+    await expect(facts.getByRole("link", { name: "+994 51 561 41 45" })).toHaveAttribute("href", "tel:+994515614145");
     // An account-like number is not a phone link.
     await expect(facts.getByRole("link", { name: "10YX930" })).toHaveCount(0);
 
@@ -71,9 +71,9 @@ test.describe("as admin", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(`${seed.url}?cols=key,title,status,field.phone,field.balance`);
     const row = page.getByRole("row").filter({ hasText: "Kullinan MMC" });
-    await expect(row.getByRole("link", { name: "515614145" }).first()).toHaveAttribute("href", "tel:515614145");
+    await expect(row.getByRole("link", { name: "+994 51 561 41 45" }).first()).toHaveAttribute("href", "tel:+994515614145");
     await expect(row).toContainText("Qalıq: 800,00 ₼");
-    const link = await row.getByRole("link", { name: "515614145" }).first().boundingBox();
+    const link = await row.getByRole("link", { name: "+994 51 561 41 45" }).first().boundingBox();
     expect((link?.x ?? 999) + (link?.width ?? 0)).toBeLessThan(390); // visible without scrolling
   });
 
@@ -241,7 +241,7 @@ test.describe("as guest", () => {
 
   test("read-only rows link phone numbers and show no empty-section buttons", async ({ page }) => {
     await page.goto(`${seed.url}?cols=key,title,field.phone`);
-    await expect(page.getByRole("row").filter({ hasText: "Kullinan MMC" }).getByRole("link", { name: "515614145" })).toHaveAttribute("href", "tel:515614145");
+    await expect(page.getByRole("row").filter({ hasText: "Kullinan MMC" }).getByRole("link", { name: "+994 51 561 41 45" })).toHaveAttribute("href", "tel:+994515614145");
     await page.getByRole("button", { name: "Kullinan MMC" }).click();
     await expect(page.getByRole("dialog", { name: "QA-2" }).getByRole("button", { name: "+ Fayl" })).toHaveCount(0);
   });

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, type CSSProperties, type ReactNode } from "
 import type { FieldDefinition, FieldSums, Item, Member } from "../api/types";
 import { SignalCell, StatusText } from "../components/Signals";
 import { hasSignal } from "../lib/signals";
-import { isPhoneField, telHref } from "../lib/phone";
+import { isPhoneField, phoneText, telHref } from "../lib/phone";
 import { tc } from "../i18n-calendar";
 import { inlineKind, type InlineEdit } from "../lib/inline";
 import { InlineCell } from "./InlineCell";
@@ -172,7 +172,7 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
       if (!text) return [];
       const tel = isPhoneField(def) ? telHref(raw) : null;
       return [tel ? (
-        <a key={c} href={tel} className="font-medium text-brand-700 tabular-nums underline-offset-2 hover:underline pointer-coarse:py-1 dark:text-brand-300">{text}</a>
+        <a key={c} href={tel} className="font-medium text-brand-700 tabular-nums underline-offset-2 hover:underline pointer-coarse:py-1 dark:text-brand-300">{phoneText(raw, text)}</a>
       ) : (
         <span key={c} className="tabular-nums" title={def?.name}><span className="text-zinc-500 dark:text-zinc-400">{(def?.name ?? "").split(/\s/)[0]}: </span>{text}</span>
       )];
@@ -297,7 +297,7 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
     if (tel) {
       return (
         <a href={tel} className="block min-w-0 truncate text-brand-700 tabular-nums hover:underline dark:text-brand-300" title={text}>
-          {text}
+          {phoneText(raw, text)}
         </a>
       );
     }
