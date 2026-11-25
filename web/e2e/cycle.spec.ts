@@ -48,7 +48,7 @@ test("admin sets up the cycle, closes last month and reads it back", async ({ pa
   await expect(page.getByText(new RegExp(`Növbəti bağlanış: 1 \\S{3} \\d{4} — ${monthName(0)} bağlanacaq\\.`))).toBeVisible();
 
   const close = page.getByRole("region", { name: "Ayı əl ilə bağlamaq" });
-  await expect(close.getByText("2 tapşırıq tarixçəyə yazılacaq; 2 açıq tapşırıqdan 2-nin dəyərləri dəyişəcək.")).toBeVisible();
+  await expect(close.getByText("2 tapşırıq tarixçəyə yazılacaq; sıfırlanan 2 tapşırıqdan 2-nin dəyərləri dəyişəcək.")).toBeVisible();
   await close.getByRole("button", { name: "İndi bağla" }).click();
   const dialog = page.getByRole("dialog", { name: `${monthName(-1)} bağlansın?` });
   await dialog.getByRole("button", { name: "Ayı bağla" }).click();

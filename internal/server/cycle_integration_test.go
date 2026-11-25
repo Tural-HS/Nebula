@@ -189,4 +189,29 @@ func TestMonthlyCycleClose(t *testing.T) {
 	if len(list) != 1 || list[0].(map[string]any)["closed_by"] != nil || list[0].(map[string]any)["period"] != lastMonth {
 		t.Fatalf("scheduled close record: %v", list)
 	}
+
+	// When the status tracks the month: closed items too, and back to To Do.
+	var todoID string
+	for _, it := range e.must(200, "carol", "GET", "/api/v1/workspaces/acme/item-types", nil).Body["item_types"].([]any) {
+		for _, s := range it.(map[string]any)["statuses"].([]any) {
+			if s.(map[string]any)["name"] == "To Do" && it.(map[string]any)["key"] == "task" {
+				todoID = s.(map[string]any)["id"].(string)
+			}
+		}
+	}
+	e.must(422, "alice", "PUT", cyclePath, map[string]any{"enabled": true, "day_of_month": 1, "reset_status_id": "01a20727-0000-7000-8000-000000000000"})
+	c = e.must(200, "alice", "PUT", cyclePath, map[string]any{"enabled": true, "day_of_month": 1, "clear_fields": []string{"paid"},
+		"refill": []map[string]any{{"target": "balance", "source": "monthly"}}, "include_closed": true, "reset_status_id": todoID}).Body
+	if c["include_closed"] != true || c["reset_status_id"] != todoID {
+		t.Fatalf("saved scope: %v", c)
+	}
+	p = e.must(200, "alice", "POST", cyclePath+"/preview", map[string]any{"period": today.Format("2006-01")}).Body
+	if p["open"] != 4.0 || p["will_reset"] != 1.0 { // only the done item 3 changes: status and fields
+		t.Fatalf("preview with closed items: %v", p)
+	}
+	e.must(201, "alice", "POST", cyclePath+"/close", map[string]any{"period": today.Format("2006-01")})
+	it3 := e.must(200, "alice", "GET", items+"/3", nil).Body
+	if it3["status"].(map[string]any)["id"] != todoID || it3["fields"].(map[string]any)["paid"] != nil || it3["fields"].(map[string]any)["balance"] != 100.0 {
+		t.Fatalf("closed item after a close with include_closed: %v", it3)
+	}
 }

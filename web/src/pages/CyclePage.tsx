@@ -96,6 +96,14 @@ function Settings({ ws, project, cycle, fields }: { ws: string; project: string;
   const [day, setDay] = useState(cycle.day_of_month);
   const [clear, setClear] = useState<string[]>(cycle.clear_fields);
   const [refill, setRefill] = useState<CycleRefill[]>(cycle.refill);
+  const [includeClosed, setIncludeClosed] = useState(cycle.include_closed);
+  const [resetStatus, setResetStatus] = useState(cycle.reset_status_id ?? "");
+  const types = useItemTypes(ws);
+  // Statuses of every item type, labelled with the type when there are several.
+  const statuses = useMemo(() => {
+    const list = types.data ?? [];
+    return list.flatMap((it) => it.statuses.map((st) => ({ id: st.id, label: list.length > 1 ? `${it.name}: ${st.name}` : st.name })));
+  }, [types.data]);
   const id = useId();
   const byKey = useMemo(() => new Map(fields.map((f) => [f.key, f])), [fields]);
   const refillTargets = new Set(refill.map((r) => r.target));
@@ -103,7 +111,10 @@ function Settings({ ws, project, cycle, fields }: { ws: string; project: string;
   const submit = (e: SyntheticEvent) => {
     e.preventDefault();
     capi.save.mutate(
-      { enabled, day_of_month: day, clear_fields: clear, refill: refill.filter((r) => r.target && r.source) },
+      {
+        enabled, day_of_month: day, clear_fields: clear, refill: refill.filter((r) => r.target && r.source),
+        include_closed: includeClosed, reset_status_id: resetStatus || null,
+      },
       {
         onSuccess: () => { toast("success", tcy.saved); },
         onError: (err) => { toast("error", err instanceof ApiError ? `${tcy.saveFailed}: ${err.message}` : tcy.saveFailed); },
@@ -174,6 +185,24 @@ function Settings({ ws, project, cycle, fields }: { ws: string; project: string;
           })}
         </ul>
         <Button type="button" variant="ghost" className="mt-2" onClick={() => { setRefill((rs) => [...rs, { target: "", source: "" }]); }}>{tcy.addRefill}</Button>
+      </fieldset>
+
+      <fieldset className="space-y-3">
+        <legend className="text-sm font-medium">{tcy.scope}</legend>
+        <label className="flex items-start gap-2 text-sm">
+          <input type="checkbox" className="mt-0.5 size-4 accent-brand-600" checked={includeClosed} onChange={(e) => { setIncludeClosed(e.target.checked); }} aria-describedby={`${id}-closedhint`} />
+          <span>
+            {tcy.includeClosed}
+            <span id={`${id}-closedhint`} className="block text-xs text-zinc-500 dark:text-zinc-400">{tcy.includeClosedHint}</span>
+          </span>
+        </label>
+        <div>
+          <Label htmlFor={`${id}-status`}>{tcy.resetStatus}</Label>
+          <Select id={`${id}-status`} value={resetStatus} onChange={(e) => { setResetStatus(e.target.value); }}>
+            <option value="">{tcy.keepStatus}</option>
+            {statuses.map((st) => <option key={st.id} value={st.id}>{st.label}</option>)}
+          </Select>
+        </div>
       </fieldset>
 
       <FieldError error={capi.save.error} />

@@ -15,6 +15,10 @@ export interface CycleInput {
   day_of_month: number;
   clear_fields: string[];
   refill: CycleRefill[];
+  /** Reset closed (done/canceled) items too, not only open ones. */
+  include_closed: boolean;
+  /** Status the reset items get; null keeps their status. */
+  reset_status_id: string | null;
 }
 
 export interface Cycle extends CycleInput {

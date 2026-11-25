@@ -13,6 +13,11 @@ CREATE TABLE period_cycles (
     day_of_month smallint NOT NULL DEFAULT 1 CHECK (day_of_month BETWEEN 1 AND 28),
     clear_fields text[] NOT NULL DEFAULT '{}' CHECK (cardinality(clear_fields) <= 20),
     refill       jsonb NOT NULL DEFAULT '[]' CHECK (jsonb_typeof(refill) = 'array' AND jsonb_array_length(refill) <= 20),
+    -- Reset closed items too (when the status tracks the month, e.g. "Done" = paid).
+    include_closed  boolean NOT NULL DEFAULT false,
+    -- Status the reset items get; NULL keeps theirs. Checked when saved and
+    -- per item when applied (it must be in the item's workflow).
+    reset_status_id uuid,
     next_run     date, -- next scheduled close; NULL while disabled
     last_error   text,
     updated_by   uuid REFERENCES users (id) ON DELETE SET NULL,

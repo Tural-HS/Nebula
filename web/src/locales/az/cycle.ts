@@ -5,7 +5,7 @@ const MONTHS = ["Yanvar", "Fevral", "Mart", "Aprel", "May", "İyun", "İyul", "A
 export const tcy = {
   nav: "Aylıq dövr",
   title: "Aylıq dövr",
-  intro: "Seçdiyiniz gün hər ay bitən ayın dəyərləri tarixçəyə yazılır, sonra açıq tapşırıqlarda aylıq işarələr silinir və sahələr yenidən doldurulur (məsələn, \"Ödədi\" silinir, Qalıq = Aylıq ödəniş). Bağlı tapşırıqlara toxunulmur.",
+  intro: "Seçdiyiniz gün hər ay bitən ayın dəyərləri tarixçəyə yazılır, sonra aylıq işarələr silinir və sahələr yenidən doldurulur (məsələn, \"Ödədi\" silinir, Qalıq = Aylıq ödəniş). Standart olaraq yalnız açıq tapşırıqlar dəyişir.",
   noAccess: "Bu səhifə üzvlər üçündür.",
   month: (period: string) => {
     const [y, m] = period.split("-");
@@ -25,6 +25,11 @@ export const tcy = {
   addRefill: "+ Sahə əlavə et",
   removeRefill: (name: string) => `${name} sətrini sil`,
   pick: "Seçin…",
+  scope: "Hansı tapşırıqlar",
+  includeClosed: "Bağlı tapşırıqları da sıfırla",
+  includeClosedHint: "Söndürülübsə, yalnız açıq tapşırıqlar dəyişir. Status ayın vəziyyətini göstərirsə (məsələn, \"Tamamlandı\" = bu ay ödənib), işarələyin.",
+  resetStatus: "Statusu bu statusa qaytar",
+  keepStatus: "Statusu dəyişmə",
   save: "Yadda saxla",
   saved: "Aylıq dövr yadda saxlanıldı",
   saveFailed: "Yadda saxlanılmadı",
@@ -35,7 +40,7 @@ export const tcy = {
   closeTitle: "Ayı əl ilə bağlamaq",
   closeHint: "Avtomatik bağlanış buraxılıbsa və ya ayı tez bağlamaq lazımdırsa. Bağlanmış ay ikinci dəfə bağlanmır.",
   period: "Ay",
-  preview: (items: number, open: number, reset: number) => `${String(items)} tapşırıq tarixçəyə yazılacaq; ${String(open)} açıq tapşırıqdan ${String(reset)}-nin dəyərləri dəyişəcək.`,
+  preview: (items: number, open: number, reset: number) => `${String(items)} tapşırıq tarixçəyə yazılacaq; sıfırlanan ${String(open)} tapşırıqdan ${String(reset)}-nin dəyərləri dəyişəcək.`,
   alreadyClosed: "Bu ay artıq bağlanıb.",
   confirmTitle: (period: string) => `${period} bağlansın?`,
   confirmBody: (reset: number) => `${String(reset)} tapşırıqda dəyərlər dəyişəcək. Köhnə dəyərlər tarixçədə qalır, amma dəyişiklik avtomatik geri qaytarılmır.`,

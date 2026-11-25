@@ -45,18 +45,24 @@ type Cycle struct {
 	DayOfMonth  int           `json:"day_of_month"`
 	ClearFields []string      `json:"clear_fields"`
 	Refill      []CycleRefill `json:"refill"`
-	NextRun     *string       `json:"next_run"`    // YYYY-MM-DD of the next scheduled close
-	NextPeriod  *string       `json:"next_period"` // YYYY-MM it will close
-	LastError   *string       `json:"last_error"`  // why the last scheduled close failed
-	UpdatedAt   *time.Time    `json:"updated_at"`  // nil: never configured
+	// IncludeClosed resets closed (done/canceled) items too.
+	IncludeClosed bool `json:"include_closed"`
+	// ResetStatusID is the status reset items get; nil keeps theirs.
+	ResetStatusID *uuid.UUID `json:"reset_status_id"`
+	NextRun       *string    `json:"next_run"`    // YYYY-MM-DD of the next scheduled close
+	NextPeriod    *string    `json:"next_period"` // YYYY-MM it will close
+	LastError     *string    `json:"last_error"`  // why the last scheduled close failed
+	UpdatedAt     *time.Time `json:"updated_at"`  // nil: never configured
 }
 
 // CycleInput replaces the configuration.
 type CycleInput struct {
-	Enabled     bool          `json:"enabled"`
-	DayOfMonth  int           `json:"day_of_month"`
-	ClearFields []string      `json:"clear_fields"`
-	Refill      []CycleRefill `json:"refill"`
+	Enabled       bool          `json:"enabled"`
+	DayOfMonth    int           `json:"day_of_month"`
+	ClearFields   []string      `json:"clear_fields"`
+	Refill        []CycleRefill `json:"refill"`
+	IncludeClosed bool          `json:"include_closed"`
+	ResetStatusID *uuid.UUID    `json:"reset_status_id"`
 }
 
 // PeriodClose is one closed month.
@@ -92,7 +98,7 @@ type CyclePreview struct {
 	Period    string `json:"period"`     // YYYY-MM that would be closed
 	Closed    bool   `json:"closed"`     // that month is already closed
 	Items     int    `json:"items"`      // items that would be saved in the snapshot
-	Open      int    `json:"open"`       // open items the reset applies to
+	Open      int    `json:"open"`       // items the reset applies to (open ones, or all with include_closed)
 	WillReset int    `json:"will_reset"` // open items whose values would change
 }
 
@@ -132,9 +138,10 @@ func (s *Store) GetCycle(ctx context.Context, wsID, projectID uuid.UUID) (Cycle,
 	var refill []byte
 	var next *time.Time
 	var updated time.Time
-	err := s.pool.QueryRow(ctx, `SELECT is_enabled, day_of_month, clear_fields, refill, next_run, last_error, updated_at
+	err := s.pool.QueryRow(ctx, `SELECT is_enabled, day_of_month, clear_fields, refill, include_closed, reset_status_id,
+			next_run, last_error, updated_at
 		FROM period_cycles WHERE workspace_id = $1 AND project_id = $2`, wsID, projectID).
-		Scan(&c.Enabled, &c.DayOfMonth, &c.ClearFields, &refill, &next, &c.LastError, &updated)
+		Scan(&c.Enabled, &c.DayOfMonth, &c.ClearFields, &refill, &c.IncludeClosed, &c.ResetStatusID, &next, &c.LastError, &updated)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return c, nil
 	}
@@ -169,8 +176,18 @@ func validateCycle(ctx context.Context, q querier, wsID uuid.UUID, in *CycleInpu
 	if in.Refill == nil {
 		in.Refill = []CycleRefill{}
 	}
-	if in.Enabled && len(in.ClearFields) == 0 && len(in.Refill) == 0 {
-		return invalid("clear_fields", "choose at least one field to clear or refill")
+	if in.Enabled && len(in.ClearFields) == 0 && len(in.Refill) == 0 && in.ResetStatusID == nil {
+		return invalid("clear_fields", "choose at least one field to clear or refill, or a status")
+	}
+	if in.ResetStatusID != nil {
+		var ok bool
+		if err := q.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM statuses WHERE workspace_id = $1 AND id = $2)`,
+			wsID, *in.ResetStatusID).Scan(&ok); err != nil {
+			return err
+		}
+		if !ok {
+			return invalid("reset_status_id", "unknown status")
+		}
 	}
 	keys := slices.Clone(in.ClearFields)
 	for _, r := range in.Refill {
@@ -258,16 +275,19 @@ func (s *Store) SaveCycle(ctx context.Context, wsID, projectID, actorID uuid.UUI
 			}
 		}
 		if _, err := tx.Exec(ctx, `INSERT INTO period_cycles (project_id, workspace_id, is_enabled, day_of_month,
-				clear_fields, refill, next_run, updated_by)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+				clear_fields, refill, include_closed, reset_status_id, next_run, updated_by)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 			ON CONFLICT (project_id) DO UPDATE SET is_enabled = EXCLUDED.is_enabled, day_of_month = EXCLUDED.day_of_month,
-				clear_fields = EXCLUDED.clear_fields, refill = EXCLUDED.refill, next_run = EXCLUDED.next_run,
+				clear_fields = EXCLUDED.clear_fields, refill = EXCLUDED.refill, include_closed = EXCLUDED.include_closed,
+				reset_status_id = EXCLUDED.reset_status_id, next_run = EXCLUDED.next_run,
 				updated_by = EXCLUDED.updated_by, last_error = NULL`,
-			projectID, wsID, in.Enabled, in.DayOfMonth, in.ClearFields, refill, next, nullUUID(actorID)); err != nil {
+			projectID, wsID, in.Enabled, in.DayOfMonth, in.ClearFields, refill, in.IncludeClosed, in.ResetStatusID,
+			next, nullUUID(actorID)); err != nil {
 			return err
 		}
 		return appendEvent(ctx, tx, wsID, actorID, "project", projectID, "cycle.updated", map[string]any{
 			"enabled": in.Enabled, "day_of_month": in.DayOfMonth, "clear_fields": in.ClearFields, "refill": in.Refill,
+			"include_closed": in.IncludeClosed, "reset_status_id": in.ResetStatusID,
 		})
 	})
 	if err != nil {
@@ -320,11 +340,23 @@ type cycleItem struct {
 	number  int64
 	version int
 	open    bool
+	status  uuid.UUID
 	fields  map[string]json.RawMessage
 }
 
+// inScope reports whether the reset applies to the item.
+func (c CycleInput) inScope(it cycleItem) bool { return it.open || c.IncludeClosed }
+
+// statusChange is the status the item gets, if it changes.
+func (c CycleInput) statusChange(it cycleItem) (uuid.UUID, bool) {
+	if c.ResetStatusID == nil || *c.ResetStatusID == it.status {
+		return uuid.Nil, false
+	}
+	return *c.ResetStatusID, true
+}
+
 func loadCycleItems(ctx context.Context, q querier, wsID, projectID uuid.UUID) ([]cycleItem, error) {
-	rows, err := q.Query(ctx, `SELECT i.number, i.version, s.category NOT IN ('done', 'canceled'), i.fields
+	rows, err := q.Query(ctx, `SELECT i.number, i.version, s.category NOT IN ('done', 'canceled'), i.status_id, i.fields
 		FROM items i JOIN statuses s ON s.id = i.status_id
 		WHERE i.workspace_id = $1 AND i.project_id = $2 AND i.deleted_at IS NULL
 		ORDER BY i.number LIMIT $3`, wsID, projectID, maxCycleItems+1)
@@ -336,7 +368,7 @@ func loadCycleItems(ctx context.Context, q querier, wsID, projectID uuid.UUID) (
 	for rows.Next() {
 		var it cycleItem
 		var raw []byte
-		if err := rows.Scan(&it.number, &it.version, &it.open, &raw); err != nil {
+		if err := rows.Scan(&it.number, &it.version, &it.open, &it.status, &raw); err != nil {
 			return nil, err
 		}
 		if err := json.Unmarshal(raw, &it.fields); err != nil {
@@ -354,7 +386,8 @@ func loadCycleItems(ctx context.Context, q querier, wsID, projectID uuid.UUID) (
 }
 
 func (c Cycle) input() CycleInput {
-	return CycleInput{Enabled: c.Enabled, DayOfMonth: c.DayOfMonth, ClearFields: c.ClearFields, Refill: c.Refill}
+	return CycleInput{Enabled: c.Enabled, DayOfMonth: c.DayOfMonth, ClearFields: c.ClearFields, Refill: c.Refill,
+		IncludeClosed: c.IncludeClosed, ResetStatusID: c.ResetStatusID}
 }
 
 // parsePeriod reads an explicit YYYY-MM for a manual close: any past month
@@ -402,11 +435,11 @@ func (s *Store) PreviewCycle(ctx context.Context, wsID, projectID uuid.UUID, per
 	in := c.input()
 	for _, it := range items {
 		out.Items++
-		if !it.open {
+		if !in.inScope(it) {
 			continue
 		}
 		out.Open++
-		if len(cycleChanges(in, it.fields)) > 0 {
+		if _, st := in.statusChange(it); st || len(cycleChanges(in, it.fields)) > 0 {
 			out.WillReset++
 		}
 	}
@@ -419,7 +452,7 @@ func (s *Store) CloseCycle(ctx context.Context, wsID, projectID, actorID uuid.UU
 	if err != nil {
 		return PeriodClose{}, err
 	}
-	if c.UpdatedAt == nil || (len(c.ClearFields) == 0 && len(c.Refill) == 0) {
+	if c.UpdatedAt == nil || (len(c.ClearFields) == 0 && len(c.Refill) == 0 && c.ResetStatusID == nil) {
 		return PeriodClose{}, invalid("cycle", "set up the fields to clear or refill first")
 	}
 	// Fields may have changed since the configuration was saved.
@@ -471,11 +504,12 @@ func closePeriodTx(ctx context.Context, tx pgx.Tx, wsID, projectID, actorID uuid
 	out.ItemCount = int(snap.RowsAffected())
 	extra := map[string]any{"cycle": map[string]any{"close_id": out.ID, "period": out.Period}}
 	for _, it := range items {
-		if !it.open {
+		if !c.inScope(it) {
 			continue
 		}
 		patch := cycleChanges(c, it.fields)
-		if len(patch) == 0 {
+		status, statusChanges := c.statusChange(it)
+		if len(patch) == 0 && !statusChanges {
 			continue
 		}
 		sp, err := tx.Begin(ctx)
@@ -483,7 +517,12 @@ func closePeriodTx(ctx context.Context, tx pgx.Tx, wsID, projectID, actorID uuid
 			return PeriodClose{}, err
 		}
 		u := UpdateItemParams{WorkspaceID: wsID, ProjectID: projectID, ActorID: actorID, Number: it.number, Version: it.version}
-		u.Fields.Set, u.Fields.Value = true, patch
+		if len(patch) > 0 {
+			u.Fields.Set, u.Fields.Value = true, patch
+		}
+		if statusChanges {
+			u.StatusID.Set, u.StatusID.Value = true, status
+		}
 		_, changed, err := updateItemTx(ctx, sp, u, checkedUpdate{}, extra)
 		if err != nil {
 			_ = sp.Rollback(ctx)
@@ -619,9 +658,9 @@ func (s *Store) runCycle(ctx context.Context, projectID uuid.UUID) (bool, error)
 		var refill []byte
 		var c CycleInput
 		var run time.Time
-		err := tx.QueryRow(ctx, `SELECT workspace_id, day_of_month, clear_fields, refill, next_run FROM period_cycles
-			WHERE project_id = $1 AND is_enabled AND next_run IS NOT NULL FOR UPDATE SKIP LOCKED`, projectID).
-			Scan(&wsID, &c.DayOfMonth, &c.ClearFields, &refill, &run)
+		err := tx.QueryRow(ctx, `SELECT workspace_id, day_of_month, clear_fields, refill, include_closed, reset_status_id, next_run
+			FROM period_cycles WHERE project_id = $1 AND is_enabled AND next_run IS NOT NULL FOR UPDATE SKIP LOCKED`, projectID).
+			Scan(&wsID, &c.DayOfMonth, &c.ClearFields, &refill, &c.IncludeClosed, &c.ResetStatusID, &run)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil // disabled or being run by another replica
 		}
