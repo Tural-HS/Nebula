@@ -94,6 +94,17 @@ test.describe("column filters and density", () => {
     await expect(page.getByRole("list", { name: "Aktiv filtrlər" })).toContainText('Əlaqə nömrəsi: içində "5614"');
     await expect(page.getByRole("row").filter({ hasText: "Rəşad Quliyev" })).toHaveCount(1);
 
+    // Empty / not empty: every row has a phone.
+    await page.getByRole("button", { name: /Əlaqə nömrəsi: filtr və sıralama/ }).click();
+    await page.getByRole("dialog", { name: "Əlaqə nömrəsi: filtr və sıralama" }).getByRole("button", { name: "Boş olanlar" }).click();
+    await expect(page.getByRole("list", { name: "Aktiv filtrlər" })).toContainText("Əlaqə nömrəsi: boşdur");
+    await expect(page.getByRole("row").filter({ hasText: "Rəşad Quliyev" })).toHaveCount(0);
+    // No rows left: the table (and its header menus) gives way to the empty state; the chip removes the filter.
+    await page.getByRole("button", { name: "Filtri götür: Əlaqə nömrəsi: boşdur" }).click();
+    await page.getByRole("button", { name: /Əlaqə nömrəsi: filtr və sıralama/ }).click();
+    await page.getByRole("dialog", { name: "Əlaqə nömrəsi: filtr və sıralama" }).getByRole("button", { name: "Dolu olanlar" }).click();
+    await expect(page.getByRole("row").filter({ hasText: "Rəşad Quliyev" })).toHaveCount(1);
+
     // Clear from the menu; Escape closes without changes.
     await page.getByRole("button", { name: /Qalıq: filtr və sıralama/ }).click();
     await page.getByRole("dialog", { name: "Qalıq: filtr və sıralama" }).getByRole("button", { name: "Təmizlə" }).click();

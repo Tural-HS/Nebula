@@ -924,8 +924,17 @@ type fieldCond struct {
 //   - "~text" on text-like fields: contains, ignoring case and Azerbaijani
 //     letter variants (search_fold), up to 100 characters;
 //   - "min..max" on number and date fields (either side may be empty):
-//     an inclusive range.
+//     an inclusive range;
+//   - "is:empty" / "is:set" on any field;
+//   - "in:id1,id2" on select and multi_select fields: any of the choices.
 const maxContainsFilter = 100
+
+// Filter values every field type accepts, and the choice-list limit.
+const (
+	FilterEmpty     = "is:empty"
+	FilterSet       = "is:set"
+	maxChoiceFilter = 20
+)
 
 var textLike = map[string]bool{FieldText: true, FieldLongText: true, FieldURL: true, FieldEmail: true}
 
@@ -1017,6 +1026,43 @@ func fieldFilterConditions(ctx context.Context, q querier, wsID uuid.UUID, filte
 		result := def.Type
 		if def.Type == FieldFormula && def.Options.Formula != nil {
 			result = map[string]string{"number": FieldNumber, "date": FieldDate, "boolean": FieldBoolean}[def.Options.Formula.ResultType]
+		}
+		// "is:empty" / "is:set" on any field: no value (missing, null, "", [])
+		// or some value. false is a value (a yes/no field answered "no").
+		if f.Value == FilterEmpty || f.Value == FilterSet {
+			cond := "(NOT jsonb_exists(i.fields, ?::text) OR i.fields -> ?::text IN ('null'::jsonb, '\"\"'::jsonb, '[]'::jsonb))"
+			if f.Value == FilterSet {
+				cond = "NOT " + cond
+			}
+			out = append(out, fieldCond{SQL: cond, Args: []any{f.Key, f.Key}})
+			continue
+		}
+		// "in:id1,id2" on select and multi_select: any of the choices.
+		if rest, ok := strings.CutPrefix(f.Value, "in:"); ok && isChoiceType(def.Type) {
+			ids := strings.Split(rest, ",")
+			if len(ids) == 0 || len(ids) > maxChoiceFilter || rest == "" {
+				return nil, invalid(path, "pick 1 to %d choices", maxChoiceFilter)
+			}
+			for i, id := range ids {
+				id = strings.TrimSpace(id)
+				ids[i] = id
+				known := false
+				for _, c := range def.Options.Choices {
+					if c.ID == id {
+						known = true
+						break
+					}
+				}
+				if !known {
+					return nil, invalid(path, "unknown choice %q", id)
+				}
+			}
+			cond := "(i.fields ->> ?::text) = ANY(?::text[])"
+			if def.Type == FieldMultiSelect {
+				cond = "jsonb_exists_any(i.fields -> ?::text, ?::text[])"
+			}
+			out = append(out, fieldCond{SQL: cond, Args: []any{f.Key, ids}})
+			continue
 		}
 		if rest, ok := strings.CutPrefix(f.Value, "~"); ok && textLike[def.Type] {
 			v, err := text(path, rest, 1, maxContainsFilter)

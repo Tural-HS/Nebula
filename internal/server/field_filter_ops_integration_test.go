@@ -78,6 +78,33 @@ func TestFieldFilterOperators(t *testing.T) {
 		t.Fatalf("counts with contains filter: %v", c.Body)
 	}
 
+	// Empty / set on any type: "Boş" has none of the fields.
+	check(enc("phone", "is:empty"), "Boş")
+	check(enc("bal", "is:set"), "Əliyev", "İsmayılov", "Wild_card")
+	check(enc("loan", "is:empty"), "Boş")
+
+	// Any of several choices (select and multi_select).
+	sel := e.must(201, "alice", "POST", fieldsPath, map[string]any{"key": "branch", "name": "Filial", "type": "select",
+		"options": map[string]any{"choices": []map[string]any{{"label": "Baş ofis"}, {"label": "Gəncə"}, {"label": "Sumqayıt"}}}}).Body
+	e.must(200, "alice", "PUT", bindPath("task", "branch"), map[string]any{})
+	tags := e.must(201, "alice", "POST", fieldsPath, map[string]any{"key": "tags", "name": "Etiketlər", "type": "multi_select",
+		"options": map[string]any{"choices": []map[string]any{{"label": "VIP"}, {"label": "Gecikən"}}}}).Body
+	e.must(200, "alice", "PUT", bindPath("task", "tags"), map[string]any{})
+	cid := func(f map[string]any, i int) string {
+		return f["options"].(map[string]any)["choices"].([]any)[i].(map[string]any)["id"].(string)
+	}
+	mk("Gəncə müştəri", map[string]any{"branch": cid(sel, 1), "tags": []string{cid(tags, 0)}})
+	mk("Sumqayıt müştəri", map[string]any{"branch": cid(sel, 2), "tags": []string{cid(tags, 1)}})
+	mk("Baş ofis müştəri", map[string]any{"branch": cid(sel, 0), "tags": []string{cid(tags, 0), cid(tags, 1)}})
+	check(enc("branch", "in:"+cid(sel, 1)+","+cid(sel, 2)), "Gəncə müştəri", "Sumqayıt müştəri")
+	check(enc("tags", "in:"+cid(tags, 1)), "Sumqayıt müştəri", "Baş ofis müştəri")
+	check(enc("branch", "is:empty")+"&"+enc("bal", "is:set"), "Əliyev", "İsmayılov", "Wild_card")
+	for _, bad := range []string{"in:", "in:not-a-choice", "in:" + cid(tags, 0)} { // last: a tags id on branch
+		if r := e.call("carol", "GET", items+"?"+enc("branch", bad), nil); r.Status != 422 {
+			t.Fatalf("branch %q: want 422, got %d", bad, r.Status)
+		}
+	}
+
 	// Validation.
 	for _, q := range []string{
 		enc("phone", "~"),           // empty contains
