@@ -1,7 +1,7 @@
 import { useId, useMemo, useState, type SyntheticEvent } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 
-import { useCloses, useCycle, useCycleApi, useCyclePreview, useSnapshot, type Cycle, type CycleRefill, type PeriodClose } from "../api/cycle";
+import { downloadClose, useCloses, useCycle, useCycleApi, useCyclePreview, useSnapshot, type Cycle, type CycleRefill, type PeriodClose } from "../api/cycle";
 import { ApiError } from "../api/client";
 import { useFields, useItemTypes, useMembers, useProjects, useWorkspace } from "../api/hooks";
 import { roleAtLeast, type FieldDefinition, type FieldValue } from "../api/types";
@@ -13,6 +13,7 @@ import { t } from "../i18n";
 import { tcy } from "../i18n-cycle";
 import { cn } from "../lib/cn";
 import { formatDate, formatDateTime } from "../lib/format";
+import { exportErrorText } from "../lib/itemExport";
 import { amountText, formatFieldValue, withUnit } from "../lib/views";
 
 const card = "rounded-xl bg-white p-4 ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-800";
@@ -339,9 +340,15 @@ function Snapshot({ ws, project, period, onBack }: { ws: string; project: string
   return (
     <div className="space-y-4">
       <Link to="?" onClick={(e) => { e.preventDefault(); onBack(); }} className="text-sm text-brand-700 hover:underline dark:text-brand-300">{tcy.back}</Link>
-      <div>
+      <div className="flex flex-wrap items-start gap-3">
+       <div className="min-w-0 flex-1">
         <h2 className="text-base font-semibold">{tcy.snapshotTitle(tcy.month(snap.data.close.period))}</h2>
         <p className="text-xs text-zinc-500 dark:text-zinc-400">{tcy.snapshotIntro} {tcy.counts(snap.data.close.item_count, snap.data.close.changed)} · {formatDateTime(snap.data.close.created_at)}</p>
+       </div>
+        <span className="flex gap-2">
+          <DownloadButton ws={ws} project={project} period={period} format="xlsx" />
+          <DownloadButton ws={ws} project={project} period={period} format="csv" />
+        </span>
       </div>
       <div className="overflow-x-auto rounded-xl ring-1 ring-zinc-200 dark:ring-zinc-800">
         <table className="min-w-full text-sm">
@@ -358,7 +365,7 @@ function Snapshot({ ws, project, period, onBack }: { ws: string; project: string
               <tr key={r.number}>
                 <td className="px-2 py-1 text-xs text-zinc-500 tabular-nums">{project}-{r.number}</td>
                 <th scope="row" className="sticky left-0 max-w-64 bg-white px-2 py-1 text-left font-normal [overflow-wrap:anywhere] dark:bg-zinc-900">{r.title}</th>
-                <td className="px-2 py-1 whitespace-nowrap">{statusName.get(r.status_id) ?? ""}</td>
+                <td className="px-2 py-1 whitespace-nowrap">{r.status_name || statusName.get(r.status_id) || ""}</td>
                 {cols.map((f) => <td key={f.key} className={cn("px-2 py-1", f.type === "number" && "text-right whitespace-nowrap tabular-nums")}>{cell(f, r.fields[f.key])}</td>)}
               </tr>
             ))}
@@ -376,5 +383,24 @@ function Snapshot({ ws, project, period, onBack }: { ws: string; project: string
         </table>
       </div>
     </div>
+  );
+}
+
+function DownloadButton({ ws, project, period, format }: { ws: string; project: string; period: string; format: "xlsx" | "csv" }) {
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  return (
+    <Button
+      disabled={busy}
+      onClick={() => {
+        setBusy(true);
+        downloadClose(ws, project, period, format)
+          .then((name) => { toast("success", tcy.downloaded(name)); })
+          .catch((err: unknown) => { toast("error", exportErrorText(err)); })
+          .finally(() => { setBusy(false); });
+      }}
+    >
+      {format === "xlsx" ? tcy.downloadXlsx : tcy.downloadCsv}
+    </Button>
   );
 }

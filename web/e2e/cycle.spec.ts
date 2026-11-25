@@ -63,6 +63,9 @@ test("admin sets up the cycle, closes last month and reads it back", async ({ pa
   await expect(row).toContainText("✓");
   await expect(row).toContainText(/0,00\s₼/);
   await expect(page.getByRole("row", { name: /Cəmi/ })).toContainText(/350,00\s₼/);
+  const download = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Excel yüklə" }).click();
+  expect((await download).suggestedFilename()).toMatch(/\.xlsx$/);
   await page.getByRole("link", { name: "← Bütün aylar" }).click();
   await expect(page.getByRole("heading", { name: "Bağlanmış aylar" })).toBeVisible();
 

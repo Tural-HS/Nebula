@@ -1,7 +1,10 @@
 // Monthly period close of a project (ADR-0051).
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { api, path } from "./client";
+import { api, apiGetFile, path } from "./client";
+import { saveBlob } from "./evidence";
+import { activeLocale } from "../i18n/locale";
+import { exportFileName, type ExportFormat } from "../lib/itemExport";
 import { keys } from "./hooks";
 import type { FieldValue } from "./types";
 
@@ -56,6 +59,8 @@ export interface SnapshotRow {
   number: number;
   title: string;
   status_id: string;
+  /** The status's current name. */
+  status_name: string;
   assignee_id: string | null;
   fields: Record<string, FieldValue>;
 }
@@ -99,4 +104,14 @@ export function useCycleApi(ws: string, project: string) {
       onSuccess: () => qc.invalidateQueries({ queryKey: keys.items(ws, project) }),
     }),
   };
+}
+
+/** Downloads one closed month as xlsx or CSV (semicolons: Excel with a comma decimal). */
+export async function downloadClose(ws: string, project: string, period: string, format: ExportFormat): Promise<string> {
+  const q = new URLSearchParams({ format, lang: activeLocale() });
+  if (format === "csv") q.set("delimiter", "semicolon");
+  const res = await apiGetFile(path`/workspaces/${ws}/projects/${project}/cycle/closes/${period}/export` + "?" + q.toString());
+  const name = exportFileName(res.disposition, `${project}-${period}.${format}`, format);
+  saveBlob(res.blob, name);
+  return name;
 }

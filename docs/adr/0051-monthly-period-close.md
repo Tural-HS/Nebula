@@ -34,6 +34,9 @@ audit yox idi.
   `GET …/cycle/closes/{YYYY-MM}`. Hadisələr: `cycle.updated`, `period.closed`, `period.close_failed`.
 - UI: layihənin "Aylıq dövr" səhifəsi (ayarlar, növbəti tarix, əl ilə bağlama, bağlanmış aylar və hər ayın cədvəli
   cəmlərlə).
+- Bağlanmış ay **Excel/CSV** kimi yüklənir (`GET …/cycle/closes/{YYYY-MM}/export`): cədvəl ixracının (ADR-0040)
+  parametrləri, limitləri, formula neytrallaşdırması və audit qeydi (`items.exported`, `period` ilə). Ay bağlananda
+  Mattermost/Slack webhook-una qısa mesaj gedir ("📅 MAH: Noyabr 2026 bağlandı — …").
 - Geri qaytarma: bağlanışın özü geri alınmır (köhnə dəyərlər snapshot-dadır, lazım olsa əl ilə və ya toplu
   redaktə ilə). Konfiqurasiyanı söndürmək növbəti bağlanışları dayandırır.
 

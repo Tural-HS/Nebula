@@ -89,6 +89,7 @@ type PeriodSnapshotRow struct {
 	Number     int64          `json:"number"`
 	Title      string         `json:"title"`
 	StatusID   uuid.UUID      `json:"status_id"`
+	StatusName string         `json:"status_name"` // as it is named now
 	AssigneeID *uuid.UUID     `json:"assignee_id"`
 	Fields     map[string]any `json:"fields"`
 }
@@ -606,8 +607,9 @@ func (s *Store) GetCloseSnapshot(ctx context.Context, wsID, projectID uuid.UUID,
 	if err != nil {
 		return PeriodClose{}, nil, err
 	}
-	rows, err := s.pool.Query(ctx, `SELECT number, title, status_id, assignee_id, fields FROM period_snapshots
-		WHERE workspace_id = $1 AND close_id = $2 ORDER BY number`, wsID, c.ID)
+	rows, err := s.pool.Query(ctx, `SELECT ps.number, ps.title, ps.status_id, coalesce(st.name, ''), ps.assignee_id, ps.fields
+		FROM period_snapshots ps LEFT JOIN statuses st ON st.id = ps.status_id
+		WHERE ps.workspace_id = $1 AND ps.close_id = $2 ORDER BY ps.number`, wsID, c.ID)
 	if err != nil {
 		return PeriodClose{}, nil, err
 	}
@@ -615,7 +617,7 @@ func (s *Store) GetCloseSnapshot(ctx context.Context, wsID, projectID uuid.UUID,
 	out := []PeriodSnapshotRow{}
 	for rows.Next() {
 		var r PeriodSnapshotRow
-		if err := rows.Scan(&r.Number, &r.Title, &r.StatusID, &r.AssigneeID, &r.Fields); err != nil {
+		if err := rows.Scan(&r.Number, &r.Title, &r.StatusID, &r.StatusName, &r.AssigneeID, &r.Fields); err != nil {
 			return PeriodClose{}, nil, err
 		}
 		out = append(out, r)

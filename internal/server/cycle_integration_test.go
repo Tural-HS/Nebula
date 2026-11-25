@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 )
@@ -148,6 +149,25 @@ func TestMonthlyCycleClose(t *testing.T) {
 		first["fields"].(map[string]any)["balance"] != 0.0 {
 		t.Fatalf("snapshot row 1: %v", first)
 	}
+	if first["status_name"] != "To Do" {
+		t.Fatalf("snapshot status name: %v", first)
+	}
+
+	// Export: CSV with the month's fields, xlsx as a workbook; guests cannot.
+	csv := e.call("carol", "GET", cyclePath+"/closes/"+lastMonth+"/export?format=csv", nil)
+	if csv.Status != 200 || !strings.Contains(csv.Raw, "ACME-1,Əli Məmmədov,To Do") || !strings.Contains(csv.Raw, "Ödədi") {
+		t.Fatalf("csv export: %d %s", csv.Status, csv.Raw)
+	}
+	if x := e.call("carol", "GET", cyclePath+"/closes/"+lastMonth+"/export?format=xlsx", nil); x.Status != 200 || !strings.HasPrefix(x.Raw, "PK") {
+		t.Fatalf("xlsx export: %d", x.Status)
+	}
+	e.must(404, "carol", "GET", cyclePath+"/closes/2001-01/export?format=csv", nil)
+	e.must(400, "carol", "GET", cyclePath+"/closes/"+lastMonth+"/export?format=pdf", nil)
+	e.must(403, "bob", "GET", cyclePath+"/closes/"+lastMonth+"/export?format=csv", nil)
+	if n := e.countEvents(`action = 'items.exported' AND payload ? 'period'`); n != 2 {
+		t.Fatalf("export audit events: %d", n)
+	}
+
 	list := e.must(200, "carol", "GET", cyclePath+"/closes", nil).Body["closes"].([]any)
 	if len(list) != 1 {
 		t.Fatalf("closes: %v", list)
