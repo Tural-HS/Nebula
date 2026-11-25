@@ -43,6 +43,15 @@ func (e *Engine) Tick(ctx context.Context) {
 	} else if n > 0 {
 		e.Logger.Info("recurring items created", "count", n)
 	}
+	// Monthly closes (ADR-0051) after recurring items, before formulas, so a
+	// refilled field is recomputed in the same tick.
+	if n, err := e.Store.EmitCycles(ctx); err != nil {
+		if ctx.Err() == nil {
+			e.Logger.Error("monthly close", "error", err)
+		}
+	} else if n > 0 {
+		e.Logger.Info("months closed", "count", n)
+	}
 	e.recomputeFormulas(ctx)
 	// Approval deadlines (ADR-0034): one approval.overdue per request.
 	if n, err := e.Store.EmitApprovalOverdue(ctx, overdueBatch); err != nil {

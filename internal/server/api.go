@@ -127,6 +127,7 @@ func (a *api) activeProjectRoutes(r chi.Router) {
 	a.attachmentRoutes(r)
 	a.importRoutes(r)
 	a.recurrenceRoutes(r)
+	a.cycleRoutes(r)
 	a.projectSettingsRoutes(r)
 	a.viewRoutes(r)
 	a.bulkRoutes(r)
