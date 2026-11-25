@@ -22,6 +22,7 @@ import {
   sortWorkload, statusIds, todayIn, writeFilters, type Preset, type ReportFilters, type WorkloadSort,
 } from "../lib/reports";
 import { Popover } from "./ViewTools";
+import { ReportAmounts } from "../components/ReportAmounts";
 
 const CATEGORIES: readonly StatusCategory[] = ["todo", "in_progress", "done", "canceled"];
 
@@ -130,6 +131,11 @@ function Widgets({ ws, f, q }: { ws: string; f: ReportFilters; q: Query }) {
           {(r) => <Aging r={r} />}
         </Widget>
       </div>
+      {drill && single && (
+        <Widget title={trp.amounts} hint={trp.amountsHint} q={q} testId="w-amounts">
+          {(r) => <ReportAmounts ws={ws} project={single} statuses={r.status.find((p) => p.key === single)?.statuses ?? []} />}
+        </Widget>
+      )}
       <Widget title={trp.workload} hint={trp.workloadHint} q={q} testId="w-workload" actions={<CsvMenu ws={ws} f={f} />}>
         {(r) => <Workload ws={ws} f={f} rows={r.workload} drill={drill} openIds={new Map(r.status.map((p) => [p.key, statusIds(p.statuses, OPEN_CATEGORIES)]))} />}
       </Widget>

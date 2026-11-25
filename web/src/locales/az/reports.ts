@@ -43,6 +43,11 @@ export const trp = {
     overdue: "Gecikən",
     awaiting: "Təsdiq gözləyir",
   },
+  amounts: "Məbləğlər",
+  amountsHint: "İndiki vəziyyət: açıq (görüləcək, icrada) və bağlanmış tapşırıqlar üzrə cəm — cədvəlin Cəmi sətri ilə eyni.",
+  amountField: "Sahə",
+  amountOpen: "Açıq",
+  amountClosed: "Bağlanmış",
   kpiHint: {
     open: "Hazırda “Görüləcək” və ya “İcrada” statusunda",
     created: "Dövrdə yaradılan tapşırıqlar",

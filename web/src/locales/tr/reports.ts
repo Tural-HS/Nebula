@@ -39,6 +39,11 @@ export const trp: Messages["reports"] = {
   now: "şimdi",
   inPeriod: "dönemde",
   kpi: { open: "Açık", created: "Oluşturulan", completed: "Tamamlanan", overdue: "Geciken", awaiting: "Onay bekliyor" },
+  amounts: "Tutarlar",
+  amountsHint: "Şu an: açık (yapılacak, devam eden) ve kapalı görevlerin toplamı — tablonun toplam satırıyla aynı.",
+  amountField: "Alan",
+  amountOpen: "Açık",
+  amountClosed: "Kapalı",
   kpiHint: {
     open: "Şu anda Yapılacak veya Devam ediyor durumunda",
     created: "Dönemde oluşturulan işler",

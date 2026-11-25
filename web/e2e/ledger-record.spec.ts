@@ -160,6 +160,19 @@ test.describe("item menu and skip link", () => {
   });
 });
 
+test.describe("report amounts", () => {
+  test.use({ storageState: authFile("alice") });
+
+  test("a one-project report sums amount fields over open and closed items", async ({ page }) => {
+    await page.goto(`/w/${seed.ws}/reports?projects=QA`);
+    const w = page.getByTestId("w-amounts");
+    // The unit is ₼ or AZN (another test in this file renames it).
+    const row = w.getByRole("row", { name: /Qalıq/ });
+    await expect(row.getByRole("cell").nth(0)).toHaveText(/2\s000,00\s(₼|AZN)/);
+    await expect(row.getByRole("cell").nth(1)).toHaveText("—"); // nothing closed yet
+  });
+});
+
 test.describe("column filters and density", () => {
   test.use({ storageState: authFile("alice") });
 

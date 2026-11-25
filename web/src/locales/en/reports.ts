@@ -42,6 +42,11 @@ export const trp: Messages["reports"] = {
   now: "now",
   inPeriod: "in period",
   kpi: { open: "Open", created: "Created", completed: "Completed", overdue: "Overdue", awaiting: "Awaiting approval" },
+  amounts: "Amounts",
+  amountsHint: "Now: totals over open (to do, in progress) and closed items — the same as the table's total row.",
+  amountField: "Field",
+  amountOpen: "Open",
+  amountClosed: "Closed",
   kpiHint: {
     open: "Currently in a To Do or In Progress status",
     created: "Items created in the period",
