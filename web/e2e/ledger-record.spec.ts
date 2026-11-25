@@ -133,6 +133,33 @@ test.describe("as admin", () => {
   });
 });
 
+test.describe("item menu and skip link", () => {
+  test.use({ storageState: authFile("alice") });
+
+  test("delete sits in the panel menu and asks first; the skip link reaches the page", async ({ page }) => {
+    const alice = await apiAs("alice");
+    const r = await alice.post(`workspaces/${seed.ws}/projects/QA/items`, { data: { title: "Silinəcək qeyd" } });
+    const n = ((await r.json()) as { number: number }).number;
+    await alice.dispose();
+    await page.goto(`${seed.url}?item=${String(n)}`);
+    const panel = page.getByRole("dialog", { name: `QA-${String(n)}` });
+    await expect(panel.getByRole("button", { name: "Sil", exact: true })).toHaveCount(0);
+    await panel.getByLabel("Digər əməliyyatlar").click();
+    await panel.getByRole("button", { name: "Sil", exact: true }).click();
+    await page.getByRole("dialog").getByRole("button", { name: /QA-\d+.* sil|Sil/ }).last().click();
+    await expect(page.getByRole("row").filter({ hasText: "Silinəcək qeyd" })).toHaveCount(0);
+
+    await page.goto(seed.url);
+    await expect(page.getByRole("button", { name: "Yeni tapşırıq" })).toBeVisible();
+    await page.locator("body").focus();
+    await page.keyboard.press("Tab");
+    const skip = page.getByRole("link", { name: "Məzmuna keç" });
+    await expect(skip).toBeFocused();
+    await skip.press("Enter");
+    await expect(page.locator("main#main")).toBeFocused();
+  });
+});
+
 test.describe("column filters and density", () => {
   test.use({ storageState: authFile("alice") });
 

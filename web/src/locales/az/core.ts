@@ -9,6 +9,7 @@ export const t = {
   signOut: "Çıxış",
   retry: "Yenidən cəhd et",
   cancel: "Ləğv et",
+  skipToContent: "Məzmuna keç",
   proceed: "Davam et",
   areYouSure: "Əminsiniz?",
   save: "Yadda saxla",

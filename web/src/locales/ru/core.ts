@@ -12,6 +12,7 @@ export const t = {
   signOut: "Выйти",
   retry: "Повторить",
   cancel: "Отмена",
+  skipToContent: "К содержимому",
   proceed: "Продолжить",
   areYouSure: "Вы уверены?",
   save: "Сохранить",

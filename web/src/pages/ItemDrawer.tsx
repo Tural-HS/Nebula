@@ -31,6 +31,8 @@ import { formatDateTime } from "../lib/format";
 import { useKeyboardInset, useMediaQuery } from "../lib/responsive";
 import { WorkflowSteps } from "../components/WorkflowSteps";
 import { tlg } from "../i18n-ledger";
+import { tm } from "../i18n-mobile";
+import { Popover } from "./ViewTools";
 
 /** Width at which the panel stops being modal (Tailwind lg). */
 const WIDE = "(min-width: 1024px)";
@@ -270,10 +272,13 @@ function ItemDetails({ ws, project, item, canEdit, isAdmin, onClose, nav }: {
         <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2">
           <WatchControl ws={ws} project={project} n={item.number} isAdmin={isAdmin} />
           {isAdmin && <ItemEvidenceButton ws={ws} project={project} n={item.number} />}
+          {/* Destructive, so not the most visible button (ADR-0050): in the "…" menu. */}
           {canEditContent && (
-            <Button variant="dangerGhost" onClick={() => { setConfirmDelete(true); }}>
-              {t.delete}
-            </Button>
+            <Popover align="right" summaryLabel={tm.moreActions} label={<span aria-hidden>⋯</span>}>
+              <Button variant="dangerGhost" className="w-full justify-start" onClick={() => { setConfirmDelete(true); }}>
+                {t.delete}
+              </Button>
+            </Popover>
           )}
         </div>
         <CloseButton onClose={onClose} />

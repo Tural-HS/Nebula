@@ -34,6 +34,10 @@ export function Layout({ crumbs, actions, children }: { crumbs: Crumb[]; actions
   const absenceLink = ws ? `/w/${encodeURIComponent(ws)}/absence` : "";
   return (
     <div className="flex h-full flex-col">
+      {/* WCAG 2.4.1: keyboard users skip the header (search, menus) to the page. */}
+      <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-white focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:shadow-lg focus:ring-2 focus:ring-brand-500 dark:focus:bg-zinc-900">
+        {t.skipToContent}
+      </a>
       {/* Phones (ADR-0019): no app name, avatar or upper crumbs, so the
           header fits 375 px; safe-area padding clears notches in landscape. */}
       <header className="flex min-h-12 shrink-0 items-center gap-2 border-b max-sm:flex-wrap max-sm:gap-y-0 border-zinc-200 bg-white pt-[env(safe-area-inset-top)] pr-[max(0.75rem,env(safe-area-inset-right))] pl-[max(0.75rem,env(safe-area-inset-left))] sm:gap-3 sm:pr-[max(1rem,env(safe-area-inset-right))] sm:pl-[max(1rem,env(safe-area-inset-left))] dark:border-zinc-800 dark:bg-zinc-900">
@@ -151,7 +155,7 @@ export function Layout({ crumbs, actions, children }: { crumbs: Crumb[]; actions
       <div aria-hidden className="h-0.5 shrink-0 bg-linear-to-r from-brand-900 via-brand-600 to-brand-400" />
       <ArchivedWorkspaceBanner />
       <AbsenceBanner />
-      <main className="min-h-0 flex-1">{children}</main>
+      <main id="main" tabIndex={-1} className="min-h-0 flex-1">{children}</main>
     </div>
   );
 }

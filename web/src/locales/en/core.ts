@@ -10,6 +10,7 @@ export const t = {
   signOut: "Sign out",
   retry: "Try again",
   cancel: "Cancel",
+  skipToContent: "Skip to content",
   proceed: "Continue",
   areYouSure: "Are you sure?",
   save: "Save",
