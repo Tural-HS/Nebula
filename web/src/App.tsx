@@ -40,6 +40,7 @@ const MembersPage = named(() => import("./pages/settings/MembersPage"), "Members
 const WebhooksPage = named(() => import("./pages/settings/WebhooksPage"), "WebhooksPage");
 const WorkflowsPage = named(() => import("./pages/settings/WorkflowsPage"), "WorkflowsPage");
 const WorkCalendarPage = named(() => import("./pages/settings/WorkCalendarPage"), "WorkCalendarPage");
+const TokensPage = named(() => import("./pages/settings/TokensPage"), "TokensPage");
 
 function makeQueryClient() {
   return new QueryClient({
@@ -107,6 +108,7 @@ export function App() {
             <Route path="/w/:ws/settings/workflows" element={<WorkflowsPage />} />
             <Route path="/w/:ws/settings/email" element={<EmailPage />} />
             <Route path="/w/:ws/settings/webhooks" element={<WebhooksPage />} />
+            <Route path="/w/:ws/settings/api-tokens" element={<TokensPage />} />
             <Route path="/w/:ws/settings/automations" element={<AutomationsPage />} />
             <Route path="/w/:ws/settings/audit" element={<AuditLogPage />} />
             <Route path="*" element={<EmptyState>{t.notFound}</EmptyState>} />

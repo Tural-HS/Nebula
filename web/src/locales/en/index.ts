@@ -27,8 +27,9 @@ import { ts as search } from "./search";
 import { ts as subtasks } from "./subtasks";
 import { tt as templates } from "./templates";
 import { tth as theme } from "./theme";
+import { ttk as tokens } from "./tokens";
 import { tv as views } from "./views";
 import { twc as webhookChat } from "./webhookChat";
 import { tw as workdays } from "./workdays";
 
-export const en: Messages = { absences, admin, approvalInbox, approvals, attach, calendar, core, email, evidence, forms, formulas, home, importer, invite, kinds, ledger, lifecycle, links, mobile, notifications, project, recur, reports, search, subtasks, templates, theme, views, webhookChat, workdays };
+export const en: Messages = { absences, admin, approvalInbox, approvals, attach, calendar, core, email, evidence, forms, formulas, home, importer, invite, kinds, ledger, lifecycle, links, mobile, notifications, project, recur, reports, search, subtasks, templates, theme, tokens, views, webhookChat, workdays };

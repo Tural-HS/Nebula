@@ -327,7 +327,8 @@ func (s *Store) AddMember(ctx context.Context, wsID, actorID uuid.UUID, actorRol
 	}
 	m := Member{Role: role}
 	err := s.inTx(ctx, func(tx pgx.Tx) error {
-		err := tx.QueryRow(ctx, `SELECT id, email, display_name FROM users WHERE email = $1 AND is_active`, email).
+		err := tx.QueryRow(ctx, `SELECT id, email, display_name FROM users WHERE email = $1 AND is_active
+			AND oidc_issuer <> '`+serviceTokenIssuer+`'`, email).
 			Scan(&m.UserID, &m.Email, &m.DisplayName)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return invalid("email", "no active user with this email has signed in yet")

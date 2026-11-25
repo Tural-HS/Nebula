@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -47,6 +48,8 @@ type api struct {
 	reportsLimiter *ratelimit.Limiter
 	// absenceLimiter: absence changes (absences_api.go).
 	absenceLimiter *ratelimit.Limiter
+	// tokenDenials audits refused service token requests (servicetokens_api.go).
+	tokenDenials *tokenDenials
 }
 
 type ctxKey int
@@ -83,6 +86,7 @@ func (a *api) routes(r chi.Router) {
 		a.approvalInboxRoutes(r)
 		a.absenceRoutes(r)
 		a.reportsRoutes(r)
+		a.serviceTokenRoutes(r)
 		r.Get("/members", a.listMembers)
 		r.With(requireRole(store.RoleAdmin)).Post("/members", a.addMember)
 		r.With(requireRole(store.RoleAdmin)).Patch("/members/{userID}", a.updateMemberRole)
@@ -156,7 +160,13 @@ func projectFrom(r *http.Request) store.Project {
 // exports get 409 workspace_archived; a workspace being deleted is gone (410).
 func (a *api) loadWorkspace(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ws, err := a.store.WorkspaceForMember(r.Context(), chi.URLParam(r, "workspace"), principal(r).UserID)
+		var ws store.Workspace
+		var err error
+		if t, ok := serviceToken(r); ok {
+			ws, err = a.store.WorkspaceForServiceToken(r.Context(), chi.URLParam(r, "workspace"), t)
+		} else {
+			ws, err = a.store.WorkspaceForMember(r.Context(), chi.URLParam(r, "workspace"), principal(r).UserID)
+		}
 		if err != nil {
 			a.fail(w, r, err)
 			return
@@ -187,7 +197,18 @@ func (a *api) loadProjectAnyState(next http.Handler) http.Handler {
 
 func (a *api) projectLoader(anyState bool, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		p, err := a.store.GetProjectAnyState(r.Context(), workspaceFrom(r).ID, chi.URLParam(r, "project"), viewer(r))
+		v := viewer(r)
+		t, isToken := serviceToken(r)
+		if isToken && t.ProjectIDs != nil {
+			// An allow-listed project is granted by an admin, who sees every
+			// project: the token reaches it even when it is private (ADR-0043).
+			v.Role = store.RoleAdmin
+		}
+		p, err := a.store.GetProjectAnyState(r.Context(), workspaceFrom(r).ID, chi.URLParam(r, "project"), v)
+		if err == nil && isToken && !t.AllowsProject(p.ID) {
+			a.tokenDenials.record(r.Context(), t, "project_not_allowed", r)
+			err = store.ErrNotFound
+		}
 		if err != nil {
 			a.fail(w, r, err)
 			return
@@ -368,10 +389,18 @@ func (a *api) addMember(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *api) listProjects(w http.ResponseWriter, r *http.Request) {
-	list, err := a.store.ListProjects(r.Context(), workspaceFrom(r).ID, viewer(r))
+	v := viewer(r)
+	t, isToken := serviceToken(r)
+	if isToken && t.ProjectIDs != nil {
+		v.Role = store.RoleAdmin // filtered to the allow-list below
+	}
+	list, err := a.store.ListProjects(r.Context(), workspaceFrom(r).ID, v)
 	if err != nil {
 		a.fail(w, r, err)
 		return
+	}
+	if isToken {
+		list = slices.DeleteFunc(list, func(p store.Project) bool { return !t.AllowsProject(p.ID) })
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"projects": nonNil(list)})
 }

@@ -33,7 +33,7 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.LogLevel != slog.LevelInfo || cfg.DBMaxConns != 20 || cfg.ShutdownTimeout != 25*time.Second {
 		t.Errorf("unexpected defaults: %+v", cfg)
 	}
-	if cfg.RateLimit != (RateLimit{UserRPS: 20, UserBurst: 40, IPRPS: 100, IPBurst: 200}) {
+	if cfg.RateLimit != (RateLimit{UserRPS: 20, UserBurst: 40, IPRPS: 100, IPBurst: 200, TokenRPS: 5, TokenBurst: 20}) {
 		t.Errorf("rate limit defaults: %+v", cfg.RateLimit)
 	}
 }
@@ -55,6 +55,7 @@ func TestLoadInvalid(t *testing.T) {
 		{"negative rps", map[string]string{"NEBULA_RATE_LIMIT_USER_RPS": "-1"}, "NEBULA_RATE_LIMIT_USER_RPS"},
 		{"nan rps", map[string]string{"NEBULA_RATE_LIMIT_IP_RPS": "NaN"}, "NEBULA_RATE_LIMIT_IP_RPS"},
 		{"zero burst", map[string]string{"NEBULA_RATE_LIMIT_USER_BURST": "0"}, "NEBULA_RATE_LIMIT_USER_BURST"},
+		{"negative token rps", map[string]string{"NEBULA_RATE_LIMIT_TOKEN_RPS": "-1"}, "NEBULA_RATE_LIMIT_TOKEN_RPS"},
 		{"bad proxy cidr", map[string]string{"NEBULA_TRUSTED_PROXIES": "10.0.0.0/8,10.0.0.0/40"}, "NEBULA_TRUSTED_PROXIES"},
 		{"proxy host bits", map[string]string{"NEBULA_TRUSTED_PROXIES": "10.1.2.3/8"}, "host bits"},
 		{"relative public url", map[string]string{"NEBULA_PUBLIC_URL": "nebula.example.com"}, "NEBULA_PUBLIC_URL"},

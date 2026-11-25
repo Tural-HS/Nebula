@@ -89,14 +89,18 @@ func NewAPIHandler(d Deps) http.Handler {
 		// floods of bad tokens are cut off before signature checks and DB lookups.
 		r.Group(func(r chi.Router) {
 			r.Use(ratelimit.Middleware(ratelimit.New(d.RateLimit.IPRPS, d.RateLimit.IPBurst), clientIP, writeError))
-			r.Use(auth.Middleware(d.Verifier, d.Store, d.Logger, writeError))
+			// Service tokens (ADR-0043) are checked here; every other bearer
+			// value goes to the OIDC middleware.
+			denials := newTokenDenials(d.Store, d.Logger)
+			r.Use(authenticate(d.Store, denials, clientIP, d.Logger, auth.Middleware(d.Verifier, d.Store, d.Logger, writeError)))
+			r.Use(tokenPolicy(denials, ratelimit.New(d.RateLimit.TokenRPS, d.RateLimit.TokenBurst)))
 			r.Use(ratelimit.Middleware(ratelimit.New(d.RateLimit.UserRPS, d.RateLimit.UserBurst), func(r *http.Request) string {
 				return principal(r).UserID.String()
 			}, writeError))
 			(&api{store: d.Store, logger: d.Logger, webhookOpts: d.Webhooks, publicURL: d.PublicURL,
 				attach: d.Attachments, uploadLimiter: newUploadLimiter(d.Attachments.UploadsPerMinute),
 				evidence: newEvidenceExports(d.EvidenceSigner), version: d.Version,
-				mail: mailRouter(d), emailTestLimiter: newEmailTestLimiter(), exports: newItemExports(d.ExportMaxRows), reportsLimiter: newReportsLimiter(), absenceLimiter: newAbsenceLimiter()}).routes(r)
+				mail: mailRouter(d), emailTestLimiter: newEmailTestLimiter(), exports: newItemExports(d.ExportMaxRows), reportsLimiter: newReportsLimiter(), absenceLimiter: newAbsenceLimiter(), tokenDenials: denials}).routes(r)
 		})
 	})
 
