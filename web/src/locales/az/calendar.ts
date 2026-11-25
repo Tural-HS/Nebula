@@ -46,4 +46,6 @@ export const tc = {
   edit: (what: string, key: string) => `${key}: ${what} dəyiş`,
   invalidNumber: (what: string) => `${what}: rəqəm daxil edin, məsələn 1250,50. Dəyər dəyişmədi.`,
   saveFailed: "Dəyişiklik saxlanılmadı",
+  toggled: (what: string, value: string, key: string) => `${key}: ${what} — ${value}`,
+  undo: "Geri qaytar",
 };

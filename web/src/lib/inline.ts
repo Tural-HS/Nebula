@@ -4,7 +4,7 @@ import type { ItemPatch } from "../api/hooks";
 import type { FieldDefinition, FieldValue, Item, Member } from "../api/types";
 import { fieldKey, isFieldColumn } from "./views";
 
-export type InlineKind = "status" | "assignee" | "due_date" | "select" | "user" | "number" | "money" | "text" | "date" | "url" | "email";
+export type InlineKind = "status" | "assignee" | "due_date" | "select" | "user" | "number" | "money" | "text" | "date" | "url" | "email" | "boolean";
 
 export interface InlineEdit {
   ws: string;
@@ -25,6 +25,7 @@ const FIELD_KINDS: Partial<Record<FieldDefinition["type"], InlineKind>> = {
   date: "date",
   url: "url",
   email: "email",
+  boolean: "boolean", // one click toggles, with undo (ADR-0050)
 };
 
 /** Which editor a column gets, or null when it is not edited inline. */

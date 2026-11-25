@@ -9,6 +9,7 @@ const fields = new Map([
   ["points", def("points", "number")],
   ["notes", def("notes", "long_text")],
   ["tags", def("tags", "multi_select")],
+  ["paid", def("paid", "boolean")],
   ["old", def("old", "text", true)],
 ]);
 
@@ -19,6 +20,7 @@ describe("inline editing", () => {
     expect(inlineKind("due_date", fields)).toBe("due_date");
     expect(inlineKind("field.plan", fields)).toBe("select");
     expect(inlineKind("field.points", fields)).toBe("number");
+    expect(inlineKind("field.paid", fields)).toBe("boolean");
     for (const c of ["key", "title", "type", "created_at", "field.notes", "field.tags", "field.old", "field.missing"]) expect(inlineKind(c, fields)).toBeNull();
   });
 

@@ -37,6 +37,8 @@ export function InlineCell({ item, col, kind, label, edit, fields, children }: {
     wasEditing.current = editing;
   }, [editing]);
 
+  if (kind === "boolean") return <BooleanToggle item={item} col={col} label={label} edit={edit} />;
+
   if (!editing) {
     return (
       <button
@@ -255,5 +257,47 @@ function StatusEditor({ item, ws, project, aria, onCommit, onDone }: {
         if (st) onCommit(st);
       }}
     />
+  );
+}
+
+/**
+ * A yes/no cell toggles on one click (ADR-0050): a native checkbox role, the
+ * value as a green check (yes), an empty ring (no) or a dash (not set), and
+ * a toast with "Geri qaytar". Undo writes the previous value back with the
+ * next version (the toggle itself is one change).
+ */
+function BooleanToggle({ item, col, label, edit }: { item: Item; col: string; label: string; edit: InlineEdit }) {
+  const toast = useToast();
+  const key = fieldKey(col);
+  const raw = item.fields[key];
+  const on = raw === true;
+  const set = (base: Item, value: boolean | null) => {
+    edit.commit(base, { fields: { [key]: value } }, { ...base, fields: { ...base.fields, [key]: value } });
+  };
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={on}
+      aria-label={`${label}, ${item.key}`}
+      title={tc.edit(label, item.key)}
+      onClick={() => {
+        const prev = typeof raw === "boolean" ? raw : null;
+        set(item, !on);
+        toast("success", tc.toggled(label, !on ? t.yes : t.no, item.key), {
+          label: tc.undo,
+          run: () => { set({ ...item, version: item.version + 1, fields: { ...item.fields, [key]: !on } }, prev); },
+        });
+      }}
+      className="mx-auto flex size-6 items-center justify-center rounded-full hover:ring-1 hover:ring-zinc-400 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none"
+    >
+      {on ? (
+        <span aria-hidden className="inline-flex size-4 items-center justify-center rounded-full bg-emerald-600 text-2xs leading-none font-bold text-white dark:bg-emerald-500 dark:text-emerald-950">✓</span>
+      ) : raw === false ? (
+        <span aria-hidden className="size-4 rounded-full ring-1 ring-zinc-400 ring-inset dark:ring-zinc-500" />
+      ) : (
+        <span aria-hidden className="text-zinc-400 dark:text-zinc-500">–</span>
+      )}
+    </button>
   );
 }

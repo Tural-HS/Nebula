@@ -48,4 +48,6 @@ export const tc = {
   edit: (what: string, key: string) => `${key}: ${what} değiştir`,
   invalidNumber: (what: string) => `${what}: bir sayı girin, örneğin 1250,50. Değer değişmedi.`,
   saveFailed: "Değişiklik kaydedilemedi",
+  toggled: (what: string, value: string, key: string) => `${key}: ${what} — ${value}`,
+  undo: "Geri al",
 } satisfies Messages["calendar"];

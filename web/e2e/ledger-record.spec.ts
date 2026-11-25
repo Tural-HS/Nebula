@@ -15,6 +15,7 @@ test.beforeAll(async () => {
   await field({ key: "balance", name: "Qalıq", type: "number", options: { unit: "₼" } }, 1);
   await field({ key: "phone", name: "Əlaqə nömrəsi", type: "text" }, 2);
   await field({ key: "nv", name: "NV nömrəsi", type: "text" }, 3);
+  await field({ key: "paid", name: "Ödədi", type: "boolean" }, 4);
   for (const [title, balance] of [["Rəşad Quliyev Hikmət oğlu", 1200], ["Kullinan MMC", 800]] as const) {
     const data = { title, fields: { balance, phone: "515614145", nv: "10YX930" } };
     expect((await alice.post(`${ws}/projects/QA/items`, { data })).status()).toBe(201);
@@ -45,6 +46,25 @@ test.describe("as admin", () => {
     await panel.getByRole("button", { name: "+ Fayl" }).click();
     await expect(panel.getByRole("heading", { name: /Fayllar/ })).toBeVisible();
     await expect(panel.getByRole("button", { name: "+ Fayl" })).toHaveCount(0);
+  });
+
+  test("a yes/no cell toggles in one click and can be undone", async ({ page }) => {
+    await page.goto(`${seed.url}?cols=key,title,field.paid`);
+    const cell = page.getByRole("checkbox", { name: "Ödədi, QA-2" });
+    await expect(cell).toHaveAttribute("aria-checked", "false");
+    await cell.click();
+    await expect(cell).toHaveAttribute("aria-checked", "true");
+    const toast = page.getByRole("status").filter({ hasText: "QA-2: Ödədi — Bəli" });
+    await expect(toast).toBeVisible();
+    // Stored: a reload shows it.
+    await page.reload();
+    await expect(page.getByRole("checkbox", { name: "Ödədi, QA-2" })).toHaveAttribute("aria-checked", "true");
+    await page.getByRole("checkbox", { name: "Ödədi, QA-2" }).click(); // back to no
+    await expect(page.getByRole("checkbox", { name: "Ödədi, QA-2" })).toHaveAttribute("aria-checked", "false");
+    await page.getByRole("status").filter({ hasText: "QA-2: Ödədi — Xeyr" }).getByRole("button", { name: "Geri qaytar" }).click();
+    await expect(page.getByRole("checkbox", { name: "Ödədi, QA-2" })).toHaveAttribute("aria-checked", "true");
+    await page.reload();
+    await expect(page.getByRole("checkbox", { name: "Ödədi, QA-2" })).toHaveAttribute("aria-checked", "true");
   });
 
   test("the title stays while the table scrolls sideways", async ({ page }) => {
