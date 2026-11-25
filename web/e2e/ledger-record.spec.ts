@@ -67,6 +67,16 @@ test.describe("as admin", () => {
     await expect(page.getByRole("checkbox", { name: "Ödədi, QA-2" })).toHaveAttribute("aria-checked", "true");
   });
 
+  test("on a phone each row shows the phone (tap to call) and amounts under the name", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`${seed.url}?cols=key,title,status,field.phone,field.balance`);
+    const row = page.getByRole("row").filter({ hasText: "Kullinan MMC" });
+    await expect(row.getByRole("link", { name: "515614145" }).first()).toHaveAttribute("href", "tel:515614145");
+    await expect(row).toContainText("Qalıq: 800,00 ₼");
+    const link = await row.getByRole("link", { name: "515614145" }).first().boundingBox();
+    expect((link?.x ?? 999) + (link?.width ?? 0)).toBeLessThan(390); // visible without scrolling
+  });
+
   test("the title stays while the table scrolls sideways", async ({ page }) => {
     const many = ["key", "title", "status", "assignee", "due_date", "created_at", "updated_at", "field.balance", "field.phone", "field.nv"];
     await page.setViewportSize({ width: 900, height: 700 });
