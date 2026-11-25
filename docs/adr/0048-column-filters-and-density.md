@@ -29,6 +29,13 @@ yalnız başlıq və təsviri əhatə edir. Bundan əlavə, eyni cədvəl müxt�
   validasiyası), vitest (dəyər qurma/parse, çip mətni), E2E (menyu ilə aralıq və mətn filtri, çiplər, fokus, təmizləmə,
   Esc, sıralama, sıxlığın yadda qalması).
 
+## Əlavə (2026-11-26): sütun eni
+
+Masaüstündə başlığın sağ kənarındakı tutacaqla sütunu dartıb genişləndirmək/daraltmaq olur (3–40 rem); klaviatura
+ilə ←/→ (yarım rem), Home və ya iki klik standart enə qaytarır. Tutacaq `role="separator"` dəyərlə (ekran oxuyucu
+eni deyir). En brauzerdə, layihə üzrə yadda qalır (sıxlıq kimi — ekrana bağlıdır, görünüşə yox); telefonda
+cədvəl öz uyğun enlərini saxlayır.
+
 ## Açıq suallar
 
 - "Boşdur / boş deyil" operatoru.

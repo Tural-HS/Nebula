@@ -216,6 +216,30 @@ test.describe("column filters and density", () => {
     await expect(page.getByRole("dialog", { name: "Əlaqə nömrəsi: filtr və sıralama" })).toHaveCount(0);
   });
 
+  test("drag or arrow-key a column wider; the width is remembered, Home resets it", async ({ page }) => {
+    await page.goto(`${seed.url}?cols=key,title,field.balance,field.phone`);
+    const header = page.getByRole("columnheader", { name: /Qalıq/ });
+    const handle = page.getByRole("separator", { name: /Qalıq: sütun eni/ });
+    const w0 = (await header.boundingBox())?.width ?? 0;
+    const box = await handle.boundingBox();
+    if (!box) throw new Error("no resize handle");
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2 + 80, box.y + box.height / 2, { steps: 4 });
+    await page.mouse.up();
+    await expect.poll(async () => (await header.boundingBox())?.width ?? 0).toBeGreaterThan(w0 + 60);
+
+    await handle.focus();
+    const w1 = Number(await handle.getAttribute("aria-valuenow"));
+    await page.keyboard.press("ArrowRight");
+    await expect(handle).toHaveAttribute("aria-valuenow", String(w1 + 0.5));
+    await page.reload();
+    await expect(page.getByRole("separator", { name: /Qalıq: sütun eni/ })).toHaveAttribute("aria-valuenow", String(w1 + 0.5));
+    await page.getByRole("separator", { name: /Qalıq: sütun eni/ }).focus();
+    await page.keyboard.press("Home");
+    await expect.poll(async () => Math.round((await header.boundingBox())?.width ?? 0)).toBe(Math.round(w0));
+  });
+
   test("sort from the column menu, and the compact density is remembered", async ({ page }) => {
     await page.goto(`${seed.url}?cols=key,title,field.balance`);
     await page.getByRole("button", { name: "Qalıq: filtr və sıralama" }).click();

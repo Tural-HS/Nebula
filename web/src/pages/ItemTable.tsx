@@ -17,6 +17,7 @@ import { displayColumns, FINE_POINTER, useCompact, useMediaQuery } from "../lib/
 import { amountText, columnHeader, fieldKey, formatFieldValue, isFieldColumn, withUnit } from "../lib/views";
 import { isAmount, isFormula, isSortable, valueType } from "../lib/formula";
 import { filterKind } from "../lib/columnFilter";
+import { clampWidth, MAX_WIDTH, MIN_WIDTH, useColumnWidths } from "../lib/columnWidths";
 import type { Density } from "../lib/density";
 import { ColumnMenu } from "../components/ColumnMenu";
 import type { ItemSort } from "../api/hooks";
@@ -111,7 +112,7 @@ export interface TableSelection {
   toggleAll: () => void;
 }
 
-export function ItemTable({ items, columns: chosen, fields, members, sums, hasMore, loadingMore, loadMore, onOpen, selection, inline, filters, onFilter, sort, onSort, density = "normal" }: {
+export function ItemTable({ items, columns: chosen, fields, members, sums, hasMore, loadingMore, loadMore, onOpen, selection, inline, filters, onFilter, sort, onSort, density = "normal", widthScope }: {
   items: Item[];
   columns: string[];
   fields: ReadonlyMap<string, FieldDefinition>;
@@ -121,6 +122,8 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
   hasMore: boolean;
   loadingMore: boolean;
   loadMore: () => void;
+  /** Where dragged column widths are remembered (e.g. "ws/PROJECT"); none: not resizable. */
+  widthScope?: string;
   onOpen: (n: number) => void;
   selection?: TableSelection | undefined;
   /** Inline cell editing; absent for read-only users. */
@@ -197,11 +200,18 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
   }, [hasMore, loadingMore, lastIndex, items.length, loadMore]);
 
   const withFacts = factCols.length > 0;
-  const { grid, firstWidth } = useMemo(() => {
-    const tracks = columns.map((c): [string, number] =>
-      c === SIGNALS && !columns.includes("due_date") ? ["17.75rem", 17.75]
+  // Dragged widths (desktop only; phones keep the fitted layout).
+  const resizable = widthScope !== undefined && !compact;
+  const [widths, setWidth] = useColumnWidths(resizable ? widthScope : undefined);
+  const { grid, firstWidth, colWidths } = useMemo(() => {
+    const tracks = columns.map((c): [string, number] => {
+      const w = resizable ? widths[c] : undefined;
+      if (w !== undefined && c !== columns[0]) return c === "title" ? [`minmax(${String(w)}rem,1fr)`, w] : [`${String(w)}rem`, w];
+      return c === SIGNALS && !columns.includes("due_date") ? ["17.75rem", 17.75]
         : c === "title" && withFacts ? ["minmax(14rem,1fr)", 14] // the facts line needs the room
-        : track(c, isFieldColumn(c) ? fields.get(fieldKey(c)) : undefined, compact));
+        : track(c, isFieldColumn(c) ? fields.get(fieldKey(c)) : undefined, compact);
+    });
+    const base = tracks.map(([, w]) => w);
     // The first column also holds the row checkbox: 2 rem wider.
     const first = tracks[0];
     if (select && first) {
@@ -210,8 +220,8 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
     }
     const rem = tracks.reduce((n, [, w]) => n + w, 0) + 0.375 * (tracks.length - 1) + 1; // gaps and padding
     const g: CSSProperties = { gridTemplateColumns: tracks.map(([t]) => t).join(" "), minWidth: `${String(rem)}rem` };
-    return { grid: g, firstWidth: tracks[0]?.[1] ?? 0 };
-  }, [columns, fields, compact, select, withFacts]);
+    return { grid: g, firstWidth: tracks[0]?.[1] ?? 0, colWidths: base };
+  }, [columns, fields, compact, select, withFacts, resizable, widths]);
   // Desktop: the key and the title both stay while the table scrolls sideways
   // (phones already pin the title, which carries the key).
   const pinTitle = columns[0] === "key" && columns[1] === "title";
@@ -308,7 +318,7 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
         title={expr !== undefined ? `${text}\n${tf.title(expr)}` : text}
         data-formula={expr !== undefined ? "" : undefined}
       >
-        {text}
+        {isPhoneField(def) ? phoneText(raw, text) : text}
       </span>
     );
   };
@@ -368,6 +378,9 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
                 />
               </>
             ) : c === "title" && keyInTitle ? `${columnHeader("key", fields)} / ${header(c)}` : header(c)}
+            {resizable && i > 0 && (
+              <ColumnResizer label={header(c)} width={colWidths[i] ?? MIN_WIDTH} onChange={(w) => { setWidth(c, w); }} />
+            )}
           </span>
           );
         })}
@@ -505,5 +518,47 @@ function AssigneeCell({ id, members }: { id: string | null; members: Map<string,
       <Avatar name={name} />
       <span className="truncate">{name}</span>
     </>
+  );
+}
+
+/**
+ * Drag handle on a header's right edge: pointer drag, ←/→ by half a rem,
+ * Home or a double click for the default width. A separator with a value,
+ * so screen readers announce the width (WAI-ARIA window splitter pattern).
+ */
+function ColumnResizer({ label, width, onChange }: { label: string; width: number; onChange: (w: number | null) => void }) {
+  const start = useRef<{ x: number; w: number } | null>(null);
+  const remPx = () => Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+  return (
+    <span
+      role="separator"
+      aria-orientation="vertical"
+      aria-label={tlg.resizeColumn(label)}
+      aria-valuenow={width}
+      aria-valuemin={MIN_WIDTH}
+      aria-valuemax={MAX_WIDTH}
+      tabIndex={0}
+      className="absolute top-0 -right-[9px] z-[3] h-full w-3 cursor-col-resize touch-none outline-none select-none after:absolute after:inset-y-1.5 after:left-1/2 after:w-0.5 after:-translate-x-1/2 after:rounded-full hover:after:bg-brand-500 focus-visible:after:bg-brand-600 focus-visible:after:w-1"
+      onPointerDown={(e) => {
+        e.preventDefault();
+        e.currentTarget.setPointerCapture(e.pointerId);
+        start.current = { x: e.clientX, w: width };
+      }}
+      onPointerMove={(e) => {
+        if (start.current) onChange(clampWidth(start.current.w + (e.clientX - start.current.x) / remPx()));
+      }}
+      onPointerUp={() => { start.current = null; }}
+      onPointerCancel={() => { start.current = null; }}
+      onDoubleClick={() => { onChange(null); }}
+      onKeyDown={(e) => {
+        if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+          e.preventDefault();
+          onChange(clampWidth(width + (e.key === "ArrowRight" ? 0.5 : -0.5)));
+        } else if (e.key === "Home") {
+          e.preventDefault();
+          onChange(null);
+        }
+      }}
+    />
   );
 }

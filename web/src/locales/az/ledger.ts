@@ -5,6 +5,7 @@ export const tlg = {
   queueCount: (label: string, n: number) => `${label}: ${String(n)}`,
   signals: "Siqnal",
   signalsHint: "Təsdiq, bloklanma, alt tapşırıqlar və gecikmiş son tarix",
+  resizeColumn: (name: string) => `${name}: sütun eni (← →, Home — standart)`,
   activeFilters: "Aktiv filtrlər",
   removeFilter: (label: string) => `Filtri götür: ${label}`,
   clearFilters: "Hamısını təmizlə",

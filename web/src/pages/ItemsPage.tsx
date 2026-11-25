@@ -559,6 +559,7 @@ export function ItemsPage() {
               loadingMore={items.isFetchingNextPage}
               loadMore={() => void items.fetchNextPage()}
               onOpen={(n) => { setParam("item", String(n)); }}
+              widthScope={`${ws}/${project}`}
               selection={tableSelection}
               inline={inline}
               filters={state.fields}

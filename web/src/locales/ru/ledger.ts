@@ -7,6 +7,7 @@ export const tlg = {
   queueCount: (label: string, n: number) => `${label}: ${String(n)}`,
   signals: "Сигналы",
   signalsHint: "Согласование, блокировки, подзадачи и просроченный срок",
+  resizeColumn: (name: string) => `${name}: ширина столбца (← →, Home — по умолчанию)`,
   activeFilters: "Активные фильтры",
   removeFilter: (label: string) => `Убрать фильтр: ${label}`,
   clearFilters: "Сбросить все",
