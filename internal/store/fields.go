@@ -42,7 +42,7 @@ const (
 )
 
 var fieldTypes = []string{FieldText, FieldLongText, FieldNumber, FieldDate, FieldDateTime, FieldBoolean,
-	FieldSelect, FieldMultiSelect, FieldUser, FieldURL, FieldEmail, FieldFormula}
+	FieldSelect, FieldMultiSelect, FieldUser, FieldURL, FieldEmail, FieldFormula, FieldMoney}
 
 const (
 	maxFieldsPerWorkspace = 200 // active definitions
@@ -78,6 +78,7 @@ type Choice struct {
 type FieldOptions struct {
 	Choices []Choice        `json:"choices,omitempty"`
 	Formula *FormulaOptions `json:"formula,omitempty"` // formula fields only (ADR-0030)
+	Money   *MoneyOptions   `json:"money,omitempty"`   // money fields only (ADR-0044)
 }
 
 // FieldDefinition is a workspace-level custom field.
@@ -131,6 +132,7 @@ type CreateFieldParams struct {
 	Type        string
 	Choices     []ChoiceInput
 	Formula     *FormulaInput // required for formula fields, refused otherwise
+	Money       *MoneyInput   // money fields only; nil means the defaults
 }
 
 // CreateField adds a custom field definition to a workspace.
@@ -172,6 +174,18 @@ func createField(ctx context.Context, tx pgx.Tx, p CreateFieldParams) (FieldDefi
 	case p.Type != FieldFormula && p.Formula != nil:
 		return FieldDefinition{}, invalid("options.formula", "only formula fields have a formula")
 	}
+	switch {
+	case p.Type == FieldMoney:
+		in := MoneyInput{}
+		if p.Money != nil {
+			in = *p.Money
+		}
+		if opts.Money, err = normalizeMoneyOptions(nil, in); err != nil {
+			return FieldDefinition{}, err
+		}
+	case p.Money != nil:
+		return FieldDefinition{}, invalid("options.money", "only money fields have money options")
+	}
 
 	var f FieldDefinition
 	err = func() error {
@@ -179,6 +193,9 @@ func createField(ctx context.Context, tx pgx.Tx, p CreateFieldParams) (FieldDefi
 			return err
 		}
 		payload := map[string]any{"key": key, "type": p.Type}
+		if opts.Money != nil {
+			payload["money"] = opts.Money
+		}
 		if p.Type == FieldFormula {
 			defs, err := loadFormulaDefs(ctx, tx, p.WorkspaceID)
 			if err != nil {
@@ -306,6 +323,7 @@ type UpdateFieldParams struct {
 	Name        opt.Field[string]
 	Choices     *[]ChoiceInput // nil: unchanged; else the complete new list
 	Formula     *FormulaInput  // nil: unchanged; formula fields only
+	Money       *MoneyInput    // nil: unchanged; money fields only
 	Archived    opt.Field[bool]
 }
 
@@ -346,6 +364,17 @@ func (s *Store) UpdateField(ctx context.Context, p UpdateFieldParams) (FieldDefi
 			}
 			if !reflect.DeepEqual(cur.Options.Choices, next.Options.Choices) {
 				changes["options.choices"] = diff(cur.Options.Choices, next.Options.Choices)
+			}
+		}
+		if p.Money != nil {
+			if cur.Type != FieldMoney {
+				return invalid("options.money", "only money fields have money options")
+			}
+			if next.Options.Money, err = normalizeMoneyOptions(cur.Options.Money, *p.Money); err != nil {
+				return err
+			}
+			if !reflect.DeepEqual(cur.Options.Money, next.Options.Money) {
+				changes["options.money"] = diff(cur.Options.Money, next.Options.Money)
 			}
 		}
 		if p.Archived.Set {
@@ -726,6 +755,9 @@ func canonicalValue(def FieldDefinition, v any, path string) (val any, empty boo
 		}
 		return b, false, nil
 
+	case FieldMoney:
+		return canonicalMoney(def, v, path)
+
 	case FieldDate:
 		s, err := str()
 		if err != nil || s == "" {
@@ -893,6 +925,18 @@ func fieldFilterConditions(ctx context.Context, q querier, wsID uuid.UUID, filte
 			raw = b
 		case FieldMultiSelect:
 			raw = []any{f.Value}
+		case FieldMoney:
+			// Money filters by currency (ADR-0044): ?field.<key>=USD.
+			c := strings.ToUpper(strings.TrimSpace(f.Value))
+			if !IsCurrencyCode(c) {
+				return nil, invalid(path, "must be a currency code such as AZN")
+			}
+			frag, err := json.Marshal(map[string]any{f.Key: map[string]any{"currency": c}})
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, string(frag))
+			continue
 		}
 		if def.Type == FieldFormula {
 			// A formula filters like its result type: number, date or boolean.

@@ -17,6 +17,7 @@ const (
 // are safe. Errors are logged and retried on the next tick.
 func (e *Engine) Tick(ctx context.Context) {
 	e.purgeBlobs(ctx)
+	e.purgeDeletions(ctx)
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 	for range 10 { // up to 10 batches per tick, then let jobs run
@@ -51,6 +52,7 @@ func (e *Engine) Tick(ctx context.Context) {
 	} else if n > 0 {
 		e.Logger.Info("approval requests became overdue", "count", n)
 	}
+	e.slaTick(ctx)
 	n, err := e.Store.EmitOverdueDigests(ctx)
 	if err != nil {
 		if ctx.Err() == nil {
@@ -86,5 +88,29 @@ func (e *Engine) recomputeFormulas(ctx context.Context) {
 		if n == 0 {
 			return
 		}
+	}
+}
+
+// slaTick recomputes stale SLA dues, then emits the at-risk and breach
+// reminders (ADR-0045).
+func (e *Engine) slaTick(ctx context.Context) {
+	for range 5 {
+		n, err := e.Store.RecomputeSLA(ctx, overdueBatch)
+		if err != nil {
+			if ctx.Err() == nil {
+				e.Logger.Error("sla recompute", "error", err)
+			}
+			return
+		}
+		if n < overdueBatch {
+			break
+		}
+	}
+	if n, err := e.Store.EmitSLA(ctx, overdueBatch); err != nil {
+		if ctx.Err() == nil {
+			e.Logger.Error("sla reminders", "error", err)
+		}
+	} else if n > 0 {
+		e.Logger.Info("sla reminders emitted", "count", n)
 	}
 }

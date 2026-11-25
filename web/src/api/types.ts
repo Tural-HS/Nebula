@@ -22,6 +22,10 @@ export interface Workspace {
   /** Accent colour key (lib/accent.ts, ADR-0035, migration 00028); null = the
    * Nebula teal. Optional so an older API (without the field) hides the picker. */
   accent?: string | null;
+  /** Archived: read-only and hidden from lists (ADR-0039); null = active. */
+  archived_at?: string | null;
+  /** Permanent deletion requested; the purge is running. */
+  deleting?: boolean;
 }
 
 export interface Member {
@@ -42,6 +46,10 @@ export interface Project {
   visibility: "workspace" | "private";
   /** The shared view the project opens with; null: all items. */
   default_view_id: string | null;
+  /** Archived: hidden and read-only (ADR-0039); null = active. */
+  archived_at?: string | null;
+  /** Permanent deletion requested; the purge is running. */
+  deleting?: boolean;
 }
 
 export interface ProjectMember {
@@ -76,7 +84,7 @@ export interface ItemType {
 
 export type FieldType =
   | "text" | "long_text" | "number" | "date" | "datetime" | "boolean"
-  | "select" | "multi_select" | "user" | "url" | "email" | "formula";
+  | "select" | "multi_select" | "user" | "url" | "email" | "formula" | "money";
 
 export interface Choice {
   id: string;
@@ -90,7 +98,7 @@ export interface FieldDefinition {
   key: string;
   name: string;
   type: FieldType;
-  options: { choices?: Choice[]; formula?: FormulaOptions };
+  options: { choices?: Choice[]; formula?: FormulaOptions; money?: MoneyOptions };
   archived: boolean;
 }
 
@@ -105,12 +113,25 @@ export interface FormulaOptions {
   calendar?: boolean;
 }
 
+/** options.money of a money field (ADR-0044). The scale is fixed at creation. */
+export interface MoneyOptions {
+  currencies: string[];
+  default_currency: string;
+  scale: number;
+}
+
+/** A money value: exact decimal text with the field's scale and an ISO 4217 code. */
+export interface MoneyValue {
+  amount: string;
+  currency: string;
+}
+
 /** A formula value that could not be computed, e.g. {"error": "division_by_zero"}. */
 export interface FormulaErrorValue {
   error: string;
 }
 
-export type FieldValue = string | number | boolean | string[] | FormulaErrorValue | null;
+export type FieldValue = string | number | boolean | string[] | FormulaErrorValue | MoneyValue | null;
 
 /** POST /fields/formula-preview. */
 export interface FormulaPreview {
@@ -122,6 +143,23 @@ export interface FormulaPreview {
   calendar: boolean;
   value: FieldValue;
   item?: string;
+}
+
+export type SlaState = "on_track" | "at_risk" | "breached" | "met";
+
+export interface ItemSla {
+  state: SlaState;
+  started_at: string | null;
+  response_due: string | null;
+  resolution_due: string | null;
+  responded_at: string | null;
+  resolved_at: string | null;
+}
+
+export interface SlaPolicy {
+  response_days: number | null;
+  resolution_days: number | null;
+  since: string | null;
 }
 
 export interface Item {
@@ -148,6 +186,8 @@ export interface Item {
   approval?: PendingApproval | null;
   /** An open item the viewer can see blocks this one (ADR-0028); list responses only. */
   blocked?: boolean;
+  /** SLA clock (ADR-0045); null when the project has no SLA policy. */
+  sla?: ItemSla | null;
   version: number;
   created_at: string;
   updated_at: string;
@@ -182,8 +222,11 @@ export interface SavedView {
   updated_at: string;
 }
 
-/** Totals of number fields over the whole filtered list; sum is an exact decimal string. */
-export type FieldSums = Record<string, { sum: string; count: number }>;
+/**
+ * Totals of number fields over the whole filtered list; sum is an exact
+ * decimal string. Money fields have no sum but one total per currency.
+ */
+export type FieldSums = Record<string, { sum?: string; count: number; currencies?: { currency: string; sum: string; count: number }[] }>;
 
 export interface ItemPage {
   items: Item[];

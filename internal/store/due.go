@@ -49,7 +49,8 @@ func (s *Store) EmitOverdue(ctx context.Context, limit int) (int, error) {
 			WITH cand AS (
 				SELECT i.workspace_id, i.id, i.due_date
 				FROM items i
-				JOIN workspaces w ON w.id = i.workspace_id
+				JOIN workspaces w ON w.id = i.workspace_id AND w.archived_at IS NULL
+				JOIN projects   p ON p.id = i.project_id AND p.archived_at IS NULL
 				JOIN statuses   s ON s.id = i.status_id
 				WHERE `+openOverdue+`
 				  AND NOT EXISTS (SELECT 1 FROM item_overdue_marks m WHERE m.item_id = i.id AND m.due_date = i.due_date)
@@ -129,7 +130,7 @@ func (s *Store) EmitOverdueDigests(ctx context.Context) (int, error) {
 		rows, err := tx.Query(ctx, `
 			INSERT INTO workspace_digest_runs (workspace_id, local_date)
 			SELECT w.id, `+localToday+` FROM workspaces w
-			WHERE w.overdue_digest_hour IS NOT NULL
+			WHERE w.overdue_digest_hour IS NOT NULL AND w.archived_at IS NULL
 			  AND extract(hour FROM now() AT TIME ZONE w.timezone) >= w.overdue_digest_hour
 			ON CONFLICT DO NOTHING
 			RETURNING workspace_id, local_date::text, (SELECT timezone FROM workspaces WHERE id = workspace_id)`)
@@ -158,7 +159,7 @@ func (s *Store) EmitOverdueDigests(ctx context.Context) (int, error) {
 			}
 			counts, err := tx.Query(ctx, `SELECT p.key, count(*) FROM items i
 				JOIN workspaces w ON w.id = i.workspace_id JOIN statuses s ON s.id = i.status_id
-				JOIN projects p ON p.id = i.project_id
+				JOIN projects p ON p.id = i.project_id AND p.archived_at IS NULL
 				WHERE i.workspace_id = $1 AND `+openOverdue+` GROUP BY p.key`, r.ws)
 			if err != nil {
 				return err
@@ -182,6 +183,7 @@ func (s *Store) EmitOverdueDigests(ctx context.Context) (int, error) {
 						row_number() OVER (PARTITION BY i.project_id ORDER BY i.due_date, i.number) AS rn
 					FROM items i
 					JOIN workspaces w ON w.id = i.workspace_id JOIN statuses s ON s.id = i.status_id
+					JOIN projects p ON p.id = i.project_id AND p.archived_at IS NULL
 					WHERE i.workspace_id = $1 AND `+openOverdue+`) x
 				WHERE rn <= $3
 				ORDER BY due_date, number LIMIT $2`, r.ws, maxDigestItems, maxDigestPerProject)

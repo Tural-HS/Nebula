@@ -1,0 +1,25 @@
+// SLA targets (ADR-0045).
+export const tsl = {
+  state: { on_track: "SLA on track", at_risk: "SLA at risk", breached: "SLA breached", met: "SLA met" },
+  short: { on_track: "SLA", at_risk: "SLA !", breached: "SLA ✕", met: "SLA ✓" },
+  responseDue: (when: string) => `First response: ${when}`,
+  resolutionDue: (when: string) => `Resolution: ${when}`,
+  answered: "answered",
+  resolved: "resolved",
+  notify: { atRisk: "SLA is about to run out", breached: "SLA breached" },
+  settings: {
+    heading: "SLA targets",
+    intro: "First response and resolution time for requests and items, in working days of the workspace calendar (weekends and holidays do not count). The clock starts when the item is created; the target day ends at midnight.",
+    response: "First response (working days)",
+    responseHint: "The status leaves the initial stage, or someone other than the requester comments first.",
+    resolution: "Resolution (working days)",
+    resolutionHint: "The status moves to a done or canceled category.",
+    empty: "Empty — not tracked",
+    save: "Save",
+    saved: "SLA targets saved",
+    off: "SLA turned off",
+    adminOnly: "Only admins can change SLA targets.",
+    riskNote: "Under 25% of the time left is \"at risk\", past the target is \"breached\": the assignee is notified, and on a breach the admins too.",
+    loadError: "SLA targets did not load. Reload the page.",
+  },
+};

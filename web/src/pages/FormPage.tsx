@@ -9,6 +9,7 @@ import { Layout } from "../components/Layout";
 import { Button, EmptyState, ErrorState, Spinner } from "../components/ui";
 import { t } from "../i18n";
 import { tf } from "../i18n-forms";
+import { tlc } from "../i18n-lifecycle";
 import { formatBytes } from "../lib/format";
 import { inputId, toValues, valueKey, type Draft, type FieldProblem } from "../lib/forms";
 
@@ -44,6 +45,7 @@ function FillIn({ form, maxFileBytes }: { form: PublicForm; maxFileBytes: number
   const [done, setDone] = useState<Submission | null>(null);
   const summaryRef = useRef<HTMLDivElement>(null);
   const [showSummary, setShowSummary] = useState(0);
+  const closedText = form.closed_reason === "archived" ? tlc.formClosedArchived : tf.closed;
 
   useEffect(() => {
     if (showSummary > 0) summaryRef.current?.focus();
@@ -66,7 +68,7 @@ function FillIn({ form, maxFileBytes }: { form: PublicForm; maxFileBytes: number
         setShowSummary((n) => n + 1);
         return;
       }
-      if (e.code === "form_closed") setGeneral(tf.closed);
+      if (e.code === "form_closed") setGeneral(closedText);
       else if (e.code === "form_misconfigured") setGeneral(tf.misconfigured);
       else if (e.status === 429) setGeneral(tf.rateLimited);
       else setGeneral(e.message);
@@ -140,11 +142,11 @@ function FillIn({ form, maxFileBytes }: { form: PublicForm; maxFileBytes: number
 
       {!form.open && !form.can_manage ? (
         <p role="status" className="rounded-md bg-amber-50 p-3 text-sm text-amber-900 ring-1 ring-amber-200 dark:bg-amber-950 dark:text-amber-200 dark:ring-amber-900">
-          {tf.closed}
+          {closedText}
         </p>
       ) : (
         <>
-          {!form.open && <p role="note" className="rounded-md bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">{tf.closed}</p>}
+          {!form.open && <p role="note" className="rounded-md bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-200">{closedText}</p>}
           {(errorList.length > 0 || general) && (
             <div ref={summaryRef} tabIndex={-1} role="alert" aria-labelledby="form-errors" className="rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-900 outline-none focus:ring-2 focus:ring-red-500 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
               {errorList.length > 0 && (

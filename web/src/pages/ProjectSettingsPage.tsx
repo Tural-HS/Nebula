@@ -4,8 +4,10 @@ import { Link, useParams } from "react-router";
 
 import { api, path } from "../api/client";
 import { keys, useMembers, useProjectMembers, useProjects, useWorkspace } from "../api/hooks";
-import { roleAtLeast, type Project } from "../api/types";
+import { roleAtLeast, type Project, type Workspace } from "../api/types";
 import { Layout } from "../components/Layout";
+import { ProjectDangerZone } from "../components/Lifecycle";
+import { SlaSettings } from "../components/SlaSettings";
 import { useToast } from "../components/toast-context";
 import { Avatar, Button, EmptyState, ErrorState, FieldError, Input, Label, Select, Spinner } from "../components/ui";
 import { t } from "../i18n";
@@ -25,7 +27,7 @@ export function ProjectSettingsPage() {
   else if (workspace.isError) body = <ErrorState error={workspace.error} />;
   else if (!p) body = <EmptyState>{t.notFound}</EmptyState>;
   else if (!roleAtLeast(workspace.data.role, "admin")) body = <EmptyState>{tp.adminOnly}</EmptyState>;
-  else body = <Settings key={p.id} ws={ws} project={p} />;
+  else body = <Settings key={p.id} ws={ws} project={p} role={workspace.data.role} />;
 
   return (
     <Layout
@@ -46,7 +48,7 @@ export function ProjectSettingsPage() {
   );
 }
 
-function Settings({ ws, project }: { ws: string; project: Project }) {
+function Settings({ ws, project, role }: { ws: string; project: Project; role: Workspace["role"] }) {
   const qc = useQueryClient();
   const toast = useToast();
   const [name, setName] = useState(project.name);
@@ -90,6 +92,7 @@ function Settings({ ws, project }: { ws: string; project: Project }) {
         <Button type="submit" variant="primary" disabled={update.isPending}>{t.save}</Button>
       </form>
       {project.visibility === "private" && <Members ws={ws} project={project} />}
+      <SlaSettings ws={ws} project={project.key} />
       <section aria-labelledby="ps-forms" className="space-y-2 rounded-xl bg-white p-4 ring-1 ring-zinc-200 dark:bg-zinc-900 dark:ring-zinc-800">
         <h2 id="ps-forms" className="text-sm font-semibold">{tf.section}</h2>
         <p className="text-xs text-zinc-500 dark:text-zinc-400">{tf.sectionHint}</p>
@@ -97,6 +100,7 @@ function Settings({ ws, project }: { ws: string; project: Project }) {
           {tf.manage}
         </Link>
       </section>
+      {project.archived_at !== undefined && <ProjectDangerZone ws={ws} project={project} role={role} />}
     </>
   );
 }

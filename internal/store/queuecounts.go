@@ -17,6 +17,9 @@ type QueueCounts struct {
 	Approval int64 `json:"approval"` // any open approval request
 	Blocked  int64 `json:"blocked"`
 	Week     int64 `json:"week"` // due in the next 7 days
+	// SLA queues (ADR-0045); always 0 in projects without a policy.
+	SLABreached int64 `json:"sla_breached"`
+	SLAAtRisk   int64 `json:"sla_at_risk"`
 }
 
 // CountQueues counts the presets in one round trip (a pgx batch). The other
@@ -28,7 +31,7 @@ func (s *Store) CountQueues(ctx context.Context, base ListItemsParams) (QueueCou
 	if base.Viewer == nil {
 		return QueueCounts{}, errors.New("queue counts need a viewer")
 	}
-	base.AssigneeID, base.Unassigned, base.Due, base.Approval, base.Blocked = nil, false, "", "", false
+	base.AssigneeID, base.Unassigned, base.Due, base.Approval, base.Blocked, base.SLA = nil, false, "", "", false, ""
 	base.Cursor = nil
 	me := base.Viewer.UserID
 	presets := []func(p *ListItemsParams){
@@ -38,6 +41,8 @@ func (s *Store) CountQueues(ctx context.Context, base ListItemsParams) (QueueCou
 		func(p *ListItemsParams) { p.Approval = "pending" },
 		func(p *ListItemsParams) { p.Blocked = true },
 		func(p *ListItemsParams) { p.Due = "week" },
+		func(p *ListItemsParams) { p.SLA = SLABreached },
+		func(p *ListItemsParams) { p.SLA = SLAAtRisk },
 	}
 	batch := &pgx.Batch{}
 	for _, set := range presets {
@@ -50,7 +55,7 @@ func (s *Store) CountQueues(ctx context.Context, base ListItemsParams) (QueueCou
 		batch.Queue("SELECT count(*) FROM items i WHERE "+strings.Join(where, " AND "), args...)
 	}
 	var out QueueCounts
-	dst := []*int64{&out.All, &out.Mine, &out.Overdue, &out.Approval, &out.Blocked, &out.Week}
+	dst := []*int64{&out.All, &out.Mine, &out.Overdue, &out.Approval, &out.Blocked, &out.Week, &out.SLABreached, &out.SLAAtRisk}
 	res := s.pool.SendBatch(ctx, batch)
 	for _, d := range dst {
 		if err := res.QueryRow().Scan(d); err != nil {

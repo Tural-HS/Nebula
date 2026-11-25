@@ -11,12 +11,13 @@ import { ApiError } from "../api/client";
 import { useFields } from "../api/hooks";
 import type { Item, PendingApproval } from "../api/types";
 import { t } from "../i18n";
+import { tab } from "../i18n-absences";
 import { tai } from "../i18n-approval-inbox";
 import { tap } from "../i18n-approvals";
 import { parseDue, toggleWatched, watchTokens, type PolicyExtrasValue } from "../lib/approvalInbox";
 import { approvalErrorCode, approvalErrorText, progress } from "../lib/approvals";
 import { cn } from "../lib/cn";
-import { formatDateTime } from "../lib/format";
+import { formatDate, formatDateTime } from "../lib/format";
 import { badgeText } from "../lib/notifications";
 import { Button, Dialog, ErrorState, Input, Spinner, StatusBadge, touchField } from "./ui";
 import { useToast } from "./toast-context";
@@ -210,8 +211,10 @@ const stateStyle: Record<ApprovalRequest["state"], string> = {
 function RequestCard({ ws, project, n, req }: { ws: string; project: string; n: number; req: ApprovalRequest }) {
   const actions = useApprovalActions(ws, project, n);
   const toast = useToast();
-  const [rejecting, setRejecting] = useState(false);
+  // The reject dialog: on the viewer's own account (null) or for an absent approver (ADR-0042).
+  const [rejecting, setRejecting] = useState<{ for: string | null; name: string } | null>(null);
   const p = progress(req.approvals, req.min_approvals);
+  const forOthers = req.on_behalf_of ?? [];
   const busy = actions.approve.isPending || actions.reject.isPending || actions.cancel.isPending;
   const fail = (err: unknown) => { toast("error", approvalErrorText(err)); };
   const pending = req.state === "pending";
@@ -255,6 +258,7 @@ function RequestCard({ ws, project, n, req }: { ws: string; project: string; n: 
           {req.decisions.map((d) => (
             <li key={d.user.id} className="[overflow-wrap:anywhere]">
               <span aria-hidden>{d.decision === "approve" ? "✅" : "⛔"}</span> <strong className="font-medium">{d.user.display_name}</strong>{" "}
+              {d.on_behalf_of && <span data-testid="decision-on-behalf">({tab.onBehalf(d.on_behalf_of.display_name)}) </span>}
               {tap.decided[d.decision]}
               <span className="text-xs text-zinc-500 dark:text-zinc-400"> · {formatDateTime(d.created_at)}</span>
               {d.comment && <span className="block whitespace-pre-wrap text-zinc-600 dark:text-zinc-400">“{d.comment}”</span>}
@@ -265,8 +269,9 @@ function RequestCard({ ws, project, n, req }: { ws: string; project: string; n: 
 
       {pending && (
         <>
+          <AbsentApprovers req={req} />
           <ApproverRoster req={req} />
-          {(req.can_approve || req.can_cancel) && (
+          {(req.can_approve || req.can_cancel || forOthers.length > 0) && (
             <div className="flex flex-wrap gap-2">
               {req.can_approve && (
                 <>
@@ -278,11 +283,28 @@ function RequestCard({ ws, project, n, req }: { ws: string; project: string; n: 
                   >
                     {tap.approve}
                   </Button>
-                  <Button variant="secondary" disabled={busy} className="text-red-600 pointer-coarse:min-h-11" onClick={() => { setRejecting(true); }}>
+                  <Button variant="secondary" disabled={busy} className="text-red-600 pointer-coarse:min-h-11" onClick={() => { setRejecting({ for: null, name: "" }); }}>
                     {tap.reject}
                   </Button>
                 </>
               )}
+              {forOthers.map((who) => (
+                <span key={who.id} className="contents">
+                  <Button
+                    variant={req.can_approve ? "secondary" : "primary"}
+                    disabled={busy}
+                    className="pointer-coarse:min-h-11"
+                    onClick={() => {
+                      actions.approve.mutate({ id: req.id, onBehalfOf: who.id }, { onSuccess: () => { toast("success", tap.approvedToast); }, onError: fail });
+                    }}
+                  >
+                    {tab.approveFor(who.display_name)}
+                  </Button>
+                  <Button variant="secondary" disabled={busy} className="text-red-600 pointer-coarse:min-h-11" onClick={() => { setRejecting({ for: who.id, name: who.display_name }); }}>
+                    {tab.rejectFor(who.display_name)}
+                  </Button>
+                </span>
+              ))}
               {req.can_cancel && (
                 <Button
                   variant="ghost"
@@ -299,12 +321,13 @@ function RequestCard({ ws, project, n, req }: { ws: string; project: string; n: 
             </div>
           )}
           <RejectDialog
-            open={rejecting}
+            open={rejecting !== null}
+            title={rejecting?.for ? tab.rejectForTitle(rejecting.name) : undefined}
             busy={actions.reject.isPending}
-            onClose={() => { setRejecting(false); }}
+            onClose={() => { setRejecting(null); }}
             onSubmit={(reason) => {
-              actions.reject.mutate({ id: req.id, reason }, {
-                onSuccess: () => { toast("success", tap.rejectedToast); setRejecting(false); },
+              actions.reject.mutate({ id: req.id, reason, onBehalfOf: rejecting?.for ?? undefined }, {
+                onSuccess: () => { toast("success", tap.rejectedToast); setRejecting(null); },
                 onError: fail,
               });
             }}
@@ -389,12 +412,30 @@ export function PolicyExtras({ ws, value, onChange }: { ws: string; value: Polic
   );
 }
 
-function RejectDialog({ open, busy, onClose, onSubmit }: { open: boolean; busy: boolean; onClose: () => void; onSubmit: (reason: string) => void }) {
+/** "Elmar 28 noy tarixinə qədər məzuniyyətdədir, əvəzləyən: Nəzirə" (ADR-0042). */
+function AbsentApprovers({ req }: { req: ApprovalRequest }) {
+  const list = req.absences ?? [];
+  if (list.length === 0) return null;
+  return (
+    <ul data-testid="approval-absences" className="space-y-1 rounded bg-sky-50 px-2 py-1.5 text-xs text-sky-900 dark:bg-sky-950 dark:text-sky-100">
+      {list.map((a) => (
+        <li key={a.user.id} className="[overflow-wrap:anywhere]">
+          <span aria-hidden>🌴 </span>
+          {tab.panel(a.user.display_name, formatDate(a.ends_on))}, {a.delegate ? tab.panelDelegate(a.delegate.display_name) : tab.panelNoDelegate}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function RejectDialog({ open, title, busy, onClose, onSubmit }: {
+  open: boolean; title?: string; busy: boolean; onClose: () => void; onSubmit: (reason: string) => void;
+}) {
   const [reason, setReason] = useState("");
   const [touched, setTouched] = useState(false);
   const empty = reason.trim() === "";
   return (
-    <Dialog open={open} onClose={onClose} title={tap.rejectTitle}>
+    <Dialog open={open} onClose={onClose} title={title ?? tap.rejectTitle}>
       <form
         className="space-y-3"
         onSubmit={(e) => {

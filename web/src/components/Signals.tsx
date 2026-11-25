@@ -5,6 +5,7 @@ import { tl } from "../i18n-links";
 import { ts } from "../i18n-subtasks";
 import { progress } from "../lib/approvals";
 import { cn } from "../lib/cn";
+import { SlaSignal } from "./Sla";
 import { DueChip } from "./ui";
 
 // ---------------------------------------------------------------------------
@@ -79,6 +80,9 @@ export function SignalCell({ item, withDue, inline = false }: { item: Item; with
             {sub.done}/{sub.count}
           </span>
         )}
+      </span>
+      <span className={slot("w-12", Boolean(item.sla))}>
+        {item.sla && <SlaSignal sla={item.sla} className={inline ? undefined : "w-full"} />}
       </span>
       {/* Without a due-date column the date shows here, as it did in the title. */}
       {withDue && item.due_date && <DueChip date={item.due_date} overdue={item.overdue} />}

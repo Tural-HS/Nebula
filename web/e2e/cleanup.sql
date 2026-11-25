@@ -13,4 +13,5 @@ DELETE FROM items      WHERE workspace_id IN (SELECT id FROM doomed);
 DELETE FROM forms      WHERE workspace_id IN (SELECT id FROM doomed); -- references item_types (ADR-0032)
 DELETE FROM item_types WHERE workspace_id IN (SELECT id FROM doomed);
 DELETE FROM workspaces WHERE id IN (SELECT id FROM doomed);
+DELETE FROM workspace_deletions WHERE slug ~ :'pattern'; -- records of E2E deletions (ADR-0039)
 COMMIT;

@@ -29,6 +29,7 @@ import { BulkBar } from "./BulkBar";
 import { ItemTable, type TableSelection } from "./ItemTable";
 import type { InlineEdit } from "../lib/inline";
 import { ColumnPicker, FilterPicker, Popover, ViewSwitcher } from "./ViewTools";
+import { ExportMenu } from "./ExportMenu";
 import { FilterChips, QueueStrip } from "./ListTools";
 import { filterChips } from "../lib/filterChips";
 import { tlg } from "../i18n-ledger";
@@ -52,7 +53,7 @@ const VIEW_ICON = { table: "☰", board: "▥", calendar: "📅" } as const;
 
 /** Every filter back to "any" (search and view settings stay). */
 function clearFilters(): Partial<PageState> {
-  return { assignee: "", due: "", approval: "", blocked: false, status: [], fields: {} };
+  return { assignee: "", due: "", approval: "", blocked: false, sla: "", status: [], fields: {} };
 }
 
 export function ItemsPage() {
@@ -323,6 +324,8 @@ export function ItemsPage() {
     </Select>
   );
   const columnPicker = (inline: boolean) => <ColumnPicker inline={inline} columns={columns} fields={fields} onChange={(c) => { applyState({ columns: c }); }} />;
+  // What the table shows, all pages (ADR-0040).
+  const exportMenu = (inline: boolean) => <ExportMenu inline={inline} ws={ws} project={project} filters={filters} columns={columns} />;
   const groupSelect = (className: string) => (
     <Select aria-label={t.groupBy} value={groupBy} onChange={(e) => { applyState({ group: e.target.value === "category" ? "category" : "status" }); }} className={className}>
       <option value="status">{t.groupStatus}</option>
@@ -429,6 +432,7 @@ export function ItemsPage() {
               <div className="ml-auto flex shrink-0 items-center gap-2">
                 {view !== "calendar" && sortSelect("max-w-44")}
                 {view === "table" && columnPicker(false)}
+                {view === "table" && exportMenu(false)}
                 {view === "board" && groupSelect("max-w-44")}
                 {viewTabs}
                 {readOnly}
@@ -458,6 +462,7 @@ export function ItemsPage() {
               {view !== "calendar" && <SheetGroup label={tv.sort}>{sortSelect("")}</SheetGroup>}
               {view === "board" && <SheetGroup label={t.groupBy}>{groupSelect("")}</SheetGroup>}
               {view === "table" && columnPicker(true)}
+              {view === "table" && exportMenu(true)}
               {readOnly}
             </div>
           </Dialog>

@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -41,6 +42,14 @@ type api struct {
 	// mail and emailTestLimiter: workspace SMTP settings (email_settings_api.go).
 	mail             mailroute.Router
 	emailTestLimiter *ratelimit.Limiter
+	// exports: item table export (export_api.go).
+	exports *itemExports
+	// reportsLimiter: workspace reports (reports_api.go).
+	reportsLimiter *ratelimit.Limiter
+	// absenceLimiter: absence changes (absences_api.go).
+	absenceLimiter *ratelimit.Limiter
+	// tokenDenials audits refused service token requests (servicetokens_api.go).
+	tokenDenials *tokenDenials
 }
 
 type ctxKey int
@@ -64,6 +73,7 @@ func (a *api) routes(r chi.Router) {
 		a.invitationAdminRoutes(r)
 		r.Get("/", a.getWorkspace)
 		r.With(requireRole(store.RoleAdmin)).Patch("/", a.updateWorkspace)
+		a.workspaceLifecycleRoutes(r)
 		r.Get("/item-types", a.listItemTypes)
 		a.configRoutes(r)
 		a.fieldRoutes(r)
@@ -74,6 +84,9 @@ func (a *api) routes(r chi.Router) {
 		a.calendarRoutes(r)
 		a.evidenceRoutes(r)
 		a.approvalInboxRoutes(r)
+		a.absenceRoutes(r)
+		a.reportsRoutes(r)
+		a.serviceTokenRoutes(r)
 		r.Get("/members", a.listMembers)
 		r.With(requireRole(store.RoleAdmin)).Post("/members", a.addMember)
 		r.With(requireRole(store.RoleAdmin)).Patch("/members/{userID}", a.updateMemberRole)
@@ -82,29 +95,45 @@ func (a *api) routes(r chi.Router) {
 		r.With(requireRole(store.RoleAdmin)).Post("/projects", a.createProject)
 
 		r.Route("/projects/{project}", func(r chi.Router) {
-			r.Use(a.loadProject)
-			r.Get("/", a.getProject)
-			r.Get("/items", a.listItems)
-			r.Get("/items/counts", a.countItems)
-			r.Get("/items/queue-counts", a.queueCounts)
-			r.With(requireRole(store.RoleMember)).Post("/items", a.createItem)
-			r.Get("/items/{number}", a.getItem)
-			r.Get("/items/{number}/transitions", a.allowedStatuses)
-			r.With(requireRole(store.RoleMember)).Patch("/items/{number}", a.updateItem)
-			r.With(requireRole(store.RoleMember)).Delete("/items/{number}", a.deleteItem)
-			a.itemCollabRoutes(r)
-			a.linkRoutes(r)
-			a.attachmentRoutes(r)
-			a.importRoutes(r)
-			a.recurrenceRoutes(r)
-			a.projectSettingsRoutes(r)
-			a.viewRoutes(r)
-			a.bulkRoutes(r)
-			a.approvalRoutes(r)
-			a.itemEvidenceRoutes(r)
-			a.formProjectRoutes(r)
+			// Restore and delete work on archived projects (ADR-0039);
+			// everything else needs an active one. Two groups, because a
+			// mux's Use would wrap every route of it.
+			r.Group(func(r chi.Router) {
+				r.Use(a.loadProjectAnyState)
+				a.projectLifecycleRoutes(r)
+			})
+			r.Group(func(r chi.Router) { a.activeProjectRoutes(r) })
 		})
 	})
+}
+
+// activeProjectRoutes are the routes of /projects/{project} that need an
+// active (not archived) project.
+func (a *api) activeProjectRoutes(r chi.Router) {
+	r.Use(a.loadProject)
+	a.projectArchiveRoute(r)
+	r.Get("/", a.getProject)
+	r.Get("/items", a.listItems)
+	r.Get("/items/counts", a.countItems)
+	r.Get("/items/queue-counts", a.queueCounts)
+	r.Get("/items/export", a.exportItems)
+	r.With(requireRole(store.RoleMember)).Post("/items", a.createItem)
+	r.Get("/items/{number}", a.getItem)
+	r.Get("/items/{number}/transitions", a.allowedStatuses)
+	r.With(requireRole(store.RoleMember)).Patch("/items/{number}", a.updateItem)
+	r.With(requireRole(store.RoleMember)).Delete("/items/{number}", a.deleteItem)
+	a.itemCollabRoutes(r)
+	a.linkRoutes(r)
+	a.attachmentRoutes(r)
+	a.importRoutes(r)
+	a.recurrenceRoutes(r)
+	a.projectSettingsRoutes(r)
+	a.viewRoutes(r)
+	a.bulkRoutes(r)
+	a.approvalRoutes(r)
+	a.itemEvidenceRoutes(r)
+	a.formProjectRoutes(r)
+	a.slaRoutes(r)
 }
 
 // ---------------------------------------------------------------------------
@@ -127,22 +156,70 @@ func projectFrom(r *http.Request) store.Project {
 	return r.Context().Value(projectKey).(store.Project)
 }
 
+// loadWorkspace resolves the workspace for a member. An archived workspace
+// is read-only (ADR-0039): writes other than restore, delete and evidence
+// exports get 409 workspace_archived; a workspace being deleted is gone (410).
 func (a *api) loadWorkspace(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ws, err := a.store.WorkspaceForMember(r.Context(), chi.URLParam(r, "workspace"), principal(r).UserID)
+		var ws store.Workspace
+		var err error
+		if t, ok := serviceToken(r); ok {
+			ws, err = a.store.WorkspaceForServiceToken(r.Context(), chi.URLParam(r, "workspace"), t)
+		} else {
+			ws, err = a.store.WorkspaceForMember(r.Context(), chi.URLParam(r, "workspace"), principal(r).UserID)
+		}
 		if err != nil {
 			a.fail(w, r, err)
+			return
+		}
+		if ws.Deleting {
+			writeError(w, http.StatusGone, "workspace_deleting", "this workspace is being deleted")
+			return
+		}
+		if ws.ArchivedAt != nil && !writeAllowedWhileArchived(r.Method, remainingPath(r)) {
+			writeError(w, http.StatusConflict, "workspace_archived", "this workspace is archived and read-only; an admin can restore it")
 			return
 		}
 		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), workspaceKey, ws)))
 	})
 }
 
+// loadProject resolves an active project. An archived one the viewer can see
+// is 410 project_archived (project_deleting while it is purged), so a deep
+// link can say so and offer a restore; others stay 404 (ADR-0013).
 func (a *api) loadProject(next http.Handler) http.Handler {
+	return a.projectLoader(false, next)
+}
+
+// loadProjectAnyState resolves archived projects too (restore, delete).
+func (a *api) loadProjectAnyState(next http.Handler) http.Handler {
+	return a.projectLoader(true, next)
+}
+
+func (a *api) projectLoader(anyState bool, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		p, err := a.store.GetProject(r.Context(), workspaceFrom(r).ID, chi.URLParam(r, "project"), viewer(r))
+		v := viewer(r)
+		t, isToken := serviceToken(r)
+		if isToken && t.ProjectIDs != nil {
+			// An allow-listed project is granted by an admin, who sees every
+			// project: the token reaches it even when it is private (ADR-0043).
+			v.Role = store.RoleAdmin
+		}
+		p, err := a.store.GetProjectAnyState(r.Context(), workspaceFrom(r).ID, chi.URLParam(r, "project"), v)
+		if err == nil && isToken && !t.AllowsProject(p.ID) {
+			a.tokenDenials.record(r.Context(), t, "project_not_allowed", r)
+			err = store.ErrNotFound
+		}
 		if err != nil {
 			a.fail(w, r, err)
+			return
+		}
+		if !anyState && p.Deleting {
+			writeError(w, http.StatusGone, "project_deleting", "this project is being deleted")
+			return
+		}
+		if !anyState && p.ArchivedAt != nil {
+			writeError(w, http.StatusGone, "project_archived", "this project is archived; an admin can restore it")
 			return
 		}
 		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), projectKey, p)))
@@ -151,7 +228,11 @@ func (a *api) loadProject(next http.Handler) http.Handler {
 
 // viewer is the signed-in user with their workspace role, for access checks.
 func viewer(r *http.Request) store.Viewer {
-	return store.Viewer{UserID: principal(r).UserID, Role: workspaceFrom(r).Role}
+	v := store.Viewer{UserID: principal(r).UserID, Role: workspaceFrom(r).Role}
+	if t, ok := serviceToken(r); ok {
+		v.AllowedProjects = t.ProjectIDs
+	}
+	return v
 }
 
 func requireRole(minRole string) func(http.Handler) http.Handler {
@@ -174,8 +255,20 @@ func (a *api) me(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, principal(r))
 }
 
+// listWorkspaces: the active workspaces, or with ?state=archived the
+// archived ones the caller administers (ADR-0039).
 func (a *api) listWorkspaces(w http.ResponseWriter, r *http.Request) {
-	list, err := a.store.ListWorkspaces(r.Context(), principal(r).UserID)
+	var list []store.Workspace
+	var err error
+	switch r.URL.Query().Get("state") {
+	case "", "active":
+		list, err = a.store.ListWorkspaces(r.Context(), principal(r).UserID)
+	case "archived":
+		list, err = a.store.ListArchivedWorkspaces(r.Context(), principal(r).UserID)
+	default:
+		writeError(w, http.StatusBadRequest, "bad_request", "state must be active or archived")
+		return
+	}
 	if err != nil {
 		a.fail(w, r, err)
 		return
@@ -301,10 +394,18 @@ func (a *api) addMember(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *api) listProjects(w http.ResponseWriter, r *http.Request) {
-	list, err := a.store.ListProjects(r.Context(), workspaceFrom(r).ID, viewer(r))
+	v := viewer(r)
+	t, isToken := serviceToken(r)
+	if isToken && t.ProjectIDs != nil {
+		v.Role = store.RoleAdmin // filtered to the allow-list below
+	}
+	list, err := a.store.ListProjects(r.Context(), workspaceFrom(r).ID, v)
 	if err != nil {
 		a.fail(w, r, err)
 		return
+	}
+	if isToken {
+		list = slices.DeleteFunc(list, func(p store.Project) bool { return !t.AllowsProject(p.ID) })
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"projects": nonNil(list)})
 }
@@ -514,6 +615,7 @@ func parseItemFilters(w http.ResponseWriter, r *http.Request) (store.ListItemsPa
 		writeError(w, http.StatusBadRequest, "bad_request", "blocked must be true or false")
 		return store.ListItemsParams{}, false
 	}
+	p.SLA = q.Get("sla") // validated by the store
 	switch v := q.Get("assignee"); v {
 	case "":
 	case "me":

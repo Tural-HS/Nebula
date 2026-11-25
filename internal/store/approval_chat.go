@@ -31,7 +31,7 @@ func (s *Store) PendingApprovers(ctx context.Context, wsID, requestID uuid.UUID,
 		return nil, 0, nil
 	}
 	rows, err := s.pool.Query(ctx, `SELECT display_name, count(*) OVER () FROM (`+eligibleApproversSQL+`
-		AND NOT EXISTS (SELECT 1 FROM approval_decisions d WHERE d.request_id = $7 AND d.user_id = m.user_id)) a
+		AND NOT EXISTS (SELECT 1 FROM approval_decisions d WHERE d.request_id = $7 AND (d.user_id = m.user_id OR d.on_behalf_of = m.user_id))) a
 		ORDER BY display_name, id LIMIT $8`,
 		wsID, projectID, r.requestedBy, r.roles, r.users, nil, r.id, limit)
 	if err != nil {
@@ -48,4 +48,35 @@ func (s *Store) PendingApprovers(ctx context.Context, wsID, requestID uuid.UUID,
 		names = append(names, n)
 	}
 	return names, total, rows.Err()
+}
+
+// PendingDelegate is someone who may decide on a pending request as the
+// delegate of absent approvers (ADR-0042), by display name.
+type PendingDelegate struct {
+	Name string
+	For  []string
+}
+
+// PendingDelegates lists who may decide on a pending request on an absent
+// approver's behalf now, at most limit of them, for the chat card: the same
+// predicate as the delegated decision itself.
+func (s *Store) PendingDelegates(ctx context.Context, wsID, requestID uuid.UUID, limit int) ([]PendingDelegate, error) {
+	var ok bool
+	if err := s.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM approval_requests WHERE workspace_id = $1 AND id = $2 AND state = 'pending')`,
+		wsID, requestID).Scan(&ok); err != nil || !ok {
+		return nil, err
+	}
+	list, err := requestDelegates(ctx, s.pool, requestID, limit)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]PendingDelegate, 0, len(list))
+	for _, d := range list {
+		pd := PendingDelegate{Name: d.DisplayName}
+		for _, p := range d.For {
+			pd.For = append(pd.For, p.DisplayName)
+		}
+		out = append(out, pd)
+	}
+	return out, nil
 }

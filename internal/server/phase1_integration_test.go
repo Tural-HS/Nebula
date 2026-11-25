@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/Tural-HS/Nebula/internal/engine"
 	"github.com/Tural-HS/Nebula/internal/mail"
 	"github.com/Tural-HS/Nebula/internal/observability"
@@ -51,7 +53,19 @@ type p1env struct {
 
 func newP1Env(t *testing.T) *p1env {
 	t.Helper()
-	pool := testdb.New(t)
+	return newP1EnvPool(t, testdb.New(t))
+}
+
+// newP1EnvOwner is newP1Env plus a schema-owner pool, for tests that must
+// rewrite history (e.g. backdate append-only events).
+func newP1EnvOwner(t *testing.T) (*p1env, *pgxpool.Pool) {
+	t.Helper()
+	runtime, owner := testdb.NewWithOwner(t)
+	return newP1EnvPool(t, runtime), owner
+}
+
+func newP1EnvPool(t *testing.T, pool *pgxpool.Pool) *p1env {
+	t.Helper()
 	key := make([]byte, 32)
 	_, _ = rand.Read(key)
 	box, _ := secretbox.New(key)

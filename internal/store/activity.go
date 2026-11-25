@@ -74,8 +74,8 @@ func (s *Store) ItemActivity(ctx context.Context, wsID, projectID uuid.UUID, num
 		  AND (e.action NOT IN ('link.added', 'link.removed') OR EXISTS (
 		       SELECT 1 FROM items o JOIN projects op ON op.id = o.project_id
 		       WHERE o.workspace_id = $1 AND o.id = (e.payload->>'other_item_id')::uuid
-		         AND `+visibleProjectFor("op", "$5", "$6")+`))
-		ORDER BY e.id DESC LIMIT $4`, wsID, item.id, before, limit+1, v.UserID, RoleAtLeast(v.Role, RoleAdmin))
+		         AND `+linkVisibleFor("op", "$5", "$6", "$7")+`))
+		ORDER BY e.id DESC LIMIT $4`, wsID, item.id, before, limit+1, v.UserID, RoleAtLeast(v.Role, RoleAdmin), v.AllowedProjects)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -83,12 +83,16 @@ func (s *Store) ItemActivity(ctx context.Context, wsID, projectID uuid.UUID, num
 	if err != nil {
 		return nil, 0, err
 	}
-	return list, next, linkLabels(ctx, s.pool, wsID, list)
+	return list, next, linkLabels(ctx, s.pool, wsID, v, list)
 }
 
 // linkLabels adds data.other_item {key, title} to link events, from the
 // item's current state (deleted items included: a removal still names it).
-func linkLabels(ctx context.Context, q querier, wsID uuid.UUID, list []Activity) error {
+// Only items the viewer can see get a label (ADR-0013, ADR-0043): callers
+// filter the events too, but the label query never trusts that, so a
+// feed can never carry the title of an item in a project the viewer (or a
+// token's allow-list) does not reach.
+func linkLabels(ctx context.Context, q querier, wsID uuid.UUID, v Viewer, list []Activity) error {
 	var ids []string
 	for _, a := range list {
 		if a.Action == "link.added" || a.Action == "link.removed" {
@@ -101,7 +105,8 @@ func linkLabels(ctx context.Context, q querier, wsID uuid.UUID, list []Activity)
 		return nil
 	}
 	rows, err := q.Query(ctx, `SELECT i.id::text, p.key, i.number, i.title FROM items i JOIN projects p ON p.id = i.project_id
-		WHERE i.workspace_id = $1 AND i.id = ANY($2::uuid[])`, wsID, ids)
+		WHERE i.workspace_id = $1 AND i.id = ANY($2::uuid[]) AND `+linkVisibleFor("p", "$3", "$4", "$5"),
+		wsID, ids, v.UserID, RoleAtLeast(v.Role, RoleAdmin), v.AllowedProjects)
 	if err != nil {
 		return err
 	}

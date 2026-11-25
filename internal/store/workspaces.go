@@ -42,6 +42,11 @@ type Workspace struct {
 	OverdueDigestHour *int `json:"overdue_digest_hour"`
 	// Accent is the workspace colour key (ADR-0035); nil = the default teal.
 	Accent *string `json:"accent"`
+	// ArchivedAt: an archived workspace is read-only and hidden from lists
+	// (ADR-0039); nil = active.
+	ArchivedAt *time.Time `json:"archived_at"`
+	// Deleting: an owner asked for permanent deletion; the purge is running.
+	Deleting bool `json:"deleting"`
 }
 
 // AccentDefault is the Nebula teal; it is stored as NULL.
@@ -268,12 +273,13 @@ func installDefaultTemplate(ctx context.Context, tx pgx.Tx, wsID uuid.UUID, tpl 
 	return wf, nil
 }
 
-const workspaceSelect = `SELECT w.id, w.slug, w.name, m.role, w.created_at, w.timezone, w.overdue_digest_hour, w.accent
+const workspaceSelect = `SELECT w.id, w.slug, w.name, m.role, w.created_at, w.timezone, w.overdue_digest_hour, w.accent,
+		w.archived_at, w.deletion_requested_at IS NOT NULL
 	FROM workspaces w JOIN workspace_members m ON m.workspace_id = w.id`
 
-// ListWorkspaces returns the workspaces userID belongs to.
+// ListWorkspaces returns the active workspaces userID belongs to.
 func (s *Store) ListWorkspaces(ctx context.Context, userID uuid.UUID) ([]Workspace, error) {
-	rows, err := s.pool.Query(ctx, workspaceSelect+` WHERE m.user_id = $1 ORDER BY w.name, w.id`, userID)
+	rows, err := s.pool.Query(ctx, workspaceSelect+` WHERE m.user_id = $1 AND w.archived_at IS NULL ORDER BY w.name, w.id`, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -282,6 +288,8 @@ func (s *Store) ListWorkspaces(ctx context.Context, userID uuid.UUID) ([]Workspa
 
 // WorkspaceForMember returns the workspace only if userID is a member.
 // Non-members get ErrNotFound, so workspace existence is never leaked.
+// Archived and deleting workspaces are returned too; the caller decides
+// what they may do (ADR-0039).
 func (s *Store) WorkspaceForMember(ctx context.Context, slug string, userID uuid.UUID) (Workspace, error) {
 	rows, err := s.pool.Query(ctx, workspaceSelect+` WHERE w.slug = $1 AND m.user_id = $2`, strings.ToLower(slug), userID)
 	if err != nil {
@@ -319,7 +327,8 @@ func (s *Store) AddMember(ctx context.Context, wsID, actorID uuid.UUID, actorRol
 	}
 	m := Member{Role: role}
 	err := s.inTx(ctx, func(tx pgx.Tx) error {
-		err := tx.QueryRow(ctx, `SELECT id, email, display_name FROM users WHERE email = $1 AND is_active`, email).
+		err := tx.QueryRow(ctx, `SELECT id, email, display_name FROM users WHERE email = $1 AND is_active
+			AND oidc_issuer <> '`+serviceTokenIssuer+`'`, email).
 			Scan(&m.UserID, &m.Email, &m.DisplayName)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return invalid("email", "no active user with this email has signed in yet")

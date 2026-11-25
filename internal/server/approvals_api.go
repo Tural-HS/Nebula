@@ -146,6 +146,8 @@ func (a *api) decideApproval(approve bool) http.HandlerFunc {
 		var body struct {
 			Comment *string `json:"comment"` // approve: optional note
 			Reason  *string `json:"reason"`  // reject: required
+			// Decide as the delegate of this absent approver (ADR-0042).
+			OnBehalfOf *uuid.UUID `json:"on_behalf_of"`
 		}
 		if !a.decode(w, r, &body) {
 			return
@@ -156,7 +158,7 @@ func (a *api) decideApproval(approve bool) http.HandlerFunc {
 		}
 		err := a.store.DecideApproval(r.Context(), store.DecideApprovalParams{
 			WorkspaceID: workspaceFrom(r).ID, ProjectID: projectFrom(r).ID, Number: n, RequestID: reqID,
-			ActorID: principal(r).UserID, Approve: approve, Comment: text,
+			ActorID: principal(r).UserID, Approve: approve, Comment: text, OnBehalfOf: body.OnBehalfOf,
 		})
 		if err != nil {
 			a.fail(w, r, err)

@@ -400,14 +400,17 @@ func (s *Store) DeleteForm(ctx context.Context, wsID, projectID, id, actorID uui
 // PublicForm is what a requester sees: labels, help and input types, never
 // the project, other items or the member directory.
 type PublicForm struct {
-	ID        uuid.UUID         `json:"id"`
-	Slug      string            `json:"slug"`
-	Title     string            `json:"title"`
-	Intro     *string           `json:"intro"`
-	Workspace string            `json:"workspace"` // display name
-	Open      bool              `json:"open"`      // accepting submissions
-	MaxFiles  int               `json:"max_files"`
-	Fields    []PublicFormField `json:"fields"`
+	ID        uuid.UUID `json:"id"`
+	Slug      string    `json:"slug"`
+	Title     string    `json:"title"`
+	Intro     *string   `json:"intro"`
+	Workspace string    `json:"workspace"` // display name
+	Open      bool      `json:"open"`      // accepting submissions
+	// ClosedReason says why a closed form is closed: "archived" (its
+	// project or workspace, ADR-0039) or "disabled"; empty when open.
+	ClosedReason string            `json:"closed_reason,omitempty"`
+	MaxFiles     int               `json:"max_files"`
+	Fields       []PublicFormField `json:"fields"`
 	// CanManage: the viewer is an admin of the form's workspace (preview,
 	// link to the builder).
 	CanManage bool `json:"can_manage"`
@@ -429,6 +432,7 @@ type formRow struct {
 	workspaceID, projectID uuid.UUID
 	workspaceName          string
 	open                   bool
+	archived               bool   // the form's project or workspace is archived (ADR-0039)
 	role                   string // the viewer's workspace role; "" = not a member
 }
 
@@ -445,7 +449,8 @@ func loadFormFor(ctx context.Context, q querier, ref string, userID uuid.UUID, l
 	sql := `SELECT f.id, f.slug, p.key, t.id, t.key, t.name, f.title, f.intro, f.title_template, f.fields,
 		f.default_assignee_id, f.initial_status_id, f.audience, f.is_enabled, f.max_files, f.created_at, f.updated_at,
 		f.workspace_id, f.project_id, w.name,
-		f.is_enabled AND p.archived_at IS NULL AND t.archived_at IS NULL,
+		f.is_enabled AND p.archived_at IS NULL AND w.archived_at IS NULL AND t.archived_at IS NULL,
+		p.archived_at IS NOT NULL OR w.archived_at IS NOT NULL,
 		COALESCE((SELECT m.role FROM workspace_members m WHERE m.workspace_id = f.workspace_id AND m.user_id = $3), '')
 		FROM forms f JOIN workspaces w ON w.id = f.workspace_id
 		JOIN projects p ON p.id = f.project_id JOIN item_types t ON t.id = f.item_type_id
@@ -458,7 +463,7 @@ func loadFormFor(ctx context.Context, q querier, ref string, userID uuid.UUID, l
 	err := q.QueryRow(ctx, sql, byID, strings.ToLower(ref), userID).Scan(&f.ID, &f.Slug, &f.ProjectKey, &f.ItemType.ID,
 		&f.ItemType.Key, &f.ItemType.Name, &f.Title, &f.Intro, &f.TitleTemplate, &f.Fields, &f.DefaultAssigneeID,
 		&f.InitialStatusID, &f.Audience, &f.Enabled, &f.MaxFiles, &f.CreatedAt, &f.UpdatedAt,
-		&r.workspaceID, &r.projectID, &r.workspaceName, &r.open, &r.role)
+		&r.workspaceID, &r.projectID, &r.workspaceName, &r.open, &r.archived, &r.role)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return formRow{}, ErrNotFound
 	}
@@ -521,6 +526,12 @@ func (s *Store) FormForSubmitter(ctx context.Context, ref string, userID uuid.UU
 	}
 	pf := PublicForm{ID: r.ID, Slug: r.Slug, Title: r.Title, Intro: r.Intro, Workspace: r.workspaceName, Open: r.open,
 		MaxFiles: r.MaxFiles, Fields: []PublicFormField{}, CanManage: r.role != "" && RoleAtLeast(r.role, RoleAdmin)}
+	if !r.open {
+		pf.ClosedReason = "disabled"
+		if r.archived {
+			pf.ClosedReason = "archived"
+		}
+	}
 	if !r.open && !pf.CanManage {
 		pf.Intro, pf.MaxFiles = nil, 0
 		return pf, nil
@@ -539,12 +550,15 @@ func (s *Store) FormAcceptsFiles(ctx context.Context, ref string, userID uuid.UU
 		return uuid.Nil, 0, err
 	}
 	if !r.open {
-		return uuid.Nil, 0, errFormClosed()
+		return uuid.Nil, 0, errFormClosed(r.archived)
 	}
 	return r.workspaceID, r.MaxFiles, nil
 }
 
-func errFormClosed() error {
+func errFormClosed(archived bool) error {
+	if archived {
+		return &ConflictError{Code: "form_closed", Message: "this form belongs to an archived project and is not accepting submissions"}
+	}
 	return &ConflictError{Code: "form_closed", Message: "this form is not accepting submissions"}
 }
 
@@ -604,7 +618,7 @@ func (s *Store) SubmitForm(ctx context.Context, p SubmitFormParams) (Submission,
 			return err
 		}
 		if !r.open {
-			return errFormClosed()
+			return errFormClosed(r.archived)
 		}
 		if len(p.Files) > r.MaxFiles {
 			if r.MaxFiles == 0 {

@@ -115,6 +115,9 @@ type ApprovalDecision struct {
 	Decision  string        `json:"decision"` // approve | reject
 	Comment   *string       `json:"comment"`
 	CreatedAt time.Time     `json:"created_at"`
+	// OnBehalfOf: the absent approver whose approval this decision gave
+	// (ADR-0042); User is always the person who acted.
+	OnBehalfOf *CommentAuthor `json:"on_behalf_of"`
 }
 
 // ApprovalRequest is a request with its decisions, as seen by one viewer.
@@ -133,10 +136,14 @@ type ApprovalRequest struct {
 	// people who can see the project and have not voted. Never the requester.
 	Approvers  []CommentAuthor `json:"approvers"`
 	CanApprove bool            `json:"can_approve"` // the viewer may approve or reject now
-	CanCancel  bool            `json:"can_cancel"`
-	CreatedAt  time.Time       `json:"created_at"`
-	ClosedAt   *time.Time      `json:"closed_at"`
-	ClosedBy   *CommentAuthor  `json:"closed_by"`
+	// ADR-0042 (pending only): absent approvers the viewer may decide for now
+	// as their delegate, and the approvers who are away today.
+	OnBehalfOf []CommentAuthor   `json:"on_behalf_of"`
+	Absences   []ApproverAbsence `json:"absences"`
+	CanCancel  bool              `json:"can_cancel"`
+	CreatedAt  time.Time         `json:"created_at"`
+	ClosedAt   *time.Time        `json:"closed_at"`
+	ClosedBy   *CommentAuthor    `json:"closed_by"`
 	// ADR-0034: the deadline, whether it has passed (pending only), when an
 	// approved request was invalidated by a change of approved content, and
 	// the request this one replaces.
@@ -645,6 +652,8 @@ type DecideApprovalParams struct {
 	ActorID     uuid.UUID
 	Approve     bool
 	Comment     *string // optional for approve, the mandatory reason for reject
+	// OnBehalfOf: decide as the delegate of this absent approver (ADR-0042).
+	OnBehalfOf *uuid.UUID
 }
 
 // DecideApproval records one approver's decision. The approval that reaches
@@ -674,26 +683,34 @@ func (s *Store) DecideApproval(ctx context.Context, p DecideApprovalParams) erro
 			return &ConflictError{Code: "approval_closed", Message: "this approval request is already " + r.state}
 		}
 		if p.ActorID == r.requestedBy {
-			return &ForbiddenError{Code: "self_approval", Message: "the requester cannot approve or reject their own request"}
+			return &ForbiddenError{Code: "self_approval", Message: "the requester cannot approve or reject their own request, also not on someone else's behalf"}
 		}
-		ok, err := isEligibleApprover(ctx, tx, p.WorkspaceID, p.ProjectID, r, p.ActorID)
+		delegated, err := checkDecider(ctx, tx, p, r)
 		if err != nil {
 			return err
-		}
-		if !ok {
-			return &ForbiddenError{Code: "not_an_approver", Message: "you are not an approver of this request"}
 		}
 		decision := "reject"
 		if p.Approve {
 			decision = "approve"
 		}
-		_, err = tx.Exec(ctx, `INSERT INTO approval_decisions (request_id, user_id, decision, comment) VALUES ($1, $2, $3, $4)`,
-			r.id, p.ActorID, decision, comment)
+		_, err = tx.Exec(ctx, `INSERT INTO approval_decisions (request_id, user_id, decision, comment, on_behalf_of) VALUES ($1, $2, $3, $4, $5)`,
+			r.id, p.ActorID, decision, comment, p.OnBehalfOf)
 		if isUniqueViolation(err, "approval_decisions_pkey") {
 			return &ConflictError{Code: "already_decided", Message: "you have already decided on this request"}
 		}
+		if isUniqueViolation(err, "approval_decisions_principal_idx") {
+			return &ConflictError{Code: "already_decided", Message: "this approver's decision has already been given (by them or on their behalf)"}
+		}
 		if err != nil {
 			return err
+		}
+		// Both the human who acted (the event's actor) and the absent
+		// approver they stood in for are recorded.
+		extra := func(m map[string]any) map[string]any {
+			if delegated != nil {
+				m["on_behalf_of"], m["absence_id"] = *p.OnBehalfOf, *delegated
+			}
+			return m
 		}
 
 		if !p.Approve {
@@ -702,7 +719,7 @@ func (s *Store) DecideApproval(ctx context.Context, p DecideApprovalParams) erro
 				return err
 			}
 			return appendEvent(ctx, tx, p.WorkspaceID, p.ActorID, "item", it.id, EventApprovalRejected,
-				approvalPayload(r, map[string]any{"reason": comment}))
+				approvalPayload(r, extra(map[string]any{"reason": comment})))
 		}
 
 		r.approvals++
@@ -710,7 +727,7 @@ func (s *Store) DecideApproval(ctx context.Context, p DecideApprovalParams) erro
 			return err
 		}
 		if err := appendEvent(ctx, tx, p.WorkspaceID, p.ActorID, "item", it.id, EventApprovalApproved,
-			approvalPayload(r, map[string]any{"comment": comment})); err != nil {
+			approvalPayload(r, extra(map[string]any{"comment": comment}))); err != nil {
 			return err
 		}
 		if r.approvals < r.minApprovals {
@@ -730,8 +747,66 @@ func (s *Store) DecideApproval(ctx context.Context, p DecideApprovalParams) erro
 			r.id, p.ActorID); err != nil {
 			return err
 		}
-		return appendEvent(ctx, tx, p.WorkspaceID, p.ActorID, "item", it.id, EventApprovalApplied, approvalPayload(r, nil))
+		return appendEvent(ctx, tx, p.WorkspaceID, p.ActorID, "item", it.id, EventApprovalApplied, approvalPayload(r, extra(map[string]any{})))
 	})
+}
+
+// checkDecider decides whether p.ActorID may decide on request r now:
+// on their own account (an eligible approver whose slot is open), or with
+// OnBehalfOf as the delegate of an absent approver (ADR-0042). Four-eyes
+// integrity: one human decides at most once per request in any capacity
+// (primary key), and each approver's slot is filled at most once
+// (approval_decisions_principal_idx); the checks here give the clear error
+// first. It returns the absence a delegated decision goes through.
+func checkDecider(ctx context.Context, tx pgx.Tx, p DecideApprovalParams, r approvalRow) (*uuid.UUID, error) {
+	var actedSelf, slotUsed bool
+	slotOwner := p.ActorID
+	if p.OnBehalfOf != nil {
+		slotOwner = *p.OnBehalfOf
+	}
+	if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM approval_decisions WHERE request_id = $1 AND user_id = $2),
+			EXISTS (SELECT 1 FROM approval_decisions WHERE request_id = $1 AND COALESCE(on_behalf_of, user_id) = $3)`,
+		r.id, p.ActorID, slotOwner).Scan(&actedSelf, &slotUsed); err != nil {
+		return nil, err
+	}
+	if p.OnBehalfOf == nil {
+		ok, err := isEligibleApprover(ctx, tx, p.WorkspaceID, p.ProjectID, r, p.ActorID)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			return nil, &ForbiddenError{Code: "not_an_approver", Message: "you are not an approver of this request"}
+		}
+		if actedSelf {
+			return nil, &ConflictError{Code: "already_decided", Message: "you have already decided on this request"}
+		}
+		if slotUsed {
+			return nil, &ConflictError{Code: "already_decided", Message: "your delegate has already decided on this request on your behalf"}
+		}
+		return nil, nil
+	}
+	principal := *p.OnBehalfOf
+	if principal == p.ActorID {
+		return nil, invalid("on_behalf_of", "leave it out to decide on your own account")
+	}
+	if principal == r.requestedBy {
+		return nil, &ForbiddenError{Code: "self_approval", Message: "the requester's approval never counts, also not through a delegate"}
+	}
+	if actedSelf {
+		// Own vote + delegated vote would be two approvals by one person.
+		return nil, &ConflictError{Code: "already_decided", Message: "you have already decided on this request: one person gives at most one decision, also as a delegate"}
+	}
+	if slotUsed {
+		return nil, &ConflictError{Code: "already_decided", Message: "this approver's decision has already been given (by them or on their behalf)"}
+	}
+	absence, err := delegationFor(ctx, tx, r.id, p.ActorID, principal)
+	if err != nil {
+		return nil, err
+	}
+	if absence == nil {
+		return nil, &ForbiddenError{Code: "not_a_delegate", Message: "you cannot decide on this person's behalf now: they are not away today with you as their delegate, they are not an approver of this request, or you cannot see this project"}
+	}
+	return absence, nil
 }
 
 // CancelApproval closes a pending request without a decision. The requester
@@ -791,7 +866,7 @@ func isEligibleApprover(ctx context.Context, q querier, wsID, projectID uuid.UUI
 // eligibleApprovers lists who may still decide (not yet voted), by name.
 func eligibleApprovers(ctx context.Context, q querier, wsID, projectID uuid.UUID, r approvalRow, limit int) ([]CommentAuthor, error) {
 	rows, err := q.Query(ctx, eligibleApproversSQL+`
-		AND NOT EXISTS (SELECT 1 FROM approval_decisions d WHERE d.request_id = $7 AND d.user_id = m.user_id)
+		AND NOT EXISTS (SELECT 1 FROM approval_decisions d WHERE d.request_id = $7 AND (d.user_id = m.user_id OR d.on_behalf_of = m.user_id))
 		ORDER BY u.display_name, u.id LIMIT $8`,
 		wsID, projectID, r.requestedBy, r.roles, r.users, nil, r.id, limit)
 	if err != nil {
@@ -854,6 +929,7 @@ func (s *Store) ListApprovals(ctx context.Context, wsID, projectID uuid.UUID, nu
 		raw.id, raw.roles, raw.state, raw.itemID = a.ID, a.ApproverRoles, a.State, item.id
 		raws = append(raws, raw)
 		a.Decisions, a.Approvers = []ApprovalDecision{}, []CommentAuthor{}
+		a.OnBehalfOf, a.Absences = []CommentAuthor{}, []ApproverAbsence{}
 		return a, nil
 	})
 	if err != nil {
@@ -861,15 +937,21 @@ func (s *Store) ListApprovals(ctx context.Context, wsID, projectID uuid.UUID, nu
 	}
 	for i := range list {
 		a := &list[i]
-		rows, err := s.pool.Query(ctx, `SELECT d.user_id, u.display_name, d.decision, d.comment, d.created_at
-			FROM approval_decisions d JOIN users u ON u.id = d.user_id
+		rows, err := s.pool.Query(ctx, `SELECT d.user_id, u.display_name, d.decision, d.comment, d.created_at, d.on_behalf_of, ob.display_name
+			FROM approval_decisions d JOIN users u ON u.id = d.user_id LEFT JOIN users ob ON ob.id = d.on_behalf_of
 			WHERE d.request_id = $1 ORDER BY d.created_at, d.user_id`, a.ID)
 		if err != nil {
 			return nil, err
 		}
 		a.Decisions, err = pgx.CollectRows(rows, func(row pgx.CollectableRow) (ApprovalDecision, error) {
 			var d ApprovalDecision
-			return d, row.Scan(&d.User.ID, &d.User.DisplayName, &d.Decision, &d.Comment, &d.CreatedAt)
+			var obID *uuid.UUID
+			var obName *string
+			err := row.Scan(&d.User.ID, &d.User.DisplayName, &d.Decision, &d.Comment, &d.CreatedAt, &obID, &obName)
+			if obID != nil && obName != nil {
+				d.OnBehalfOf = &CommentAuthor{ID: *obID, DisplayName: *obName}
+			}
+			return d, err
 		})
 		if err != nil {
 			return nil, err
@@ -881,12 +963,21 @@ func (s *Store) ListApprovals(ctx context.Context, wsID, projectID uuid.UUID, nu
 			return nil, err
 		}
 		a.Approvers = nonNilSlice(a.Approvers)
-		// Checked directly: the names above are capped for display.
-		decided := slices.ContainsFunc(a.Decisions, func(d ApprovalDecision) bool { return d.User.ID == v.UserID })
+		// Checked directly: the names above are capped for display. The
+		// viewer's slot is used by their own decision or by a delegate's.
+		decided := slices.ContainsFunc(a.Decisions, func(d ApprovalDecision) bool {
+			return d.User.ID == v.UserID || (d.OnBehalfOf != nil && d.OnBehalfOf.ID == v.UserID)
+		})
 		if !decided {
 			if a.CanApprove, err = isEligibleApprover(ctx, s.pool, wsID, projectID, raws[i], v.UserID); err != nil {
 				return nil, err
 			}
+		}
+		if a.OnBehalfOf, err = principalsFor(ctx, s.pool, a.ID, v.UserID); err != nil {
+			return nil, err
+		}
+		if a.Absences, err = absentApprovers(ctx, s.pool, wsID, projectID, raws[i]); err != nil {
+			return nil, err
 		}
 		a.CanCancel = v.UserID == raws[i].requestedBy || RoleAtLeast(v.Role, RoleAdmin)
 	}

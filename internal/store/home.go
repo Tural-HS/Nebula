@@ -137,12 +137,13 @@ type Home struct {
 // homeScope: $1 is the viewer. my = memberships with the workspace's local
 // date; vis = active projects the viewer can see; mine = open items assigned
 // to the viewer in them; appr = pending requests the viewer may decide on
-// now (inboxCanDecide, the same predicate as the decision itself).
+// now, on their own account or as a delegate (inboxCanDecide, the same
+// predicate as the decision itself).
 var homeScope = `WITH my AS MATERIALIZED (
 		SELECT w.id, w.slug, w.name, w.accent, w.timezone, m.role, m.role IN ('admin', 'owner') AS adm,
 			(now() AT TIME ZONE w.timezone)::date AS today
 		FROM workspace_members m JOIN workspaces w ON w.id = m.workspace_id
-		WHERE m.user_id = $1),
+		WHERE m.user_id = $1 AND w.archived_at IS NULL),
 	vis AS MATERIALIZED (
 		SELECT p.id, p.workspace_id, p.key, p.name FROM projects p JOIN my ON my.id = p.workspace_id
 		WHERE p.archived_at IS NULL AND ` + visibleProjectFor("p", "$1", "my.adm") + `),
@@ -157,6 +158,7 @@ var homeScope = `WITH my AS MATERIALIZED (
 		SELECT r.item_id, r.workspace_id, r.created_at, r.due_on, COALESCE(r.due_on < my.today, false) AS late
 		FROM approval_requests r
 		JOIN my ON my.id = r.workspace_id
+		JOIN workspaces w ON w.id = r.workspace_id -- delegation dates are local (ADR-0042)
 		JOIN items i ON i.id = r.item_id AND i.deleted_at IS NULL
 		JOIN projects p ON p.id = i.project_id AND p.archived_at IS NULL
 		JOIN workspace_members vm ON vm.workspace_id = r.workspace_id AND vm.user_id = $1

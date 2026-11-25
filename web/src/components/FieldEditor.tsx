@@ -6,6 +6,7 @@ import { cn } from "../lib/cn";
 import { isFormulaError, isNumeric } from "../lib/formula";
 import { draftOf } from "../lib/inline";
 import { formatFieldValue } from "../lib/views";
+import { MoneyEditor } from "./MoneyEditor";
 import { Input, Select } from "./ui";
 
 /**
@@ -42,6 +43,8 @@ export function FieldEditor({
         </output>
       );
     }
+    case "money":
+      return <MoneyEditor key={JSON.stringify(value ?? null)} id={id} def={def} value={value} label={def.name} disabled={disabled} onCommit={onCommit} />;
     case "boolean":
       return (
         <input

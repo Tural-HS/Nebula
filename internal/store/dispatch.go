@@ -23,16 +23,19 @@ type Event struct {
 	Source        string         `json:"source"`
 	RuleID        *uuid.UUID     `json:"automation_rule_id"`
 	OccurredAt    time.Time      `json:"occurred_at"`
+	// WorkspaceArchived: the workspace is archived or being deleted; its
+	// events fire nothing (ADR-0039).
+	WorkspaceArchived bool `json:"-"`
 }
 
 // GetEvent loads one event.
 func (s *Store) GetEvent(ctx context.Context, id int64) (Event, error) {
 	var e Event
 	err := s.pool.QueryRow(ctx, `SELECT e.id, e.workspace_id, w.slug, e.actor_id, e.entity_type, e.entity_id, e.action,
-			e.payload, e.source, e.automation_rule_id, e.occurred_at
+			e.payload, e.source, e.automation_rule_id, e.occurred_at, w.archived_at IS NOT NULL
 		FROM events e JOIN workspaces w ON w.id = e.workspace_id WHERE e.id = $1`, id).
 		Scan(&e.ID, &e.WorkspaceID, &e.WorkspaceSlug, &e.ActorID, &e.EntityType, &e.EntityID, &e.Action,
-			&e.Payload, &e.Source, &e.RuleID, &e.OccurredAt)
+			&e.Payload, &e.Source, &e.RuleID, &e.OccurredAt, &e.WorkspaceArchived)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Event{}, ErrNotFound
 	}
@@ -43,12 +46,24 @@ func (s *Store) GetEvent(ctx context.Context, id int64) (Event, error) {
 // matching automation rule and, for events that can notify people, one
 // notifications job. Dedupe keys make it safe to run more than once.
 // Events caused by automation never trigger automation (loop prevention),
-// but they are still delivered to webhooks.
+// but they are still delivered to webhooks. Events of an archived workspace
+// or project fire nothing (ADR-0039).
 func (s *Store) FanOut(ctx context.Context, e Event) (webhooks, rules int, err error) {
-	if e.Action == WebhookPingAction {
-		return 0, 0, nil // delivered directly to the pinged webhook only
+	if e.Action == WebhookPingAction || e.WorkspaceArchived {
+		return 0, 0, nil // a ping is delivered directly to the pinged webhook only
 	}
 	err = s.inTx(ctx, func(tx pgx.Tx) error {
+		var scope *EventScope // resolved once, only if needed
+		if projectScoped[e.EntityType] {
+			sc, err := eventScope(ctx, tx, e)
+			if err != nil {
+				return err
+			}
+			if sc.Archived {
+				return nil
+			}
+			scope = &sc
+		}
 		rows, err := tx.Query(ctx, `SELECT id, events, project_ids FROM webhooks WHERE workspace_id = $1 AND is_active`, e.WorkspaceID)
 		if err != nil {
 			return err
@@ -65,7 +80,6 @@ func (s *Store) FanOut(ctx context.Context, e Event) (webhooks, rules int, err e
 		if err != nil {
 			return err
 		}
-		var scope *EventScope // resolved once, only if a webhook is subscribed
 		for _, h := range hooks {
 			if !MatchEvent(h.events, e.Action) {
 				continue

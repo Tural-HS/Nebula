@@ -89,6 +89,10 @@ type RateLimit struct {
 	UserBurst int
 	IPRPS     float64 // per client IP, before authentication
 	IPBurst   int
+	// TokenRPS/TokenBurst limit each service token (ADR-0043), on top of
+	// the per-user limit its principal also has.
+	TokenRPS   float64
+	TokenBurst int
 }
 
 // Load reads configuration through getenv (os.Getenv in production, a map in
@@ -141,10 +145,12 @@ func Load(rawGetenv func(string) string) (Config, error) {
 	cfg.DBMaxConns = int32(maxConns)
 
 	cfg.RateLimit = RateLimit{
-		UserRPS:   parseRate(get("NEBULA_RATE_LIMIT_USER_RPS", "20"), "NEBULA_RATE_LIMIT_USER_RPS", &errs),
-		UserBurst: parseBurst(get("NEBULA_RATE_LIMIT_USER_BURST", "40"), "NEBULA_RATE_LIMIT_USER_BURST", &errs),
-		IPRPS:     parseRate(get("NEBULA_RATE_LIMIT_IP_RPS", "100"), "NEBULA_RATE_LIMIT_IP_RPS", &errs),
-		IPBurst:   parseBurst(get("NEBULA_RATE_LIMIT_IP_BURST", "200"), "NEBULA_RATE_LIMIT_IP_BURST", &errs),
+		UserRPS:    parseRate(get("NEBULA_RATE_LIMIT_USER_RPS", "20"), "NEBULA_RATE_LIMIT_USER_RPS", &errs),
+		UserBurst:  parseBurst(get("NEBULA_RATE_LIMIT_USER_BURST", "40"), "NEBULA_RATE_LIMIT_USER_BURST", &errs),
+		IPRPS:      parseRate(get("NEBULA_RATE_LIMIT_IP_RPS", "100"), "NEBULA_RATE_LIMIT_IP_RPS", &errs),
+		IPBurst:    parseBurst(get("NEBULA_RATE_LIMIT_IP_BURST", "200"), "NEBULA_RATE_LIMIT_IP_BURST", &errs),
+		TokenRPS:   parseRate(get("NEBULA_RATE_LIMIT_TOKEN_RPS", "5"), "NEBULA_RATE_LIMIT_TOKEN_RPS", &errs),
+		TokenBurst: parseBurst(get("NEBULA_RATE_LIMIT_TOKEN_BURST", "20"), "NEBULA_RATE_LIMIT_TOKEN_BURST", &errs),
 	}
 
 	proxies, err := ratelimit.ParseTrustedProxies(get("NEBULA_TRUSTED_PROXIES", ""))

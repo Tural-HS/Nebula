@@ -133,6 +133,7 @@ Yanlış konfiqurasiya zamanı proqram başlamır və bütün problemləri bir d
 | `NEBULA_SHUTDOWN_TIMEOUT` | `25s` | Orkestratorun grace period-undan az olmalıdır (K8s default 30s) |
 | `NEBULA_REQUEST_TIMEOUT` | `30s` | Hər sorğu üçün son müddət |
 | `NEBULA_RATE_LIMIT_USER_RPS` / `_BURST` | `20` / `40` | İstifadəçi başına, hər replika üçün; `0` söndürür |
+| `NEBULA_RATE_LIMIT_TOKEN_RPS` / `_BURST` | `5` / `20` | API tokeni başına (ADR-0043), istifadəçi limitinə əlavə olaraq; `0` söndürür |
 | `NEBULA_RATE_LIMIT_IP_RPS` / `_BURST` | `100` / `200` | IP başına, autentifikasiyadan əvvəl; reverse proxy arxasında `NEBULA_TRUSTED_PROXIES`-i təyin edin |
 | `NEBULA_TRUSTED_PROXIES` | boş | Reverse proxy-lərin CIDR-ləri və ya IP-ləri (vergüllə, məs. `10.0.0.0/8,fd00::/8`). Yalnız bu ünvanlardan gələn sorğularda `X-Forwarded-For` nəzərə alınır (ADR-0010). Səhv CIDR → işə düşmür |
 | `NEBULA_PUBLIC_URL` | boş (keçid yoxdur) | Veb interfeysin ünvanı (`https://nebula.example.com`); Mattermost/Slack mesajlarında tapşırıq keçidləri üçün. `http` yalnız development-də |
@@ -195,10 +196,12 @@ Bütün `/api/v1` endpoint-ləri (`/version` istisna olmaqla) `Authorization: Be
 | `GET, PATCH, DELETE .../items/{number}` | Oxumaq / `version` ilə qismən yeniləmək / soft delete | guest+ / member+ |
 | `GET .../items/{number}/transitions` | Növbəti mümkün statuslar (`requires_approval`: təsdiq tələb edir, ADR-0026) | guest+ |
 | `GET, POST .../items/{number}/approvals` | Təsdiq sorğuları / qorunan statusa keçid üçün sorğu (`to_status_id`, `version`, `comment`) | guest+ / member+ |
-| `POST .../items/{number}/approvals/{id}/approve\|reject\|cancel` | Təsdiqlə (`comment`), rədd et (`reason` məcburi), ləğv et (sorğunu göndərən və ya admin) | member+ |
+| `POST .../items/{number}/approvals/{id}/approve\|reject\|cancel` | Təsdiqlə (`comment`), rədd et (`reason` məcburi), ləğv et (sorğunu göndərən və ya admin); `on_behalf_of`: məzuniyyətdə olan təsdiqçinin adına (ADR-0042) | member+ |
 | `PUT, DELETE .../{ws}/workflows/{id}/statuses/{sid}/approval-policy` | Statusa daxil olmaq üçün təsdiq siyasəti (`min_approvals`, `approver_roles`, `approver_user_ids`; ADR-0034: `reapprove_on_change`, `reapprove_fields`, `due_in_working_days`) | admin+ |
 | `GET .../{ws}/approvals?state=pending&mine=true\|false` | Workspace üzrə gözləyən təsdiq sorğuları (yalnız görünən layihələr; `mine`: qərar verə biləcəkləriniz), `limit`, `cursor` (ADR-0034) | guest+ |
 | `GET .../{ws}/approvals/count?mine=true` | Nişan: `count` (ən çox 100), `overdue` (ADR-0034) | guest+ |
+| `GET, POST .../{ws}/absences` | Cari və gələcək məzuniyyətlər (`user_id` filtri; qeyd yalnız özünə, əvəzləyənə və adminə) / məzuniyyət qeyd etmək (`starts_on`, `ends_on` workspace tarixi, `delegate_id`, `note`; başqası üçün `user_id` yalnız admin) (ADR-0042) | member+ |
+| `PATCH .../{ws}/absences/{id}`, `POST .../{id}/end` | Əvəzləyəni, tarixləri, qeydi dəyişmək / vaxtından əvvəl bitirmək və ya ləğv etmək (özü və ya admin) | member+ |
 | `GET, POST .../items/{number}/comments` | Şərhlər (`cursor`, `limit`) / yazmaq; `<@user-id>` ilə qeydetmə | guest+ / member+ |
 | `PATCH, DELETE .../items/{number}/comments/{id}` | Redaktə (yalnız müəllif) / silmə (müəllif və ya admin) | member+ |
 | `GET, POST .../items/{number}/attachments` | Fayllar və limitlər / yükləmə (`multipart/form-data`: `file`, istəyə bağlı `comment_id`) | guest+ / member+ |
@@ -209,6 +212,8 @@ Bütün `/api/v1` endpoint-ləri (`/version` istisna olmaqla) `Authorization: Be
 | `POST .../{ws}/webhooks/{id}/ping` | Test çatdırılması | admin+ |
 | `GET, PUT, DELETE .../{ws}/email-settings` | Workspace SMTP ayarları: parol heç vaxt qaytarılmır (`password_set`); `PUT`-da `password` yoxdur = saxla, `null` = sil; `DELETE` server konfiqurasiyasına qaytarır (ADR-0038) | admin+ |
 | `POST .../{ws}/email-settings/test` | Sınaq məktubu (`{to?}`: standart öz təsdiqlənmiş emailiniz, başqa ünvan yalnız üzvün emaili; 5 / 10 dəq) | admin+ |
+| `GET, POST .../{ws}/service-tokens` | API tokenləri (inteqrasiyalar) / yaratmaq (`name`, `role`: `guest`/`member`/`admin`, `scopes`, `project_ids`, `expires_in_days` 1–365); token yalnız yaradılanda bir dəfə qaytarılır (ADR-0043) | admin+ |
+| `DELETE .../{ws}/service-tokens/{id}` | Tokeni dərhal ləğv etmək | admin+ |
 | `GET, POST .../{ws}/webhooks` | Webhook-lar / yaratmaq (`format`: `nebula` və ya `slack`; secret yalnız bir dəfə qaytarılır, `slack` üçün `null`) | admin+ |
 | `GET, PATCH, DELETE .../{ws}/webhooks/{id}` | Oxumaq / dəyişmək / silmək | admin+ |
 | `POST .../{ws}/webhooks/{id}/rotate-secret` | Yeni secret | admin+ |
@@ -216,6 +221,33 @@ Bütün `/api/v1` endpoint-ləri (`/version` istisna olmaqla) `Authorization: Be
 | `GET, POST .../{ws}/automations` | Avtomatlaşdırma qaydaları / yaratmaq | admin+ |
 | `GET, PATCH, DELETE .../{ws}/automations/{id}` | Oxumaq / dəyişmək / silmək | admin+ |
 | `GET :9090/metrics` | Prometheus metrikləri, route şablonuna görə etiketlənir | daxili |
+
+## API tokenləri (inteqrasiyalar)
+
+1C, bank çıxarışı skriptləri, ERP və BI alətləri üçün workspace adminləri **Ayarlar → API tokenləri**-ndə token yaradır
+(ətraflı: [ADR-0043](docs/adr/0043-workspace-api-tokens.md)). Token bir workspace-ə bağlıdır, öz rolu (`guest`, `member`,
+`admin` — sahib heç vaxt), icazələri (`items:read`, `items:write`, `comments:write`, `reports:read`, `export:read`), istəyə
+bağlı layihə siyahısı və məcburi müddəti (30/90/365 gün, ən çox 1 il) var. Tarixçədə öz adı ilə görünür ("🔑 1C inteqrasiyası").
+
+- Token formatı `nbl_<32 hex>_<64 hex>`; **yalnız yaradılanda bir dəfə göstərilir**, serverdə yalnız SHA-256 həşi saxlanılır.
+  Onu secret store-da (OpenBao, Key Vault, CI secret) saxlayın, koda və ya loga yazmayın.
+- Token üzvləri, dəvətləri, ayarları, SMTP-ni, webhook-ları, arxiv/silməni və token idarəsini **heç vaxt** görmür; yalnız
+  tapşırıqlar, şərhlər, hesabatlar və ixrac marşrutları açıqdır. Ləğv dərhal işləyir; müddəti bitmiş token `401 token_expired`,
+  ləğv edilmiş `401 token_revoked`, arxivlənmiş workspace-in tokeni `401 token_workspace_archived` qaytarır.
+- Limit token başına (`NEBULA_RATE_LIMIT_TOKEN_*`, standart 5 sorğu/s, 20 ardıcıl); `429`-da `Retry-After`-ə əməl edin.
+
+```sh
+export NEBULA_TOKEN='nbl_<id>_<secret>'   # secret store-dan oxuyun
+
+# Tapşırıqları oxumaq (items:read)
+curl -sS -H "Authorization: Bearer $NEBULA_TOKEN" \
+  https://nebula.example.com/api/v1/workspaces/maliyye/projects/FIN/items?limit=50
+
+# Tapşırıq yaratmaq (items:write)
+curl -sS -X POST -H "Authorization: Bearer $NEBULA_TOKEN" -H 'Content-Type: application/json' \
+  -d '{"title": "Bank çıxarışı: 2026-11-24", "due_date": "2026-11-28"}' \
+  https://nebula.example.com/api/v1/workspaces/maliyye/projects/FIN/items
+```
 
 ## Cədvəldən idxal (CSV / Excel)
 

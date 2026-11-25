@@ -8,6 +8,7 @@ import { ErrorState, Spinner } from "../../components/ui";
 import { t } from "../../i18n";
 import { ta } from "../../i18n-admin";
 import { tem } from "../../i18n-email";
+import { ttk } from "../../i18n-tokens";
 import { tw } from "../../i18n-workdays";
 import { cn } from "../../lib/cn";
 
@@ -20,6 +21,7 @@ const sections = [
   ["workflows", ta.nav.workflows],
   ["email", tem.nav],
   ["webhooks", ta.nav.webhooks],
+  ["api-tokens", ttk.nav],
   ["automations", ta.nav.automations],
   ["audit", ta.nav.audit],
 ] as const;

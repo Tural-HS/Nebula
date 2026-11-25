@@ -11,9 +11,12 @@ import { EmptyState, Spinner } from "./components/ui";
 import { WorkspaceAccent } from "./components/WorkspaceAccent";
 import { t } from "./i18n";
 import { ItemsPage } from "./pages/ItemsPage";
+import { AbsencePage } from "./pages/AbsencePage";
 import { ApprovalsInboxPage } from "./pages/ApprovalsInboxPage";
+import { ReportsPage } from "./pages/ReportsPage";
 import { ProjectsPage } from "./pages/ProjectsPage";
 import { HomePage } from "./pages/HomePage";
+import { ProjectGate } from "./pages/ProjectGate";
 
 // Pages that are not needed for the first paint load on demand, each as its
 // own chunk; the workspace, project and item pages stay in the main bundle.
@@ -37,6 +40,7 @@ const MembersPage = named(() => import("./pages/settings/MembersPage"), "Members
 const WebhooksPage = named(() => import("./pages/settings/WebhooksPage"), "WebhooksPage");
 const WorkflowsPage = named(() => import("./pages/settings/WorkflowsPage"), "WorkflowsPage");
 const WorkCalendarPage = named(() => import("./pages/settings/WorkCalendarPage"), "WorkCalendarPage");
+const TokensPage = named(() => import("./pages/settings/TokensPage"), "TokensPage");
 
 function makeQueryClient() {
   return new QueryClient({
@@ -84,15 +88,17 @@ export function App() {
             <Route path="/" element={<HomePage />} />
             <Route path="/w/:ws" element={<ProjectsPage />} />
             <Route path="/w/:ws/approvals" element={<ApprovalsInboxPage />} />
-            <Route path="/w/:ws/p/:project" element={<ItemsPage />} />
-            <Route path="/w/:ws/p/:project/import" element={<ImportPage />} />
-            <Route path="/w/:ws/p/:project/recurring" element={<RecurringPage />} />
-            <Route path="/w/:ws/p/:project/settings" element={<ProjectSettingsPage />} />
+            <Route path="/w/:ws/absence" element={<AbsencePage />} />
+            <Route path="/w/:ws/reports" element={<ReportsPage />} />
+            <Route path="/w/:ws/p/:project" element={<ProjectGate><ItemsPage /></ProjectGate>} />
+            <Route path="/w/:ws/p/:project/import" element={<ProjectGate><ImportPage /></ProjectGate>} />
+            <Route path="/w/:ws/p/:project/recurring" element={<ProjectGate><RecurringPage /></ProjectGate>} />
+            <Route path="/w/:ws/p/:project/settings" element={<ProjectGate><ProjectSettingsPage /></ProjectGate>} />
             <Route path="/invite/:token" element={<InvitePage />} />
             <Route path="/f/:ref" element={<FormPage />} />
             <Route path="/requests" element={<MyRequestsPage />} />
             <Route path="/requests/:id" element={<MyRequestPage />} />
-            <Route path="/w/:ws/p/:project/forms" element={<FormsPage />} />
+            <Route path="/w/:ws/p/:project/forms" element={<ProjectGate><FormsPage /></ProjectGate>} />
             <Route path="/w/:ws/settings" element={<MembersPage />} />
             <Route path="/w/:ws/settings/general" element={<GeneralPage />} />
             <Route path="/w/:ws/settings/calendar" element={<WorkCalendarPage />} />
@@ -102,6 +108,7 @@ export function App() {
             <Route path="/w/:ws/settings/workflows" element={<WorkflowsPage />} />
             <Route path="/w/:ws/settings/email" element={<EmailPage />} />
             <Route path="/w/:ws/settings/webhooks" element={<WebhooksPage />} />
+            <Route path="/w/:ws/settings/api-tokens" element={<TokensPage />} />
             <Route path="/w/:ws/settings/automations" element={<AutomationsPage />} />
             <Route path="/w/:ws/settings/audit" element={<AuditLogPage />} />
             <Route path="*" element={<EmptyState>{t.notFound}</EmptyState>} />

@@ -169,6 +169,9 @@ func (e *Engine) deliverWebhook(ctx context.Context, j store.Job) error {
 	if !p.Force && (!target.Active || !store.MatchEvent(target.Events, ev.Action)) {
 		return nil // disabled or unsubscribed since the event happened
 	}
+	if ev.WorkspaceArchived {
+		return nil // archived (or being deleted) since the event: nothing fires (ADR-0039)
+	}
 	if !p.Force {
 		// Project filter, checked again at delivery: the project may have
 		// become private, or the filter changed, since the event (ADR-0013).
@@ -429,7 +432,14 @@ func (e *Engine) runAutomation(ctx context.Context, j store.Job) error {
 	if err != nil {
 		return err
 	}
-	if !rule.Enabled || ev.WorkspaceID != wsID || ev.Action != rule.Trigger || ev.EntityType != "item" {
+	if !rule.Enabled || ev.WorkspaceID != wsID || ev.Action != rule.Trigger || ev.EntityType != "item" || ev.WorkspaceArchived {
+		return nil
+	}
+	// Automations of an archived project do not run (ADR-0039), even for
+	// events queued before it was archived.
+	if scope, err := e.Store.EventScopeOf(ctx, ev); err != nil {
+		return err
+	} else if scope.Archived || scope.Unknown {
 		return nil
 	}
 	item, err := e.Store.ItemByID(ctx, wsID, ev.EntityID)
@@ -610,6 +620,16 @@ func (e *Engine) sendEmail(ctx context.Context, j store.Job) error {
 	var wsID uuid.UUID
 	if m.WorkspaceID != nil {
 		wsID = *m.WorkspaceID
+		// Mail of an archived or deleted workspace is dropped, never sent
+		// through the instance server instead (ADR-0039).
+		active, err := e.Store.WorkspaceActive(ctx, wsID)
+		if err != nil {
+			return err
+		}
+		if !active {
+			e.Logger.Info("email of an archived or deleted workspace dropped", "job_id", j.ID, "workspace_id", wsID)
+			return nil
+		}
 	}
 	route, err := e.mailRouter().For(ctx, wsID)
 	switch {

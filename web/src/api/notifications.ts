@@ -19,7 +19,10 @@ export type NotificationKind =
   | "link_added"
   // Approval deadlines and re-approval (ADR-0034)
   | "approval_overdue"
-  | "approval_invalidated";
+  | "approval_invalidated"
+  // SLA targets (ADR-0045)
+  | "sla_at_risk"
+  | "sla_breached";
 
 /** One entry of GET /me/notifications; item key and title are current. */
 export interface AppNotification {

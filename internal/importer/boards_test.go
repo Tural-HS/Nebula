@@ -216,7 +216,10 @@ func TestBoardDate(t *testing.T) {
 		`{"from":1766491200000,"includeTime":true}`: "2025-12-23T12:00:00Z",
 		`1766448000000`:                             "2025-12-23",
 		`{"from":1766448000000,"to":1766534400000}`: "2025-12-23",
-		`garbage`: "garbage",
+		`{"from":-240926400000}`:                    "1962-05-14", // before 1970: negative ms
+		`{"from":0}`:                                "1970-01-01",
+		`-240926400000`:                             "1962-05-14",
+		`garbage`:                                   "garbage",
 	} {
 		if got := boardDate(in); got != want {
 			t.Errorf("%s: %q, want %q", in, got, want)

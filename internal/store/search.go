@@ -265,7 +265,7 @@ func (s *Store) Search(ctx context.Context, p SearchParams) (SearchResult, error
 
 // visibleProjectIDs is the access predicate of ADR-0013 for the viewer.
 func visibleProjectIDs(ctx context.Context, q querier, wsID uuid.UUID, v Viewer) ([]uuid.UUID, error) {
-	rows, err := q.Query(ctx, `SELECT id FROM projects WHERE workspace_id = $1 AND `+visibleToViewer,
+	rows, err := q.Query(ctx, `SELECT id FROM projects WHERE workspace_id = $1 AND archived_at IS NULL AND `+visibleToViewer,
 		wsID, v.UserID, RoleAtLeast(v.Role, RoleAdmin))
 	if err != nil {
 		return nil, err

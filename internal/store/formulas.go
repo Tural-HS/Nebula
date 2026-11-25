@@ -134,6 +134,11 @@ func formulaResolver(defs map[string]formulaDef, self string) formula.Resolver {
 		if t, ok := plainFormulaType(d.typ); ok {
 			return t, nil
 		}
+		if d.typ == FieldMoney {
+			// Amounts in different currencies must never be mixed, and a
+			// formula has no currency of its own yet (ADR-0044).
+			return 0, fmt.Errorf("field %q is a money field; formulas cannot use money fields yet (amounts may be in different currencies)", ref)
+		}
 		return 0, fmt.Errorf("field %q is a %s field; formulas can use number, date, boolean and formula fields", ref, d.typ)
 	}
 }
@@ -491,7 +496,7 @@ func writeComputedFields(ctx context.Context, q querier, id uuid.UUID, fields ma
 func (s *Store) ScheduleVolatileFormulas(ctx context.Context) (int64, error) {
 	tag, err := s.pool.Exec(ctx, `INSERT INTO formula_recompute (workspace_id, volatile_day)
 		SELECT w.id, (now() AT TIME ZONE w.timezone)::date FROM workspaces w
-		WHERE EXISTS (SELECT 1 FROM field_definitions f WHERE f.workspace_id = w.id AND f.field_type = 'formula'
+		WHERE w.archived_at IS NULL AND EXISTS (SELECT 1 FROM field_definitions f WHERE f.workspace_id = w.id AND f.field_type = 'formula'
 			AND f.archived_at IS NULL AND (f.options -> 'formula' ->> 'volatile')::boolean)
 		ON CONFLICT (workspace_id) DO UPDATE SET pending = true, after_id = NULL, requested_at = now(),
 			finished_at = NULL, volatile_day = EXCLUDED.volatile_day
@@ -509,8 +514,10 @@ func (s *Store) RecomputeFormulas(ctx context.Context) (int, error) {
 	err := s.inTx(ctx, func(tx pgx.Tx) error {
 		var wsID uuid.UUID
 		var after *uuid.UUID
-		err := tx.QueryRow(ctx, `SELECT workspace_id, after_id FROM formula_recompute WHERE pending
-			ORDER BY requested_at LIMIT 1 FOR UPDATE SKIP LOCKED`).Scan(&wsID, &after)
+		// Archived workspaces wait (ADR-0039); a restore resumes the pass.
+		err := tx.QueryRow(ctx, `SELECT f.workspace_id, f.after_id FROM formula_recompute f
+			JOIN workspaces w ON w.id = f.workspace_id AND w.archived_at IS NULL
+			WHERE f.pending ORDER BY f.requested_at LIMIT 1 FOR UPDATE OF f SKIP LOCKED`).Scan(&wsID, &after)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil
 		}

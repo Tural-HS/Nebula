@@ -7,3 +7,8 @@ func SearchFoldForTest(s string) string { return foldWord(s) }
 func HomeSQLForTest() map[string]string {
 	return map[string]string{"cards": homeCards, "list": homeList, "watching": homeWatchedSQL, "recent": homeRecentSQL}
 }
+
+func ReportsSQLForTest() map[string]string {
+	return map[string]string{"kpi": reportKPISQL, "throughput": reportThroughputSQL, "approvals": reportApprovalsSQL,
+		"workload": reportWorkloadSQL, "status": reportStatusSQL}
+}

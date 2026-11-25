@@ -13,7 +13,9 @@ import { cn } from "../lib/cn";
 import { formatDateTime, formatRelative } from "../lib/format";
 import { displayColumns, FINE_POINTER, useCompact, useMediaQuery } from "../lib/responsive";
 import { columnHeader, fieldKey, formatDecimal, formatFieldValue, isFieldColumn } from "../lib/views";
-import { isFormula, isNumeric } from "../lib/formula";
+import { isAmount, isFormula } from "../lib/formula";
+import { formatMoneyTotals } from "../lib/money";
+import { tm } from "../i18n-money";
 import { tf } from "../i18n-formulas";
 import { tlg } from "../i18n-ledger";
 import { ROW_STRIPE, rowSignal } from "../lib/queues";
@@ -44,7 +46,7 @@ function track(col: string, def: FieldDefinition | undefined, compact: boolean):
     case "key":
       return ["6.5rem", 6.5];
     case SIGNALS:
-      return ["7.25rem", 7.25];
+      return ["10.5rem", 10.5]; // + the SLA slot (ADR-0045)
     case "title":
       // Pinned on phones: leave about half of a 375 px screen for the rest.
       return compact ? ["minmax(10.5rem,1fr)", 10.5] : ["minmax(14rem,1fr)", 14];
@@ -130,7 +132,7 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
 
   const grid = useMemo<CSSProperties>(() => {
     const tracks = columns.map((c): [string, number] =>
-      c === SIGNALS && !columns.includes("due_date") ? ["14.5rem", 14.5] : track(c, isFieldColumn(c) ? fields.get(fieldKey(c)) : undefined, compact));
+      c === SIGNALS && !columns.includes("due_date") ? ["17.75rem", 17.75] : track(c, isFieldColumn(c) ? fields.get(fieldKey(c)) : undefined, compact));
     // The first column also holds the row checkbox: 2 rem wider.
     const first = tracks[0];
     if (select && first) {
@@ -141,7 +143,9 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
     return { gridTemplateColumns: tracks.map(([g]) => g).join(" "), minWidth: `${String(rem)}rem` };
   }, [columns, fields, compact, select]);
   const header = (c: string) => (c === SIGNALS ? tlg.signals : columnHeader(c, fields));
-  const numeric = (c: string) => isFieldColumn(c) && isNumeric(fields.get(fieldKey(c)));
+  // Number and money columns: right-aligned tabular figures with a total.
+  const numeric = (c: string) => isFieldColumn(c) && isAmount(fields.get(fieldKey(c)));
+  const isMoneyCol = (c: string) => isFieldColumn(c) && fields.get(fieldKey(c))?.type === "money";
   // Formula columns are computed and read-only (ADR-0030): marked with ƒ.
   const formulaDef = (c: string) => {
     const def = isFieldColumn(c) ? fields.get(fieldKey(c)) : undefined;
@@ -325,14 +329,17 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
         >
           {columns.map((c, i) => {
             const s = numeric(c) ? sums?.[fieldKey(c)] : undefined;
+            // Money: one total per currency, never added together (ADR-0044).
+            const money = isMoneyCol(c) && s ? formatMoneyTotals(s.currencies ?? []) : undefined;
             return (
               <span
                 key={c}
                 role="cell"
                 className={cn("truncate", numeric(c) && "text-right tabular-nums", i === 0 && "sticky left-0 z-[1] bg-zinc-100 dark:bg-zinc-900", i === 0 && STICKY_EDGE)}
-                title={s ? tv.totalHint(s.count) : undefined}
+                title={s ? (money !== undefined ? `${tm.totalsLabel(money)}\n${tm.noFx}\n${tv.totalHint(s.count)}` : tv.totalHint(s.count)) : undefined}
+                data-money-total={money !== undefined ? "" : undefined}
               >
-                {numeric(c) ? (s ? formatDecimal(s.sum) : "…") : i === labelAt ? tv.total : ""}
+                {numeric(c) ? (s ? (money ?? formatDecimal(s.sum ?? "0")) : "…") : i === labelAt ? tv.total : ""}
               </span>
             );
           })}

@@ -12,6 +12,7 @@ import { HOME_LIMIT, HOME_MAX, isHomeShow, useHome, type Home, type HomeItem, ty
 import { useMe } from "../api/hooks";
 import { useMarkRead, useNotifications } from "../api/notifications";
 import { CreateWorkspaceDialog, NewWorkspaceButton } from "../components/CreateWorkspace";
+import { ArchivedWorkspaces } from "../components/Lifecycle";
 import { LanguageMenu } from "../components/LanguageMenu";
 import { Layout } from "../components/Layout";
 import { ThemeMenu } from "../components/ThemeMenu";
@@ -41,7 +42,12 @@ export function HomePage() {
   let body: ReactNode;
   if (q.isPending) body = <Spinner />;
   else if (q.isError) body = <ErrorState error={q.error} onRetry={() => void q.refetch()} />;
-  else if (q.data.workspaces.length === 0) body = <NoWorkspaces onCreate={() => { setCreating(true); }} />;
+  else if (q.data.workspaces.length === 0) body = (
+    <>
+      <NoWorkspaces onCreate={() => { setCreating(true); }} />
+      <ArchivedWorkspaces />
+    </>
+  );
   else {
     const home = q.data;
     body = (
@@ -60,6 +66,7 @@ export function HomePage() {
           </div>
         )}
         <WorkspaceCards list={home.workspaces} />
+        <ArchivedWorkspaces />
       </>
     );
   }

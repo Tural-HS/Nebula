@@ -92,6 +92,14 @@ func visibleProjectFor(pa, user, admin string) string {
 		OR EXISTS (SELECT 1 FROM project_members pm WHERE pm.project_id = %[1]s.id AND pm.user_id = %[2]s))`, pa, user, admin)
 }
 
+// linkVisibleFor is visibleProjectFor plus a service token's allow-list
+// (allow = a uuid[] parameter, NULL when there is none): with a list, the
+// project must be on it and nothing else counts (ADR-0043).
+func linkVisibleFor(pa, user, admin, allow string) string {
+	return fmt.Sprintf(`(CASE WHEN %[4]s::uuid[] IS NULL THEN %[5]s ELSE %[1]s.id = ANY(%[4]s::uuid[]) END)`,
+		pa, user, admin, allow, visibleProjectFor(pa, user, admin))
+}
+
 const linkSelect = `SELECT l.id, l.type, l.source_id = $2, o.number, op.key, o.title, os.id, os.name, os.category, l.created_at
 	FROM item_links l
 	JOIN items o ON o.id = CASE WHEN l.source_id = $2 THEN l.target_id ELSE l.source_id END AND o.deleted_at IS NULL
@@ -121,8 +129,8 @@ func (s *Store) ListItemLinks(ctx context.Context, wsID, projectID uuid.UUID, nu
 	if err != nil {
 		return nil, err
 	}
-	rows, err := s.pool.Query(ctx, linkSelect+visibleProjectFor("op", "$3", "$4")+` ORDER BY l.created_at, l.id`,
-		wsID, item.id, v.UserID, RoleAtLeast(v.Role, RoleAdmin))
+	rows, err := s.pool.Query(ctx, linkSelect+linkVisibleFor("op", "$3", "$4", "$5")+` ORDER BY l.created_at, l.id`,
+		wsID, item.id, v.UserID, RoleAtLeast(v.Role, RoleAdmin), v.AllowedProjects)
 	if err != nil {
 		return nil, err
 	}
@@ -177,7 +185,7 @@ func (s *Store) AddItemLink(ctx context.Context, p AddLinkParams) (ItemLink, err
 		var target uuid.UUID
 		err = tx.QueryRow(ctx, `SELECT i.id FROM items i JOIN projects op ON op.id = i.project_id
 			WHERE i.workspace_id = $1 AND op.workspace_id = $1 AND op.key = $2 AND i.number = $3 AND i.deleted_at IS NULL
-			  AND `+visibleProjectFor("op", "$4", "$5"),
+			  AND op.archived_at IS NULL AND `+visibleProjectFor("op", "$4", "$5"),
 			p.WorkspaceID, tKey, tNum, p.Viewer.UserID, RoleAtLeast(p.Viewer.Role, RoleAdmin)).Scan(&target)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return invalid("target", "no such item")

@@ -1,11 +1,13 @@
 // Turkish dictionary (ADR-0025); mirrors the Azerbaijani source of truth.
 import type { Messages } from "../../i18n/locale";
+import { tab as absences } from "./absences";
 import { ta as admin } from "./admin";
 import { tai as approvalInbox } from "./approvalInbox";
 import { tap as approvals } from "./approvals";
 import { ta as attach } from "./attach";
 import { tc as calendar } from "./calendar";
 import { tf as formulas } from "./formulas";
+import { tm as money } from "./money";
 import { t as core } from "./core";
 import { tem as email } from "./email";
 import { te as evidence } from "./evidence";
@@ -15,17 +17,21 @@ import { ti as importer } from "./import";
 import { ti as invite } from "./invite";
 import { tk as kinds } from "./kinds";
 import { tlg as ledger } from "./ledger";
+import { tlc as lifecycle } from "./lifecycle";
 import { tl as links } from "./links";
+import { tsl as sla } from "./sla";
 import { tm as mobile } from "./mobile";
 import { tn as notifications } from "./notifications";
 import { tp as project } from "./project";
 import { tr as recur } from "./recur";
+import { trp as reports } from "./reports";
 import { ts as search } from "./search";
 import { ts as subtasks } from "./subtasks";
 import { tt as templates } from "./templates";
 import { tth as theme } from "./theme";
+import { ttk as tokens } from "./tokens";
 import { tv as views } from "./views";
 import { twc as webhookChat } from "./webhookChat";
 import { tw as workdays } from "./workdays";
 
-export const tr: Messages = { admin, approvalInbox, approvals, attach, calendar, core, email, evidence, forms, formulas, home, importer, invite, kinds, ledger, links, mobile, notifications, project, recur, search, subtasks, templates, theme, views, webhookChat, workdays };
+export const tr: Messages = { absences, admin, approvalInbox, approvals, attach, calendar, core, email, evidence, forms, formulas, home, importer, invite, kinds, ledger, lifecycle, links, mobile, money, notifications, project, recur, reports, search, sla, subtasks, templates, theme, tokens, views, webhookChat, workdays };

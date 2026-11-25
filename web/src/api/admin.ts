@@ -197,11 +197,11 @@ export function useAdminApi(ws: string) {
     revokeInvite: useAdminMutation((id: string) => api<undefined>("DELETE", base + path`/invitations/${id}`), [["ws", ws, "invitations"]]),
 
     createField: useAdminMutation(
-      (b: { key: string; name: string; type: string; options?: { choices: { label: string }[] } | { formula: FormulaInput } }) => api<FieldDefinition>("POST", base + "/fields", b),
+      (b: { key: string; name: string; type: string; options?: { choices: { label: string }[] } | { formula: FormulaInput } | { money: MoneyInput } }) => api<FieldDefinition>("POST", base + "/fields", b),
       [fields],
     ),
     updateField: useAdminMutation(
-      (v: { key: string; body: { name?: string; archived?: boolean; options?: { choices: { id?: string; label: string; archived?: boolean }[] } | { formula: FormulaInput } } }) =>
+      (v: { key: string; body: { name?: string; archived?: boolean; options?: { choices: { id?: string; label: string; archived?: boolean }[] } | { formula: FormulaInput } | { money: MoneyInput } } }) =>
         api<FieldDefinition>("PATCH", base + path`/fields/${v.key}`, v.body),
       [fields, types],
     ),
@@ -290,6 +290,13 @@ export function useAdminApi(ws: string) {
 }
 
 /** The admin-editable part of a formula field (ADR-0030). */
+/** options.money in a create/update request (ADR-0044); the scale is accepted only on create. */
+export interface MoneyInput {
+  currencies?: string[];
+  default_currency?: string;
+  scale?: number;
+}
+
 export interface FormulaInput {
   expression: string;
   scale?: number;

@@ -525,6 +525,9 @@ func propertyText(p BoardProperty, c BoardCard, who func(string) string) string 
 	vals := c.Properties[p.ID]
 	switch p.Type {
 	case "createdTime":
+		if c.CreateAt <= 0 {
+			return ""
+		}
 		return msDate(c.CreateAt, true)
 	case "createdBy":
 		return who(c.CreatedBy)
@@ -564,23 +567,21 @@ func propertyText(p BoardProperty, c BoardCard, who func(string) string) string 
 // or a bare ms number into ISO text.
 func boardDate(v string) string {
 	var d struct {
-		From        int64 `json:"from"`
-		IncludeTime bool  `json:"includeTime"`
+		From        *int64 `json:"from"`
+		IncludeTime bool   `json:"includeTime"`
 	}
-	if err := json.Unmarshal([]byte(v), &d); err != nil || d.From == 0 {
+	if err := json.Unmarshal([]byte(v), &d); err != nil || d.From == nil {
 		ms, err := strconv.ParseInt(strings.TrimSpace(v), 10, 64)
 		if err != nil {
 			return v // left as is: the converter reports it
 		}
-		d.From = ms
+		d.From = &ms
 	}
-	return msDate(d.From, d.IncludeTime)
+	// Dates before 1970 (birthdays) are negative milliseconds.
+	return msDate(*d.From, d.IncludeTime)
 }
 
 func msDate(ms int64, withTime bool) string {
-	if ms <= 0 {
-		return ""
-	}
 	t := time.UnixMilli(ms).UTC()
 	if withTime {
 		return t.Format(time.RFC3339)

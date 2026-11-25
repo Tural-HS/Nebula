@@ -1,4 +1,5 @@
 import type { ApprovalRequest } from "../api/approvals";
+import { tab } from "../i18n-absences";
 import { tap } from "../i18n-approvals";
 import { tlg } from "../i18n-ledger";
 import { cn } from "../lib/cn";
@@ -10,8 +11,11 @@ import { Avatar } from "./ui";
  * list, never the requester); any one of them is enough per missing approval.
  */
 export function ApproverRoster({ req }: { req: ApprovalRequest }) {
-  const approved = req.decisions.filter((d) => d.decision === "approve").map((d) => d.user);
-  const waiting = req.approvers.filter((a) => !req.decisions.some((d) => d.user.id === a.id));
+  // A delegate's approval names both people (ADR-0042); absent approvers are marked.
+  const approved = req.decisions.filter((d) => d.decision === "approve")
+    .map((d) => ({ id: d.user.id, display_name: d.on_behalf_of ? `${d.user.display_name} (${tab.onBehalf(d.on_behalf_of.display_name)})` : d.user.display_name }));
+  const waiting = req.approvers.filter((a) => !req.decisions.some((d) => d.user.id === a.id || d.on_behalf_of?.id === a.id));
+  const away = new Set((req.absences ?? []).map((a) => a.user.id));
   if (approved.length === 0 && waiting.length === 0) return <p className="text-xs text-zinc-500 dark:text-zinc-400">{tap.noApprovers}</p>;
   return (
     <div className="text-xs">
@@ -21,14 +25,14 @@ export function ApproverRoster({ req }: { req: ApprovalRequest }) {
           <Person key={u.id} name={u.display_name} done />
         ))}
         {waiting.map((u) => (
-          <Person key={u.id} name={u.display_name} done={false} />
+          <Person key={u.id} name={u.display_name} done={false} away={away.has(u.id)} />
         ))}
       </ul>
     </div>
   );
 }
 
-function Person({ name, done }: { name: string; done: boolean }) {
+function Person({ name, done, away = false }: { name: string; done: boolean; away?: boolean }) {
   return (
     <li
       className={cn(
@@ -43,6 +47,7 @@ function Person({ name, done }: { name: string; done: boolean }) {
       <span className={done ? "" : "text-zinc-500 dark:text-zinc-400"}>
         <span aria-hidden>{done ? "✓ " : ""}</span>
         {done ? tlg.approvedBy : tlg.waitingFor}
+        {away && <> · {tab.awayBadge}</>}
       </span>
     </li>
   );

@@ -126,8 +126,11 @@ func loadCalendar(ctx context.Context, q querier, wsID uuid.UUID, lock bool) (*r
 // UPDATE does not block foreign-key checks, so item writes are unaffected.
 func lockCalendar(ctx context.Context, tx pgx.Tx, wsID uuid.UUID) ([]int16, error) {
 	var weekend []int16
-	err := tx.QueryRow(ctx, `SELECT weekend_days FROM workspaces WHERE id = $1 FOR NO KEY UPDATE`, wsID).Scan(&weekend)
-	return weekend, err
+	if err := tx.QueryRow(ctx, `SELECT weekend_days FROM workspaces WHERE id = $1 FOR NO KEY UPDATE`, wsID).Scan(&weekend); err != nil {
+		return nil, err
+	}
+	// SLA dues depend on the calendar (ADR-0045): the worker recomputes them.
+	return weekend, markSLAStale(ctx, tx, wsID)
 }
 
 // SetWeekend replaces the weekend days (0 = Sunday .. 6 = Saturday).

@@ -2,13 +2,14 @@
 // URL is the single source of truth, so every state (saved view or not) is a
 // shareable link; a saved view (ADR-0014) is a named preset of this state.
 
-import type { DueFilter, ItemFilters, ItemSort } from "../api/hooks";
+import type { DueFilter, ItemFilters, ItemSort, SlaFilter } from "../api/hooks";
 import type { FieldDefinition, FieldValue, Member, SavedView, ViewConfig } from "../api/types";
 import { t } from "../i18n";
 import { tv } from "../i18n-views";
 import { activeLocale, type Locale } from "../i18n/locale";
 import { tf } from "../i18n-formulas";
-import { isFormulaError, isNumeric, parseSort, valueType } from "./formula";
+import { isAmount, isFormulaError, parseSort, valueType } from "./formula";
+import { formatMoney, isMoneyValue } from "./money";
 import { formatDate, formatDateTime } from "./format";
 import type { GroupBy } from "./board";
 
@@ -29,10 +30,13 @@ export interface PageState {
   approval: ApprovalFilter;
   /** Only items with an open blocker (ADR-0028). Part of the link, not of saved views. */
   blocked: boolean;
+  /** SLA queue (ADR-0045). Part of the link, not of saved views. */
+  sla: SlaFilter;
 }
 
 export type ApprovalFilter = "" | "pending" | "mine";
 const APPROVAL: readonly ApprovalFilter[] = ["pending", "mine"];
+const SLA: readonly SlaFilter[] = ["breached", "at_risk"];
 
 /** Built-in table columns; custom fields are "field.<key>". */
 export const BUILTIN_COLUMNS = ["key", "title", "type", "status", "assignee", "due_date", "created_at", "updated_at"] as const;
@@ -49,7 +53,7 @@ const FIELD_KEY = /^[a-z][a-z0-9_]{0,62}$/;
 const COLUMN = /^(key|title|type|status|assignee|due_date|created_at|updated_at|field\.[a-z][a-z0-9_]{0,62})$/;
 
 /** URL parameters that make up the page state (others, like item, are kept). */
-const STATE_PARAMS = ["view", "q", "assignee", "due", "status", "cols", "sort", "group", "approval", "blocked"];
+const STATE_PARAMS = ["view", "q", "assignee", "due", "status", "cols", "sort", "group", "approval", "blocked", "sla"];
 
 export const isFieldColumn = (c: string) => c.startsWith("field.");
 export const fieldKey = (c: string) => c.slice("field.".length);
@@ -58,7 +62,7 @@ const splitList = (v: string | null) => (v ? v.split(",").map((s) => s.trim()).f
 const uniqSorted = (xs: string[]) => [...new Set(xs)].sort();
 
 export function emptyState(): PageState {
-  return { mode: "table", q: "", assignee: "", due: "", status: [], fields: {}, columns: [...DEFAULT_COLUMNS], sort: "number", group: "status", approval: "", blocked: false };
+  return { mode: "table", q: "", assignee: "", due: "", status: [], fields: {}, columns: [...DEFAULT_COLUMNS], sort: "number", group: "status", approval: "", blocked: false, sla: "" };
 }
 
 /** Reads the page state from the URL, ignoring anything malformed. */
@@ -79,6 +83,7 @@ export function readState(p: URLSearchParams): PageState {
   if (p.get("group") === "category") s.group = "category";
   s.approval = APPROVAL.find((a) => a === p.get("approval")) ?? "";
   s.blocked = p.get("blocked") === "true";
+  s.sla = SLA.find((x) => x === p.get("sla")) ?? "";
   return s;
 }
 
@@ -101,6 +106,7 @@ export function writeState(s: PageState, base: URLSearchParams = new URLSearchPa
   if (s.group === "category") p.set("group", "category");
   if (s.approval) p.set("approval", s.approval);
   if (s.blocked) p.set("blocked", "true");
+  if (s.sla) p.set("sla", s.sla);
   return p;
 }
 
@@ -143,7 +149,7 @@ export function viewFromState(s: PageState): { kind: Mode; config: ViewConfig } 
 
 /** The list filters for the API (the debounced search replaces s.q). */
 export function filtersOf(s: PageState, q: string): ItemFilters {
-  return { q, assignee: s.assignee, due: s.due, status: s.status, fields: s.fields, sort: s.sort, ...(s.approval ? { approval: s.approval } : {}), ...(s.blocked ? { blocked: true } : {}) };
+  return { q, assignee: s.assignee, due: s.due, status: s.status, fields: s.fields, sort: s.sort, ...(s.approval ? { approval: s.approval } : {}), ...(s.blocked ? { blocked: true } : {}), ...(s.sla ? { sla: s.sla } : {}) };
 }
 
 /**
@@ -161,12 +167,12 @@ export function columnHeader(col: string, fields: ReadonlyMap<string, FieldDefin
   return tv.col[col as BuiltinColumn];
 }
 
-/** Number fields among the columns: these get a server-computed total. */
+/** Number and money fields among the columns: these get a server-computed total (money: per currency). */
 export function sumFields(columns: readonly string[], fields: ReadonlyMap<string, FieldDefinition>): string[] {
   return columns
     .filter((c) => {
       const f = isFieldColumn(c) ? fields.get(fieldKey(c)) : undefined;
-      return isNumeric(f) && !f?.archived;
+      return isAmount(f) && !f?.archived;
     })
     .map(fieldKey)
     .slice(0, MAX_SUM_FIELDS);
@@ -222,11 +228,14 @@ function numberText(n: number): string {
 export function formatFieldValue(def: FieldDefinition | undefined, v: FieldValue | undefined, members: ReadonlyMap<string, Member>): string {
   if (v === null || v === undefined || v === "") return "";
   if (isFormulaError(v)) return tf.errors[v.error] ?? "#" + v.error;
+  if (isMoneyValue(v)) return def?.type === "money" ? formatMoney(v) : `${v.amount} ${v.currency}`;
   if (!def) return Array.isArray(v) ? v.join(", ") : String(v);
   const label = (id: string) => def.options.choices?.find((c) => c.id === id)?.label ?? "?";
   switch (valueType(def)) {
     case "number":
       return typeof v === "number" ? formatDecimal(v) : String(v);
+    case "money":
+      return ""; // not in the stored form
     case "date":
       return typeof v === "string" ? formatDate(v) : String(v);
     case "datetime":

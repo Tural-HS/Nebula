@@ -71,7 +71,7 @@ func notifiable(e Event) bool {
 	switch e.Action {
 	case TriggerItemCreated, TriggerItemOverdue, "comment.created", "comment.updated", "link.added",
 		EventApprovalRequested, EventApprovalApplied, EventApprovalRejected, EventApprovalCanceled,
-		EventApprovalOverdue, EventApprovalInvalidated:
+		EventApprovalOverdue, EventApprovalInvalidated, EventSLAAtRisk, EventSLABreached:
 		return true
 	case TriggerItemUpdated:
 		changes, _ := e.Payload["changes"].(map[string]any)
@@ -226,15 +226,21 @@ func (s *Store) CreateNotifications(ctx context.Context, e Event) (int, error) {
 			}
 			addWatchers(NotifyLinkAdded)
 		case EventApprovalRequested:
-			if err := addApprovers(ctx, tx, e, projectID, NotifyApprovalRequested, add); err != nil {
+			if err := addApprovers(ctx, tx, e, projectID, NotifyApprovalRequested, false, add); err != nil {
 				return err
 			}
 		case EventApprovalOverdue:
-			// One reminder (the scan emits the event once per request).
-			if err := addApprovers(ctx, tx, e, projectID, NotifyApprovalOverdue, add); err != nil {
+			// One reminder (the scan emits the event once per request). The
+			// reminder goes to the delegates of absent approvers, not to the
+			// absent approvers themselves (ADR-0042).
+			if err := addApprovers(ctx, tx, e, projectID, NotifyApprovalOverdue, true, add); err != nil {
 				return err
 			}
 			add(payloadUUID(e.Payload["requested_by"]), NotifyApprovalOverdue)
+		case EventSLAAtRisk, EventSLABreached:
+			if err := addSLARecipients(ctx, tx, e, add); err != nil {
+				return err
+			}
 		case EventApprovalInvalidated:
 			add(payloadUUID(e.Payload["requested_by"]), NotifyApprovalInvalidated)
 			if reqID := payloadUUID(e.Payload["request_id"]); reqID != nil {
@@ -291,9 +297,12 @@ func (s *Store) CreateNotifications(ctx context.Context, e Event) (int, error) {
 }
 
 // addApprovers adds the people who may decide on a new approval request,
-// from the request's policy snapshot (at most maxApproverNotifyees). Project
-// access is part of eligibility and checked again by the caller.
-func addApprovers(ctx context.Context, tx pgx.Tx, e Event, projectID uuid.UUID, kind string, add func(*uuid.UUID, string)) error {
+// from the request's policy snapshot (at most maxApproverNotifyees), and
+// the delegates who may decide on an absent approver's behalf now
+// (ADR-0042). An absent approver still gets the request notification (it
+// is waiting when they are back) but, with skipAbsent, no reminder.
+// Project access is part of eligibility and checked again by the caller.
+func addApprovers(ctx context.Context, tx pgx.Tx, e Event, projectID uuid.UUID, kind string, skipAbsent bool, add func(*uuid.UUID, string)) error {
 	reqID := payloadUUID(e.Payload["request_id"])
 	if reqID == nil {
 		return nil
@@ -314,8 +323,23 @@ func addApprovers(ctx context.Context, tx pgx.Tx, e Event, projectID uuid.UUID, 
 	if err != nil {
 		return err
 	}
+	var absent []uuid.UUID
+	if skipAbsent {
+		if absent, err = absentToday(ctx, tx, e.WorkspaceID); err != nil {
+			return err
+		}
+	}
 	for _, p := range people {
-		add(&p.ID, kind)
+		if !slices.Contains(absent, p.ID) {
+			add(&p.ID, kind)
+		}
+	}
+	delegates, err := requestDelegates(ctx, tx, r.id, maxApproverNotifyees)
+	if err != nil {
+		return err
+	}
+	for _, d := range delegates {
+		add(&d.ID, kind)
 	}
 	return nil
 }
@@ -351,7 +375,7 @@ const notificationFrom = ` FROM notifications n
 	JOIN workspace_members m ON m.workspace_id = n.workspace_id AND m.user_id = n.recipient_id
 	JOIN projects p ON p.workspace_id = n.workspace_id AND p.id = n.project_id
 	JOIN items i ON i.workspace_id = n.workspace_id AND i.id = n.item_id AND i.deleted_at IS NULL
-	WHERE n.recipient_id = $1 AND ` + visibleNotification
+	WHERE n.recipient_id = $1 AND w.archived_at IS NULL AND p.archived_at IS NULL AND ` + visibleNotification
 
 // NotificationFilter selects a page of a user's notifications.
 type NotificationFilter struct {

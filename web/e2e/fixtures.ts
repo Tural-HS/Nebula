@@ -9,7 +9,7 @@ export type User = keyof typeof USERS;
 
 const KEYCLOAK = "http://localhost:8081/realms/nebula/protocol/openid-connect/token";
 // E2E_API_URL: run against an API other than the compose one (e.g. a branch build on another port).
-const API = process.env.E2E_API_URL ?? "http://localhost:8080/api/v1";
+export const API = process.env.E2E_API_URL ?? "http://localhost:8080/api/v1";
 export const MAILPIT = "http://localhost:8025/api/v1";
 
 export const authFile = (user: User) => `e2e/.auth/${user}.json`;
@@ -85,3 +85,47 @@ export async function seedWorkspace(bobRole: "guest" | "member" = "member"): Pro
 
 export const test = base;
 export { expect };
+
+const KEYCLOAK_ADMIN = "http://localhost:8081";
+
+/**
+ * A third person for flows that need someone other than alice and bob (a
+ * requester who is neither the approver nor the delegate, ADR-0042). The
+ * dev realm only ships alice and bob, so carol is created in the local dev
+ * Keycloak through its admin API (bootstrap admin of docker-compose.yml,
+ * dev only) with a fresh random password on every run, never stored.
+ * Returns an API client signed in as carol (her first request creates her
+ * Nebula user).
+ */
+export async function apiAsCarol(): Promise<{ api: APIRequestContext; email: string }> {
+  const email = "carol@example.com";
+  const kc = await request.newContext({ baseURL: KEYCLOAK_ADMIN });
+  const tok = await kc.post("/realms/master/protocol/openid-connect/token", {
+    form: { grant_type: "password", client_id: "admin-cli", username: "admin", password: "admin-dev-only" },
+  });
+  expect(tok.ok(), "Keycloak admin token (dev only)").toBeTruthy();
+  const headers = { Authorization: `Bearer ${((await tok.json()) as { access_token: string }).access_token}` };
+  const users = "/admin/realms/nebula/users";
+  let found = (await (await kc.get(`${users}?username=carol&exact=true`, { headers })).json()) as { id: string }[];
+  if (found.length === 0) {
+    const created = await kc.post(users, {
+      headers,
+      data: { username: "carol", email, emailVerified: true, firstName: "Carol", lastName: "Developer", enabled: true, requiredActions: [] },
+    });
+    expect(created.status(), await created.text()).toBe(201);
+    found = (await (await kc.get(`${users}?username=carol&exact=true`, { headers })).json()) as { id: string }[];
+  }
+  const password = `carol-${crypto.randomUUID()}`;
+  const reset = await kc.put(`${users}/${found[0]?.id ?? ""}/reset-password`, { headers, data: { type: "password", value: password, temporary: false } });
+  expect(reset.status(), await reset.text()).toBe(204);
+  await kc.dispose();
+
+  const kt = await request.newContext();
+  const res = await kt.post(KEYCLOAK, { form: { grant_type: "password", client_id: "nebula-cli", username: "carol", password, scope: "openid" } });
+  expect(res.ok(), "token for carol").toBeTruthy();
+  const { access_token } = (await res.json()) as { access_token: string };
+  await kt.dispose();
+  const api = withRateLimitRetry(await request.newContext({ baseURL: API + "/", extraHTTPHeaders: { Authorization: `Bearer ${access_token}` } }));
+  expect((await api.get("me")).status()).toBe(200);
+  return { api, email };
+}

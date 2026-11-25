@@ -12,6 +12,16 @@ export interface ApprovalDecision {
   decision: "approve" | "reject";
   comment: string | null;
   created_at: string;
+  /** ADR-0042: the absent approver a delegate decided for; user is who acted. */
+  on_behalf_of?: PersonRef | null;
+}
+
+/** An approver of a pending request who is away today (ADR-0042). */
+export interface ApproverAbsence {
+  user: PersonRef;
+  /** Who can stand in on this request; null = nobody can. */
+  delegate: PersonRef | null;
+  ends_on: string;
 }
 
 export interface ApprovalRequest {
@@ -29,6 +39,10 @@ export interface ApprovalRequest {
   approvers: PersonRef[];
   can_approve: boolean;
   can_cancel: boolean;
+  /** ADR-0042 (pending only): absent approvers the viewer may decide for now. */
+  on_behalf_of?: PersonRef[];
+  /** ADR-0042 (pending only): approvers away today. */
+  absences?: ApproverAbsence[];
   created_at: string;
   closed_at: string | null;
   closed_by: PersonRef | null;
@@ -57,6 +71,8 @@ export interface InboxEntry {
   due_on: string | null;
   overdue: boolean;
   can_decide: boolean;
+  /** ADR-0042: the absent approvers the viewer may decide for ("X adına"). */
+  on_behalf_of?: PersonRef[];
 }
 
 export interface InboxPage {
@@ -126,11 +142,13 @@ export function useApprovalActions(ws: string, project: string, n: number) {
       onSuccess,
     }),
     approve: useMutation({
-      mutationFn: (v: { id: string; comment?: string }) => api<ApprovalResult>("POST", base + path`/${v.id}/approve`, { comment: v.comment }),
+      mutationFn: (v: { id: string; comment?: string; onBehalfOf?: string }) =>
+        api<ApprovalResult>("POST", base + path`/${v.id}/approve`, { comment: v.comment, on_behalf_of: v.onBehalfOf }),
       onSuccess,
     }),
     reject: useMutation({
-      mutationFn: (v: { id: string; reason: string }) => api<ApprovalResult>("POST", base + path`/${v.id}/reject`, { reason: v.reason }),
+      mutationFn: (v: { id: string; reason: string; onBehalfOf?: string }) =>
+        api<ApprovalResult>("POST", base + path`/${v.id}/reject`, { reason: v.reason, on_behalf_of: v.onBehalfOf }),
       onSuccess,
     }),
     cancel: useMutation({

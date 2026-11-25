@@ -2,6 +2,7 @@ import type { AppNotification } from "../api/notifications";
 import { tai } from "../i18n-approval-inbox";
 import { tap } from "../i18n-approvals";
 import { tn } from "../i18n-notifications";
+import { tsl } from "../i18n-sla";
 
 /** The sentence before the item reference, e.g. "Alice sizi qeyd etdi". */
 export function notificationLead(n: Pick<AppNotification, "kind" | "actor_name">): string {
@@ -35,6 +36,10 @@ export function notificationLead(n: Pick<AppNotification, "kind" | "actor_name">
       return tai.notify.overdue;
     case "approval_invalidated":
       return tai.notify.invalidated(actor);
+    case "sla_at_risk":
+      return tsl.notify.atRisk;
+    case "sla_breached":
+      return tsl.notify.breached;
   }
 }
 

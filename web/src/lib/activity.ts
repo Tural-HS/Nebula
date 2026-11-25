@@ -1,4 +1,4 @@
-import type { Activity } from "../api/types";
+import type { Activity, FieldValue, MoneyValue } from "../api/types";
 import { t } from "../i18n";
 import { tai } from "../i18n-approval-inbox";
 import { tap } from "../i18n-approvals";
@@ -9,6 +9,7 @@ import { tf } from "../i18n-forms";
 import { tl } from "../i18n-links";
 import { ts } from "../i18n-subtasks";
 import { formatDate } from "./format";
+import { formatMoney, isMoneyValue } from "./money";
 
 export interface Lookup {
   status: (id: string) => string | undefined;
@@ -31,6 +32,7 @@ function str(v: unknown): string {
   if (v === null || v === undefined || v === "") return "—";
   if (Array.isArray(v)) return v.map(str).join(", ");
   if (typeof v === "string" || typeof v === "number" || typeof v === "boolean") return String(v);
+  if (isMoneyValue(v as FieldValue)) return formatMoney(v as MoneyValue); // ADR-0044
   return "…";
 }
 

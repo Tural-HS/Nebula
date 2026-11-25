@@ -4,7 +4,7 @@ import type { ItemPatch } from "../api/hooks";
 import type { FieldDefinition, FieldValue, Item, Member } from "../api/types";
 import { fieldKey, isFieldColumn } from "./views";
 
-export type InlineKind = "status" | "assignee" | "due_date" | "select" | "user" | "number" | "text" | "date" | "url" | "email";
+export type InlineKind = "status" | "assignee" | "due_date" | "select" | "user" | "number" | "money" | "text" | "date" | "url" | "email";
 
 export interface InlineEdit {
   ws: string;
@@ -20,6 +20,7 @@ const FIELD_KINDS: Partial<Record<FieldDefinition["type"], InlineKind>> = {
   select: "select",
   user: "user",
   number: "number",
+  money: "money",
   text: "text",
   date: "date",
   url: "url",

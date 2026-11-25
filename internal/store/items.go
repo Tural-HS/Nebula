@@ -44,7 +44,9 @@ type Item struct {
 	Approval *PendingApproval `json:"approval"`
 	// Blocked: an open item the viewer can see blocks this one (ADR-0028).
 	// Only list responses fill it in; elsewhere it is omitted.
-	Blocked   *bool     `json:"blocked,omitempty"`
+	Blocked *bool `json:"blocked,omitempty"`
+	// SLA is the SLA clock (ADR-0045); nil when the project has no policy.
+	SLA       *ItemSLA  `json:"sla"`
 	Version   int       `json:"version"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
@@ -61,7 +63,8 @@ const itemSelect = `SELECT i.id, i.number, p.key, i.project_id, i.title, i.descr
 	COALESCE(i.due_date < (now() AT TIME ZONE w.timezone)::date AND s.category IN ('todo', 'in_progress'), false),
 	par.number, par.title, sub.total, sub.closed,
 	ar.id, ar.to_status_id, ars.name, ars.category, ar.requested_by, ar.approvals, ar.min_approvals,
-	ar.due_on::text, COALESCE(ar.due_on < (now() AT TIME ZONE w.timezone)::date, false)
+	ar.due_on::text, COALESCE(ar.due_on < (now() AT TIME ZONE w.timezone)::date, false),
+	sla.item_id IS NOT NULL, sla.started_at, sla.response_due, sla.resolution_due, sla.responded_at, sla.resolved_at
 	FROM items i
 	JOIN workspaces w ON w.id = i.workspace_id
 	JOIN projects   p ON p.id = i.project_id
@@ -72,7 +75,8 @@ const itemSelect = `SELECT i.id, i.number, p.key, i.project_id, i.title, i.descr
 		FROM items c JOIN statuses cs ON cs.id = c.status_id
 		WHERE c.parent_id = i.id AND c.deleted_at IS NULL) sub ON true
 	LEFT JOIN approval_requests ar ON ar.item_id = i.id AND ar.state = 'pending'
-	LEFT JOIN statuses ars ON ars.id = ar.to_status_id`
+	LEFT JOIN statuses ars ON ars.id = ar.to_status_id
+	LEFT JOIN item_sla sla ON sla.item_id = i.id`
 
 func scanItem(row pgx.Row) (Item, error) {
 	var it Item
@@ -83,14 +87,20 @@ func scanItem(row pgx.Row) (Item, error) {
 	var apToName, apToCat *string
 	var apCount, apMin *int
 	var apDue *string
-	var apOverdue bool
+	var apOverdue, hasSLA bool
+	var sla ItemSLA
 	err := row.Scan(&it.ID, &it.Number, &projectKey, &it.ProjectID, &it.Title, &it.Description, &it.AssigneeID,
 		&it.ReporterID, &it.Fields, &it.Version, &it.CreatedAt, &it.UpdatedAt,
 		&it.Type.ID, &it.Type.Key, &it.Type.Name, &it.Status.ID, &it.Status.Name, &it.Status.Category, &it.DueDate, &it.Overdue,
 		&parentNumber, &parentTitle, &it.Subtasks.Count, &it.Subtasks.Done,
-		&apID, &apTo, &apToName, &apToCat, &apBy, &apCount, &apMin, &apDue, &apOverdue)
+		&apID, &apTo, &apToName, &apToCat, &apBy, &apCount, &apMin, &apDue, &apOverdue,
+		&hasSLA, &sla.StartedAt, &sla.ResponseDue, &sla.ResolutionDue, &sla.RespondedAt, &sla.ResolvedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Item{}, ErrNotFound
+	}
+	if hasSLA && (sla.ResponseDue != nil || sla.ResolutionDue != nil) {
+		sla.State = sla.state(time.Now())
+		it.SLA = &sla
 	}
 	if apID != nil && apBy != nil && apCount != nil && apMin != nil {
 		it.Approval = &PendingApproval{ID: *apID, RequestedBy: *apBy, Approvals: *apCount, MinApprovals: *apMin,
@@ -184,6 +194,17 @@ func createItemTx(ctx context.Context, tx pgx.Tx, p CreateItemParams, extra map[
 			return Item{}, parentError(err)
 		}
 	}
+	// SLA clock (ADR-0045), when the project has a policy.
+	var hasPolicy bool
+	if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM project_sla_policies WHERE project_id = $1)`, p.ProjectID).
+		Scan(&hasPolicy); err != nil {
+		return Item{}, err
+	}
+	if hasPolicy {
+		if err := computeSLA(ctx, tx, p.WorkspaceID, []uuid.UUID{id}); err != nil {
+			return Item{}, err
+		}
+	}
 	item, err := scanItem(tx.QueryRow(ctx, itemSelect+` WHERE i.id = $1`, id))
 	if err != nil {
 		return Item{}, err
@@ -261,7 +282,8 @@ type ListItemsParams struct {
 	// and is required by the Blocked and Approval == "mine" filters:
 	// blockers in projects the viewer cannot see never count (ADR-0013).
 	Viewer  *Viewer
-	Blocked bool // only items with an open, visible blocker
+	Blocked bool   // only items with an open, visible blocker
+	SLA     string // "", "breached" or "at_risk" (ADR-0045)
 	Limit   int
 	Cursor  *ItemCursor // continue after this position (nil = from the start)
 }
@@ -360,6 +382,29 @@ func (s *Store) CountItemsByStatus(ctx context.Context, p ListItemsParams) (map[
 	return out, rows.Err()
 }
 
+// CountItemsUpTo counts the items ListItems would return over all pages
+// (every filter applies, cursor and limit do not), stopping at limit+1 so a
+// huge project costs no more than the cap (table export, ADR-0040).
+func (s *Store) CountItemsUpTo(ctx context.Context, p ListItemsParams, limit int) (int, error) {
+	where, args, err := s.itemFilter(ctx, p, true)
+	if err != nil {
+		return 0, err
+	}
+	args = append(args, limit+1)
+	var n int
+	err = s.pool.QueryRow(ctx, fmt.Sprintf("SELECT count(*) FROM (SELECT 1 FROM items i WHERE %s LIMIT $%d) c",
+		strings.Join(where, " AND "), len(args)), args...).Scan(&n)
+	return n, err
+}
+
+// RecordItemsExport appends items.exported on the project: who exported how
+// many rows, in which format, with which filters. Never cell data.
+func (s *Store) RecordItemsExport(ctx context.Context, wsID, actorID, projectID uuid.UUID, payload map[string]any) error {
+	return s.inTx(ctx, func(tx pgx.Tx) error {
+		return appendEvent(ctx, tx, wsID, actorID, "project", projectID, "items.exported", payload)
+	})
+}
+
 // itemFilter builds the WHERE conditions shared by listing and counting.
 // Values are always bound as parameters, never interpolated.
 func (s *Store) itemFilter(ctx context.Context, p ListItemsParams, withStatus bool) (where []string, args []any, err error) {
@@ -404,7 +449,8 @@ func (s *Store) itemFilter(ctx context.Context, p ListItemsParams, withStatus bo
 		where = append(where, `EXISTS (SELECT 1 FROM approval_requests far WHERE far.item_id = i.id AND far.state = 'pending'
 			AND far.requested_by <> `+u+` AND `+r+`::text <> 'guest'
 			AND (`+r+`::text = ANY(far.approver_roles) OR `+u+`::uuid = ANY(far.approver_user_ids))
-			AND NOT EXISTS (SELECT 1 FROM approval_decisions fd WHERE fd.request_id = far.id AND fd.user_id = `+u+`))`)
+			AND NOT EXISTS (SELECT 1 FROM approval_decisions fd WHERE fd.request_id = far.id
+			    AND (fd.user_id = `+u+` OR fd.on_behalf_of = `+u+`)))`)
 	default:
 		return nil, nil, invalid("approval", "must be pending or mine")
 	}
@@ -414,6 +460,13 @@ func (s *Store) itemFilter(ctx context.Context, p ListItemsParams, withStatus bo
 		}
 		args = append(args, p.Viewer.UserID, RoleAtLeast(p.Viewer.Role, RoleAdmin))
 		where = append(where, blockedFilter("$"+strconv.Itoa(len(args)-1), "$"+strconv.Itoa(len(args))+"::boolean"))
+	}
+	if p.SLA != "" {
+		cond, err := slaFilter(p.SLA)
+		if err != nil {
+			return nil, nil, err
+		}
+		where = append(where, cond)
 	}
 	if len(p.FieldFilters) > 0 {
 		conds, err := fieldFilterConditions(ctx, s.pool, p.WorkspaceID, p.FieldFilters)
