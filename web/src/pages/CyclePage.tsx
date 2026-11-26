@@ -99,6 +99,8 @@ function Settings({ ws, project, cycle, fields }: { ws: string; project: string;
   const [refill, setRefill] = useState<CycleRefill[]>(cycle.refill);
   const [includeClosed, setIncludeClosed] = useState(cycle.include_closed);
   const [resetStatus, setResetStatus] = useState(cycle.reset_status_id ?? "");
+  const [dueField, setDueField] = useState(cycle.due_day_field ?? "");
+  const [paidField, setPaidField] = useState(cycle.paid_field ?? "");
   const types = useItemTypes(ws);
   // Statuses of every item type, labelled with the type when there are several.
   const statuses = useMemo(() => {
@@ -115,6 +117,7 @@ function Settings({ ws, project, cycle, fields }: { ws: string; project: string;
       {
         enabled, day_of_month: day, clear_fields: clear, refill: refill.filter((r) => r.target && r.source),
         include_closed: includeClosed, reset_status_id: resetStatus || null,
+        due_day_field: dueField || null, paid_field: dueField && paidField ? paidField : null,
       },
       {
         onSuccess: () => { toast("success", tcy.saved); },
@@ -206,6 +209,28 @@ function Settings({ ws, project, cycle, fields }: { ws: string; project: string;
         </div>
       </fieldset>
 
+      <fieldset className="space-y-3">
+        <legend className="text-sm font-medium">{tcy.dueDates}</legend>
+        <div className="flex flex-wrap gap-x-6 gap-y-3">
+          <div>
+            <Label htmlFor={`${id}-due`}>{tcy.dueField}</Label>
+            <Select id={`${id}-due`} className="w-auto max-w-full min-w-56" value={dueField} onChange={(e) => { setDueField(e.target.value); }} aria-describedby={`${id}-duehint`}>
+              <option value="">{tcy.none}</option>
+              {fields.filter((f) => f.type === "date").map((f) => <option key={f.key} value={f.key}>{f.name}</option>)}
+            </Select>
+            <p id={`${id}-duehint`} className="mt-1 max-w-xs text-xs text-zinc-500 dark:text-zinc-400">{tcy.dueFieldHint}</p>
+          </div>
+          <div>
+            <Label htmlFor={`${id}-paid`}>{tcy.paidField}</Label>
+            <Select id={`${id}-paid`} className="w-auto max-w-full min-w-56" value={dueField ? paidField : ""} disabled={!dueField} onChange={(e) => { setPaidField(e.target.value); }} aria-describedby={`${id}-paidhint`}>
+              <option value="">{tcy.none}</option>
+              {fields.filter((f) => f.type === "boolean").map((f) => <option key={f.key} value={f.key}>{f.name}</option>)}
+            </Select>
+            <p id={`${id}-paidhint`} className="mt-1 max-w-xs text-xs text-zinc-500 dark:text-zinc-400">{tcy.paidFieldHint}</p>
+          </div>
+        </div>
+      </fieldset>
+
       <FieldError error={capi.save.error} />
       <Button type="submit" variant="primary" disabled={capi.save.isPending}>{tcy.save}</Button>
     </form>
@@ -239,7 +264,7 @@ function CloseNow({ ws, project }: { ws: string; project: string }) {
     void confirm({ title: tcy.confirmTitle(tcy.month(p.period)), body: tcy.confirmBody(p.will_reset), action: tcy.confirmAction, danger: true }).then((ok) => {
       if (!ok) return;
       capi.close.mutate(p.period, {
-        onSuccess: (c) => { toast("success", tcy.closed(tcy.month(c.period), c.changed)); },
+        onSuccess: (c) => { toast("success", c.carried > 0 ? `${tcy.closed(tcy.month(c.period), c.changed)} · ${tcy.carried(c.carried)}` : tcy.closed(tcy.month(c.period), c.changed)); },
         onError: (err) => { toast("error", err instanceof ApiError ? `${tcy.closeFailed}: ${err.message}` : tcy.closeFailed); },
       });
     });
@@ -258,7 +283,14 @@ function CloseNow({ ws, project }: { ws: string; project: string }) {
       </div>
       <div aria-live="polite" className="text-sm">
         {preview.isError && <FieldError error={preview.error} />}
-        {p && (p.closed ? <p className="text-zinc-500 dark:text-zinc-400">{tcy.alreadyClosed}</p> : <p>{tcy.preview(p.items, p.open, p.will_reset)}</p>)}
+        {p && (p.closed ? (
+          <p className="text-zinc-500 dark:text-zinc-400">{tcy.alreadyClosed}</p>
+        ) : (
+          <>
+            <p>{tcy.preview(p.items, p.open, p.will_reset)}</p>
+            {p.will_carry > 0 && <p className="text-amber-800 dark:text-amber-200">{tcy.carried(p.will_carry)}</p>}
+          </>
+        ))}
       </div>
     </section>
   );
@@ -291,7 +323,8 @@ function CloseRow({ c, who, onOpen }: { c: PeriodClose; who: string; onOpen: (pe
       <div className="min-w-0 flex-1">
         <p className="font-medium">{tcy.month(c.period)}</p>
         <p className="text-xs text-zinc-500 dark:text-zinc-400">
-          {tcy.counts(c.item_count, c.changed)} · {formatDateTime(c.created_at)} · {tcy.closedBy(who)}
+          {tcy.counts(c.item_count, c.changed)}{c.carried > 0 && ` · ${tcy.carried(c.carried)}`} · {formatDateTime(c.created_at)} · {tcy.closedBy(who)}
+
         </p>
         {c.failed.length > 0 && (
           <p className="mt-1 text-xs text-amber-800 dark:text-amber-200">

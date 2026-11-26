@@ -64,6 +64,15 @@ func (e *Engine) Tick(ctx context.Context) {
 	} else if n > 0 {
 		e.Logger.Info("date reminders emitted", "count", n)
 	}
+	// Payment due dates of monthly cycles (ADR-0055): fills missing due
+	// dates and rolls paid late items. Before the digest, so it lists them.
+	if n, err := e.Store.EmitCycleDueDates(ctx, time.Now()); err != nil {
+		if ctx.Err() == nil {
+			e.Logger.Error("cycle due dates", "error", err)
+		}
+	} else if n > 0 {
+		e.Logger.Info("cycle due dates set", "count", n)
+	}
 	n, err := e.Store.EmitOverdueDigests(ctx)
 	if err != nil {
 		if ctx.Err() == nil {

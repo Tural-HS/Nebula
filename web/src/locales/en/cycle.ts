@@ -66,5 +66,12 @@ export const tcy = {
   name: "Name",
   status: "Status",
   yes: "✓",
+  dueDates: "Payment due dates",
+  dueField: "Payment day field",
+  dueFieldHint: "Every month the due date falls on this date's day (31 → the month's last day). A loan given this month is first due next month.",
+  paidField: "Paid field",
+  paidFieldHint: "Unpaid late items are not reset and stay overdue. Once marked paid, they are reset the next day. This field must be cleared every month.",
+  none: "—",
+  carried: (n: number) => `Unpaid, not reset:${String(n)}`,
   noFields: "No suitable fields. Create fields in Settings → Fields first.",
 } satisfies Messages["cycle"];

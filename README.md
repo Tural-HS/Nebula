@@ -192,9 +192,9 @@ Bütün `/api/v1` endpoint-ləri (`/version` istisna olmaqla) `Authorization: Be
 | `GET .../projects/{KEY}/items/sums?fields=a,b` | Rəqəm sahələrinin bütün filtrlənmiş nəticə üzrə cəmi və sayı, üstəlik `count` — uyğun tapşırıqların sayı (`fields` boş ola bilər; siyahının eyni filtrləri, ən çox 10 sahə) | guest+ |
 | `GET, POST .../projects/{KEY}/views` | Saxlanılan görünüşlər (öz şəxsiləri + ümumilər) / yaratmaq (`shared: true` admin+) | guest+ |
 | `GET, PATCH, DELETE .../projects/{KEY}/views/{id}` | Oxumaq / dəyişmək / silmək (şəxsi: sahibi; ümumi: sahibi və ya admin+) | guest+ |
-| `GET, PUT .../projects/{KEY}/cycle` | Aylıq dövr (ADR-0051): `enabled`, `day_of_month` 1–28, `clear_fields`, `refill` (`target` ← `source`), `include_closed`, `reset_status_id` | member+ / admin+ |
+| `GET, PUT .../projects/{KEY}/cycle` | Aylıq dövr (ADR-0051): `enabled`, `day_of_month` 1–28, `clear_fields`, `refill` (`target` ← `source`), `include_closed`, `reset_status_id`, `due_day_field` (tarix sahəsi: hər ay son tarix onun günüdür, ADR-0055), `paid_field` (bəli/xeyr sahəsi: ödənilməyən gecikmiş kartlar sıfırlanmır) | member+ / admin+ |
 | `GET, PUT .../projects/{KEY}/date-reminder` | Ad günü xatırlatması (ADR-0054): `field` (tarix sahəsinin açarı və ya `null`); cavabda `last_sent`, `hour` | member+ / admin+ |
-| `POST .../projects/{KEY}/cycle/preview`, `POST .../cycle/close` | Ayı bağlamağın önizləməsi / əl ilə bağlamaq (`period`: `YYYY-MM`, boş = keçən ay) | admin+ |
+| `POST .../projects/{KEY}/cycle/preview`, `POST .../cycle/close` | Ayı bağlamağın önizləməsi / əl ilə bağlamaq (`period`: `YYYY-MM`, boş = keçən ay); cavabda `will_carry` / `carried` (sıfırlanmayan ödənilməmiş gecikmiş kartlar) | admin+ |
 | `GET .../projects/{KEY}/cycle/closes[/{YYYY-MM}[/export?format=xlsx\|csv]]` | Bağlanmış aylar / bir ayın snapshot-ı / Excel və ya CSV kimi | member+ |
 | `POST .../projects/{KEY}/items` | Yaratmaq; `parent` (nömrə və ya açar) ilə alt tapşırıq. `PATCH`-da `parent: null` ayırır | member+ |
 | `POST .../projects/{KEY}/imports/preview` | CSV/xlsx önbaxışı (multipart `file`, `sheet`): vərəqlər, başlıqlar, ilk 20 sətir, təklif olunan uyğunlaşdırma | admin+ |

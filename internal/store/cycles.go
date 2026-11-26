@@ -54,10 +54,15 @@ type Cycle struct {
 	IncludeClosed bool `json:"include_closed"`
 	// ResetStatusID is the status reset items get; nil keeps theirs.
 	ResetStatusID *uuid.UUID `json:"reset_status_id"`
-	NextRun       *string    `json:"next_run"`    // YYYY-MM-DD of the next scheduled close
-	NextPeriod    *string    `json:"next_period"` // YYYY-MM it will close
-	LastError     *string    `json:"last_error"`  // why the last scheduled close failed
-	UpdatedAt     *time.Time `json:"updated_at"`  // nil: never configured
+	// DueDayField is a date field (e.g. the loan date) whose day of the month
+	// is every item's due date each month (ADR-0055); nil: due dates are not
+	// managed. PaidField is a boolean field: unpaid late items are carried.
+	DueDayField *string    `json:"due_day_field"`
+	PaidField   *string    `json:"paid_field"`
+	NextRun     *string    `json:"next_run"`    // YYYY-MM-DD of the next scheduled close
+	NextPeriod  *string    `json:"next_period"` // YYYY-MM it will close
+	LastError   *string    `json:"last_error"`  // why the last scheduled close failed
+	UpdatedAt   *time.Time `json:"updated_at"`  // nil: never configured
 }
 
 // CycleInput replaces the configuration.
@@ -68,6 +73,8 @@ type CycleInput struct {
 	Refill        []CycleRefill `json:"refill"`
 	IncludeClosed bool          `json:"include_closed"`
 	ResetStatusID *uuid.UUID    `json:"reset_status_id"`
+	DueDayField   *string       `json:"due_day_field"`
+	PaidField     *string       `json:"paid_field"`
 }
 
 // PeriodClose is one closed month.
@@ -77,6 +84,7 @@ type PeriodClose struct {
 	ClosedBy  *uuid.UUID       `json:"closed_by"`
 	ItemCount int              `json:"item_count"` // items in the snapshot
 	Changed   int              `json:"changed"`    // open items whose fields were reset
+	Carried   int              `json:"carried"`    // unpaid late items left as they were (ADR-0055)
 	Failed    []CycleItemError `json:"failed"`     // open items that could not be reset
 	CreatedAt time.Time        `json:"created_at"`
 }
@@ -106,6 +114,7 @@ type CyclePreview struct {
 	Items     int    `json:"items"`      // items that would be saved in the snapshot
 	Open      int    `json:"open"`       // items the reset applies to (open ones, or all with include_closed)
 	WillReset int    `json:"will_reset"` // open items whose values would change
+	WillCarry int    `json:"will_carry"` // unpaid late items that would be left as they are (ADR-0055)
 }
 
 // periodStart is the first day of t's month.
@@ -136,9 +145,10 @@ func (s *Store) GetCycle(ctx context.Context, wsID, projectID uuid.UUID) (Cycle,
 	var next *time.Time
 	var updated time.Time
 	err := s.pool.QueryRow(ctx, `SELECT is_enabled, day_of_month, clear_fields, refill, include_closed, reset_status_id,
-			next_run, last_error, updated_at
+			due_day_field, paid_field, next_run, last_error, updated_at
 		FROM period_cycles WHERE workspace_id = $1 AND project_id = $2`, wsID, projectID).
-		Scan(&c.Enabled, &c.DayOfMonth, &c.ClearFields, &refill, &c.IncludeClosed, &c.ResetStatusID, &next, &c.LastError, &updated)
+		Scan(&c.Enabled, &c.DayOfMonth, &c.ClearFields, &refill, &c.IncludeClosed, &c.ResetStatusID,
+			&c.DueDayField, &c.PaidField, &next, &c.LastError, &updated)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return c, nil
 	}
@@ -173,7 +183,13 @@ func validateCycle(ctx context.Context, q querier, wsID uuid.UUID, in *CycleInpu
 	if in.Refill == nil {
 		in.Refill = []CycleRefill{}
 	}
-	if in.Enabled && len(in.ClearFields) == 0 && len(in.Refill) == 0 && in.ResetStatusID == nil {
+	if in.DueDayField != nil && *in.DueDayField == "" {
+		in.DueDayField = nil
+	}
+	if in.PaidField != nil && *in.PaidField == "" {
+		in.PaidField = nil
+	}
+	if in.Enabled && !in.resets() {
 		return invalid("clear_fields", "choose at least one field to clear or refill, or a status")
 	}
 	if in.ResetStatusID != nil {
@@ -235,7 +251,47 @@ func validateCycle(ctx context.Context, q querier, wsID uuid.UUID, in *CycleInpu
 		}
 		touched[r.Target] = true
 	}
+	return validateDueFields(ctx, q, wsID, in, touched)
+}
+
+// validateDueFields checks the due-date settings (ADR-0055): an active date
+// field that the close itself leaves alone, and a paid flag that the close
+// clears or refills (else an item paid once would never be late again).
+func validateDueFields(ctx context.Context, q querier, wsID uuid.UUID, in *CycleInput, touched map[string]bool) error {
+	if in.PaidField != nil && in.DueDayField == nil {
+		return invalid("paid_field", "needs due_day_field")
+	}
+	check := func(path string, key *string, typ string) error {
+		if key == nil {
+			return nil
+		}
+		var t string
+		var archived bool
+		err := q.QueryRow(ctx, `SELECT field_type, archived_at IS NOT NULL FROM field_definitions WHERE workspace_id = $1 AND key = $2`,
+			wsID, *key).Scan(&t, &archived)
+		if errors.Is(err, pgx.ErrNoRows) || (err == nil && (t != typ || archived)) {
+			return invalid(path, "must be an active %s field of this workspace", typ)
+		}
+		return err
+	}
+	if err := check("due_day_field", in.DueDayField, FieldDate); err != nil {
+		return err
+	}
+	if err := check("paid_field", in.PaidField, FieldBoolean); err != nil {
+		return err
+	}
+	if in.DueDayField != nil && touched[*in.DueDayField] {
+		return invalid("due_day_field", "%q is cleared or refilled every month", *in.DueDayField)
+	}
+	if in.PaidField != nil && !touched[*in.PaidField] {
+		return invalid("paid_field", "%q must be cleared or refilled every month", *in.PaidField)
+	}
 	return nil
+}
+
+// resets reports whether the configuration changes anything on close.
+func (c CycleInput) resets() bool {
+	return len(c.ClearFields) > 0 || len(c.Refill) > 0 || c.ResetStatusID != nil || c.DueDayField != nil
 }
 
 // SaveCycle replaces the configuration. Enabling it schedules the next close
@@ -272,19 +328,21 @@ func (s *Store) SaveCycle(ctx context.Context, wsID, projectID, actorID uuid.UUI
 			}
 		}
 		if _, err := tx.Exec(ctx, `INSERT INTO period_cycles (project_id, workspace_id, is_enabled, day_of_month,
-				clear_fields, refill, include_closed, reset_status_id, next_run, updated_by)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+				clear_fields, refill, include_closed, reset_status_id, due_day_field, paid_field, next_run, updated_by)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 			ON CONFLICT (project_id) DO UPDATE SET is_enabled = EXCLUDED.is_enabled, day_of_month = EXCLUDED.day_of_month,
 				clear_fields = EXCLUDED.clear_fields, refill = EXCLUDED.refill, include_closed = EXCLUDED.include_closed,
-				reset_status_id = EXCLUDED.reset_status_id, next_run = EXCLUDED.next_run,
+				reset_status_id = EXCLUDED.reset_status_id, due_day_field = EXCLUDED.due_day_field,
+				paid_field = EXCLUDED.paid_field, next_run = EXCLUDED.next_run,
 				updated_by = EXCLUDED.updated_by, last_error = NULL`,
 			projectID, wsID, in.Enabled, in.DayOfMonth, in.ClearFields, refill, in.IncludeClosed, in.ResetStatusID,
-			next, nullUUID(actorID)); err != nil {
+			in.DueDayField, in.PaidField, next, nullUUID(actorID)); err != nil {
 			return err
 		}
 		return appendEvent(ctx, tx, wsID, actorID, "project", projectID, "cycle.updated", map[string]any{
 			"enabled": in.Enabled, "day_of_month": in.DayOfMonth, "clear_fields": in.ClearFields, "refill": in.Refill,
 			"include_closed": in.IncludeClosed, "reset_status_id": in.ResetStatusID,
+			"due_day_field": in.DueDayField, "paid_field": in.PaidField,
 		})
 	})
 	if err != nil {
@@ -338,6 +396,7 @@ type cycleItem struct {
 	version int
 	open    bool
 	status  uuid.UUID
+	due     *string // YYYY-MM-DD
 	fields  map[string]json.RawMessage
 }
 
@@ -353,27 +412,15 @@ func (c CycleInput) statusChange(it cycleItem) (uuid.UUID, bool) {
 }
 
 func loadCycleItems(ctx context.Context, q querier, wsID, projectID uuid.UUID) ([]cycleItem, error) {
-	rows, err := q.Query(ctx, `SELECT i.number, i.version, s.category NOT IN ('done', 'canceled'), i.status_id, i.fields
+	rows, err := q.Query(ctx, `SELECT `+cycleItemCols+`
 		FROM items i JOIN statuses s ON s.id = i.status_id
 		WHERE i.workspace_id = $1 AND i.project_id = $2 AND i.deleted_at IS NULL
 		ORDER BY i.number LIMIT $3`, wsID, projectID, maxCycleItems+1)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	var out []cycleItem
-	for rows.Next() {
-		var it cycleItem
-		var raw []byte
-		if err := rows.Scan(&it.number, &it.version, &it.open, &it.status, &raw); err != nil {
-			return nil, err
-		}
-		if err := json.Unmarshal(raw, &it.fields); err != nil {
-			return nil, err
-		}
-		out = append(out, it)
-	}
-	if err := rows.Err(); err != nil {
+	out, err := scanCycleItems(rows)
+	if err != nil {
 		return nil, err
 	}
 	if len(out) > maxCycleItems {
@@ -382,9 +429,29 @@ func loadCycleItems(ctx context.Context, q querier, wsID, projectID uuid.UUID) (
 	return out, nil
 }
 
+// cycleItemCols are the columns scanCycleItems reads (items i, statuses s).
+const cycleItemCols = `i.number, i.version, s.category NOT IN ('done', 'canceled'), i.status_id, i.due_date::text, i.fields`
+
+func scanCycleItems(rows pgx.Rows) ([]cycleItem, error) {
+	defer rows.Close()
+	var out []cycleItem
+	for rows.Next() {
+		var it cycleItem
+		var raw []byte
+		if err := rows.Scan(&it.number, &it.version, &it.open, &it.status, &it.due, &raw); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(raw, &it.fields); err != nil {
+			return nil, err
+		}
+		out = append(out, it)
+	}
+	return out, rows.Err()
+}
+
 func (c Cycle) input() CycleInput {
 	return CycleInput{Enabled: c.Enabled, DayOfMonth: c.DayOfMonth, ClearFields: c.ClearFields, Refill: c.Refill,
-		IncludeClosed: c.IncludeClosed, ResetStatusID: c.ResetStatusID}
+		IncludeClosed: c.IncludeClosed, ResetStatusID: c.ResetStatusID, DueDayField: c.DueDayField, PaidField: c.PaidField}
 }
 
 // parsePeriod reads an explicit YYYY-MM for a manual close: last month or
@@ -446,13 +513,18 @@ func (s *Store) PreviewCycle(ctx context.Context, wsID, projectID uuid.UUID, per
 		return CyclePreview{}, err
 	}
 	in := c.input()
+	month := p.AddDate(0, 1, 0)
 	for _, it := range items {
 		out.Items++
 		if !in.inScope(it) {
 			continue
 		}
 		out.Open++
-		if _, st := in.statusChange(it); st || len(cycleChanges(in, it.fields)) > 0 {
+		if in.carries(it, today) {
+			out.WillCarry++
+			continue
+		}
+		if _, _, ok := in.resetUpdate(it, month); ok {
 			out.WillReset++
 		}
 	}
@@ -465,7 +537,7 @@ func (s *Store) CloseCycle(ctx context.Context, wsID, projectID, actorID uuid.UU
 	if err != nil {
 		return PeriodClose{}, err
 	}
-	if c.UpdatedAt == nil || (len(c.ClearFields) == 0 && len(c.Refill) == 0 && c.ResetStatusID == nil) {
+	if c.UpdatedAt == nil || !c.input().resets() {
 		return PeriodClose{}, invalid("cycle", "set up the fields to clear or refill first")
 	}
 	// Fields may have changed since the configuration was saved.
@@ -488,15 +560,17 @@ func (s *Store) CloseCycle(ctx context.Context, wsID, projectID, actorID uuid.UU
 		if err := notBeforeLatest(ctx, tx, wsID, projectID, p); err != nil {
 			return err
 		}
-		out, err = closePeriodTx(ctx, tx, wsID, projectID, actorID, p, in)
+		out, err = closePeriodTx(ctx, tx, wsID, projectID, actorID, p, today, in)
 		return err
 	})
 	return out, err
 }
 
 // closePeriodTx saves the snapshot and resets the open items. It fails with
-// period_closed when that month is already closed.
-func closePeriodTx(ctx context.Context, tx pgx.Tx, wsID, projectID, actorID uuid.UUID, period time.Time, c CycleInput) (PeriodClose, error) {
+// period_closed when that month is already closed. today is the run date:
+// with due dates (ADR-0055) an unpaid item due before it is carried, and the
+// reset items fall due in the month after period.
+func closePeriodTx(ctx context.Context, tx pgx.Tx, wsID, projectID, actorID uuid.UUID, period, today time.Time, c CycleInput) (PeriodClose, error) {
 	out := PeriodClose{ID: newID(), Period: period.Format(periodLayout), ClosedBy: nullUUID(actorID), Failed: []CycleItemError{}}
 	tag, err := tx.Exec(ctx, `INSERT INTO period_closes (id, workspace_id, project_id, period, closed_by, item_count, changed)
 		VALUES ($1, $2, $3, $4, $5, 0, 0) ON CONFLICT (project_id, period) DO NOTHING`,
@@ -519,40 +593,27 @@ func closePeriodTx(ctx context.Context, tx pgx.Tx, wsID, projectID, actorID uuid
 	}
 	out.ItemCount = int(snap.RowsAffected())
 	extra := map[string]any{"cycle": map[string]any{"close_id": out.ID, "period": out.Period}}
+	month := period.AddDate(0, 1, 0)
 	for _, it := range items {
 		if !c.inScope(it) {
 			continue
 		}
-		patch := cycleChanges(c, it.fields)
-		status, statusChanges := c.statusChange(it)
-		if len(patch) == 0 && !statusChanges {
+		if c.carries(it, today) {
+			out.Carried++
 			continue
 		}
-		sp, err := tx.Begin(ctx)
+		u, in, ok := c.resetUpdate(it, month)
+		if !ok {
+			continue
+		}
+		u.WorkspaceID, u.ProjectID, u.ActorID = wsID, projectID, actorID
+		changed, ie, err := applyCycleUpdate(ctx, tx, u, in, extra)
 		if err != nil {
 			return PeriodClose{}, err
 		}
-		u := UpdateItemParams{WorkspaceID: wsID, ProjectID: projectID, ActorID: actorID, Number: it.number, Version: it.version}
-		if len(patch) > 0 {
-			u.Fields.Set, u.Fields.Value = true, patch
-		}
-		if statusChanges {
-			u.StatusID.Set, u.StatusID.Value = true, status
-		}
-		_, changed, err := updateItemTx(ctx, sp, u, checkedUpdate{}, extra)
-		if err != nil {
-			_ = sp.Rollback(ctx)
-			ie, ok := bulkItemError(it.number, err)
-			if !ok {
-				return PeriodClose{}, err
-			}
-			out.Failed = append(out.Failed, CycleItemError{Number: ie.Number, Code: ie.Code, Message: ie.Message})
-			continue
-		}
-		if err := sp.Commit(ctx); err != nil {
-			return PeriodClose{}, err
-		}
-		if changed {
+		if ie != nil {
+			out.Failed = append(out.Failed, *ie)
+		} else if changed {
 			out.Changed++
 		}
 	}
@@ -560,8 +621,8 @@ func closePeriodTx(ctx context.Context, tx pgx.Tx, wsID, projectID, actorID uuid
 	if err != nil {
 		return PeriodClose{}, err
 	}
-	if err := tx.QueryRow(ctx, `UPDATE period_closes SET item_count = $2, changed = $3, failed = $4 WHERE id = $1 RETURNING created_at`,
-		out.ID, out.ItemCount, out.Changed, failed).Scan(&out.CreatedAt); err != nil {
+	if err := tx.QueryRow(ctx, `UPDATE period_closes SET item_count = $2, changed = $3, failed = $4, carried = $5 WHERE id = $1 RETURNING created_at`,
+		out.ID, out.ItemCount, out.Changed, failed, out.Carried).Scan(&out.CreatedAt); err != nil {
 		return PeriodClose{}, err
 	}
 	var projectKey, projectName string
@@ -569,7 +630,7 @@ func closePeriodTx(ctx context.Context, tx pgx.Tx, wsID, projectID, actorID uuid
 		return PeriodClose{}, err
 	}
 	err = appendEvent(ctx, tx, wsID, actorID, "project", projectID, "period.closed", map[string]any{
-		"close_id": out.ID, "period": out.Period, "items": out.ItemCount, "changed": out.Changed, "failed": len(out.Failed),
+		"close_id": out.ID, "period": out.Period, "items": out.ItemCount, "changed": out.Changed, "failed": len(out.Failed), "carried": out.Carried,
 		"project_key": projectKey, "project_name": projectName,
 	})
 	return out, err
@@ -577,7 +638,7 @@ func closePeriodTx(ctx context.Context, tx pgx.Tx, wsID, projectID, actorID uuid
 
 // ListCloses returns the project's closed months, newest first.
 func (s *Store) ListCloses(ctx context.Context, wsID, projectID uuid.UUID) ([]PeriodClose, error) {
-	rows, err := s.pool.Query(ctx, `SELECT id, period, closed_by, item_count, changed, failed, created_at
+	rows, err := s.pool.Query(ctx, `SELECT `+closeCols+`
 		FROM period_closes WHERE workspace_id = $1 AND project_id = $2 ORDER BY period DESC LIMIT 240`, wsID, projectID)
 	if err != nil {
 		return nil, err
@@ -594,11 +655,13 @@ func (s *Store) ListCloses(ctx context.Context, wsID, projectID uuid.UUID) ([]Pe
 	return out, rows.Err()
 }
 
+const closeCols = `id, period, closed_by, item_count, changed, carried, failed, created_at`
+
 func scanClose(row pgx.Row) (PeriodClose, error) {
 	var c PeriodClose
 	var period time.Time
 	var failed []byte
-	if err := row.Scan(&c.ID, &period, &c.ClosedBy, &c.ItemCount, &c.Changed, &failed, &c.CreatedAt); err != nil {
+	if err := row.Scan(&c.ID, &period, &c.ClosedBy, &c.ItemCount, &c.Changed, &c.Carried, &failed, &c.CreatedAt); err != nil {
 		return PeriodClose{}, err
 	}
 	c.Period = period.Format(periodLayout)
@@ -614,7 +677,7 @@ func (s *Store) GetCloseSnapshot(ctx context.Context, wsID, projectID uuid.UUID,
 	if err != nil {
 		return PeriodClose{}, nil, invalid("period", "must be YYYY-MM")
 	}
-	c, err := scanClose(s.pool.QueryRow(ctx, `SELECT id, period, closed_by, item_count, changed, failed, created_at
+	c, err := scanClose(s.pool.QueryRow(ctx, `SELECT `+closeCols+`
 		FROM period_closes WHERE workspace_id = $1 AND project_id = $2 AND period = $3`, wsID, projectID, p))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return PeriodClose{}, nil, ErrNotFound
@@ -699,9 +762,10 @@ func (s *Store) runCycle(ctx context.Context, projectID uuid.UUID) (bool, error)
 		var refill []byte
 		var c CycleInput
 		var run time.Time
-		err := tx.QueryRow(ctx, `SELECT workspace_id, day_of_month, clear_fields, refill, include_closed, reset_status_id, next_run
+		err := tx.QueryRow(ctx, `SELECT workspace_id, day_of_month, clear_fields, refill, include_closed, reset_status_id,
+				due_day_field, paid_field, next_run
 			FROM period_cycles WHERE project_id = $1 AND is_enabled AND next_run IS NOT NULL FOR UPDATE SKIP LOCKED`, projectID).
-			Scan(&wsID, &c.DayOfMonth, &c.ClearFields, &refill, &c.IncludeClosed, &c.ResetStatusID, &run)
+			Scan(&wsID, &c.DayOfMonth, &c.ClearFields, &refill, &c.IncludeClosed, &c.ResetStatusID, &c.DueDayField, &c.PaidField, &run)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil // disabled or being run by another replica
 		}
@@ -735,7 +799,8 @@ func (s *Store) runCycle(ctx context.Context, projectID uuid.UUID) (bool, error)
 		if err != nil {
 			return err
 		}
-		_, cerr := closePeriodTx(ctx, sp, wsID, projectID, uuid.Nil, period, c)
+		_, cerr := closePeriodTx(ctx, sp, wsID, projectID, uuid.Nil, period, today, c)
+
 		var ce *ConflictError
 		switch {
 		case errors.As(cerr, &ce) && ce.Code == "period_closed":

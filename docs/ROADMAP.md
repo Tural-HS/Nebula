@@ -92,6 +92,7 @@ Hər mərhələ yalnız testlər, miqrasiyalar (up və down) və CI yaşıl oldu
 - [x] Səhər xülasəsində "bu gün son tarix" siyahısı (hər şöbənin kanalı öz layihəsini alır); FinTez yaşıl tema (ADR-0049); ana səhifədə şəxsi qeydlər — sticky notes (ADR-0052)
 - [x] Ana səhifə keçidləri: admin ≤ 8 layihə seçir, hər kəs ana səhifədə görür (gizli layihəni yalnız üzvləri), sıra ↑/↓ (ADR-0053, miqrasiya 00039)
 - [x] Ad günü xatırlatması: layihə bir tarix sahəsi seçir, günü gələndə layihəni görənlərə tətbiqdaxili bildiriş (gündə bir dəfə, xülasə saatında; 29 fevral → 28 fevral) (ADR-0054, miqrasiya 00040)
+- [x] Aylıq dövrlə ödəniş son tarixləri: dövr bir tarix sahəsi (`loan_date`) seçir — hər ay son tarix onun günü olur (31 → ayın son günü); "Ödənildi" sahəsi ilə ödənilməyən gecikmiş kartlar bağlanışda sıfırlanmır (`carried`), ödəniləndən sonra gündəlik addım onları sıfırlayır (yalnız həmin ay bağlanandan sonra) (ADR-0055, miqrasiya 00041)
 - [x] Təhlükəsizlik baxışının düzəlişləri: layihə siyahılı API tokeni son layihəsi silinəndə workspace-ə genişlənmir (`project_restricted`, silinmədə ləğv, miqrasiya 00036, ADR-0043); tarixçədə əlaqə etiketləri görünməyən layihələrin tapşırıq adlarını göstərmir (gizli layihələr, token siyahısı); 00032 Down gözləyən əvəzli qərarlarda dayanır; workspace silinəndə token prinsipalları deaktiv olur; xlsx ixracı mətni apostrofsuz, olduğu kimi yazır (ADR-0040)
 
 ## Phase 2: Şablonlar və görünüşlər
