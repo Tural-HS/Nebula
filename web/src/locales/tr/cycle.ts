@@ -66,5 +66,12 @@ export const tcy = {
   name: "Ad",
   status: "Durum",
   yes: "✓",
+  dueDates: "Ödeme vadeleri",
+  dueField: "Ödeme günü alanı",
+  dueFieldHint: "Her ay son tarih bu tarihin gününe düşer (31 → ayın son günü). Bu ay verilen kredinin ilk vadesi gelecek aydır.",
+  paidField: "Ödendi alanı",
+  paidFieldHint: "Ödenmemiş gecikmiş işler sıfırlanmaz, gecikme sürer. Ödendi işaretlenince ertesi gün sıfırlanır. Bu alan her ay temizlenmelidir.",
+  none: "—",
+  carried: (n: number) => `Ödenmedi, sıfırlanmadı:${String(n)}`,
   noFields: "Uygun alan yok. Önce Ayarlar → Alanlar'da alan oluşturun.",
 } satisfies Messages["cycle"];

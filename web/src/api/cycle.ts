@@ -22,6 +22,10 @@ export interface CycleInput {
   include_closed: boolean;
   /** Status the reset items get; null keeps their status. */
   reset_status_id: string | null;
+  /** Date field whose day of the month is every item's due date (ADR-0055); null: off. */
+  due_day_field: string | null;
+  /** Boolean "paid" field: unpaid late items are carried, not reset. Needs due_day_field. */
+  paid_field: string | null;
 }
 
 export interface Cycle extends CycleInput {
@@ -43,6 +47,8 @@ export interface PeriodClose {
   closed_by: string | null; // null: the scheduler
   item_count: number;
   changed: number;
+  /** Unpaid late items the close left as they were (ADR-0055). */
+  carried: number;
   failed: CycleItemError[];
   created_at: string;
 }
@@ -53,7 +59,9 @@ export interface CyclePreview {
   items: number;
   open: number;
   will_reset: number;
+  will_carry: number;
 }
+
 
 export interface SnapshotRow {
   number: number;
