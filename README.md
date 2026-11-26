@@ -168,10 +168,11 @@ Bütün `/api/v1` endpoint-ləri (`/version` istisna olmaqla) `Authorization: Be
 | `GET /readyz` | Readiness: baza əlçatandır | — |
 | `GET /api/v1/version` | Build versiyası | ictimai |
 | `GET /api/v1/me` | Cari istifadəçi | — |
-| `GET /api/v1/me/home?show=attention\|overdue\|approval\|week\|assigned&limit=1..200` | Ana səhifə: sayğaclar, siyahı (`items`, `total`), workspace kartları, izlədiyim işlər, son layihələr — yalnız görünən layihələr (ADR-0037) | — |
+| `GET /api/v1/me/home?show=attention\|overdue\|approval\|week\|assigned&limit=1..200` | Ana səhifə: sayğaclar, siyahı (`items`, `total`), workspace kartları, izlədiyim işlər, son layihələr, admin seçdiyi keçidlər (`pinned`, ADR-0053) — yalnız görünən layihələr (ADR-0037) | — |
 | `GET, POST /api/v1/me/notes`, `PATCH, DELETE /api/v1/me/notes/{id}` | Şəxsi qeydlər (ana səhifə, ADR-0052): yalnız müəllif görür; `body` 1–2000, `color`, `pinned`; ən çox 100 | — |
 | `GET, POST /api/v1/workspaces` | Mənim workspace-lərim / yaratmaq (yaradan owner olur) | — |
 | `GET /api/v1/workspaces/{ws}` | Workspace və mənim rolum | guest+ |
+| `PATCH /api/v1/workspaces/{ws}` | Ad, saat qurşağı, xülasə saatı, vurğu rəngi, ana səhifə keçidləri (`home_projects`, ≤ 8 aktiv layihə id-si, ADR-0053) | admin+ |
 | `GET, POST /api/v1/workspaces/{ws}/members` | Üzvlər / əlavə etmək | guest+ / admin+ |
 | `PATCH /api/v1/workspaces/{ws}/members/{userID}` | Rolu dəyişmək (sahib rolu yalnız sahib tərəfindən; son sahib qorunur) | admin+ |
 | `DELETE /api/v1/workspaces/{ws}/members/{userID}` | Üzvü çıxarmaq / özü tərk etmək | admin+ / özü |
@@ -192,6 +193,7 @@ Bütün `/api/v1` endpoint-ləri (`/version` istisna olmaqla) `Authorization: Be
 | `GET, POST .../projects/{KEY}/views` | Saxlanılan görünüşlər (öz şəxsiləri + ümumilər) / yaratmaq (`shared: true` admin+) | guest+ |
 | `GET, PATCH, DELETE .../projects/{KEY}/views/{id}` | Oxumaq / dəyişmək / silmək (şəxsi: sahibi; ümumi: sahibi və ya admin+) | guest+ |
 | `GET, PUT .../projects/{KEY}/cycle` | Aylıq dövr (ADR-0051): `enabled`, `day_of_month` 1–28, `clear_fields`, `refill` (`target` ← `source`), `include_closed`, `reset_status_id` | member+ / admin+ |
+| `GET, PUT .../projects/{KEY}/date-reminder` | Ad günü xatırlatması (ADR-0054): `field` (tarix sahəsinin açarı və ya `null`); cavabda `last_sent`, `hour` | member+ / admin+ |
 | `POST .../projects/{KEY}/cycle/preview`, `POST .../cycle/close` | Ayı bağlamağın önizləməsi / əl ilə bağlamaq (`period`: `YYYY-MM`, boş = keçən ay) | admin+ |
 | `GET .../projects/{KEY}/cycle/closes[/{YYYY-MM}[/export?format=xlsx\|csv]]` | Bağlanmış aylar / bir ayın snapshot-ı / Excel və ya CSV kimi | member+ |
 | `POST .../projects/{KEY}/items` | Yaratmaq; `parent` (nömrə və ya açar) ilə alt tapşırıq. `PATCH`-da `parent: null` ayırır | member+ |

@@ -123,6 +123,12 @@ type HomeRecentProject struct {
 	LastActivity time.Time   `json:"last_activity"`
 }
 
+// HomePinned is a project an admin put on the home page (ADR-0053).
+type HomePinned struct {
+	Workspace HomeRef     `json:"workspace"`
+	Project   HomeProject `json:"project"`
+}
+
 // Home is the whole page.
 type Home struct {
 	Counters       HomeCounters        `json:"counters"`
@@ -132,6 +138,9 @@ type Home struct {
 	Workspaces     []HomeWorkspace     `json:"workspaces"`
 	Watching       []HomeWatched       `json:"watching"`
 	RecentProjects []HomeRecentProject `json:"recent_projects"`
+	// Pinned: the workspaces' home links the viewer can open, in the
+	// admin's order (private projects of others are left out).
+	Pinned []HomePinned `json:"pinned"`
 }
 
 // homeScope: $1 is the viewer. my = memberships with the workspace's local
@@ -236,6 +245,16 @@ var homeWatchedSQL = homeScope + `
 // (visible ones only), with their last change: the workspace card's "last
 // activity" and the empty state's recent projects. The LIMIT inside the
 // lateral keeps it an index scan of items_workspace_recent_idx.
+// homePinnedSQL: the admin-chosen home links (workspaces.home_projects), only
+// the visible ones, in the stored order.
+var homePinnedSQL = homeScope + `
+	SELECT my.slug, my.name, my.accent, vis.key, vis.name
+	FROM my
+	JOIN workspaces w ON w.id = my.id
+	CROSS JOIN LATERAL unnest(w.home_projects) WITH ORDINALITY AS h(project_id, pos)
+	JOIN vis ON vis.id = h.project_id AND vis.workspace_id = my.id
+	ORDER BY my.name, my.id, h.pos`
+
 var homeRecentSQL = homeScope + `
 	SELECT my.id, my.slug, my.name, my.accent, vis.key, vis.name, r.at
 	FROM my CROSS JOIN LATERAL (
@@ -257,7 +276,7 @@ func (s *Store) HomeFor(ctx context.Context, userID uuid.UUID, show string, limi
 		return Home{}, invalid("show", "must be attention, overdue, approval, week or assigned")
 	}
 	limit = min(max(limit, 1), MaxHomeList)
-	out := Home{Show: show, Items: []HomeItem{}, Workspaces: []HomeWorkspace{}, Watching: []HomeWatched{}, RecentProjects: []HomeRecentProject{}}
+	out := Home{Show: show, Items: []HomeItem{}, Workspaces: []HomeWorkspace{}, Watching: []HomeWatched{}, RecentProjects: []HomeRecentProject{}, Pinned: []HomePinned{}}
 
 	batch := &pgx.Batch{}
 	batch.Queue(homeCards, userID).Query(func(rows pgx.Rows) error {
@@ -300,6 +319,14 @@ func (s *Store) HomeFor(ctx context.Context, userID uuid.UUID, show string, limi
 		})
 		return err
 	})
+	batch.Queue(homePinnedSQL, userID).Query(func(rows pgx.Rows) error {
+		var err error
+		out.Pinned, err = pgx.CollectRows(rows, func(r pgx.CollectableRow) (HomePinned, error) {
+			var p HomePinned
+			return p, r.Scan(&p.Workspace.Slug, &p.Workspace.Name, &p.Workspace.Accent, &p.Project.Key, &p.Project.Name)
+		})
+		return err
+	})
 	last := map[uuid.UUID]time.Time{}
 	batch.Queue(homeRecentSQL, userID, homeRecentScan).Query(func(rows pgx.Rows) error {
 		var err error
@@ -334,5 +361,6 @@ func (s *Store) HomeFor(ctx context.Context, userID uuid.UUID, show string, limi
 	out.Workspaces = nonNilSlice(out.Workspaces)
 	out.Watching = nonNilSlice(out.Watching)
 	out.RecentProjects = nonNilSlice(out.RecentProjects)
+	out.Pinned = nonNilSlice(out.Pinned)
 	return out, nil
 }

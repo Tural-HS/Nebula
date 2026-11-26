@@ -40,6 +40,18 @@ export const ta = {
   },
 
   general: {
+
+    homeLinks: "Home page links",
+
+    homeLinksHint: "The chosen projects appear as buttons on everyone's home page (up to 8). Only its members see a private project.",
+
+    homeLinksSaved: "Home page links saved",
+
+    moveUp: "Up",
+
+    moveDown: "Down",
+
+    homeLinksMax: "You can choose up to 8 projects",
     name: "Workspace name",
     timezone: "Time zone",
     timezoneHint: "Due dates and \"today\" are calculated in this time zone.",

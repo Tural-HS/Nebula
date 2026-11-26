@@ -18,6 +18,7 @@ export const tn = {
   assignedBy: (actor: string) => `Assigned to you by ${actor}`,
   assigned: "Assigned to you",
   overdue: "Due date passed",
+  anniversary: "🎂 Birthday today",
   comment: (actor: string) => `${actor} commented`,
   statusChanged: (actor: string) => `${actor} changed the status`,
   assigneeChanged: (actor: string) => `${actor} changed the assignee`,

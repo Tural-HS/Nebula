@@ -3,6 +3,16 @@ import type { Messages } from "../../i18n/locale";
 
 export const tp = {
   settings: "Project settings",
+  reminder: {
+    title: "Birthday reminder",
+    hint: "When the day and month of the chosen date field fall on today (e.g. a customer's birthday), everyone who can see the project gets an in-app notification. Once a day, at the digest hour (09:00 when the digest is off).",
+    off: "Off",
+    field: "Date field",
+    saved: "Birthday reminder saved",
+    noDate: "The workspace has no date field: create one in Settings → Fields first.",
+    last: "Last sent",
+    saveLabel: "Save",
+  },
   private: "Private",
   privateProject: "Private project",
   privateHint: "Only project members and workspace admins can see it.",

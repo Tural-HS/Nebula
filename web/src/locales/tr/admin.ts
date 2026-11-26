@@ -39,6 +39,18 @@ export const ta = {
   },
 
   general: {
+
+    homeLinks: "Ana sayfa bağlantıları",
+
+    homeLinksHint: "Seçilen projeler herkesin ana sayfasında düğme olarak görünür (en fazla 8). Gizli projeyi yalnızca üyeleri görür.",
+
+    homeLinksSaved: "Ana sayfa bağlantıları kaydedildi",
+
+    moveUp: "Yukarı",
+
+    moveDown: "Aşağı",
+
+    homeLinksMax: "En fazla 8 proje seçilebilir",
     name: "Çalışma alanı adı",
     timezone: "Saat dilimi",
     timezoneHint: "Bitiş tarihleri ve \"bugün\" bu saat dilimine göre hesaplanır.",

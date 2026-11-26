@@ -38,6 +38,18 @@ export const ta = {
   },
 
   general: {
+
+    homeLinks: "Ana səhifə keçidləri",
+
+    homeLinksHint: "Seçilmiş layihələr hər kəsin ana səhifəsində düymə kimi görünür (ən çox 8). Gizli layihəni yalnız onun üzvləri görür.",
+
+    homeLinksSaved: "Ana səhifə keçidləri saxlanıldı",
+
+    moveUp: "Yuxarı",
+
+    moveDown: "Aşağı",
+
+    homeLinksMax: "Ən çox 8 layihə seçmək olar",
     name: "Workspace adı",
     timezone: "Saat qurşağı",
     timezoneHint: "Son tarixlər və \"bu gün\" bu qurşağa görə hesablanır.",

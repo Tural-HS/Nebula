@@ -83,7 +83,7 @@ func TestSearchBackfill(t *testing.T) {
 	ctx := context.Background()
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	version := 0
-	for range 20 {
+	for range 100 {
 		if err := f.owner.QueryRow(ctx, `SELECT max(version_id) FROM goose_db_version WHERE is_applied`).Scan(&version); err != nil {
 			t.Fatal(err)
 		}

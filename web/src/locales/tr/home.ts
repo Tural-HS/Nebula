@@ -26,6 +26,7 @@ export const thm = {
   calm: "Şu anda dikkatinizi gerektiren iş yok",
   calmHint: "Gecikmiş, onayınızı bekleyen veya bu hafta bitmesi gereken işiniz yok.",
   recentProjects: "Son projeler",
+  pinned: "Hızlı bağlantılar",
   searchHint: (keys: string) => `Bir çalışma alanında ${keys} ile görevleri ve yorumları arayın.`,
   noWorkspaces: "Henüz çalışma alanınız yok",
   invitedHint: "Davet edildiyseniz bağlantı e-postanızdadır. Değilse yöneticinizden sizi eklemesini isteyin.",

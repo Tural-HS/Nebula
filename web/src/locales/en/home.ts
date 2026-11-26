@@ -29,6 +29,7 @@ export const thm = {
   calm: "Nothing needs your attention right now",
   calmHint: "You have nothing overdue, no approvals waiting for you and nothing due this week.",
   recentProjects: "Recent projects",
+  pinned: "Quick links",
   searchHint: (keys: string) => `Inside a workspace, press ${keys} to search items and comments.`,
   noWorkspaces: "You have no workspace yet",
   invitedHint: "If you were invited, the link is in your email. Otherwise ask your admin to add you.",

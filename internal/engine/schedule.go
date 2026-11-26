@@ -56,6 +56,14 @@ func (e *Engine) Tick(ctx context.Context) {
 		e.Logger.Info("approval requests became overdue", "count", n)
 	}
 	e.slaTick(ctx)
+	// Yearly date reminders (ADR-0054), e.g. customers' birthdays.
+	if n, err := e.Store.EmitDateReminders(ctx); err != nil {
+		if ctx.Err() == nil {
+			e.Logger.Error("date reminders", "error", err)
+		}
+	} else if n > 0 {
+		e.Logger.Info("date reminders emitted", "count", n)
+	}
 	n, err := e.Store.EmitOverdueDigests(ctx)
 	if err != nil {
 		if ctx.Err() == nil {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -42,6 +43,9 @@ type Workspace struct {
 	OverdueDigestHour *int `json:"overdue_digest_hour"`
 	// Accent is the workspace colour key (ADR-0035); nil = the default teal.
 	Accent *string `json:"accent"`
+	// HomeProjects are the projects shown as links on every member's home
+	// page (ADR-0053), in order. Clients show only the ones the viewer can see.
+	HomeProjects []uuid.UUID `json:"home_projects"`
 	// ArchivedAt: an archived workspace is read-only and hidden from lists
 	// (ADR-0039); nil = active.
 	ArchivedAt *time.Time `json:"archived_at"`
@@ -273,7 +277,7 @@ func installDefaultTemplate(ctx context.Context, tx pgx.Tx, wsID uuid.UUID, tpl 
 	return wf, nil
 }
 
-const workspaceSelect = `SELECT w.id, w.slug, w.name, m.role, w.created_at, w.timezone, w.overdue_digest_hour, w.accent,
+const workspaceSelect = `SELECT w.id, w.slug, w.name, m.role, w.created_at, w.timezone, w.overdue_digest_hour, w.accent, w.home_projects,
 		w.archived_at, w.deletion_requested_at IS NOT NULL
 	FROM workspaces w JOIN workspace_members m ON m.workspace_id = w.id`
 
@@ -514,9 +518,13 @@ func isMember(ctx context.Context, q querier, wsID, userID uuid.UUID) (bool, err
 type UpdateWorkspaceParams struct {
 	Name              opt.Field[string]
 	Timezone          opt.Field[string]
-	OverdueDigestHour opt.Field[int]    // null turns the digest off
-	Accent            opt.Field[string] // null or "teal" = the default colour
+	OverdueDigestHour opt.Field[int]         // null turns the digest off
+	Accent            opt.Field[string]      // null or "teal" = the default colour
+	HomeProjects      opt.Field[[]uuid.UUID] // null or [] = no home links
 }
+
+// maxHomeProjects is the length cap of the home page links (CHECK backstop in 00039).
+const maxHomeProjects = 8
 
 // UpdateWorkspace changes name, time zone, digest hour or accent (admin+, checked by
 // the caller) and records a workspace.updated event.
@@ -550,7 +558,35 @@ func (s *Store) UpdateWorkspace(ctx context.Context, wsID, actorID uuid.UUID, p 
 		v := p.Accent.Value
 		accent = &v
 	}
+	var home []uuid.UUID
+	if p.HomeProjects.Set && !p.HomeProjects.Null {
+		if len(p.HomeProjects.Value) > maxHomeProjects {
+			return invalid("home_projects", "at most %d projects", maxHomeProjects)
+		}
+		seen := map[uuid.UUID]bool{}
+		for _, id := range p.HomeProjects.Value {
+			if seen[id] {
+				return invalid("home_projects", "a project is listed twice")
+			}
+			seen[id] = true
+		}
+		home = p.HomeProjects.Value
+	}
+	if home == nil {
+		home = []uuid.UUID{}
+	}
 	return s.inTx(ctx, func(tx pgx.Tx) error {
+		if len(home) > 0 {
+			// Every id must be an active project of this workspace: a link to
+			// another tenant's project id is refused, not stored.
+			var n int
+			if err := tx.QueryRow(ctx, `SELECT count(*) FROM projects WHERE workspace_id = $1 AND id = ANY($2) AND archived_at IS NULL`, wsID, home).Scan(&n); err != nil {
+				return err
+			}
+			if n != len(home) {
+				return invalid("home_projects", "must be active projects of this workspace")
+			}
+		}
 		if p.Timezone.Set {
 			var known bool
 			if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM pg_timezone_names WHERE name = $1)`, tz).Scan(&known); err != nil {
@@ -563,12 +599,13 @@ func (s *Store) UpdateWorkspace(ctx context.Context, wsID, actorID uuid.UUID, p 
 		var curName, curTZ string
 		var curHour *int
 		var curAccent *string
-		if err := tx.QueryRow(ctx, `SELECT name, timezone, overdue_digest_hour, accent FROM workspaces WHERE id = $1 FOR UPDATE`, wsID).
-			Scan(&curName, &curTZ, &curHour, &curAccent); err != nil {
+		var curHome []uuid.UUID
+		if err := tx.QueryRow(ctx, `SELECT name, timezone, overdue_digest_hour, accent, home_projects FROM workspaces WHERE id = $1 FOR UPDATE`, wsID).
+			Scan(&curName, &curTZ, &curHour, &curAccent, &curHome); err != nil {
 			return err
 		}
 		changes := map[string]any{}
-		newName, newTZ, newHour, newAccent := curName, curTZ, curHour, curAccent
+		newName, newTZ, newHour, newAccent, newHome := curName, curTZ, curHour, curAccent, curHome
 		if p.Name.Set && name != curName {
 			changes["name"] = diff(curName, name)
 			newName = name
@@ -592,11 +629,15 @@ func (s *Store) UpdateWorkspace(ctx context.Context, wsID, actorID uuid.UUID, p 
 			changes["accent"] = diff(accentKey(curAccent), accentKey(accent))
 			newAccent = accent
 		}
+		if p.HomeProjects.Set && !slices.Equal(curHome, home) {
+			changes["home_projects"] = diff(curHome, home)
+			newHome = home
+		}
 		if len(changes) == 0 {
 			return nil
 		}
-		if _, err := tx.Exec(ctx, `UPDATE workspaces SET name = $1, timezone = $2, overdue_digest_hour = $3, accent = $4 WHERE id = $5`,
-			newName, newTZ, newHour, newAccent, wsID); err != nil {
+		if _, err := tx.Exec(ctx, `UPDATE workspaces SET name = $1, timezone = $2, overdue_digest_hour = $3, accent = $4, home_projects = $5 WHERE id = $6`,
+			newName, newTZ, newHour, newAccent, newHome, wsID); err != nil {
 			return err
 		}
 		if _, ok := changes["timezone"]; ok {

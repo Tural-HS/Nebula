@@ -33,10 +33,15 @@ const (
 	// and approvers).
 	NotifyApprovalOverdue     = "approval_overdue"
 	NotifyApprovalInvalidated = "approval_invalidated"
+	// ADR-0054: an item's yearly date (e.g. a birthday) is today; to every
+	// member (not guests) who can see the project.
+	NotifyAnniversary = "anniversary"
 )
 
 const (
-	maxNotificationPage = 100
+	// maxAnniversaryRecipients bounds one reminder's fan-out (ADR-0054).
+	maxAnniversaryRecipients = 500
+	maxNotificationPage      = 100
 	// UnreadCountCap bounds the unread count query; the UI shows "99+" above 99.
 	UnreadCountCap = 100
 	// Retention, enforced by the worker's hourly housekeeping.
@@ -71,7 +76,7 @@ func notifiable(e Event) bool {
 	switch e.Action {
 	case TriggerItemCreated, TriggerItemOverdue, "comment.created", "comment.updated", "link.added",
 		EventApprovalRequested, EventApprovalApplied, EventApprovalRejected, EventApprovalCanceled,
-		EventApprovalOverdue, EventApprovalInvalidated, EventSLAAtRisk, EventSLABreached:
+		EventApprovalOverdue, EventApprovalInvalidated, EventSLAAtRisk, EventSLABreached, EventItemAnniversary:
 		return true
 	case TriggerItemUpdated:
 		changes, _ := e.Payload["changes"].(map[string]any)
@@ -225,6 +230,22 @@ func (s *Store) CreateNotifications(ctx context.Context, e Event) (int, error) {
 				watchers = slices.DeleteFunc(watchers, func(id uuid.UUID) bool { return slices.Contains(both, id) })
 			}
 			addWatchers(NotifyLinkAdded)
+		case EventItemAnniversary:
+			rows, err := tx.Query(ctx, `SELECT m.user_id FROM workspace_members m
+				JOIN projects p ON p.id = $2 AND p.workspace_id = m.workspace_id
+				WHERE m.workspace_id = $1 AND m.role <> 'guest'
+				  AND `+visibleProjectFor("p", "m.user_id", "m.role IN ('admin', 'owner')")+`
+				ORDER BY m.user_id LIMIT $3`, e.WorkspaceID, projectID, maxAnniversaryRecipients)
+			if err != nil {
+				return err
+			}
+			viewers, err := pgx.CollectRows(rows, pgx.RowTo[uuid.UUID])
+			if err != nil {
+				return err
+			}
+			for i := range viewers {
+				add(&viewers[i], NotifyAnniversary)
+			}
 		case EventApprovalRequested:
 			if err := addApprovers(ctx, tx, e, projectID, NotifyApprovalRequested, false, add); err != nil {
 				return err

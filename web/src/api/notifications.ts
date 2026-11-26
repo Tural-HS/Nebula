@@ -22,7 +22,9 @@ export type NotificationKind =
   | "approval_invalidated"
   // SLA targets (ADR-0045)
   | "sla_at_risk"
-  | "sla_breached";
+  | "sla_breached"
+  // Yearly date reminders, e.g. birthdays (ADR-0054)
+  | "anniversary";
 
 /** One entry of GET /me/notifications; item key and title are current. */
 export interface AppNotification {

@@ -60,7 +60,8 @@ test("admins set the time zone and the daily overdue digest", async ({ page }) =
   await page.goto(`/w/${seed.ws}/settings/general`);
   await page.getByLabel("Saat qurşağı").selectOption("Asia/Baku");
   await page.getByLabel("Gündəlik səhər xülasəsi").selectOption("9");
-  await page.getByRole("button", { name: "Yadda saxla" }).click();
+  // The first card's button (the home links card has its own).
+  await page.getByRole("button", { name: "Yadda saxla" }).first().click();
   await expect(page.getByText("Yadda saxlanıldı").first()).toBeVisible();
 
   const alice = await apiAs("alice");

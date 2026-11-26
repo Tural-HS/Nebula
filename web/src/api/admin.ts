@@ -186,8 +186,8 @@ export function useAdminApi(ws: string) {
   const rules = adminKeys.rules(ws);
   return {
     updateWorkspace: useAdminMutation(
-      (b: { name?: string; timezone?: string; overdue_digest_hour?: number | null; accent?: string | null }) => api<Workspace>("PATCH", base, b),
-      [keys.workspace(ws), keys.workspaces],
+      (b: { name?: string; timezone?: string; overdue_digest_hour?: number | null; accent?: string | null; home_projects?: string[] | null }) => api<Workspace>("PATCH", base, b),
+      [keys.workspace(ws), keys.workspaces, ["home"]],
     ),
     addMember: useAdminMutation((b: { email: string; role: Role }) => api<Member>("POST", base + "/members", b), [members]),
     setRole: useAdminMutation((v: { id: string; role: Role }) => api<Member>("PATCH", base + path`/members/${v.id}`, { role: v.role }), [members]),

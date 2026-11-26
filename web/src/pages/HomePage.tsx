@@ -8,7 +8,7 @@ import { Link, useSearchParams } from "react-router";
 
 import { api } from "../api/client";
 import { formKeys, type MyRequestPage } from "../api/forms";
-import { HOME_LIMIT, HOME_MAX, isHomeShow, useHome, type Home, type HomeItem, type HomeShow, type HomeWorkspace } from "../api/home";
+import { HOME_LIMIT, HOME_MAX, isHomeShow, useHome, type Home, type HomeItem, type HomePinned, type HomeShow, type HomeWorkspace } from "../api/home";
 import { useMe } from "../api/hooks";
 import { useMarkRead, useNotifications } from "../api/notifications";
 import { CreateWorkspaceDialog, NewWorkspaceButton } from "../components/CreateWorkspace";
@@ -53,6 +53,7 @@ export function HomePage() {
     const home = q.data;
     body = (
       <>
+        {!show && <PinnedLinks list={home.pinned ?? []} multi={home.workspaces.length > 1} />}
         <CounterStrip home={home} active={show} />
         {!show && <StickyNotes />}
         {show ? (
@@ -178,6 +179,36 @@ function Where({ project, workspace }: { project: string; workspace: { name: str
       <AccentDot accent={workspace.accent} />
       <span className="truncate">{project} · {workspace.name}</span>
     </span>
+  );
+}
+
+/** Admin-chosen shortcuts (ADR-0053): big, always in the same place, so the
+ * daily pages (e.g. the monthly report, the register) are one click away. */
+function PinnedLinks({ list, multi }: { list: HomePinned[]; multi: boolean }) {
+  if (list.length === 0) return null;
+  return (
+    <nav aria-labelledby="home-pinned">
+      <h2 id="home-pinned" className="sr-only">{thm.pinned}</h2>
+      <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {list.map((p) => (
+          <li key={`${p.workspace.slug}/${p.project.key}`} className="min-w-0">
+            <Link
+              to={`/w/${encodeURIComponent(p.workspace.slug)}/p/${encodeURIComponent(p.project.key)}`}
+              className="group flex h-full min-h-16 items-center gap-3 rounded-xl bg-white px-4 py-3 ring-1 ring-zinc-200 transition-colors hover:bg-brand-50 hover:ring-brand-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:bg-zinc-900 dark:ring-zinc-800 dark:hover:bg-zinc-800"
+            >
+              <span aria-hidden className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-brand-600 text-xs font-semibold text-white dark:bg-brand-500 dark:text-zinc-950">
+                {p.project.key.slice(0, 3)}
+              </span>
+              <span className="min-w-0">
+                <span className="block truncate font-medium" title={p.project.name}>{p.project.name}</span>
+                {multi && <span className="block truncate text-xs text-zinc-500 dark:text-zinc-400">{p.workspace.name}</span>}
+              </span>
+              <span aria-hidden className="ml-auto text-zinc-400 transition-transform group-hover:translate-x-0.5">→</span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </nav>
   );
 }
 

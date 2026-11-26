@@ -3,6 +3,16 @@ import type { Messages } from "../../i18n/locale";
 
 export const tp = {
   settings: "Proje ayarları",
+  reminder: {
+    title: "Doğum günü hatırlatması",
+    hint: "Seçilen tarih alanının günü ve ayı bugüne denk geldiğinde (ör. müşterinin doğum günü) projeyi gören herkes uygulama içi bildirim alır. Günde bir kez, özet saatinde (özet kapalıysa 09:00).",
+    off: "Kapalı",
+    field: "Tarih alanı",
+    saved: "Doğum günü hatırlatması kaydedildi",
+    noDate: "Çalışma alanında tarih alanı yok: önce Ayarlar → Alanlar'da oluşturun.",
+    last: "Son gönderim",
+    saveLabel: "Kaydet",
+  },
   private: "Gizli",
   privateProject: "Gizli proje",
   privateHint: "Yalnızca proje üyeleri ve çalışma alanı yöneticileri görür.",

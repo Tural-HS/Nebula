@@ -19,6 +19,7 @@ export const tn = {
   assignedBy: (actor: string) => `Вам назначено пользователем ${actor}`,
   assigned: "Назначено вам",
   overdue: "Срок истёк",
+  anniversary: "🎂 Сегодня день рождения",
   comment: (actor: string) => `${actor} оставил(а) комментарий`,
   statusChanged: (actor: string) => `${actor} изменил(а) статус`,
   assigneeChanged: (actor: string) => `${actor} сменил(а) исполнителя`,

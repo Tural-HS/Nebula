@@ -22,6 +22,9 @@ export interface Workspace {
   /** Accent colour key (lib/accent.ts, ADR-0035, migration 00028); null = the
    * Nebula teal. Optional so an older API (without the field) hides the picker. */
   accent?: string | null;
+  /** Project ids shown as links on every member's home page (ADR-0053,
+   * migration 00039), in order. Optional: an older API hides the picker. */
+  home_projects?: string[];
   /** Archived: read-only and hidden from lists (ADR-0039); null = active. */
   archived_at?: string | null;
   /** Permanent deletion requested; the purge is running. */

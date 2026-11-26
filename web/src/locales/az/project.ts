@@ -1,6 +1,16 @@
 // Azerbaijani strings for project settings and privacy (ADR-0013).
 export const tp = {
   settings: "Layihə ayarları",
+  reminder: {
+    title: "Ad günü xatırlatması",
+    hint: "Seçilmiş tarix sahəsinin günü və ayı bu günə düşəndə (məs. müştərinin ad günü) layihəni görən hər kəs tətbiqdə bildiriş alır. Hər gün bir dəfə, səhər xülasəsinin saatında (söndürülübsə 09:00).",
+    off: "Söndürülüb",
+    field: "Tarix sahəsi",
+    saved: "Ad günü xatırlatması saxlanıldı",
+    noDate: "Workspace-də tarix sahəsi yoxdur: əvvəlcə Ayarlar → Sahələr-də yaradın.",
+    last: "Son göndəriş",
+    saveLabel: "Yadda saxla",
+  },
   private: "Gizli",
   privateProject: "Gizli layihə",
   privateHint: "Yalnız layihə üzvləri və workspace adminləri görür.",

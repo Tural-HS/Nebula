@@ -12,6 +12,7 @@ export const tn = {
   assignedBy: (actor: string) => `${actor} tərəfindən sizə təyin edildi`,
   assigned: "Sizə təyin edildi",
   overdue: "Son tarixi keçdi",
+  anniversary: "🎂 Bu gün ad günüdür",
   comment: (actor: string) => `${actor} şərh yazdı`,
   statusChanged: (actor: string) => `${actor} statusu dəyişdi`,
   assigneeChanged: (actor: string) => `${actor} icraçını dəyişdi`,

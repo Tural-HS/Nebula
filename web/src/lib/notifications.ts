@@ -40,6 +40,8 @@ export function notificationLead(n: Pick<AppNotification, "kind" | "actor_name">
       return tsl.notify.atRisk;
     case "sla_breached":
       return tsl.notify.breached;
+    case "anniversary":
+      return tn.anniversary;
   }
 }
 

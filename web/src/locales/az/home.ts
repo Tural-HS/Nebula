@@ -24,6 +24,7 @@ export const thm = {
   calm: "Hazırda diqqətinizi tələb edən tapşırıq yoxdur",
   calmHint: "Gecikən, təsdiqinizi gözləyən və ya bu həftə bitməli tapşırığınız yoxdur.",
   recentProjects: "Son layihələr",
+  pinned: "Sürətli keçidlər",
   searchHint: (keys: string) => `Workspace-in içində ${keys} ilə tapşırıqları və şərhləri axtarın.`,
   noWorkspaces: "Hələ workspace-iniz yoxdur",
   invitedHint: "Dəvət olunmusunuzsa, keçid e-poçtunuzdadır. Dəvət yoxdursa, adminizdən sizi əlavə etməsini xahiş edin.",

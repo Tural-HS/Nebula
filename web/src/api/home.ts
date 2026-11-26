@@ -74,6 +74,12 @@ export interface HomeRecentProject {
   last_activity: string;
 }
 
+/** A project an admin put on the home page (ADR-0053). */
+export interface HomePinned {
+  workspace: HomeRef;
+  project: HomeProject;
+}
+
 export interface Home {
   counters: HomeCounters;
   show: HomeShow;
@@ -82,6 +88,8 @@ export interface Home {
   workspaces: HomeWorkspace[];
   watching: HomeWatched[];
   recent_projects: HomeRecentProject[];
+  /** Optional: an older API has no home links. */
+  pinned?: HomePinned[];
 }
 
 /** Rows on the home page; "show all" asks for the server's maximum. */
