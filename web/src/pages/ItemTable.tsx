@@ -112,13 +112,15 @@ export interface TableSelection {
   toggleAll: () => void;
 }
 
-export function ItemTable({ items, columns: chosen, fields, members, sums, hasMore, loadingMore, loadMore, onOpen, selection, inline, filters, onFilter, sort, onSort, density = "normal", widthScope }: {
+export function ItemTable({ items, columns: chosen, fields, members, sums, count, hasMore, loadingMore, loadMore, onOpen, selection, inline, filters, onFilter, sort, onSort, density = "normal", widthScope }: {
   items: Item[];
   columns: string[];
   fields: ReadonlyMap<string, FieldDefinition>;
   members: Map<string, Member>;
   /** Totals of the number columns; undefined while loading or when there are none. */
   sums: FieldSums | undefined;
+  /** Items matching the filters (all pages); shown in the footer. */
+  count?: number | undefined;
   hasMore: boolean;
   loadingMore: boolean;
   loadMore: () => void;
@@ -480,7 +482,7 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
           );
         })}
       </div>
-      {hasSums && (
+      {(hasSums || count !== undefined) && (
         <div
           role="row"
           aria-label={tv.total}
@@ -500,7 +502,7 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, hasMo
                 title={s ? (money !== undefined ? `${tm.totalsLabel(money)}\n${tm.noFx}\n${tv.totalHint(s.count)}` : tv.totalHint(s.count)) : undefined}
                 data-money-total={money !== undefined ? "" : undefined}
               >
-                {numeric(c) ? (s ? (money ?? withUnit(amountText(s.sum ?? "0", fields.get(fieldKey(c))), fields.get(fieldKey(c)))) : "…") : i === labelAt ? tv.total : ""}
+                {numeric(c) ? (s ? (money ?? withUnit(amountText(s.sum ?? "0", fields.get(fieldKey(c))), fields.get(fieldKey(c)))) : "…") : i === labelAt ? (count !== undefined ? tv.totalCount(count) : tv.total) : ""}
               </span>
             );
           })}

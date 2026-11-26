@@ -30,6 +30,8 @@ test.describe("as admin", () => {
     await page.goto(`${seed.url}?cols=key,title,status,field.balance,field.phone,field.nv`);
     await expect(page.getByRole("row").filter({ hasText: "Kullinan MMC" })).toContainText("800,00 ₼");
     await expect(page.getByRole("row", { name: "Cəmi" })).toContainText("2 000,00 ₼");
+    // The footer also counts the matching items (all pages, not only the loaded ones).
+    await expect(page.getByRole("row", { name: "Cəmi" })).toContainText(/Cəmi: \d+/);
     // No row has a signal: no empty column.
     await expect(page.getByRole("columnheader", { name: "Siqnal" })).toHaveCount(0);
 

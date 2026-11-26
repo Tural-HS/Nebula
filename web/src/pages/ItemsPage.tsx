@@ -3,7 +3,7 @@ import { Link, useParams, useSearchParams } from "react-router";
 
 import { MAX_BULK, useOptimisticUpdate } from "../api/bulk";
 import { ApiError } from "../api/client";
-import { useAssignable, useFields, useItems, useItemSums, useItemTypes, useMembers, useProjects, useQueueCounts, useSetDefaultView, useWorkspace, type DueFilter } from "../api/hooks";
+import { useAssignable, useFields, useItems, useItemTotals, useItemTypes, useMembers, useProjects, useQueueCounts, useSetDefaultView, useWorkspace, type DueFilter } from "../api/hooks";
 import { roleAtLeast, type Item, type SavedView, type Status } from "../api/types";
 import { useViews } from "../api/views";
 import { Layout } from "../components/Layout";
@@ -106,7 +106,7 @@ export function ItemsPage() {
     return opts;
   }, [columns, fields, state.sort]);
   const sumKeys = useMemo(() => (view === "table" ? sumFields(columns, fields) : []), [view, columns, fields]);
-  const sums = useItemSums(ws, project, filters, sumKeys);
+  const totals = useItemTotals(ws, project, filters, sumKeys, view === "table");
   const queueCounts = useQueueCounts(ws, project, filters);
   const statuses = useMemo(() => {
     const seen = new Map<string, Status>();
@@ -558,7 +558,8 @@ export function ItemsPage() {
                   columns={columns}
                   fields={fields}
                   members={memberById}
-                  sums={sums.data}
+                  sums={totals.data?.sums}
+                  count={totals.data?.count}
                   hasMore={items.hasNextPage}
                   loadingMore={items.isFetchingNextPage}
                   loadMore={() => void items.fetchNextPage()}

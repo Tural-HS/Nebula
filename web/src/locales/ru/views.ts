@@ -41,6 +41,8 @@ export const tv = {
   activeFilters: (n: number) => `Фильтры (${String(n)})`,
 
   total: "Итого",
+
+  totalCount: (n: number) => `Итого: ${String(n)}`,
   totalHint: (count: number) => `Значение есть у ${String(count)} ${itemsGen(count)} (по всем отфильтрованным результатам)`,
   created: "Создано",
 

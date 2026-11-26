@@ -316,6 +316,18 @@ func (s *Store) SumItemFields(ctx context.Context, p ListItemsParams, keys []str
 	return out, nil
 }
 
+// CountItems returns how many items match the list filters (the table's
+// footer shows it next to the sums).
+func (s *Store) CountItems(ctx context.Context, p ListItemsParams) (int, error) {
+	where, args, err := s.itemFilter(ctx, p, true)
+	if err != nil {
+		return 0, err
+	}
+	var n int
+	err = s.pool.QueryRow(ctx, "SELECT count(*) FROM items i WHERE "+strings.Join(where, " AND "), args...).Scan(&n)
+	return n, err
+}
+
 // fieldTypesByKey returns key -> type for the workspace's field definitions
 // among keys (archived ones included: old items still carry their values).
 func fieldTypesByKey(ctx context.Context, q querier, wsID uuid.UUID, keys []string) (map[string]string, error) {

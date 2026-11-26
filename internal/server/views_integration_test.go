@@ -397,8 +397,15 @@ func TestItemSums(t *testing.T) {
 	create("Kəsr", map[string]any{"monthly": 0.1})
 	check(sums("fields=monthly&q=Böyük%20OR%20Kəsr"), "monthly", "2000000000000000.1", 3)
 
+	// The footer count: every matching item, with or without amount fields.
+	listed := len(e.must(200, "bob", "GET", items+"?limit=200&q=Böyük%20OR%20Kəsr", nil).Body["items"].([]any))
+	for _, q := range []string{"q=Böyük%20OR%20Kəsr", "fields=monthly&q=Böyük%20OR%20Kəsr"} {
+		if got := e.must(200, "bob", "GET", sumsPath+"?"+q, nil).Body["count"]; got != float64(listed) || listed != 3 {
+			t.Errorf("%s: count %v, listed %d", q, got, listed)
+		}
+	}
+
 	for q, want := range map[string]int{
-		"":                             422,
 		"fields=plan":                  422, // not a number field
 		"fields=nope":                  422,
 		"fields=a,b,c,d,e,f,g,h,i,j,k": 400,

@@ -36,6 +36,8 @@ export const tv = {
   activeFilters: (n: number) => `Filtrlər (${String(n)})`,
 
   total: "Cəmi",
+
+  totalCount: (n: number) => `Cəmi: ${String(n)}`,
   totalHint: (count: number) => `${String(count)} tapşırıqda dəyər var (bütün filtrlənmiş nəticə)`,
   created: "Yaradılıb",
 

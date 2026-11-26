@@ -39,6 +39,8 @@ export const tv = {
   activeFilters: (n: number) => `Filters (${String(n)})`,
 
   total: "Total",
+
+  totalCount: (n: number) => `Total: ${String(n)}`,
   totalHint: (count: number) => `${String(count)} ${plural("en", count, { one: "item has", other: "items have" })} a value (across all filtered results)`,
   created: "Created",
 

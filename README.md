@@ -189,7 +189,7 @@ Bütün `/api/v1` endpoint-ləri (`/version` istisna olmaqla) `Authorization: Be
 | `POST .../{ws}/workflows/{id}/statuses` | Status əlavə etmək | admin+ |
 | `PATCH, DELETE .../{ws}/workflows/{id}/statuses/{statusID}` | Status dəyişmək / silmək | admin+ |
 | `GET .../projects/{KEY}/items` | Siyahı: `limit`, `cursor`, `q`, `status`, `assignee=me\|none\|{id}`, `field.<açar>=<dəyər>`, `due`, `sort=number\|due` (kursor sıralamaya bağlıdır), `parent=<nömrə\|açar>`, `top_level=true` (ADR-0021), `approval=pending\|mine` (ADR-0026) | guest+ |
-| `GET .../projects/{KEY}/items/sums?fields=a,b` | Rəqəm sahələrinin bütün filtrlənmiş nəticə üzrə cəmi və sayı (siyahının eyni filtrləri, ən çox 10 sahə) | guest+ |
+| `GET .../projects/{KEY}/items/sums?fields=a,b` | Rəqəm sahələrinin bütün filtrlənmiş nəticə üzrə cəmi və sayı, üstəlik `count` — uyğun tapşırıqların sayı (`fields` boş ola bilər; siyahının eyni filtrləri, ən çox 10 sahə) | guest+ |
 | `GET, POST .../projects/{KEY}/views` | Saxlanılan görünüşlər (öz şəxsiləri + ümumilər) / yaratmaq (`shared: true` admin+) | guest+ |
 | `GET, PATCH, DELETE .../projects/{KEY}/views/{id}` | Oxumaq / dəyişmək / silmək (şəxsi: sahibi; ümumi: sahibi və ya admin+) | guest+ |
 | `GET, PUT .../projects/{KEY}/cycle` | Aylıq dövr (ADR-0051): `enabled`, `day_of_month` 1–28, `clear_fields`, `refill` (`target` ← `source`), `include_closed`, `reset_status_id` | member+ / admin+ |

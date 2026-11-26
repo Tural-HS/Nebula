@@ -223,6 +223,22 @@ export const useItemSums = (ws: string, project: string, filters: ItemFilters, f
     },
   });
 
+/** The table footer: sums of the amount columns (maybe none) and how many
+ * items match the filters, in one request. */
+export const useItemTotals = (ws: string, project: string, filters: ItemFilters, fields: readonly string[], enabled = true) =>
+  useQuery({
+    enabled,
+    queryKey: [...keys.items(ws, project), "totals", filters, fields],
+    queryFn: async () => {
+      const p = new URLSearchParams(itemsQueryString(filters, null));
+      p.delete("limit");
+      p.delete("sort");
+      if (fields.length > 0) p.set("fields", fields.join(","));
+      return api<{ sums: FieldSums; count?: number }>("GET", path`/workspaces/${ws}/projects/${project}/items/sums` + "?" + p.toString());
+    },
+    placeholderData: keepPreviousData,
+  });
+
 export const useItem = (ws: string, project: string, n: number | null) =>
   useQuery({
     queryKey: keys.item(ws, project, n ?? 0),

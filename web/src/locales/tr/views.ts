@@ -38,6 +38,8 @@ export const tv = {
   activeFilters: (n: number) => `Filtreler (${String(n)})`,
 
   total: "Toplam",
+
+  totalCount: (n: number) => `Toplam: ${String(n)}`,
   totalHint: (count: number) => `${String(count)} görevde değer var (filtrelenmiş sonucun tamamı)`,
   created: "Oluşturuldu",
 

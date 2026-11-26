@@ -142,12 +142,21 @@ func (a *api) sumItems(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "bad_request", "at most "+strconv.Itoa(store.MaxSumFields)+" fields")
 		return
 	}
-	sums, err := a.store.SumItemFields(r.Context(), p, keys)
+	// Without fields: only the count (tables with no amount column).
+	sums := map[string]store.FieldSum{}
+	if len(keys) > 0 {
+		var err error
+		if sums, err = a.store.SumItemFields(r.Context(), p, keys); err != nil {
+			a.fail(w, r, err)
+			return
+		}
+	}
+	count, err := a.store.CountItems(r.Context(), p)
 	if err != nil {
 		a.fail(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"sums": sums})
+	writeJSON(w, http.StatusOK, map[string]any{"sums": sums, "count": count})
 }
 
 // Item list cursors are opaque to clients. Each encodes its sort, so a
