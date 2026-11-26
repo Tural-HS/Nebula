@@ -166,7 +166,7 @@ func (e *Engine) deliverWebhook(ctx context.Context, j store.Job) error {
 	if target.WorkspaceID != ev.WorkspaceID {
 		return worker.Permanent(errors.New("webhook and event belong to different workspaces"))
 	}
-	if !p.Force && (!target.Active || !store.MatchEvent(target.Events, ev.Action)) {
+	if !p.Force && (!target.Active || !store.MatchEventOf(target.Events, ev)) {
 		return nil // disabled or unsubscribed since the event happened
 	}
 	if !p.Force && target.Format == store.WebhookFormatSlack && isCycleReset(ev) {

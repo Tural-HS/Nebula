@@ -161,7 +161,10 @@ function GeneralForm({ ws, workspace }: { ws: string; workspace: Workspace }) {
   const fb = useFeedback();
   const [name, setName] = useState(workspace.name);
   const [timezone, setTimezone] = useState(workspace.timezone);
-  const [hour, setHour] = useState(workspace.overdue_digest_hour === null ? "" : String(workspace.overdue_digest_hour));
+  // "H:M" or "" (off); half-hour steps, plus a stored minute that is not one (ADR-0059).
+  const stored = workspace.overdue_digest_hour === null ? "" : `${String(workspace.overdue_digest_hour)}:${String(workspace.overdue_digest_minute ?? 0)}`;
+  const [time, setTime] = useState(stored);
+  const times = digestTimes(stored);
 
   return (
     <Card>
@@ -170,7 +173,9 @@ function GeneralForm({ ws, workspace }: { ws: string; workspace: Workspace }) {
         onSubmit={(e) => {
           e.preventDefault();
           adm.updateWorkspace.mutate(
-            { name, timezone, overdue_digest_hour: hour === "" ? null : Number(hour) },
+            time === ""
+              ? { name, timezone, overdue_digest_hour: null }
+              : { name, timezone, overdue_digest_hour: Number(time.split(":")[0]), overdue_digest_minute: Number(time.split(":")[1]) },
             { onSuccess: fb.ok(), onError: fb.fail },
           );
         }}
@@ -188,11 +193,9 @@ function GeneralForm({ ws, workspace }: { ws: string; workspace: Workspace }) {
         </label>
         <label className="block text-sm">
           <span className="mb-1 block text-zinc-600 dark:text-zinc-400">{ta.general.digestHour}</span>
-          <Select value={hour} onChange={(e) => { setHour(e.target.value); }} className="w-40">
+          <Select value={time} onChange={(e) => { setTime(e.target.value); }} className="w-40">
             <option value="">{ta.general.digestOff}</option>
-            {Array.from({ length: 24 }, (_, h) => (
-              <option key={h} value={String(h)}>{String(h).padStart(2, "0")}:00</option>
-            ))}
+            {times.map((v) => <option key={v} value={v}>{clock(v)}</option>)}
           </Select>
           <span className="mt-1 block text-xs text-zinc-500 dark:text-zinc-400">{ta.general.digestHint}</span>
         </label>
@@ -200,4 +203,17 @@ function GeneralForm({ ws, workspace }: { ws: string; workspace: Workspace }) {
       </form>
     </Card>
   );
+}
+
+/** "9:30" -> "09:30". */
+function clock(v: string): string {
+  const [h = "0", m = "0"] = v.split(":");
+  return `${h.padStart(2, "0")}:${m.padStart(2, "0")}`;
+}
+
+/** Every half hour of the day as "H:M", plus the stored value when it is off the grid. */
+function digestTimes(stored: string): string[] {
+  const out = Array.from({ length: 48 }, (_, i) => `${String(Math.floor(i / 2))}:${i % 2 ? "30" : "0"}`);
+  if (stored && !out.includes(stored)) out.push(stored);
+  return out.sort((a, b) => clock(a).localeCompare(clock(b)));
 }

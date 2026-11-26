@@ -41,6 +41,8 @@ type Workspace struct {
 	Timezone string `json:"timezone"`
 	// OverdueDigestHour is the local hour of the daily overdue digest; nil = off.
 	OverdueDigestHour *int `json:"overdue_digest_hour"`
+	// OverdueDigestMinute is the minute of that hour (ADR-0059), 0-59.
+	OverdueDigestMinute int `json:"overdue_digest_minute"`
 	// Accent is the workspace colour key (ADR-0035); nil = the default teal.
 	Accent *string `json:"accent"`
 	// HomeProjects are the projects shown as links on every member's home
@@ -129,8 +131,8 @@ func (s *Store) CreateWorkspaceOfKind(ctx context.Context, owner uuid.UUID, slug
 
 	ws := Workspace{ID: newID(), Slug: slug, Name: name, Role: RoleOwner, Timezone: tpl.timezone}
 	err = s.inTx(ctx, func(tx pgx.Tx) error {
-		err := tx.QueryRow(ctx, `INSERT INTO workspaces (id, slug, name, timezone) VALUES ($1, $2, $3, $4) RETURNING created_at, overdue_digest_hour`,
-			ws.ID, slug, name, tpl.timezone).Scan(&ws.CreatedAt, &ws.OverdueDigestHour)
+		err := tx.QueryRow(ctx, `INSERT INTO workspaces (id, slug, name, timezone) VALUES ($1, $2, $3, $4) RETURNING created_at, overdue_digest_hour, overdue_digest_minute`,
+			ws.ID, slug, name, tpl.timezone).Scan(&ws.CreatedAt, &ws.OverdueDigestHour, &ws.OverdueDigestMinute)
 		if isUniqueViolation(err, "workspaces_slug_key") {
 			return &ConflictError{Code: "slug_taken", Message: "workspace slug is already taken"}
 		}
@@ -277,7 +279,7 @@ func installDefaultTemplate(ctx context.Context, tx pgx.Tx, wsID uuid.UUID, tpl 
 	return wf, nil
 }
 
-const workspaceSelect = `SELECT w.id, w.slug, w.name, m.role, w.created_at, w.timezone, w.overdue_digest_hour, w.accent, w.home_projects,
+const workspaceSelect = `SELECT w.id, w.slug, w.name, m.role, w.created_at, w.timezone, w.overdue_digest_hour, w.overdue_digest_minute, w.accent, w.home_projects,
 		w.archived_at, w.deletion_requested_at IS NOT NULL
 	FROM workspaces w JOIN workspace_members m ON m.workspace_id = w.id`
 
@@ -516,11 +518,12 @@ func isMember(ctx context.Context, q querier, wsID, userID uuid.UUID) (bool, err
 
 // UpdateWorkspaceParams is a partial update of workspace settings.
 type UpdateWorkspaceParams struct {
-	Name              opt.Field[string]
-	Timezone          opt.Field[string]
-	OverdueDigestHour opt.Field[int]         // null turns the digest off
-	Accent            opt.Field[string]      // null or "teal" = the default colour
-	HomeProjects      opt.Field[[]uuid.UUID] // null or [] = no home links
+	Name                opt.Field[string]
+	Timezone            opt.Field[string]
+	OverdueDigestHour   opt.Field[int]         // null turns the digest off
+	OverdueDigestMinute opt.Field[int]         // 0-59 (ADR-0059)
+	Accent              opt.Field[string]      // null or "teal" = the default colour
+	HomeProjects        opt.Field[[]uuid.UUID] // null or [] = no home links
 }
 
 // maxHomeProjects is the length cap of the home page links (CHECK backstop in 00039).
@@ -549,6 +552,9 @@ func (s *Store) UpdateWorkspace(ctx context.Context, wsID, actorID uuid.UUID, p 
 	}
 	if p.OverdueDigestHour.Set && !p.OverdueDigestHour.Null && (p.OverdueDigestHour.Value < 0 || p.OverdueDigestHour.Value > 23) {
 		return invalid("overdue_digest_hour", "must be 0 to 23 or null")
+	}
+	if p.OverdueDigestMinute.Set && (p.OverdueDigestMinute.Null || p.OverdueDigestMinute.Value < 0 || p.OverdueDigestMinute.Value > 59) {
+		return invalid("overdue_digest_minute", "must be 0 to 59")
 	}
 	var accent *string // the requested value; nil = default
 	if p.Accent.Set && !p.Accent.Null && p.Accent.Value != AccentDefault {
@@ -598,14 +604,15 @@ func (s *Store) UpdateWorkspace(ctx context.Context, wsID, actorID uuid.UUID, p 
 		}
 		var curName, curTZ string
 		var curHour *int
+		var curMinute int
 		var curAccent *string
 		var curHome []uuid.UUID
-		if err := tx.QueryRow(ctx, `SELECT name, timezone, overdue_digest_hour, accent, home_projects FROM workspaces WHERE id = $1 FOR UPDATE`, wsID).
-			Scan(&curName, &curTZ, &curHour, &curAccent, &curHome); err != nil {
+		if err := tx.QueryRow(ctx, `SELECT name, timezone, overdue_digest_hour, overdue_digest_minute, accent, home_projects FROM workspaces WHERE id = $1 FOR UPDATE`, wsID).
+			Scan(&curName, &curTZ, &curHour, &curMinute, &curAccent, &curHome); err != nil {
 			return err
 		}
 		changes := map[string]any{}
-		newName, newTZ, newHour, newAccent, newHome := curName, curTZ, curHour, curAccent, curHome
+		newName, newTZ, newHour, newMinute, newAccent, newHome := curName, curTZ, curHour, curMinute, curAccent, curHome
 		if p.Name.Set && name != curName {
 			changes["name"] = diff(curName, name)
 			newName = name
@@ -625,6 +632,10 @@ func (s *Store) UpdateWorkspace(ctx context.Context, wsID, actorID uuid.UUID, p 
 				newHour = h
 			}
 		}
+		if p.OverdueDigestMinute.Set && p.OverdueDigestMinute.Value != curMinute {
+			changes["overdue_digest_minute"] = diff(curMinute, p.OverdueDigestMinute.Value)
+			newMinute = p.OverdueDigestMinute.Value
+		}
 		if p.Accent.Set && !equalPtr(curAccent, accent) {
 			changes["accent"] = diff(accentKey(curAccent), accentKey(accent))
 			newAccent = accent
@@ -636,8 +647,8 @@ func (s *Store) UpdateWorkspace(ctx context.Context, wsID, actorID uuid.UUID, p 
 		if len(changes) == 0 {
 			return nil
 		}
-		if _, err := tx.Exec(ctx, `UPDATE workspaces SET name = $1, timezone = $2, overdue_digest_hour = $3, accent = $4, home_projects = $5 WHERE id = $6`,
-			newName, newTZ, newHour, newAccent, newHome, wsID); err != nil {
+		if _, err := tx.Exec(ctx, `UPDATE workspaces SET name = $1, timezone = $2, overdue_digest_hour = $3, accent = $4, home_projects = $5, overdue_digest_minute = $7 WHERE id = $6`,
+			newName, newTZ, newHour, newAccent, newHome, wsID, newMinute); err != nil {
 			return err
 		}
 		if _, ok := changes["timezone"]; ok {

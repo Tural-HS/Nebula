@@ -187,7 +187,7 @@ func (s *Store) EmitOverdueDigests(ctx context.Context) (int, error) {
 			INSERT INTO workspace_digest_runs (workspace_id, local_date)
 			SELECT w.id, `+localToday+` FROM workspaces w
 			WHERE w.overdue_digest_hour IS NOT NULL AND w.archived_at IS NULL
-			  AND extract(hour FROM now() AT TIME ZONE w.timezone) >= w.overdue_digest_hour
+			  AND (now() AT TIME ZONE w.timezone)::time >= make_time(w.overdue_digest_hour, w.overdue_digest_minute, 0)
 			ON CONFLICT DO NOTHING
 			RETURNING workspace_id, local_date::text, (SELECT timezone FROM workspaces WHERE id = workspace_id)`)
 		if err != nil {

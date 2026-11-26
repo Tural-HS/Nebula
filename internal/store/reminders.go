@@ -96,7 +96,7 @@ func (s *Store) EmitDateReminders(ctx context.Context) (int, error) {
 		JOIN workspaces w ON w.id = d.workspace_id AND w.archived_at IS NULL AND w.deletion_requested_at IS NULL
 		JOIN projects p ON p.id = d.project_id AND p.archived_at IS NULL AND p.deletion_requested_at IS NULL
 		WHERE (d.last_sent IS NULL OR d.last_sent < (now() AT TIME ZONE w.timezone)::date)
-		  AND extract(hour FROM now() AT TIME ZONE w.timezone) >= COALESCE(w.overdue_digest_hour, $2)
+		  AND (now() AT TIME ZONE w.timezone)::time >= make_time(COALESCE(w.overdue_digest_hour, $2), w.overdue_digest_minute, 0)
 		ORDER BY d.project_id LIMIT $1`, reminderBatch, reminderHour)
 	if err != nil {
 		return 0, err
@@ -143,7 +143,7 @@ func (s *Store) runDateReminder(ctx context.Context, projectID uuid.UUID) (int, 
 		err := tx.QueryRow(ctx, `SELECT d.workspace_id, d.field_key, COALESCE(f.name, d.field_key),
 				(now() AT TIME ZONE w.timezone)::date,
 				(d.last_sent IS NULL OR d.last_sent < (now() AT TIME ZONE w.timezone)::date)
-					AND extract(hour FROM now() AT TIME ZONE w.timezone) >= COALESCE(w.overdue_digest_hour, $2)
+					AND (now() AT TIME ZONE w.timezone)::time >= make_time(COALESCE(w.overdue_digest_hour, $2), w.overdue_digest_minute, 0)
 			FROM date_reminders d
 			JOIN workspaces w ON w.id = d.workspace_id
 			LEFT JOIN field_definitions f ON f.workspace_id = d.workspace_id AND f.key = d.field_key

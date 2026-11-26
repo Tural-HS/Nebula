@@ -21,13 +21,14 @@ func TestWorkspaceSettings(t *testing.T) {
 	for _, bad := range []map[string]any{
 		{"timezone": "Mars/Olympus"}, {"timezone": "Local"}, {"timezone": ""}, {"timezone": nil},
 		{"overdue_digest_hour": 24}, {"overdue_digest_hour": -1}, {"name": ""},
+		{"overdue_digest_minute": 60}, {"overdue_digest_minute": -1}, {"overdue_digest_minute": nil},
 	} {
 		if r := e.call("alice", "PATCH", wsBase, bad); r.Status != 422 {
 			t.Errorf("%v: %d %s", bad, r.Status, r.Raw)
 		}
 	}
-	ws := e.must(200, "alice", "PATCH", wsBase, map[string]any{"timezone": "Asia/Baku", "overdue_digest_hour": 9}).Body
-	if ws["timezone"] != "Asia/Baku" || ws["overdue_digest_hour"] != 9.0 || ws["role"] != "owner" {
+	ws := e.must(200, "alice", "PATCH", wsBase, map[string]any{"timezone": "Asia/Baku", "overdue_digest_hour": 9, "overdue_digest_minute": 30}).Body
+	if ws["timezone"] != "Asia/Baku" || ws["overdue_digest_hour"] != 9.0 || ws["overdue_digest_minute"] != 30.0 || ws["role"] != "owner" {
 		t.Fatalf("settings not applied: %v", ws)
 	}
 	if ws = e.must(200, "alice", "PATCH", wsBase, map[string]any{"overdue_digest_hour": nil}).Body; ws["overdue_digest_hour"] != nil {

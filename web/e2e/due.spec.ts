@@ -59,13 +59,13 @@ test("set and clear a due date in the panel; history records it", async ({ page 
 test("admins set the time zone and the daily overdue digest", async ({ page }) => {
   await page.goto(`/w/${seed.ws}/settings/general`);
   await page.getByLabel("Saat qurşağı").selectOption("Asia/Baku");
-  await page.getByLabel("Gündəlik səhər xülasəsi").selectOption("9");
+  await page.getByLabel("Gündəlik səhər xülasəsi").selectOption("09:30");
   // The first card's button (the home links card has its own).
   await page.getByRole("button", { name: "Yadda saxla" }).first().click();
   await expect(page.getByText("Yadda saxlanıldı").first()).toBeVisible();
 
   const alice = await apiAs("alice");
-  const ws = (await (await alice.get(`workspaces/${seed.ws}`)).json()) as { timezone: string; overdue_digest_hour: number | null };
-  expect(ws).toMatchObject({ timezone: "Asia/Baku", overdue_digest_hour: 9 });
+  const ws = (await (await alice.get(`workspaces/${seed.ws}`)).json()) as { timezone: string; overdue_digest_hour: number | null; overdue_digest_minute: number };
+  expect(ws).toMatchObject({ timezone: "Asia/Baku", overdue_digest_hour: 9, overdue_digest_minute: 30 });
   await alice.dispose();
 });

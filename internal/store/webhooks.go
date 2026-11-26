@@ -90,6 +90,26 @@ func normalizeEvents(events []string) ([]string, error) {
 	return slices.Compact(out), nil
 }
 
+// EventStatusChanged is a subscription-only pattern (ADR-0059): it matches
+// the item.updated events that change the item's status, so a chat channel
+// can follow status changes without a line for every field edit. No event
+// has this action itself.
+const EventStatusChanged = "item.status_changed"
+
+// MatchEventOf reports whether the event matches any subscription pattern,
+// including EventStatusChanged.
+func MatchEventOf(patterns []string, e Event) bool {
+	if MatchEvent(patterns, e.Action) {
+		return true
+	}
+	if e.Action != "item.updated" || !slices.Contains(patterns, EventStatusChanged) {
+		return false
+	}
+	changes, _ := e.Payload["changes"].(map[string]any)
+	_, ok := changes["status_id"]
+	return ok
+}
+
 // MatchEvent reports whether action matches any subscription pattern.
 func MatchEvent(patterns []string, action string) bool {
 	for _, p := range patterns {

@@ -77,6 +77,14 @@ func TestRenderChat(t *testing.T) {
 			"changes":  map[string]any{"status_id": map[string]any{"from": todo.String(), "to": doing.String()}},
 			"snapshot": map[string]any{"title": "Başlıq"},
 		}), c, "🔄 " + link + " “Başlıq”: To Do → In Progress — Alice Developer"},
+		{"moved to done", ev("item.updated", map[string]any{
+			"changes":  map[string]any{"status_id": map[string]any{"from": todo.String(), "to": doing.String()}},
+			"snapshot": map[string]any{"title": "Başlıq"},
+		}), func() ChatContext {
+			d := c
+			d.StatusCategories = map[uuid.UUID]string{doing: "done"}
+			return d
+		}(), "✅ " + link + " “Başlıq”: To Do → In Progress — Alice Developer"},
 		{"created", ev("item.created", map[string]any{"key": "QA-12"}), c, "🆕 " + link + " “Başlıq” yaradıldı — Alice Developer"},
 		{"assigned", ev("item.updated", map[string]any{
 			"changes": map[string]any{"assignee_id": map[string]any{"from": nil, "to": bob.String()}},

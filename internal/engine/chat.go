@@ -32,6 +32,8 @@ type ChatContext struct {
 	ItemURL  string           // link to the item in the web UI ("" = no link)
 	Users    map[uuid.UUID]string
 	Statuses map[uuid.UUID]string
+	// StatusCategories of the statuses in Statuses: a move to done reads ✅.
+	StatusCategories map[uuid.UUID]string
 	// PublicURL is the web UI base URL, for links to items that are not the
 	// event's own entity (digest entries). "" = no links.
 	PublicURL string
@@ -138,7 +140,11 @@ func (c ChatContext) itemUpdated(ev store.Event, ref, title, who string) []strin
 		switch k {
 		case "status_id":
 			from, to := c.status(ch["from"]), c.status(ch["to"])
-			lines = append(lines, fmt.Sprintf("🔄 %s%s: %s → %s — %s", ref, title, from, to, who))
+			icon := "🔄"
+			if id, ok := uuidOf(ch["to"]); ok && c.StatusCategories[id] == "done" {
+				icon = "✅"
+			}
+			lines = append(lines, fmt.Sprintf("%s %s%s: %s → %s — %s", icon, ref, title, from, to, who))
 		case "assignee_id":
 			if id, ok := uuidOf(ch["to"]); ok {
 				lines = append(lines, fmt.Sprintf("👤 %s%s: icraçı %s — %s", ref, title, c.user(id), who))
@@ -477,6 +483,9 @@ func (e *Engine) chatContext(ctx context.Context, ev store.Event) (ChatContext, 
 		return c, err
 	}
 	if c.Statuses, err = e.Store.StatusNames(ctx, ev.WorkspaceID, statuses); err != nil {
+		return c, err
+	}
+	if c.StatusCategories, err = e.Store.StatusCategories(ctx, ev.WorkspaceID, statuses); err != nil {
 		return c, err
 	}
 	if ev.ActorID != nil {

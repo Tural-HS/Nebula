@@ -306,18 +306,19 @@ func (a *api) getWorkspace(w http.ResponseWriter, r *http.Request) {
 // accent colour, home page links.
 func (a *api) updateWorkspace(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Name              opt.Field[string]      `json:"name"`
-		Timezone          opt.Field[string]      `json:"timezone"`
-		OverdueDigestHour opt.Field[int]         `json:"overdue_digest_hour"`
-		Accent            opt.Field[string]      `json:"accent"`
-		HomeProjects      opt.Field[[]uuid.UUID] `json:"home_projects"`
+		Name                opt.Field[string]      `json:"name"`
+		Timezone            opt.Field[string]      `json:"timezone"`
+		OverdueDigestHour   opt.Field[int]         `json:"overdue_digest_hour"`
+		OverdueDigestMinute opt.Field[int]         `json:"overdue_digest_minute"`
+		Accent              opt.Field[string]      `json:"accent"`
+		HomeProjects        opt.Field[[]uuid.UUID] `json:"home_projects"`
 	}
 	if !a.decode(w, r, &body) {
 		return
 	}
 	ws := workspaceFrom(r)
 	if err := a.store.UpdateWorkspace(r.Context(), ws.ID, principal(r).UserID, store.UpdateWorkspaceParams{
-		Name: body.Name, Timezone: body.Timezone, OverdueDigestHour: body.OverdueDigestHour, Accent: body.Accent,
+		Name: body.Name, Timezone: body.Timezone, OverdueDigestHour: body.OverdueDigestHour, OverdueDigestMinute: body.OverdueDigestMinute, Accent: body.Accent,
 		HomeProjects: body.HomeProjects,
 	}); err != nil {
 		a.fail(w, r, err)

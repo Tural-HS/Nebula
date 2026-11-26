@@ -81,7 +81,7 @@ func (s *Store) FanOut(ctx context.Context, e Event) (webhooks, rules int, err e
 			return err
 		}
 		for _, h := range hooks {
-			if !MatchEvent(h.events, e.Action) {
+			if !MatchEventOf(h.events, e) {
 				continue
 			}
 			if scope == nil {
@@ -225,6 +225,11 @@ func (s *Store) ItemLabelByID(ctx context.Context, wsID, id uuid.UUID) (ItemLabe
 // included: an event's actor may have left since).
 func (s *Store) DisplayNames(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]string, error) {
 	return s.namesByID(ctx, `SELECT id, display_name FROM users WHERE id = ANY($1::uuid[])`, ids)
+}
+
+// StatusCategories maps status IDs to their category (todo, in_progress, done, canceled).
+func (s *Store) StatusCategories(ctx context.Context, wsID uuid.UUID, ids []uuid.UUID) (map[uuid.UUID]string, error) {
+	return s.namesByID(ctx, `SELECT id, category FROM statuses WHERE id = ANY($1::uuid[]) AND workspace_id = $2`, ids, wsID)
 }
 
 // StatusNames returns the names of the workspace's statuses with the given IDs.

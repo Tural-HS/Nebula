@@ -25,3 +25,24 @@ func TestNormalizeFormat(t *testing.T) {
 		t.Error("unknown format accepted")
 	}
 }
+
+func TestMatchEventOfStatusChanged(t *testing.T) {
+	status := Event{Action: "item.updated", Payload: map[string]any{"changes": map[string]any{"status_id": map[string]any{}}}}
+	field := Event{Action: "item.updated", Payload: map[string]any{"changes": map[string]any{"fields.phone": map[string]any{}}}}
+	only := []string{EventStatusChanged, "workspace.overdue_digest"}
+	if !MatchEventOf(only, status) {
+		t.Error("status change not matched")
+	}
+	if MatchEventOf(only, field) {
+		t.Error("field edit matched item.status_changed")
+	}
+	if !MatchEventOf([]string{"item.*"}, field) {
+		t.Error("item.* lost field edits")
+	}
+	if !MatchEventOf(only, Event{Action: "workspace.overdue_digest"}) {
+		t.Error("digest not matched")
+	}
+	if _, err := normalizeEvents([]string{EventStatusChanged}); err != nil {
+		t.Errorf("pattern rejected: %v", err)
+	}
+}

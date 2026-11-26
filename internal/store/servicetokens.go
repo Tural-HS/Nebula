@@ -386,7 +386,7 @@ func (s *Store) RecordServiceTokenDenied(ctx context.Context, t TokenPrincipal, 
 // the token's role. Another slug is ErrNotFound: a token never reaches a
 // second workspace, whatever memberships exist.
 func (s *Store) WorkspaceForServiceToken(ctx context.Context, slug string, t TokenPrincipal) (Workspace, error) {
-	rows, err := s.pool.Query(ctx, `SELECT w.id, w.slug, w.name, $3::text, w.created_at, w.timezone, w.overdue_digest_hour, w.accent, w.home_projects,
+	rows, err := s.pool.Query(ctx, `SELECT w.id, w.slug, w.name, $3::text, w.created_at, w.timezone, w.overdue_digest_hour, w.overdue_digest_minute, w.accent, w.home_projects,
 			w.archived_at, w.deletion_requested_at IS NOT NULL
 		FROM workspaces w WHERE w.slug = $1 AND w.id = $2`, strings.ToLower(slug), t.WorkspaceID, t.Role)
 	if err != nil {
