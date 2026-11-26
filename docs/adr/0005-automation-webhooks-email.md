@@ -79,7 +79,7 @@ Digər başlıqlar: `Nebula-Event-Id`, `Nebula-Event-Type`, `Nebula-Delivery-Att
 - Şərt sahələri: `type`, `project`, `status`, `status_category`, `assignee`, `reporter`, `title`, `fields.<açar>`
   və `changed` (yalnız `item.updated` üçün, `op: includes`).
 - Operatorlar: `eq`, `neq`, `in`, `not_in`, `contains`, `is_empty`, `is_not_empty`.
-- Əməliyyatlar: `set_status`, `set_assignee`, `set_field`, `send_email`.
+- Əməliyyatlar: `set_status`, `set_assignee`, `set_field`, `send_email`, `copy_fields` (başqa layihəyə, [ADR-0056](0056-copy-fields-action.md)).
 
 ### Əsas qərarlar
 

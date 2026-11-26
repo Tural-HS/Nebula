@@ -28,6 +28,7 @@ const (
 	ActionSetAssignee = "set_assignee"
 	ActionSetField    = "set_field"
 	ActionSendEmail   = "send_email"
+	ActionCopyFields  = "copy_fields" // ADR-0056
 )
 
 const (
@@ -60,6 +61,7 @@ type Condition struct {
 //	{"type": "set_assignee", "user_id": "..." | null}
 //	{"type": "set_field", "key": "severity", "value": "c1"}
 //	{"type": "send_email", "to": ["assignee", "reporter", "ops@example.com"], "subject": "...", "body": "..."}
+//	{"type": "copy_fields", "project": "MAH", "match": "nv_number", "fields": ["balance", "monthly_payment"]}
 type Action struct {
 	Type     string          `json:"type"`
 	StatusID *uuid.UUID      `json:"status_id,omitempty"`
@@ -69,6 +71,10 @@ type Action struct {
 	To       []string        `json:"to,omitempty"`
 	Subject  string          `json:"subject,omitempty"`
 	Body     string          `json:"body,omitempty"`
+	// copy_fields (ADR-0056): target project key, match field, copied fields.
+	Project string   `json:"project,omitempty"`
+	Match   string   `json:"match,omitempty"`
+	Fields  []string `json:"fields,omitempty"`
 }
 
 // Rule is an automation rule.
@@ -159,8 +165,11 @@ func (s *Store) validateRule(ctx context.Context, q querier, wsID uuid.UUID, in 
 	for i, a := range in.Actions {
 		path := fmt.Sprintf("actions[%d]", i)
 		dup := a.Type
-		if a.Type == ActionSetField {
+		switch a.Type {
+		case ActionSetField:
 			dup += ":" + a.Key
+		case ActionCopyFields:
+			dup += ":" + a.Project // one copy per target project
 		}
 		if a.Type != ActionSendEmail && seen[dup] {
 			return invalid(path, "duplicate %s action", a.Type)
@@ -227,8 +236,12 @@ func (s *Store) validateRule(ctx context.Context, q querier, wsID uuid.UUID, in 
 			if _, err := text(path+".body", a.Body, 1, 10_000); err != nil {
 				return err
 			}
+		case ActionCopyFields:
+			if err := validateCopyFields(ctx, q, wsID, path, a); err != nil {
+				return err
+			}
 		default:
-			return invalid(path+".type", "must be one of set_status, set_assignee, set_field, send_email")
+			return invalid(path+".type", "must be one of set_status, set_assignee, set_field, send_email, copy_fields")
 		}
 	}
 	return nil

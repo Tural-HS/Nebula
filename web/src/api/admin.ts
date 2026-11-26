@@ -106,7 +106,7 @@ export interface Condition {
 }
 
 export interface RuleAction {
-  type: "set_status" | "set_assignee" | "set_field" | "send_email";
+  type: "set_status" | "set_assignee" | "set_field" | "send_email" | "copy_fields";
   status_id?: string;
   user_id?: string | null;
   key?: string;
@@ -114,6 +114,10 @@ export interface RuleAction {
   to?: string[];
   subject?: string;
   body?: string;
+  /** copy_fields (ADR-0056): target project key, match field, copied fields. */
+  project?: string;
+  match?: string;
+  fields?: string[];
 }
 
 export interface Rule {

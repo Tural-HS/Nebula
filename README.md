@@ -224,7 +224,7 @@ Bütün `/api/v1` endpoint-ləri (`/version` istisna olmaqla) `Authorization: Be
 | `GET, PATCH, DELETE .../{ws}/webhooks/{id}` | Oxumaq / dəyişmək / silmək | admin+ |
 | `POST .../{ws}/webhooks/{id}/rotate-secret` | Yeni secret | admin+ |
 | `GET .../{ws}/webhooks/{id}/deliveries` | Son çatdırılma cəhdləri | admin+ |
-| `GET, POST .../{ws}/automations` | Avtomatlaşdırma qaydaları / yaratmaq | admin+ |
+| `GET, POST .../{ws}/automations` | Avtomatlaşdırma qaydaları / yaratmaq; əməliyyatlar: `set_status`, `set_assignee`, `set_field`, `send_email`, `copy_fields` (sahələri `match` sahəsi eyni olan başqa layihənin tapşırıqlarına köçürür, ADR-0056) | admin+ |
 | `GET, PATCH, DELETE .../{ws}/automations/{id}` | Oxumaq / dəyişmək / silmək | admin+ |
 | `GET :9090/metrics` | Prometheus metrikləri, route şablonuna görə etiketlənir | daxili |
 
