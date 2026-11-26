@@ -1,13 +1,15 @@
 import { useState } from "react";
 
 import { useAdminApi, useRules, type Condition, type ConditionOp, type Rule, type RuleAction } from "../../api/admin";
-import { useFields, useItemTypes, useMembers } from "../../api/hooks";
-import type { FieldDefinition, ItemType, Member } from "../../api/types";
+import { useFields, useItemTypes, useMembers, useProjects } from "../../api/hooks";
+import type { FieldDefinition, ItemType, Member, Project } from "../../api/types";
 import { Button, ErrorState, Input, Select, Spinner } from "../../components/ui";
 import { t } from "../../i18n";
 import { ta } from "../../i18n-admin";
 import { cn } from "../../lib/cn";
-import { conditionText, conditionValue, fieldValue, NO_VALUE_OPS, recipients } from "../../lib/rules";
+import {
+  conditionText, conditionValue, copyableFields, copyMatchFields, copySummary, fieldValue, MAX_COPY_FIELDS, NO_VALUE_OPS, recipients, toggleKey,
+} from "../../lib/rules";
 import { Card, SettingsLayout } from "./SettingsLayout";
 import { useFeedback } from "./useErrorToast";
 import { useConfirm } from "../../components/confirm-context";
@@ -24,6 +26,8 @@ interface Ctx {
   types: ItemType[];
   members: Member[];
   fields: FieldDefinition[];
+  /** Active projects: copy_fields targets (ADR-0056). */
+  projects: Project[];
 }
 
 function Automations({ ws }: { ws: string }) {
@@ -32,13 +36,20 @@ function Automations({ ws }: { ws: string }) {
   const types = useItemTypes(ws);
   const members = useMembers(ws);
   const fields = useFields(ws);
+  const projects = useProjects(ws);
   const adm = useAdminApi(ws);
   const fb = useFeedback();
   const [editing, setEditing] = useState<Rule | "new" | null>(null);
 
-  if (rules.isPending || types.isPending || members.isPending || fields.isPending) return <Spinner />;
+  if (rules.isPending || types.isPending || members.isPending || fields.isPending || projects.isPending) return <Spinner />;
   if (rules.isError) return <ErrorState error={rules.error} />;
-  const ctx: Ctx = { types: types.data ?? [], members: members.data ?? [], fields: (fields.data ?? []).filter((f) => !f.archived) };
+  const ctx: Ctx = {
+    types: types.data ?? [],
+    members: members.data ?? [],
+    fields: (fields.data ?? []).filter((f) => !f.archived),
+    projects: (projects.data ?? []).filter((p) => !p.archived_at && !p.deleting),
+  };
+  const fieldName = (key: string) => ctx.fields.find((f) => f.key === key)?.name ?? key;
 
   return (
     <div className="space-y-4">
@@ -67,7 +78,7 @@ function Automations({ ws }: { ws: string }) {
             </label>
             <span className="font-medium">{r.name}</span>
             <span className="text-xs text-zinc-500 dark:text-zinc-400">
-              {ta.triggers[r.trigger]} · {r.conditions.length} / {r.actions.map((a) => ta.actionTypes[a.type]).join(", ")}
+              {ta.triggers[r.trigger]} · {r.conditions.length} / {r.actions.map((a) => (a.type === "copy_fields" ? `${ta.actionTypes[a.type]} (${copySummary(a.project, a.fields, fieldName)})` : ta.actionTypes[a.type])).join(", ")}
             </span>
             <span className="ml-auto flex gap-2">
               <Button variant="ghost" onClick={() => { setEditing(r); }}>{ta.editRule}</Button>
@@ -84,9 +95,15 @@ function Automations({ ws }: { ws: string }) {
 
 // Form state keeps raw strings; they are converted to API values on save.
 interface CondRow { field: string; op: ConditionOp; text: string }
-interface ActRow { type: RuleAction["type"]; status_id: string; user_id: string; key: string; text: string; to: string; subject: string; body: string }
+interface ActRow {
+  type: RuleAction["type"]; status_id: string; user_id: string; key: string; text: string; to: string; subject: string; body: string;
+  project: string; match: string; fields: string[];
+}
 
-const emptyAction = (): ActRow => ({ type: "set_assignee", status_id: "", user_id: "", key: "", text: "", to: "assignee", subject: "[{{item.key}}] {{item.title}}", body: "{{item.key}}: {{item.status}}" });
+const emptyAction = (): ActRow => ({
+  type: "set_assignee", status_id: "", user_id: "", key: "", text: "", to: "assignee", subject: "[{{item.key}}] {{item.title}}", body: "{{item.key}}: {{item.status}}",
+  project: "", match: "", fields: [],
+});
 
 function toRows(r: Rule | null): { conds: CondRow[]; acts: ActRow[] } {
   if (!r) return { conds: [], acts: [emptyAction()] };
@@ -102,6 +119,9 @@ function toRows(r: Rule | null): { conds: CondRow[]; acts: ActRow[] } {
       to: (a.to ?? []).join(", "),
       subject: a.subject ?? "",
       body: a.body ?? "",
+      project: a.project ?? "",
+      match: a.match ?? "",
+      fields: a.fields ?? [],
     })),
   };
 }
@@ -135,6 +155,8 @@ function RuleEditor({ ws, ctx, rule, onDone }: { ws: string; ctx: Ctx; rule: Rul
           return { type: "set_field", key: a.key, value: fieldValue(fieldByKey.get(a.key), a.text) };
         case "send_email":
           return { type: "send_email", to: recipients(a.to), subject: a.subject, body: a.body };
+        case "copy_fields":
+          return { type: "copy_fields", project: a.project, match: a.match, fields: a.fields.filter((k) => k !== a.match) };
       }
     }),
   });
@@ -227,6 +249,7 @@ function RuleEditor({ ws, ctx, rule, onDone }: { ws: string; ctx: Ctx; rule: Rul
                   <ValueInput field={"fields." + a.key} value={a.text} ctx={ctx} onChange={(v) => { setActs(update(acts, i, { text: v })); }} />
                 </>
               )}
+              {a.type === "copy_fields" && <CopyFieldsEditor row={a} ctx={ctx} onChange={(patch) => { setActs(update(acts, i, patch)); }} />}
               {a.type === "send_email" && (
                 <div className="grid min-w-[min(18rem,100%)] flex-1 gap-2">
                   <Input aria-label={ta.emailTo} placeholder={ta.emailToHint} value={a.to} onChange={(e) => { setActs(update(acts, i, { to: e.target.value })); }} />
@@ -254,6 +277,53 @@ function RuleEditor({ ws, ctx, rule, onDone }: { ws: string; ctx: Ctx; rule: Rul
         <Button variant="primary" onClick={save} disabled={!name.trim() || adm.createRule.isPending || adm.updateRule.isPending}>{t.save}</Button>
       </div>
     </Card>
+  );
+}
+
+/** copy_fields (ADR-0056): target project, match field and the fields to copy. */
+function CopyFieldsEditor({ row, ctx, onChange }: { row: ActRow; ctx: Ctx; onChange: (patch: Partial<ActRow>) => void }) {
+  const copyable = copyableFields(ctx.fields, row.match);
+  const full = row.fields.length >= MAX_COPY_FIELDS;
+  return (
+    <div className="grid min-w-[min(18rem,100%)] flex-1 gap-2">
+      <div className="flex flex-wrap gap-2">
+        <label className="text-xs text-zinc-500 dark:text-zinc-400">
+          {ta.copyProject}
+          <Select value={row.project} className="w-56" onChange={(e) => { onChange({ project: e.target.value }); }}>
+            <option value="">—</option>
+            {ctx.projects.map((p) => <option key={p.key} value={p.key}>{`${p.key} · ${p.name}`}</option>)}
+          </Select>
+        </label>
+        <label className="text-xs text-zinc-500 dark:text-zinc-400">
+          {ta.copyMatch}
+          <Select value={row.match} className="w-56" onChange={(e) => { onChange({ match: e.target.value, fields: row.fields.filter((k) => k !== e.target.value) }); }}>
+            <option value="">—</option>
+            {copyMatchFields(ctx.fields).map((f) => <option key={f.key} value={f.key}>{f.name}</option>)}
+          </Select>
+        </label>
+      </div>
+      <fieldset>
+        <legend className="mb-1 text-xs text-zinc-500 dark:text-zinc-400">{ta.copyFields} ({row.fields.length}/{MAX_COPY_FIELDS})</legend>
+        <div className="flex max-h-48 flex-wrap gap-x-4 gap-y-1 overflow-y-auto">
+          {copyable.map((f) => {
+            const checked = row.fields.includes(f.key);
+            return (
+              <label key={f.key} className="flex items-center gap-1.5 text-sm">
+                <input
+                  type="checkbox"
+                  className="accent-brand-600"
+                  checked={checked}
+                  disabled={!checked && full}
+                  onChange={() => { onChange({ fields: toggleKey(row.fields, f.key) }); }}
+                />
+                {f.name}
+              </label>
+            );
+          })}
+        </div>
+      </fieldset>
+      <p className="text-xs text-zinc-500 dark:text-zinc-400">{ta.copyHint}</p>
+    </div>
   );
 }
 

@@ -491,6 +491,19 @@ func (e *Engine) runAutomation(ctx context.Context, j store.Job) error {
 		return err
 	}
 
+	// copy_fields (ADR-0056) reads the item after this rule's own set_*
+	// actions. Its writes carry the automation provenance (actx), so they
+	// never trigger rules in turn. A monthly close (ADR-0051) resets a whole
+	// project at once; that reset is not copied into another project.
+	for _, a := range rule.Actions {
+		if a.Type != store.ActionCopyFields || isCycleReset(ev) {
+			continue
+		}
+		if err := e.copyFields(actx, log, wsID, item, a); err != nil {
+			return err
+		}
+	}
+
 	for i, a := range rule.Actions {
 		if a.Type != store.ActionSendEmail {
 			continue
