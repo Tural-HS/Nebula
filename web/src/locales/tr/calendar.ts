@@ -10,6 +10,7 @@ export const tc = {
   weekdaysLong: ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"],
   months: ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"],
   more: (n: number) => `+${String(n)} daha`,
+  moreLate: (n: number) => `+${String(n)} geciken`,
   dayItems: (day: string, n: number) => `${day}: ${String(n)} görev`,
   noDue: "Bitiş tarihi yok",
   noDueHint: "Bitiş tarihi atamak için görevi bir güne sürükleyin.",

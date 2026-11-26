@@ -15,6 +15,7 @@ import { Avatar, Button, Dialog, ErrorState, Spinner } from "../components/ui";
 import { t } from "../i18n";
 import { tc } from "../i18n-calendar";
 import { tw } from "../i18n-workdays";
+import { LATE_CHIP, LATE_EDGE, lateDays, lateLevel, daysLate, localToday, type LateDay } from "../lib/overdue";
 import { byDay, monthDays, monthGrid, monthOf, monthTitle, overdueOn, overflow, shiftMonth, weekday, type Month } from "../lib/calendar";
 import { flattenPages } from "../lib/board";
 import { cn } from "../lib/cn";
@@ -92,6 +93,11 @@ export function CalendarView({ ws, project, filters, month, today, onMonth, memb
   // A due filter other than "none" leaves nothing undated to show.
   const showUndated = !filters.due || filters.due === "none";
   const undatedQ = useItems(ws, project, { ...filters, due: "none", sort: "number" }, showUndated);
+  // Overdue items, whatever month they fell due in: every day they have
+  // been late is marked in its band colour (ADR-0057). The first page (the
+  // longest overdue first) is enough for a month view.
+  const showLate = !compact && (!filters.due || filters.due === "overdue");
+  const lateQ = useItems(ws, project, { ...filters, due: "overdue", sort: "due" }, showLate);
   const update = useOptimisticUpdate(ws, project);
   const [drag, setDrag] = useState<Item | null>(null);
   const [dayOpen, setDayOpen] = useState<string | null>(null);
@@ -109,6 +115,11 @@ export function CalendarView({ ws, project, filters, month, today, onMonth, memb
     inRange.sort((a, b) => (a.due_date ?? "").localeCompare(b.due_date ?? "") || a.number - b.number);
     return { dated: byDay(inRange), undated: showUndated ? all.filter((it) => it.due_date === null) : [] };
   }, [range.query.data, undatedQ.data, from, to, showUndated]);
+
+  const late = useMemo(
+    () => (showLate ? lateDays(flattenPages(lateQ.data?.pages ?? []), grid.first, grid.last, today) : new Map<string, LateDay<Item>[]>()),
+    [showLate, lateQ.data, grid.first, grid.last, today],
+  );
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
@@ -202,6 +213,7 @@ export function CalendarView({ ws, project, filters, month, today, onMonth, memb
   }
 
   const dayList = dayOpen ? (dated.get(dayOpen) ?? []) : [];
+  const dayLate = dayOpen ? (late.get(dayOpen) ?? []) : [];
   return (
     <DndContext sensors={sensors} collisionDetection={collision} onDragStart={onDragStart} onDragCancel={() => { setDrag(null); }} onDragEnd={onDragEnd}>
       <div className="flex h-full flex-col">
@@ -229,6 +241,7 @@ export function CalendarView({ ws, project, filters, month, today, onMonth, memb
                   today={d === today}
                   info={lookup.info(d)}
                   items={dated.get(d) ?? []}
+                  late={late.get(d) ?? []}
                   members={members}
                   canEdit={canEdit}
                   onOpen={onOpen}
@@ -260,6 +273,19 @@ export function CalendarView({ ws, project, filters, month, today, onMonth, memb
               </button>
             </li>
           ))}
+          {dayLate.map((l) => (
+            <li key={"late:" + l.item.id}>
+              <button
+                type="button"
+                className={cn("flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs", LATE_CHIP[l.level])}
+                onClick={() => { setDayOpen(null); onOpen(l.item.number); }}
+              >
+                <span className="shrink-0 font-mono text-2xs">{l.item.key}</span>
+                <span className="min-w-0 flex-1 truncate">{l.item.title}</span>
+                <span className="shrink-0">{t.lateBy(l.days)}</span>
+              </button>
+            </li>
+          ))}
         </ul>
       </Dialog>
     </DndContext>
@@ -284,12 +310,13 @@ function DayNote({ info }: { info: DayInfo }) {
   );
 }
 
-function DayCell({ day, inMonth, today, info, items, members, canEdit, onOpen, onMore }: {
-  day: string; inMonth: boolean; today: boolean; info: DayInfo; items: Item[]; members: Map<string, Member>; canEdit: boolean;
+function DayCell({ day, inMonth, today, info, items, late, members, canEdit, onOpen, onMore }: {
+  day: string; inMonth: boolean; today: boolean; info: DayInfo; items: Item[]; late: LateDay<Item>[]; members: Map<string, Member>; canEdit: boolean;
   onOpen: (n: number) => void; onMore: () => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: "day:" + day, disabled: !canEdit });
   const { shown, more } = overflow(items, PER_DAY);
+  const lateShown = overflow(late, PER_DAY);
   const note = dayNote(info);
   const label = `${tc.weekdaysLong[weekday(day)]}, ${formatDate(day)}${note ? ` (${note})` : ""}`;
   return (
@@ -324,6 +351,26 @@ function DayCell({ day, inMonth, today, info, items, members, canEdit, onOpen, o
       {more > 0 && (
         <button type="button" onClick={onMore} className="self-start rounded px-1 text-xs font-medium text-brand-700 hover:underline dark:text-brand-400">
           {tc.more(more)}
+        </button>
+      )}
+      {lateShown.shown.map((l) => (
+        <button
+          key={"late:" + l.item.id}
+          type="button"
+          data-testid="calendar-late"
+          data-late={l.level}
+          title={`${l.item.key} ${l.item.title} · ${t.lateBy(l.days)}`}
+          onClick={() => { onOpen(l.item.number); }}
+          className={cn("flex min-w-0 items-center gap-1 rounded px-1 py-0.5 text-left text-2xs", LATE_CHIP[l.level])}
+        >
+          <span className="min-w-0 flex-1 truncate">{l.item.title}</span>
+          <span className="shrink-0 tabular-nums">{l.days}</span>
+          <span className="sr-only">{t.lateBy(l.days)}</span>
+        </button>
+      ))}
+      {lateShown.more > 0 && (
+        <button type="button" onClick={onMore} className="self-start rounded px-1 text-2xs font-medium text-red-700 hover:underline dark:text-red-400">
+          {tc.moreLate(lateShown.more)}
         </button>
       )}
     </div>
@@ -381,6 +428,7 @@ function CardBody({ item, members, compact = false, className, ref, ...rest }: {
   item: Item; members: Map<string, Member>; compact?: boolean; ref?: Ref<HTMLDivElement>;
 } & HTMLAttributes<HTMLDivElement>) {
   const name = item.assignee_id ? (members.get(item.assignee_id)?.display_name ?? "…") : null;
+  const level = item.overdue && item.due_date ? lateLevel(Math.max(1, daysLate(item.due_date, localToday()))) : 0;
   return (
     <div
       ref={ref}
@@ -389,7 +437,10 @@ function CardBody({ item, members, compact = false, className, ref, ...rest }: {
       {...rest}
       className={cn(
         "flex min-w-0 items-center gap-1.5 rounded-md bg-white px-1.5 py-1 text-left text-xs ring-1 ring-zinc-200 hover:ring-zinc-300 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none dark:bg-zinc-900 dark:ring-zinc-700",
-        item.overdue && "text-red-700 ring-red-300 dark:text-red-400 dark:ring-red-800",
+        level ? LATE_EDGE[level] : undefined,
+        level === 1 && "text-yellow-900 ring-yellow-400 dark:text-yellow-200 dark:ring-yellow-600",
+        level === 2 && "text-orange-800 ring-orange-300 dark:text-orange-200 dark:ring-orange-800",
+        level === 3 && "text-red-700 ring-red-300 dark:text-red-400 dark:ring-red-800",
         item.status.category === "done" && "text-zinc-500 dark:text-zinc-400 line-through",
         className,
       )}

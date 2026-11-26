@@ -55,6 +55,7 @@ export const t = {
   unassigned: "Unassigned",
   dueDate: "Due date",
   overdue: "overdue",
+  lateBy: (n: number) => `${String(n)} ${plural("en", n, { one: "day", other: "days" })} overdue`,
   dueFilter: "Due date",
   dueAll: "Due date: all",
   dueOverdue: "Overdue",

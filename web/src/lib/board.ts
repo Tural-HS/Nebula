@@ -17,6 +17,18 @@ export interface BoardColumn {
 const RANK: Record<StatusCategory, number> = { todo: 0, in_progress: 1, done: 2, canceled: 3 };
 
 /**
+ * The item types a project's board shows columns for: the ones that have
+ * items in it. Other projects' types (and their workflows' statuses) stay
+ * off this board. A project with no items yet, or counts not loaded, shows
+ * every type so there is somewhere to start.
+ */
+export function typesInUse(types: readonly ItemType[], byStatus: Readonly<Record<string, number>> | undefined): readonly ItemType[] {
+  if (!byStatus) return types;
+  const used = types.filter((ty) => ty.statuses.some((s) => (byStatus[s.id] ?? 0) > 0));
+  return used.length > 0 ? used : types;
+}
+
+/**
  * Builds the board's columns from the workspace's item types.
  *
  * By status, every status gets a column. Item types can share a workflow or

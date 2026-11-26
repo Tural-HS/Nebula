@@ -13,6 +13,7 @@ export const tc = {
   weekdaysLong: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
   months: ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"],
   more: (n: number) => `+${String(n)} more`,
+  moreLate: (n: number) => `+${String(n)} overdue`,
   dayItems: (day: string, n: number) => `${day}: ${items(n)}`,
   noDue: "No due date",
   noDueHint: "Drag an item onto a day to set its due date.",

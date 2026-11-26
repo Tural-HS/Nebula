@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { Item, ItemType, Status } from "../api/types";
-import { buildColumns, columnCount, dropTargets, flattenPages, initials, otherColumn, pickTargetStatus, type BoardColumn } from "./board";
+import { buildColumns, columnCount, dropTargets, flattenPages, initials, otherColumn, pickTargetStatus, typesInUse, type BoardColumn } from "./board";
 
 const todo: Status = { id: "s-todo", name: "To Do", category: "todo" };
 const prog: Status = { id: "s-prog", name: "In Progress", category: "in_progress" };
@@ -136,5 +136,15 @@ describe("initials", () => {
     ["Tural Həsən Oğlu", "TO"],
   ])("%s -> %s", (name, want) => {
     expect(initials(name)).toBe(want);
+  });
+});
+
+describe("typesInUse", () => {
+  it("keeps only types with items in the project", () => {
+    expect(typesInUse([bugType, taskType], { "t-backlog": 2 })).toEqual([taskType]);
+  });
+  it("shows every type for an empty project or before counts load", () => {
+    expect(typesInUse([bugType, taskType], {})).toEqual([bugType, taskType]);
+    expect(typesInUse([bugType, taskType], undefined)).toEqual([bugType, taskType]);
   });
 });

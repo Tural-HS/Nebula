@@ -15,7 +15,8 @@ import { SubtaskBadge } from "../components/Subtasks";
 import { Avatar, DueChip, EmptyState, ErrorState, Spinner, StatusBadge } from "../components/ui";
 import { cn } from "../lib/cn";
 import { t } from "../i18n";
-import { buildColumns, columnCount, dropTargets, flattenPages, otherColumn, pickTargetStatus, type BoardColumn, type GroupBy } from "../lib/board";
+import { daysLate, LATE_EDGE, lateLevel, localToday } from "../lib/overdue";
+import { buildColumns, columnCount, dropTargets, flattenPages, otherColumn, pickTargetStatus, typesInUse, type BoardColumn, type GroupBy } from "../lib/board";
 
 // ---------------------------------------------------------------------------
 // Board: one column per status (or per category). Every column loads its own
@@ -39,6 +40,9 @@ interface Move {
   to: string;
 }
 
+// No filter: which item types the project uses at all.
+const ALL_ITEMS: ItemFilters = { q: "", assignee: "" };
+
 export function Board({ ws, project, filters, groupBy, members, canEdit, onOpen }: {
   ws: string; project: string; filters: ItemFilters; groupBy: GroupBy; members: Map<string, Member>; canEdit: boolean;
   onOpen: (n: number) => void;
@@ -47,6 +51,9 @@ export function Board({ ws, project, filters, groupBy, members, canEdit, onOpen 
   const toast = useToast();
   const types = useItemTypes(ws);
   const counts = useItemCounts(ws, project, filters);
+  // Unfiltered counts tell which item types this project uses, so a filter
+  // never hides a column.
+  const allCounts = useItemCounts(ws, project, ALL_ITEMS);
   const update = useUpdateItem(ws, project);
   const [moves, setMoves] = useState<Record<string, Move>>({});
   const [drag, setDrag] = useState<{ item: Item; targets: Set<string> | null } | null>(null);
@@ -65,10 +72,10 @@ export function Board({ ws, project, filters, groupBy, members, canEdit, onOpen 
   );
 
   const columns = useMemo(() => {
-    const cols = buildColumns(types.data ?? [], groupBy, (c) => t.category[c]);
+    const cols = buildColumns(typesInUse(types.data ?? [], allCounts.data?.by_status), groupBy, (c) => t.category[c]);
     const other = otherColumn(cols, Object.keys(counts.data?.by_status ?? {}), t.boardOther);
     return other ? [...cols, other] : cols;
-  }, [types.data, groupBy, counts.data]);
+  }, [types.data, groupBy, counts.data, allCounts.data]);
 
   if (types.isPending) return <Spinner />;
   if (types.isError) return <ErrorState error={types.error} onRetry={() => void types.refetch()} />;
@@ -252,12 +259,15 @@ function CardBody({ item, members, className, ref, ...rest }: HTMLAttributes<HTM
   item: Item; members: Map<string, Member>; ref?: Ref<HTMLDivElement>;
 }) {
   const assignee = item.assignee_id ? members.get(item.assignee_id)?.display_name : undefined;
+  const level = item.overdue && item.due_date ? lateLevel(Math.max(1, daysLate(item.due_date, localToday()))) : 0;
   return (
     <div
       ref={ref}
       {...rest}
+      data-late={level || undefined}
       className={cn(
         "cursor-pointer rounded-lg bg-white p-3 text-sm shadow-sm ring-1 ring-zinc-200 dark:bg-zinc-800 dark:ring-zinc-700",
+        level ? LATE_EDGE[level] : undefined,
         className,
       )}
     >

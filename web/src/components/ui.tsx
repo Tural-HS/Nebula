@@ -5,6 +5,7 @@ import type { StatusCategory } from "../api/types";
 import { initials } from "../lib/board";
 import { cn } from "../lib/cn";
 import { formatDate } from "../lib/format";
+import { daysLate, LATE_CHIP, lateLevel, localToday } from "../lib/overdue";
 import { t } from "../i18n";
 
 
@@ -107,21 +108,29 @@ export function StatusBadge({ name, category }: { name: string; category: Status
   );
 }
 
-/** A due date; red with a clock when the item is overdue. */
-export function DueChip({ date, overdue }: { date: string; overdue: boolean }) {
+/**
+ * A due date. When the item is overdue it shows the days late and takes the
+ * band's colour (ADR-0057): yellow up to 10 days, orange up to 20, then red.
+ */
+export function DueChip({ date, overdue, today = localToday() }: { date: string; overdue: boolean; today?: string }) {
   const label = formatDate(date);
+  const late = overdue ? Math.max(1, daysLate(date, today)) : 0;
+  const level = lateLevel(late);
   return (
     // role=img: aria-label is not allowed on a plain span (screen readers skip it).
     <span
       role="img"
-      aria-label={`${t.dueDate}: ${label}${overdue ? ` (${t.overdue})` : ""}`}
+      aria-label={`${t.dueDate}: ${label}${late ? ` (${t.lateBy(late)})` : ""}`}
+      title={late ? t.lateBy(late) : undefined}
+      data-late={level || undefined}
       className={cn(
         "inline-flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-2xs whitespace-nowrap tabular-nums",
-        overdue ? "bg-red-50 font-medium text-red-700 ring-1 ring-red-200 dark:bg-red-950 dark:text-red-300 dark:ring-red-900" : "text-zinc-500 dark:text-zinc-400",
+        level ? LATE_CHIP[level] : "text-zinc-500 dark:text-zinc-400",
       )}
     >
-      <span aria-hidden>{overdue ? "⏰" : "📅"}</span>
+      <span aria-hidden>{late ? "⏰" : "📅"}</span>
       {label}
+      {late > 0 && <span aria-hidden>· {late}</span>}
     </span>
   );
 }

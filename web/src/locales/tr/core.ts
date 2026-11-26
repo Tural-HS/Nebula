@@ -54,6 +54,7 @@ export const t = {
   unassigned: "Atanmamış",
   dueDate: "Bitiş tarihi",
   overdue: "gecikti",
+  lateBy: (n: number) => `${String(n)} gün gecikti`,
   dueFilter: "Bitiş tarihi",
   dueAll: "Bitiş tarihi: tümü",
   dueOverdue: "Gecikmiş",

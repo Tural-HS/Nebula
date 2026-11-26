@@ -38,7 +38,7 @@ test("quick filters show counts, filter the list and become removable chips", as
 
   // Signals moved out of the title into their own column.
   await expect(page.getByRole("columnheader", { name: "Siqnal" })).toBeVisible();
-  await expect(page.getByRole("row").filter({ hasText: "Gecikmiş ödəniş" }).getByLabel("Son tarix: 1 mar 2020 (gecikir)")).toBeVisible();
+  await expect(page.getByRole("row").filter({ hasText: "Gecikmiş ödəniş" }).getByLabel(/^Son tarix: 1 mar 2020 \(\d+ gün gecikir\)$/)).toBeVisible();
 });
 
 test("the panel sits beside the table, with the workflow and the properties", async ({ page }) => {

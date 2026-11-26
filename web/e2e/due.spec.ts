@@ -18,7 +18,7 @@ test.beforeAll(async () => {
 test("overdue items are marked and can be filtered", async ({ page }) => {
   await page.goto(seed.url);
   const late = page.getByRole("row").filter({ hasText: "Ödəniş gecikib" });
-  await expect(late.getByLabel("Son tarix: 1 mar 2020 (gecikir)")).toBeVisible();
+  await expect(late.getByLabel(/^Son tarix: 1 mar 2020 \(\d+ gün gecikir\)$/)).toBeVisible();
   await expect(page.getByRole("row").filter({ hasText: "Gələn il" }).getByLabel("Son tarix: 15 yan 2199")).toBeVisible();
 
   // The list filters live in one menu (ADR-0035).
@@ -32,7 +32,7 @@ test("overdue items are marked and can be filtered", async ({ page }) => {
   await page.goto(seed.url + "?view=board&due=overdue");
   const todo = page.getByRole("region", { name: "To Do" });
   await expect(todo.getByRole("heading")).toContainText("1");
-  await expect(todo.getByLabel("Son tarix: 1 mar 2020 (gecikir)")).toBeVisible();
+  await expect(todo.getByLabel(/^Son tarix: 1 mar 2020 \(\d+ gün gecikir\)$/)).toBeVisible();
 });
 
 test("set and clear a due date in the panel; history records it", async ({ page }) => {

@@ -8,6 +8,7 @@ export const tc = {
   weekdaysLong: ["Bazar ertəsi", "Çərşənbə axşamı", "Çərşənbə", "Cümə axşamı", "Cümə", "Şənbə", "Bazar"],
   months: ["Yanvar", "Fevral", "Mart", "Aprel", "May", "İyun", "İyul", "Avqust", "Sentyabr", "Oktyabr", "Noyabr", "Dekabr"],
   more: (n: number) => `+${String(n)} daha`,
+  moreLate: (n: number) => `+${String(n)} gecikən`,
   dayItems: (day: string, n: number) => `${day}: ${String(n)} tapşırıq`,
   noDue: "Son tarixi yoxdur",
   noDueHint: "Tapşırığı günə sürükləyin ki, son tarix təyin olunsun.",

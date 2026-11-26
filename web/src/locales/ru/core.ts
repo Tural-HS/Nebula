@@ -57,6 +57,7 @@ export const t = {
   unassigned: "Не назначено",
   dueDate: "Срок",
   overdue: "просрочено",
+  lateBy: (n: number) => `просрочено на ${String(n)} ${days(n)}`,
   dueFilter: "Срок",
   dueAll: "Срок: все",
   dueOverdue: "Просроченные",
