@@ -271,7 +271,7 @@ type ListItemsParams struct {
 	Unassigned   bool
 	Query        string
 	FieldFilters map[string]string // ?field.<key>=<value>, exact match
-	Due          string            // "", "overdue", "today", "week" (next 7 days) or "none"
+	Due          string            // "", "overdue", "today", "week" (next 7 days), "month" (due by the end of this month, ADR-0060) or "none"
 	DueFrom      *string           // due_date >= this YYYY-MM-DD (calendar range, inclusive)
 	DueTo        *string           // due_date <= this YYYY-MM-DD (inclusive)
 	Sort         string            // SortNumber (default) or SortDue, see itemsort.go
@@ -497,10 +497,14 @@ func (s *Store) itemFilter(ctx context.Context, p ListItemsParams, withStatus bo
 		where = append(where, "i.due_date = "+today)
 	case "week":
 		where = append(where, "i.due_date BETWEEN "+today+" AND "+today+" + 6")
+	case "month":
+		// This month's list (ADR-0060): due by the month's end, earlier
+		// months included (carried late items); later months are not yet.
+		where = append(where, "i.due_date < (date_trunc('month', "+today+") + interval '1 month')::date")
 	case "none":
 		where = append(where, "i.due_date IS NULL")
 	default:
-		return nil, nil, invalid("due", "must be overdue, today, week or none")
+		return nil, nil, invalid("due", "must be overdue, today, week, month or none")
 	}
 	from, to, err := DueRange(p.DueFrom, p.DueTo)
 	if err != nil {
@@ -679,6 +683,9 @@ func updateItemTx(ctx context.Context, tx pgx.Tx, p UpdateItemParams, in checked
 				return err
 			}
 			if err := checkTransition(ctx, tx, workflowID, curStatus, p.StatusID.Value); err != nil {
+				return err
+			}
+			if err := checkReopen(ctx, tx, p.WorkspaceID, workflowID, curStatus, p.StatusID.Value, p.ActorID); err != nil {
 				return err
 			}
 			if pending == nil {

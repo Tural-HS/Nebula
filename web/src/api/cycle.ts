@@ -26,6 +26,8 @@ export interface CycleInput {
   due_day_field: string | null;
   /** Boolean "paid" field: unpaid late items are carried, not reset. Needs due_day_field. */
   paid_field: string | null;
+  /** Date field (e.g. the loan date): nothing falls due in or before its month; its day is used when the due-day field is empty (ADR-0060). Needs due_day_field. */
+  due_start_field?: string | null;
 }
 
 export interface Cycle extends CycleInput {

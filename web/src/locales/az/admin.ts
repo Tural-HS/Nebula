@@ -105,6 +105,8 @@ export const ta = {
   transitions: "Keçidlər",
   enforce: "Yalnız təyin edilmiş keçidlərə icazə ver",
   enforceHint: "Söndürülü olduqda tapşırıq istənilən statusa keçə bilər.",
+  reopenAdminOnly: "Bağlanmış tapşırığı yalnız admin geri aça bilər",
+  reopenAdminOnlyHint: "Açıq olduqda «Tamamlandı» və ya «Ləğv edildi» statusundan açıq statusa keçidi yalnız admin edə bilər. Aylıq dövr və avtomatlaşdırma bundan təsirlənmir.",
   anyStatus: "İstənilən status",
   newTransition: "Yeni keçid",
   from: "Haradan",

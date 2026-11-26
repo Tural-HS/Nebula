@@ -21,6 +21,8 @@ export const t = {
   close: "Закрыть",
   account: "Аккаунт",
   errorGeneric: "Не удалось выполнить действие. Проверьте подключение и попробуйте ещё раз.",
+  /** Server error codes shown in the user's language instead of the API message. */
+  errorCodes: { reopen_admin_only: "Вновь открыть закрытую задачу может только администратор." },
   newVersion: "Доступна новая версия Nebula",
   newVersionHint: "Обновите страницу: открытая старая версия не может загрузить новые части приложения.",
   unexpectedErrorHint: "Непредвиденная ошибка. Обновите страницу; если ошибка повторится, сообщите администратору.",
@@ -63,6 +65,7 @@ export const t = {
   dueOverdue: "Просроченные",
   dueToday: "Сегодня",
   dueWeek: "Ближайшие 7 дней",
+  dueMonth: "Этот месяц (и ранее)",
   dueNone: "Без срока",
   clearDate: "Очистить",
   search: "Поиск…",

@@ -106,6 +106,8 @@ export const ta = {
   transitions: "Geçişler",
   enforce: "Yalnızca tanımlı geçişlere izin ver",
   enforceHint: "Kapalıyken görev herhangi bir duruma geçebilir.",
+  reopenAdminOnly: "Kapalı görevi yalnızca yönetici yeniden açabilir",
+  reopenAdminOnlyHint: "Açıkken tamamlanmış veya iptal edilmiş bir görevi açık bir duruma yalnızca yönetici taşıyabilir. Aylık döngü ve otomasyonlar etkilenmez.",
   anyStatus: "Herhangi bir durum",
   newTransition: "Yeni geçiş",
   from: "Nereden",

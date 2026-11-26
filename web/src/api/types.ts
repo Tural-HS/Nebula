@@ -203,7 +203,7 @@ export interface ViewConfig {
   filters: {
     q?: string;
     assignee?: string;
-    due?: "" | "overdue" | "today" | "week" | "none";
+    due?: "" | "overdue" | "today" | "week" | "month" | "none";
     status?: string[];
     fields?: Record<string, string>;
   };

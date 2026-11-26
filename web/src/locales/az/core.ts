@@ -18,6 +18,8 @@ export const t = {
   close: "Bağla",
   account: "Hesab",
   errorGeneric: "Əməliyyat alınmadı. Bağlantını yoxlayıb yenidən cəhd edin.",
+  /** Server error codes shown in the user's language instead of the API message. */
+  errorCodes: { reopen_admin_only: "Bağlanmış tapşırığı yalnız admin geri aça bilər." } as Record<string, string>,
   newVersion: "Nebula-nın yeni versiyası var",
   newVersionHint: "Səhifəni yeniləyin: açıq qalmış köhnə versiya yeni hissələri yükləyə bilmir.",
   unexpectedErrorHint: "Gözlənilməz xəta. Səhifəni yeniləyin; təkrarlanarsa adminə bildirin.",
@@ -60,6 +62,7 @@ export const t = {
   dueOverdue: "Gecikənlər",
   dueToday: "Bu gün",
   dueWeek: "Növbəti 7 gün",
+  dueMonth: "Bu ay (və əvvəlki)",
   dueNone: "Tarixsiz",
   clearDate: "Təmizlə",
   search: "Axtar…",

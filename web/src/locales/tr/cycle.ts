@@ -69,6 +69,8 @@ export const tcy = {
   dueDates: "Ödeme vadeleri",
   dueField: "Ödeme günü alanı",
   dueFieldHint: "Her ay son tarih bu tarihin gününe düşer (31 → ayın son günü). Bu ay verilen kredinin ilk vadesi gelecek aydır.",
+  startField: "Başlangıç tarihi alanı",
+  startFieldHint: "Örn. kredi tarihi: ilk son tarih sonraki aya düşer (5 Ocak → 5 Şubat). Ödeme günü boşsa bu tarihin günü kullanılır.",
   paidField: "Ödendi alanı",
   paidFieldHint: "Ödenmemiş gecikmiş işler sıfırlanmaz, gecikme sürer. Ödendi işaretlenince ertesi gün sıfırlanır. Bu alan her ay temizlenmelidir.",
   none: "—",

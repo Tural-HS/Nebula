@@ -101,6 +101,7 @@ function Settings({ ws, project, cycle, fields }: { ws: string; project: string;
   const [resetStatus, setResetStatus] = useState(cycle.reset_status_id ?? "");
   const [dueField, setDueField] = useState(cycle.due_day_field ?? "");
   const [paidField, setPaidField] = useState(cycle.paid_field ?? "");
+  const [startField, setStartField] = useState(cycle.due_start_field ?? "");
   const types = useItemTypes(ws);
   // Statuses of every item type, labelled with the type when there are several.
   const statuses = useMemo(() => {
@@ -118,6 +119,7 @@ function Settings({ ws, project, cycle, fields }: { ws: string; project: string;
         enabled, day_of_month: day, clear_fields: clear, refill: refill.filter((r) => r.target && r.source),
         include_closed: includeClosed, reset_status_id: resetStatus || null,
         due_day_field: dueField || null, paid_field: dueField && paidField ? paidField : null,
+        due_start_field: dueField && startField ? startField : null,
       },
       {
         onSuccess: () => { toast("success", tcy.saved); },
@@ -219,6 +221,14 @@ function Settings({ ws, project, cycle, fields }: { ws: string; project: string;
               {fields.filter((f) => f.type === "date").map((f) => <option key={f.key} value={f.key}>{f.name}</option>)}
             </Select>
             <p id={`${id}-duehint`} className="mt-1 max-w-xs text-xs text-zinc-500 dark:text-zinc-400">{tcy.dueFieldHint}</p>
+          </div>
+          <div>
+            <Label htmlFor={`${id}-start`}>{tcy.startField}</Label>
+            <Select id={`${id}-start`} className="w-auto max-w-full min-w-56" value={dueField ? startField : ""} disabled={!dueField} onChange={(e) => { setStartField(e.target.value); }} aria-describedby={`${id}-starthint`}>
+              <option value="">{tcy.none}</option>
+              {fields.filter((f) => f.type === "date").map((f) => <option key={f.key} value={f.key}>{f.name}</option>)}
+            </Select>
+            <p id={`${id}-starthint`} className="mt-1 max-w-xs text-xs text-zinc-500 dark:text-zinc-400">{tcy.startFieldHint}</p>
           </div>
           <div>
             <Label htmlFor={`${id}-paid`}>{tcy.paidField}</Label>

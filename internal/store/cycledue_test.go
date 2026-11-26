@@ -85,3 +85,36 @@ func TestCycleDueInAndCarries(t *testing.T) {
 		t.Error("carried without a paid field")
 	}
 }
+
+// ADR-0060: a payment-day override plus the loan date as the start.
+func TestCycleDueInWithStartField(t *testing.T) {
+	day, start := "payment_day", "loan_date"
+	c := CycleInput{DueDayField: &day, DueStartField: &start}
+	nov, _ := time.Parse(time.DateOnly, "2026-11-01")
+	item := func(payDay, loan string) cycleItem {
+		f := map[string]json.RawMessage{}
+		if payDay != "" {
+			f[day], _ = json.Marshal(payDay)
+		}
+		if loan != "" {
+			f[start], _ = json.Marshal(loan)
+		}
+		return cycleItem{open: true, fields: f}
+	}
+	for _, tc := range []struct {
+		payDay, loan, want string
+		ok                 bool
+	}{
+		{"2026-01-01", "2026-07-20", "2026-11-01", true}, // override day, old loan
+		{"2026-01-31", "2025-03-31", "2026-11-30", true}, // clamped
+		{"", "2026-10-05", "2026-11-05", true},           // no override: the loan day
+		{"", "2026-11-09", "2026-12-09", true},           // loan this month: first due next month
+		{"2026-01-12", "2026-11-12", "2026-12-12", true}, // override, but the loan is this month
+		{"", "", "", false},
+	} {
+		got, ok := c.dueIn(item(tc.payDay, tc.loan), nov)
+		if got != tc.want || ok != tc.ok {
+			t.Errorf("dueIn(%q, %q) = %q, %v; want %q, %v", tc.payDay, tc.loan, got, ok, tc.want, tc.ok)
+		}
+	}
+}

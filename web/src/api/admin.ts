@@ -25,6 +25,8 @@ export interface Workflow {
   id: string;
   name: string;
   enforce_transitions: boolean;
+  /** Only admins reopen closed items (ADR-0060). */
+  reopen_admin_only: boolean;
   statuses: WorkflowStatus[];
   transitions: Transition[];
   /** Statuses that need approval to enter (ADR-0026). */
@@ -236,7 +238,7 @@ export function useAdminApi(ws: string) {
       [wf],
     ),
     updateWorkflow: useAdminMutation(
-      (v: { id: string; body: { name?: string; enforce_transitions?: boolean } }) => api<Workflow>("PATCH", base + path`/workflows/${v.id}`, v.body),
+      (v: { id: string; body: { name?: string; enforce_transitions?: boolean; reopen_admin_only?: boolean } }) => api<Workflow>("PATCH", base + path`/workflows/${v.id}`, v.body),
       [wf],
     ),
     addStatus: useAdminMutation(

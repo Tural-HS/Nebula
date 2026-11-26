@@ -20,6 +20,7 @@ const DUE_LABEL = (): Record<Exclude<PageState["due"], "">, string> => ({
   overdue: t.dueOverdue,
   today: t.dueToday,
   week: t.dueWeek,
+  month: t.dueMonth,
   none: t.dueNone,
 });
 

@@ -69,6 +69,8 @@ export const tcy = {
   dueDates: "Payment due dates",
   dueField: "Payment day field",
   dueFieldHint: "Every month the due date falls on this date's day (31 → the month's last day). A loan given this month is first due next month.",
+  startField: "Start date field",
+  startFieldHint: "E.g. the loan date: the first due date falls in the month after it (5 January → 5 February). Its day is used when the payment day is empty.",
   paidField: "Paid field",
   paidFieldHint: "Unpaid late items are not reset and stay overdue. Once marked paid, they are reset the next day. This field must be cleared every month.",
   none: "—",

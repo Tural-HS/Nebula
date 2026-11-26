@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 // Thin, typed fetch wrapper around the Nebula REST API (same origin: /api/v1).
 
 export class ApiError extends Error {
@@ -44,10 +45,11 @@ export async function parseError(res: Response): Promise<ApiError> {
   } catch {
     // non-JSON error (proxy, gateway): fall back to the status line
   }
+  const code = body.error?.code ?? `http_${String(res.status)}`;
   return new ApiError(
     res.status,
-    body.error?.code ?? `http_${res.status}`,
-    body.error?.message ?? (res.statusText || "request failed"),
+    code,
+    t.errorCodes[code] ?? body.error?.message ?? (res.statusText || "request failed"),
     body.error?.field,
     parseRetryAfter(res.headers.get("Retry-After")),
   );

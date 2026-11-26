@@ -157,6 +157,16 @@ function WorkflowCard({ ws, wf }: { ws: string; wf: Workflow }) {
             {ta.enforce}
           </label>
           <p className="mb-3 text-xs text-zinc-500 dark:text-zinc-400">{ta.enforceHint}</p>
+          <label className="mb-1 flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              className="accent-brand-600"
+              checked={wf.reopen_admin_only}
+              onChange={(e) => { adm.updateWorkflow.mutate({ id: wf.id, body: { reopen_admin_only: e.target.checked } }, { onSuccess: fb.ok(), onError: fb.fail }); }}
+            />
+            {ta.reopenAdminOnly}
+          </label>
+          <p className="mb-3 text-xs text-zinc-500 dark:text-zinc-400">{ta.reopenAdminOnlyHint}</p>
           {wf.transitions.length === 0 && <p className="text-xs text-zinc-500 dark:text-zinc-400">{ta.noTransitions}</p>}
           <ul className="space-y-1">
             {wf.transitions.map((tr) => (

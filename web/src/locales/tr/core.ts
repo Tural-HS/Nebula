@@ -18,6 +18,8 @@ export const t = {
   close: "Kapat",
   account: "Hesap",
   errorGeneric: "İşlem başarısız oldu. Bağlantınızı kontrol edip tekrar deneyin.",
+  /** Server error codes shown in the user's language instead of the API message. */
+  errorCodes: { reopen_admin_only: "Kapalı bir görevi yalnızca yönetici yeniden açabilir." } as Record<string, string>,
   newVersion: "Nebula'nın yeni sürümü var",
   newVersionHint: "Sayfayı yenileyin: açık kalan eski sürüm yeni bölümleri yükleyemiyor.",
   unexpectedErrorHint: "Beklenmeyen hata. Sayfayı yenileyin; tekrarlanırsa yöneticinize bildirin.",
@@ -60,6 +62,7 @@ export const t = {
   dueOverdue: "Gecikmiş",
   dueToday: "Bugün",
   dueWeek: "Önümüzdeki 7 gün",
+  dueMonth: "Bu ay (ve öncesi)",
   dueNone: "Tarihsiz",
   clearDate: "Temizle",
   search: "Ara…",

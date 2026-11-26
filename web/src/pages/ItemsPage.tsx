@@ -292,6 +292,7 @@ export function ItemsPage() {
       <option value="overdue">{t.dueOverdue}</option>
       <option value="today">{t.dueToday}</option>
       <option value="week">{t.dueWeek}</option>
+      <option value="month">{t.dueMonth}</option>
       <option value="none">{t.dueNone}</option>
     </Select>
   );
@@ -604,7 +605,7 @@ export function ItemsPage() {
   );
 }
 
-const DUE_FILTERS: readonly DueFilter[] = ["overdue", "today", "week", "none"];
+const DUE_FILTERS: readonly DueFilter[] = ["overdue", "today", "week", "month", "none"];
 const EMPTY: ReadonlySet<number> = new Set();
 
 const HEADER_LINK = "rounded-md px-3 py-1.5 text-sm whitespace-nowrap text-zinc-700 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800";

@@ -47,7 +47,7 @@ export const MAX_COLUMNS = 30;
 /** Number columns whose totals one request may ask for (server: store.MaxSumFields). */
 export const MAX_SUM_FIELDS = 10;
 
-const DUE: readonly DueFilter[] = ["overdue", "today", "week", "none"];
+const DUE: readonly DueFilter[] = ["overdue", "today", "week", "month", "none"];
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const FIELD_KEY = /^[a-z][a-z0-9_]{0,62}$/;
 const COLUMN = /^(key|title|type|status|assignee|due_date|created_at|updated_at|field\.[a-z][a-z0-9_]{0,62})$/;

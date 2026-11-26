@@ -351,7 +351,7 @@ func validateView(ctx context.Context, q querier, v ViewCaller, view *View) erro
 		return err
 	}
 	switch f.Due {
-	case "", "overdue", "today", "week", "none":
+	case "", "overdue", "today", "week", "month", "none":
 	default:
 		return invalid("config.filters.due", "must be overdue, today, week or none")
 	}

@@ -57,12 +57,16 @@ type Cycle struct {
 	// DueDayField is a date field (e.g. the loan date) whose day of the month
 	// is every item's due date each month (ADR-0055); nil: due dates are not
 	// managed. PaidField is a boolean field: unpaid late items are carried.
-	DueDayField *string    `json:"due_day_field"`
-	PaidField   *string    `json:"paid_field"`
-	NextRun     *string    `json:"next_run"`    // YYYY-MM-DD of the next scheduled close
-	NextPeriod  *string    `json:"next_period"` // YYYY-MM it will close
-	LastError   *string    `json:"last_error"`  // why the last scheduled close failed
-	UpdatedAt   *time.Time `json:"updated_at"`  // nil: never configured
+	DueDayField *string `json:"due_day_field"`
+	// DueStartField (ADR-0060) is a date field (e.g. the loan date): the
+	// first due date falls in the month after it, and its day is used when
+	// the item's DueDayField is empty.
+	DueStartField *string    `json:"due_start_field"`
+	PaidField     *string    `json:"paid_field"`
+	NextRun       *string    `json:"next_run"`    // YYYY-MM-DD of the next scheduled close
+	NextPeriod    *string    `json:"next_period"` // YYYY-MM it will close
+	LastError     *string    `json:"last_error"`  // why the last scheduled close failed
+	UpdatedAt     *time.Time `json:"updated_at"`  // nil: never configured
 }
 
 // CycleInput replaces the configuration.
@@ -74,6 +78,7 @@ type CycleInput struct {
 	IncludeClosed bool          `json:"include_closed"`
 	ResetStatusID *uuid.UUID    `json:"reset_status_id"`
 	DueDayField   *string       `json:"due_day_field"`
+	DueStartField *string       `json:"due_start_field"`
 	PaidField     *string       `json:"paid_field"`
 }
 
@@ -145,10 +150,10 @@ func (s *Store) GetCycle(ctx context.Context, wsID, projectID uuid.UUID) (Cycle,
 	var next *time.Time
 	var updated time.Time
 	err := s.pool.QueryRow(ctx, `SELECT is_enabled, day_of_month, clear_fields, refill, include_closed, reset_status_id,
-			due_day_field, paid_field, next_run, last_error, updated_at
+			due_day_field, due_start_field, paid_field, next_run, last_error, updated_at
 		FROM period_cycles WHERE workspace_id = $1 AND project_id = $2`, wsID, projectID).
 		Scan(&c.Enabled, &c.DayOfMonth, &c.ClearFields, &refill, &c.IncludeClosed, &c.ResetStatusID,
-			&c.DueDayField, &c.PaidField, &next, &c.LastError, &updated)
+			&c.DueDayField, &c.DueStartField, &c.PaidField, &next, &c.LastError, &updated)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return c, nil
 	}
@@ -280,6 +285,15 @@ func validateDueFields(ctx context.Context, q querier, wsID uuid.UUID, in *Cycle
 	if err := check("paid_field", in.PaidField, FieldBoolean); err != nil {
 		return err
 	}
+	if in.DueStartField != nil && in.DueDayField == nil {
+		return invalid("due_start_field", "needs due_day_field")
+	}
+	if err := check("due_start_field", in.DueStartField, FieldDate); err != nil {
+		return err
+	}
+	if in.DueStartField != nil && touched[*in.DueStartField] {
+		return invalid("due_start_field", "%q is cleared or refilled every month", *in.DueStartField)
+	}
 	if in.DueDayField != nil && touched[*in.DueDayField] {
 		return invalid("due_day_field", "%q is cleared or refilled every month", *in.DueDayField)
 	}
@@ -328,21 +342,22 @@ func (s *Store) SaveCycle(ctx context.Context, wsID, projectID, actorID uuid.UUI
 			}
 		}
 		if _, err := tx.Exec(ctx, `INSERT INTO period_cycles (project_id, workspace_id, is_enabled, day_of_month,
-				clear_fields, refill, include_closed, reset_status_id, due_day_field, paid_field, next_run, updated_by)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+				clear_fields, refill, include_closed, reset_status_id, due_day_field, paid_field, next_run, updated_by, due_start_field)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 			ON CONFLICT (project_id) DO UPDATE SET is_enabled = EXCLUDED.is_enabled, day_of_month = EXCLUDED.day_of_month,
 				clear_fields = EXCLUDED.clear_fields, refill = EXCLUDED.refill, include_closed = EXCLUDED.include_closed,
 				reset_status_id = EXCLUDED.reset_status_id, due_day_field = EXCLUDED.due_day_field,
+				due_start_field = EXCLUDED.due_start_field,
 				paid_field = EXCLUDED.paid_field, next_run = EXCLUDED.next_run,
 				updated_by = EXCLUDED.updated_by, last_error = NULL`,
 			projectID, wsID, in.Enabled, in.DayOfMonth, in.ClearFields, refill, in.IncludeClosed, in.ResetStatusID,
-			in.DueDayField, in.PaidField, next, nullUUID(actorID)); err != nil {
+			in.DueDayField, in.PaidField, next, nullUUID(actorID), in.DueStartField); err != nil {
 			return err
 		}
 		return appendEvent(ctx, tx, wsID, actorID, "project", projectID, "cycle.updated", map[string]any{
 			"enabled": in.Enabled, "day_of_month": in.DayOfMonth, "clear_fields": in.ClearFields, "refill": in.Refill,
 			"include_closed": in.IncludeClosed, "reset_status_id": in.ResetStatusID,
-			"due_day_field": in.DueDayField, "paid_field": in.PaidField,
+			"due_day_field": in.DueDayField, "due_start_field": in.DueStartField, "paid_field": in.PaidField,
 		})
 	})
 	if err != nil {
@@ -451,7 +466,7 @@ func scanCycleItems(rows pgx.Rows) ([]cycleItem, error) {
 
 func (c Cycle) input() CycleInput {
 	return CycleInput{Enabled: c.Enabled, DayOfMonth: c.DayOfMonth, ClearFields: c.ClearFields, Refill: c.Refill,
-		IncludeClosed: c.IncludeClosed, ResetStatusID: c.ResetStatusID, DueDayField: c.DueDayField, PaidField: c.PaidField}
+		IncludeClosed: c.IncludeClosed, ResetStatusID: c.ResetStatusID, DueDayField: c.DueDayField, DueStartField: c.DueStartField, PaidField: c.PaidField}
 }
 
 // parsePeriod reads an explicit YYYY-MM for a manual close: last month or
@@ -763,9 +778,9 @@ func (s *Store) runCycle(ctx context.Context, projectID uuid.UUID) (bool, error)
 		var c CycleInput
 		var run time.Time
 		err := tx.QueryRow(ctx, `SELECT workspace_id, day_of_month, clear_fields, refill, include_closed, reset_status_id,
-				due_day_field, paid_field, next_run
+				due_day_field, due_start_field, paid_field, next_run
 			FROM period_cycles WHERE project_id = $1 AND is_enabled AND next_run IS NOT NULL FOR UPDATE SKIP LOCKED`, projectID).
-			Scan(&wsID, &c.DayOfMonth, &c.ClearFields, &refill, &c.IncludeClosed, &c.ResetStatusID, &c.DueDayField, &c.PaidField, &run)
+			Scan(&wsID, &c.DayOfMonth, &c.ClearFields, &refill, &c.IncludeClosed, &c.ResetStatusID, &c.DueDayField, &c.DueStartField, &c.PaidField, &run)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil // disabled or being run by another replica
 		}

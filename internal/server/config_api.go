@@ -77,11 +77,12 @@ func (a *api) updateWorkflow(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Name               opt.Field[string] `json:"name"`
 		EnforceTransitions opt.Field[bool]   `json:"enforce_transitions"`
+		ReopenAdminOnly    opt.Field[bool]   `json:"reopen_admin_only"`
 	}
 	if !a.decode(w, r, &body) {
 		return
 	}
-	wf, err := a.store.UpdateWorkflow(r.Context(), workspaceFrom(r).ID, principal(r).UserID, id, body.Name, body.EnforceTransitions)
+	wf, err := a.store.UpdateWorkflow(r.Context(), workspaceFrom(r).ID, principal(r).UserID, id, body.Name, body.EnforceTransitions, body.ReopenAdminOnly)
 	if err != nil {
 		a.fail(w, r, err)
 		return
@@ -133,7 +134,7 @@ func (a *api) allowedStatuses(w http.ResponseWriter, r *http.Request) {
 		a.fail(w, r, store.ErrNotFound)
 		return
 	}
-	sts, err := a.store.AllowedStatuses(r.Context(), workspaceFrom(r).ID, projectFrom(r).ID, n)
+	sts, err := a.store.AllowedStatuses(r.Context(), workspaceFrom(r).ID, projectFrom(r).ID, n, store.RoleAtLeast(workspaceFrom(r).Role, store.RoleAdmin))
 	if err != nil {
 		a.fail(w, r, err)
 		return

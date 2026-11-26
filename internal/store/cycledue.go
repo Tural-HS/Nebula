@@ -46,22 +46,34 @@ func fieldDate(v json.RawMessage) (time.Time, bool) {
 
 func isTrue(v json.RawMessage) bool { return string(bytes.TrimSpace(v)) == "true" }
 
-// dueIn is the item's due date in month: the day of its due_day_field value,
-// clamped. A date in that month or later (a loan given this month) falls due
-// first in the month after it, not on the day it was given. false: due dates
-// are off or the item has no such date.
+// dueIn is the item's due date in month: the day of its due_day_field value
+// (else of its due_start_field value, ADR-0060), clamped. Nothing falls due
+// in or before the month of the start date (due_start_field, else the day
+// field itself): a loan given on 5 January is first due on 5 February.
+// false: due dates are off or the item has no usable date.
 func (c CycleInput) dueIn(it cycleItem, month time.Time) (string, bool) {
 	if c.DueDayField == nil {
 		return "", false
 	}
-	d, ok := fieldDate(it.fields[*c.DueDayField])
+	day, ok := fieldDate(it.fields[*c.DueDayField])
+	start, hasStart := time.Time{}, false
+	if c.DueStartField != nil {
+		start, hasStart = fieldDate(it.fields[*c.DueStartField])
+	}
+	if !ok {
+		day, ok = start, hasStart
+	}
 	if !ok {
 		return "", false
 	}
-	if first := periodStart(d).AddDate(0, 1, 0); month.Before(first) {
+	ref := day
+	if hasStart {
+		ref = start
+	}
+	if first := periodStart(ref).AddDate(0, 1, 0); month.Before(first) {
 		month = first
 	}
-	return monthDay(month, d.Day()).Format(time.DateOnly), true
+	return monthDay(month, day.Day()).Format(time.DateOnly), true
 }
 
 // carries reports an unpaid late item that a close on today leaves as it is:
@@ -121,8 +133,9 @@ func applyCycleUpdate(ctx context.Context, tx pgx.Tx, u UpdateItemParams, in che
 // month and that month already closed (so its snapshot holds the late
 // month's values before the roll resets them).
 const dueCandidates = `i.deleted_at IS NULL
-	AND jsonb_typeof(i.fields -> c.due_day_field) = 'string'
-	AND (i.fields ->> c.due_day_field) ~ '^\d{4}-\d{2}-\d{2}$'
+	AND (((i.fields ->> c.due_day_field) ~ '^\d{4}-\d{2}-\d{2}$' AND jsonb_typeof(i.fields -> c.due_day_field) = 'string')
+		OR (c.due_start_field IS NOT NULL AND jsonb_typeof(i.fields -> c.due_start_field) = 'string'
+			AND (i.fields ->> c.due_start_field) ~ '^\d{4}-\d{2}-\d{2}$'))
 	AND (i.due_date IS NULL OR (c.paid_field IS NOT NULL
 		AND i.fields -> c.paid_field = 'true'::jsonb
 		AND i.due_date < date_trunc('month', $1::timestamptz AT TIME ZONE w.timezone)::date
@@ -179,11 +192,11 @@ func (s *Store) runCycleDueDates(ctx context.Context, projectID uuid.UUID, now t
 		// The cycle row lock (SKIP LOCKED) keeps this off a project that
 		// another replica, or the monthly close itself, is working on.
 		err := tx.QueryRow(ctx, `SELECT c.workspace_id, c.day_of_month, c.clear_fields, c.refill, c.include_closed,
-				c.reset_status_id, c.due_day_field, c.paid_field, ($2::timestamptz AT TIME ZONE w.timezone)::date
+				c.reset_status_id, c.due_day_field, c.due_start_field, c.paid_field, ($2::timestamptz AT TIME ZONE w.timezone)::date
 			FROM period_cycles c JOIN workspaces w ON w.id = c.workspace_id
 			WHERE c.project_id = $1 AND c.is_enabled AND c.due_day_field IS NOT NULL
 			FOR UPDATE OF c SKIP LOCKED`, projectID, now).
-			Scan(&wsID, &c.DayOfMonth, &c.ClearFields, &refill, &c.IncludeClosed, &c.ResetStatusID, &c.DueDayField, &c.PaidField, &today)
+			Scan(&wsID, &c.DayOfMonth, &c.ClearFields, &refill, &c.IncludeClosed, &c.ResetStatusID, &c.DueDayField, &c.DueStartField, &c.PaidField, &today)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil
 		}

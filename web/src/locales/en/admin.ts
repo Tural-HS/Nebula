@@ -107,6 +107,8 @@ export const ta = {
   transitions: "Transitions",
   enforce: "Allow only defined transitions",
   enforceHint: "When off, an item can move to any status.",
+  reopenAdminOnly: "Only admins can reopen closed items",
+  reopenAdminOnlyHint: "When on, only an admin can move an item from a done or canceled status back to an open one. The monthly cycle and automations are not affected.",
   anyStatus: "Any status",
   newTransition: "New transition",
   from: "From",

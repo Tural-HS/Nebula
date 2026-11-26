@@ -40,11 +40,14 @@ type Transition struct {
 // Workflow is an ordered set of statuses shared by one or more item types.
 // With EnforceTransitions, items may only move along defined transitions.
 type Workflow struct {
-	ID                 uuid.UUID        `json:"id"`
-	Name               string           `json:"name"`
-	EnforceTransitions bool             `json:"enforce_transitions"`
-	Statuses           []WorkflowStatus `json:"statuses"`
-	Transitions        []Transition     `json:"transitions"`
+	ID                 uuid.UUID `json:"id"`
+	Name               string    `json:"name"`
+	EnforceTransitions bool      `json:"enforce_transitions"`
+	// ReopenAdminOnly: only admins move items from a done/canceled status
+	// back to an open one (ADR-0060). System changes are exempt.
+	ReopenAdminOnly bool             `json:"reopen_admin_only"`
+	Statuses        []WorkflowStatus `json:"statuses"`
+	Transitions     []Transition     `json:"transitions"`
 	// ApprovalPolicies guard entering statuses of this workflow (ADR-0026).
 	ApprovalPolicies []ApprovalPolicy `json:"approval_policies"`
 	CreatedAt        time.Time        `json:"created_at"`
@@ -76,14 +79,14 @@ func (s *Store) ListWorkflows(ctx context.Context, wsID uuid.UUID) ([]Workflow, 
 }
 
 func listWorkflows(ctx context.Context, q querier, wsID uuid.UUID, only *uuid.UUID) ([]Workflow, error) {
-	rows, err := q.Query(ctx, `SELECT id, name, enforce_transitions, created_at, updated_at FROM workflows
+	rows, err := q.Query(ctx, `SELECT id, name, enforce_transitions, reopen_admin_only, created_at, updated_at FROM workflows
 		WHERE workspace_id = $1 AND ($2::uuid IS NULL OR id = $2) ORDER BY name, id`, wsID, only)
 	if err != nil {
 		return nil, err
 	}
 	wfs, err := pgx.CollectRows(rows, func(r pgx.CollectableRow) (Workflow, error) {
 		w := Workflow{Statuses: []WorkflowStatus{}, Transitions: []Transition{}, ApprovalPolicies: []ApprovalPolicy{}}
-		return w, r.Scan(&w.ID, &w.Name, &w.EnforceTransitions, &w.CreatedAt, &w.UpdatedAt)
+		return w, r.Scan(&w.ID, &w.Name, &w.EnforceTransitions, &w.ReopenAdminOnly, &w.CreatedAt, &w.UpdatedAt)
 	})
 	if err != nil {
 		return nil, err
@@ -208,25 +211,28 @@ func (s *Store) CreateWorkflow(ctx context.Context, wsID, actorID uuid.UUID, nam
 }
 
 // UpdateWorkflow renames a workflow and/or toggles transition enforcement.
-func (s *Store) UpdateWorkflow(ctx context.Context, wsID, actorID, id uuid.UUID, name opt.Field[string], enforce opt.Field[bool]) (Workflow, error) {
-	if name.Null || enforce.Null {
+func (s *Store) UpdateWorkflow(ctx context.Context, wsID, actorID, id uuid.UUID, name opt.Field[string], enforce, reopenAdminOnly opt.Field[bool]) (Workflow, error) {
+	if name.Null || enforce.Null || reopenAdminOnly.Null {
 		return Workflow{}, invalid("body", "fields cannot be null")
 	}
 	var wf Workflow
 	err := s.inTx(ctx, func(tx pgx.Tx) error {
 		var oldName string
-		var oldEnforce bool
+		var oldEnforce, oldReopen bool
 		var transitions int
-		err := tx.QueryRow(ctx, `SELECT name, enforce_transitions,
+		err := tx.QueryRow(ctx, `SELECT name, enforce_transitions, reopen_admin_only,
 				(SELECT count(*) FROM workflow_transitions WHERE workflow_id = w.id)
-			FROM workflows w WHERE workspace_id = $1 AND id = $2 FOR UPDATE`, wsID, id).Scan(&oldName, &oldEnforce, &transitions)
+			FROM workflows w WHERE workspace_id = $1 AND id = $2 FOR UPDATE`, wsID, id).Scan(&oldName, &oldEnforce, &oldReopen, &transitions)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrNotFound
 		}
 		if err != nil {
 			return err
 		}
-		newName, newEnforce := oldName, oldEnforce
+		newName, newEnforce, newReopen := oldName, oldEnforce, oldReopen
+		if reopenAdminOnly.Set {
+			newReopen = reopenAdminOnly.Value
+		}
 		if name.Set {
 			if newName, err = text("name", name.Value, 1, 200); err != nil {
 				return err
@@ -245,8 +251,11 @@ func (s *Store) UpdateWorkflow(ctx context.Context, wsID, actorID, id uuid.UUID,
 		if newEnforce != oldEnforce {
 			changes["enforce_transitions"] = diff(oldEnforce, newEnforce)
 		}
+		if newReopen != oldReopen {
+			changes["reopen_admin_only"] = diff(oldReopen, newReopen)
+		}
 		if len(changes) > 0 {
-			_, err = tx.Exec(ctx, `UPDATE workflows SET name = $1, enforce_transitions = $2 WHERE id = $3`, newName, newEnforce, id)
+			_, err = tx.Exec(ctx, `UPDATE workflows SET name = $1, enforce_transitions = $2, reopen_admin_only = $4 WHERE id = $3`, newName, newEnforce, id, newReopen)
 			if isUniqueViolation(err, "workflows_workspace_id_name_key") {
 				return &ConflictError{Code: "workflow_name_taken", Message: "a workflow with this name already exists"}
 			}
@@ -367,6 +376,29 @@ func checkTransition(ctx context.Context, q querier, workflowID, from, to uuid.U
 	return nil
 }
 
+// checkReopen refuses a move from a done/canceled status to an open one by
+// a non-admin when the workflow reserves reopening for admins (ADR-0060).
+// A zero actor is the system (monthly close, automations): always allowed.
+func checkReopen(ctx context.Context, q querier, wsID, workflowID, from, to, actor uuid.UUID) error {
+	if actor == uuid.Nil {
+		return nil
+	}
+	var guarded bool
+	var role *string
+	err := q.QueryRow(ctx, `SELECT w.reopen_admin_only
+			AND (SELECT category FROM statuses WHERE id = $2) IN ('done', 'canceled')
+			AND (SELECT category FROM statuses WHERE id = $3) IN ('todo', 'in_progress'),
+			(SELECT role FROM workspace_members WHERE workspace_id = $4 AND user_id = $5)
+		FROM workflows w WHERE w.id = $1`, workflowID, from, to, wsID, actor).Scan(&guarded, &role)
+	if err != nil || !guarded {
+		return err
+	}
+	if role != nil && RoleAtLeast(*role, RoleAdmin) {
+		return nil
+	}
+	return &ForbiddenError{Code: "reopen_admin_only", Message: "only an admin can move a closed item back to an open status"}
+}
+
 // TransitionTarget is a status an item can move to next. RequiresApproval
 // means the move goes through an approval request (ADR-0026).
 type TransitionTarget struct {
@@ -377,18 +409,23 @@ type TransitionTarget struct {
 }
 
 // AllowedStatuses returns the statuses an item can move to next.
-func (s *Store) AllowedStatuses(ctx context.Context, wsID, projectID uuid.UUID, number int64) ([]TransitionTarget, error) {
+// Without admin, a workflow that reserves reopening for admins (ADR-0060)
+// offers no open status for a closed item.
+func (s *Store) AllowedStatuses(ctx context.Context, wsID, projectID uuid.UUID, number int64, admin bool) ([]TransitionTarget, error) {
 	rows, err := s.pool.Query(ctx, `SELECT st.id, st.name, st.category,
 			EXISTS (SELECT 1 FROM approval_policies ap WHERE ap.status_id = st.id)
 		FROM items i
 		JOIN item_types it ON it.id = i.item_type_id
 		JOIN workflows w ON w.id = it.workflow_id
 		JOIN statuses st ON st.workflow_id = w.id AND st.id <> i.status_id
+		JOIN statuses cur ON cur.id = i.status_id
 		WHERE i.workspace_id = $1 AND i.project_id = $2 AND i.number = $3 AND i.deleted_at IS NULL
+		  AND ($4 OR NOT w.reopen_admin_only OR cur.category NOT IN ('done', 'canceled')
+			OR st.category NOT IN ('todo', 'in_progress'))
 		  AND (NOT w.enforce_transitions OR EXISTS (
 			SELECT 1 FROM workflow_transitions t WHERE t.workflow_id = w.id AND t.to_status_id = st.id
 			  AND (t.from_status_id = i.status_id OR t.from_status_id IS NULL)))
-		ORDER BY st.position, st.name`, wsID, projectID, number)
+		ORDER BY st.position, st.name`, wsID, projectID, number, admin)
 	if err != nil {
 		return nil, err
 	}

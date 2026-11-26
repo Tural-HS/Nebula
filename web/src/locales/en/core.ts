@@ -19,6 +19,8 @@ export const t = {
   close: "Close",
   account: "Account",
   errorGeneric: "The action failed. Check your connection and try again.",
+  /** Server error codes shown in the user's language instead of the API message. */
+  errorCodes: { reopen_admin_only: "Only an admin can reopen a closed item." } as Record<string, string>,
   newVersion: "A new version of Nebula is available",
   newVersionHint: "Reload the page: the old version still open cannot load new parts of the app.",
   unexpectedErrorHint: "Unexpected error. Reload the page; if it keeps happening, tell your admin.",
@@ -61,6 +63,7 @@ export const t = {
   dueOverdue: "Overdue",
   dueToday: "Today",
   dueWeek: "Next 7 days",
+  dueMonth: "This month (and earlier)",
   dueNone: "No due date",
   clearDate: "Clear",
   search: "Search…",
