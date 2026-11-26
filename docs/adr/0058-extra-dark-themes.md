@@ -12,7 +12,7 @@ Komanda daha çox tünd tema istədi. Tünd rejimdə yalnız "Tünd" və "Gecə 
 
 | Qərar | Səbəb | Alternativ və niyə yox |
 |---|---|---|
-| Dörd yeni tünd palitra: **Tünd yaşıl** (`evergreen`), **Qara (OLED)** (`oled`), **Bənövşəyi gecə** (`dusk`), **Qəhvə** (`mocha`) | Fərqli zövqlər: FinTez yaşılı, tam qara ekran, soyuq və isti çalarlar | İstifadəçinin öz rəngini seçməsi: kontrastı yoxlamaq olmur |
+| Üç yeni tünd palitra: **Tünd yaşıl** (`evergreen`), **Qara (OLED)** (`oled`), **Bənövşəyi gecə** (`dusk`) | Fərqli zövqlər: FinTez yaşılı, tam qara ekran, soyuq çalar | İstifadəçinin öz rəngini seçməsi: kontrastı yoxlamaq olmur. İsti qəhvəyi tema (`mocha`) sınaqdan sonra bəyənilmədi, çıxarıldı |
 | Eyni üsul: neytral şkala (`zinc`) əvəz olunur, açıqlıq pillələri "Gecə göyü" ilə eynidir, yalnız çalar dəyişir | Kontrast artıq yoxlanılıb (400 / 950 təxminən 8:1); bütün komponentlər dəyişmədən işləyir | Hər tema üçün ayrıca komponent rəngləri: çox iş, səhv riski |
 | Tünd yaşıl brend şkalasını da dəyişir; 600/700 "Yaşıl" palitradakı kimi (ağ mətn 5.21:1) | Düymələr FinTez yaşılı olur, AA saxlanır | Daha açıq yaşıl: ağ mətn 4.5:1-dən aşağı düşür |
 | OLED: səhifə tam qara, səthlər 0.16 açıqlıqda | OLED ekranlarda enerji və göz üçün | Səthləri də qara etmək: kartlar fondan ayrılmır |

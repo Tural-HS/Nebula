@@ -181,7 +181,7 @@ describe("extra palettes", () => {
 });
 
 describe("dark palettes (ADR-0058)", () => {
-  it.each(["evergreen", "oled", "dusk", "mocha"] as const)("%s is dark and marked with data-theme", (name) => {
+  it.each(["evergreen", "oled", "dusk"] as const)("%s is dark and marked with data-theme", (name) => {
     applyTheme(document, name);
     expect(document.documentElement.classList.contains("dark")).toBe(true);
     expect(document.documentElement.dataset.theme).toBe(name);

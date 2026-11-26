@@ -46,13 +46,13 @@ test("pick paper, midnight, green and high contrast; back to system", async ({ p
 test("the extra dark palettes keep dark mode and survive a reload (ADR-0058)", async ({ page }) => {
   await page.goto("/");
   const root = page.locator("html");
-  for (const name of ["evergreen", "oled", "dusk", "mocha"]) {
+  for (const name of ["evergreen", "oled", "dusk"]) {
     await page.getByRole("combobox", { name: "Rəng rejimi" }).first().selectOption(name);
     await expect(root).toHaveAttribute("data-theme", name);
     await expect(root).toHaveClass(/dark/);
   }
   await page.reload();
-  await expect(root).toHaveAttribute("data-theme", "mocha");
+  await expect(root).toHaveAttribute("data-theme", "dusk");
   await expect(root).toHaveClass(/dark/);
   // OLED: a black page.
   await page.getByRole("combobox", { name: "Rəng rejimi" }).first().selectOption("oled");
