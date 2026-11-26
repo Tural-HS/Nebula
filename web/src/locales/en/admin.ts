@@ -166,6 +166,7 @@ export const ta = {
   copyProject: "Target project",
   copyMatch: "Match field",
   copyFields: "Fields to copy",
+  copyCreate: "Create it in the target when missing (same title and fields)",
   copyHint: "The selected field values are written to the items of the target project whose match field has the same value (up to 30 fields). An empty value clears the target value.",
 
   auditApply: "Apply",

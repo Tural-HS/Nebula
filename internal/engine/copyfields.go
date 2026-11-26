@@ -14,7 +14,7 @@ import (
 
 // copyFields runs one copy_fields action (ADR-0056): the listed field values
 // of src are written to every live item of the target project whose match
-// field holds the same value. Only differing values are written, so a
+// field holds the same value; with create, a missing target is created. Only differing values are written, so a
 // converged pair (or a reverse rule) writes nothing.
 //
 // Per-item rejections (validation, approval locks, an item deleted since)
@@ -38,6 +38,20 @@ func (e *Engine) copyFields(ctx context.Context, log *slog.Logger, wsID uuid.UUI
 	}
 	if err != nil {
 		return err
+	}
+	if len(targets.Items) == 0 && a.Create {
+		it, created, err := e.Store.CreateCopyTarget(ctx, wsID, targets.ProjectID, src.Title, a.Match, value, src.Fields, a.Fields)
+		var ve *store.ValidationError
+		switch {
+		case errors.As(err, &ve):
+			log.Warn("copy_fields could not create the target", "field", ve.Field, "reason", ve.Message)
+			return nil
+		case err != nil:
+			return err
+		case created:
+			log.Info("copy_fields created the target", "target", it.Key)
+		}
+		return nil
 	}
 	if targets.More {
 		log.Warn("copy_fields matched too many items; only the first are updated", "limit", store.MaxCopyTargets)

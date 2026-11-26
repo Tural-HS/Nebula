@@ -40,6 +40,7 @@ tapşırıqlar tapılır və onlara `fields`-dəki sahələrin dəyərləri yaz�
 | Hədəf səviyyəli rədd (yoxlama xətası, təsdiq kilidi `approval_pending` / `approval_required` / `reapproval_required`, silinmiş tapşırıq) logla ötürülür, digər hədəflər davam edir, job uğurla bitir | Təkrar cəhd eyni nəticəni verərdi; bir kart bütün sinxronizasiyanı dayandırmasın | Job-u qalıcı xəta ilə bitirmək |
 | Yazılışlar `source = automation` və qaydanın ID-si ilə qeyd olunur, ona görə **heç bir qaydanı tətikləmir** (ADR-0005) | Sonsuz dövrə mümkün deyil: REY→MAH və MAH→REY qaydaları birlikdə olsa da, avtomatik yazılış qarşı qaydanı işə salmır | Dərinlik sayğacı: mövcud qoruma kifayətdir |
 | Aylıq bağlanışın (ADR-0051) `item.updated` hadisələri üçün `copy_fields` işləmir (digər əməliyyatlar işləyir) | Bağlanış bütün layihəni sıfırlayır; bu sıfırlama başqa layihəyə (məs. MAH→REY qaydası ilə reyestrə) köçməməlidir | — |
+| `create: true` (2026-11-26): uyğun hədəf yoxdursa, hədəf layihədə yeni tapşırıq yaradılır — mənbənin adı, uyğunlaşdırma dəyəri və siyahıdakı sahələrlə; növ hədəf layihədə ən çox işlədilən növdür. Uyğunlaşdırma dəyəri boşdursa heç nə yaranmır. Eyni dəyər üçün advisory kilid və tranzaksiya daxilində yenidən yoxlama iki paralel işin iki tapşırıq yaratmasının qarşısını alır | Reyestrə yeni müştəri əlavə olunanda aylıq hesabatda da avtomatik yaransın | Ayrı "yarat" əməliyyatı: eyni uyğunlaşdırma məntiqini təkrarlayardı |
 
 ### Bilinən məhdudiyyətlər və risklər
 

@@ -118,6 +118,8 @@ export interface RuleAction {
   project?: string;
   match?: string;
   fields?: string[];
+  /** copy_fields: create the target item when none matches. */
+  create?: boolean;
 }
 
 export interface Rule {

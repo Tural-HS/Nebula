@@ -75,6 +75,9 @@ type Action struct {
 	Project string   `json:"project,omitempty"`
 	Match   string   `json:"match,omitempty"`
 	Fields  []string `json:"fields,omitempty"`
+	// Create (copy_fields): when no target item matches, create one in the
+	// target project with the source's title, match value and fields.
+	Create bool `json:"create,omitempty"`
 }
 
 // Rule is an automation rule.
@@ -175,6 +178,9 @@ func (s *Store) validateRule(ctx context.Context, q querier, wsID uuid.UUID, in 
 			return invalid(path, "duplicate %s action", a.Type)
 		}
 		seen[dup] = true
+		if a.Create && a.Type != ActionCopyFields {
+			return invalid(path+".create", "is only allowed on copy_fields")
+		}
 		switch a.Type {
 		case ActionSetStatus:
 			if a.StatusID == nil {

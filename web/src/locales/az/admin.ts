@@ -164,6 +164,7 @@ export const ta = {
   copyProject: "Hədəf layihə",
   copyMatch: "Uyğunlaşdırma sahəsi",
   copyFields: "Köçürüləcək sahələr",
+  copyCreate: "Hədəfdə yoxdursa, yarat (eyni ad və sahələrlə)",
   copyHint: "Hədəf layihədə uyğunlaşdırma sahəsinin dəyəri eyni olan tapşırıqlara seçilmiş sahələrin dəyərləri yazılır (ən çox 30 sahə). Boş dəyər hədəfdəki dəyəri silir.",
 
   auditApply: "Tətbiq et",

@@ -97,12 +97,12 @@ function Automations({ ws }: { ws: string }) {
 interface CondRow { field: string; op: ConditionOp; text: string }
 interface ActRow {
   type: RuleAction["type"]; status_id: string; user_id: string; key: string; text: string; to: string; subject: string; body: string;
-  project: string; match: string; fields: string[];
+  project: string; match: string; fields: string[]; create: boolean;
 }
 
 const emptyAction = (): ActRow => ({
   type: "set_assignee", status_id: "", user_id: "", key: "", text: "", to: "assignee", subject: "[{{item.key}}] {{item.title}}", body: "{{item.key}}: {{item.status}}",
-  project: "", match: "", fields: [],
+  project: "", match: "", fields: [], create: false,
 });
 
 function toRows(r: Rule | null): { conds: CondRow[]; acts: ActRow[] } {
@@ -122,6 +122,7 @@ function toRows(r: Rule | null): { conds: CondRow[]; acts: ActRow[] } {
       project: a.project ?? "",
       match: a.match ?? "",
       fields: a.fields ?? [],
+      create: a.create ?? false,
     })),
   };
 }
@@ -156,7 +157,7 @@ function RuleEditor({ ws, ctx, rule, onDone }: { ws: string; ctx: Ctx; rule: Rul
         case "send_email":
           return { type: "send_email", to: recipients(a.to), subject: a.subject, body: a.body };
         case "copy_fields":
-          return { type: "copy_fields", project: a.project, match: a.match, fields: a.fields.filter((k) => k !== a.match) };
+          return { type: "copy_fields", project: a.project, match: a.match, fields: a.fields.filter((k) => k !== a.match), ...(a.create ? { create: true } : {}) };
       }
     }),
   });
@@ -322,6 +323,10 @@ function CopyFieldsEditor({ row, ctx, onChange }: { row: ActRow; ctx: Ctx; onCha
           })}
         </div>
       </fieldset>
+      <label className="flex items-center gap-1.5 text-sm">
+        <input type="checkbox" className="accent-brand-600" checked={row.create} onChange={(e) => { onChange({ create: e.target.checked }); }} />
+        {ta.copyCreate}
+      </label>
       <p className="text-xs text-zinc-500 dark:text-zinc-400">{ta.copyHint}</p>
     </div>
   );

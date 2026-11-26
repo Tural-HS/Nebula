@@ -169,3 +169,73 @@ func (s *Store) CopyFieldTargets(ctx context.Context, wsID uuid.UUID, projectKey
 	}
 	return out, rows.Err()
 }
+
+// CreateCopyTarget creates the target item of a copy_fields action with
+// create (ADR-0056) when none matches yet: title, the match value and the
+// listed fields the target type uses, as the system. The type is the one
+// most items of the target project have (else the workspace default).
+//
+// A transaction-scoped advisory lock on (project, match, value) and a
+// re-check inside it keep two concurrent jobs (two quick edits of the
+// source) from creating it twice. created is false when it already exists.
+func (s *Store) CreateCopyTarget(ctx context.Context, wsID, projectID uuid.UUID, title, match string, value any,
+	src map[string]any, fields []string) (item Item, created bool, err error) {
+	raw, err := json.Marshal(value)
+	if err != nil {
+		return Item{}, false, err
+	}
+	err = s.inTx(ctx, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended($1 || ':' || $2 || ':' || $3, 0))`,
+			projectID.String(), match, string(raw)); err != nil {
+			return err
+		}
+		var exists bool
+		if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM items i WHERE i.workspace_id = $1 AND i.project_id = $2
+			AND i.deleted_at IS NULL AND i.fields @> jsonb_build_object($3::text, $4::jsonb))`,
+			wsID, projectID, match, string(raw)).Scan(&exists); err != nil {
+			return err
+		}
+		if exists {
+			return nil
+		}
+		var typeKey string
+		err := tx.QueryRow(ctx, `SELECT t.key FROM items i JOIN item_types t ON t.id = i.item_type_id
+			WHERE i.workspace_id = $1 AND i.project_id = $2 AND i.deleted_at IS NULL AND t.archived_at IS NULL
+			GROUP BY t.key ORDER BY count(*) DESC, t.key LIMIT 1`, wsID, projectID).Scan(&typeKey)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return err
+		}
+		bound := map[string]bool{}
+		rows, err := tx.Query(ctx, `SELECT f.key FROM item_type_fields b
+			JOIN item_types t ON t.id = b.item_type_id JOIN field_definitions f ON f.id = b.field_id
+			WHERE t.workspace_id = $1 AND t.key = COALESCE(NULLIF($2, ''), 'task') AND f.archived_at IS NULL`, wsID, typeKey)
+		if err != nil {
+			return err
+		}
+		keys, err := pgx.CollectRows(rows, pgx.RowTo[string])
+		if err != nil {
+			return err
+		}
+		for _, k := range keys {
+			bound[k] = true
+		}
+		values := map[string]json.RawMessage{}
+		for _, k := range append([]string{match}, fields...) {
+			v, ok := src[k]
+			if !ok || v == nil || (typeKey != "" && !bound[k]) {
+				continue
+			}
+			b, err := json.Marshal(v)
+			if err != nil {
+				return err
+			}
+			values[k] = b
+		}
+		item, err = createItemTx(ctx, tx, CreateItemParams{
+			WorkspaceID: wsID, ProjectID: projectID, Title: title, TypeKey: typeKey, Fields: values,
+		}, nil)
+		created = err == nil
+		return err
+	})
+	return item, created, err
+}

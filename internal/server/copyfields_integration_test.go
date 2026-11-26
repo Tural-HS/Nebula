@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"testing"
 )
 
@@ -172,6 +173,59 @@ func TestCopyFieldsAction(t *testing.T) {
 		// again, and MAH-3 is not yet updated by this change.
 		if f := get(mahItems + "/3")["fields"].(map[string]any); f["balance"] != 250.5 {
 			t.Fatalf("MAH-3 changed by an automation-caused event: %v", f)
+		}
+	})
+
+	t.Run("create missing target", func(t *testing.T) {
+		bad := copyAction("MAH", "nv_number", "balance")
+		bad["type"], bad["key"], bad["value"] = "set_field", "note", "x"
+		delete(bad, "project")
+		delete(bad, "match")
+		delete(bad, "fields")
+		bad["create"] = true
+		if r := e.call("alice", "POST", base, map[string]any{"name": "v", "trigger": "item.updated", "actions": []any{bad}}); r.Status != 422 || errField(r) != "actions[0].create" {
+			t.Fatalf("create on set_field: %d %s", r.Status, r.Raw)
+		}
+		create := copyAction("MAH", "nv_number", "balance", "monthly_payment")
+		create["create"] = true
+		e.must(201, "alice", "POST", base, map[string]any{
+			"name": "New leases to MAH", "trigger": "item.updated",
+			"conditions": []any{map[string]any{"field": "project", "op": "eq", "value": "ACME"}},
+			"actions":    []any{create},
+		})
+		count := func() int {
+			return e.count(`SELECT count(*) FROM items i JOIN projects p ON p.id = i.project_id
+				WHERE p.key = 'MAH' AND i.deleted_at IS NULL AND i.fields->>'nv_number' = 'NV-7'`)
+		}
+		// A new lease gets its NV number after it was created.
+		lease := e.must(201, "alice", "POST", items, map[string]any{"title": "Lease 7"}).Body
+		e.drain()
+		if n := count(); n != 0 {
+			t.Fatalf("created before the NV number was set: %d", n)
+		}
+		e.must(200, "carol", "PATCH", items+"/"+fmt.Sprint(lease["number"]), map[string]any{"version": lease["version"],
+			"fields": map[string]any{"nv_number": "NV-7", "balance": 70, "monthly_payment": 7}})
+		e.drain()
+		if n := count(); n != 1 {
+			t.Fatalf("MAH items for NV-7: %d", n)
+		}
+		created := e.must(200, "alice", "GET", mahItems+"?limit=50", nil).Body["items"].([]any)
+		var m map[string]any
+		for _, it := range created {
+			if f := it.(map[string]any)["fields"].(map[string]any); f["nv_number"] == "NV-7" {
+				m = it.(map[string]any)
+			}
+		}
+		if f := m["fields"].(map[string]any); m["title"] != "Lease 7" || f["balance"] != 70.0 || f["monthly_payment"] != 7.0 {
+			t.Fatalf("created MAH item: %v", m)
+		}
+		// Later edits update it, never create a second one.
+		cur := e.must(200, "alice", "GET", items+"/"+fmt.Sprint(lease["number"]), nil).Body
+		e.must(200, "carol", "PATCH", items+"/"+fmt.Sprint(lease["number"]), map[string]any{"version": cur["version"],
+			"fields": map[string]any{"balance": 60}})
+		e.drain()
+		if n := count(); n != 1 {
+			t.Fatalf("MAH items for NV-7 after an edit: %d", n)
 		}
 	})
 
