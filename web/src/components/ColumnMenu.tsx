@@ -66,8 +66,13 @@ export function ColumnMenu({ def, label, value, onFilter, sort, onSort }: {
       setOpen(false);
     };
     // The page or the table scrolled: the anchor moved, close instead of drifting.
+    // A live filter can shrink the list, which clamps the table's scroll
+    // without moving the header: only a real move of the button closes.
+    const at = button.current?.getBoundingClientRect();
     const onScroll = (e: Event) => {
-      if (!panel.current?.contains(e.target as Node)) setOpen(false);
+      if (panel.current?.contains(e.target as Node)) return;
+      const now = button.current?.getBoundingClientRect();
+      if (!at || !now || Math.abs(now.top - at.top) > 1 || Math.abs(now.left - at.left) > 1) setOpen(false);
     };
     document.addEventListener("pointerdown", close);
     document.addEventListener("keydown", close);
@@ -131,7 +136,7 @@ export function ColumnMenu({ def, label, value, onFilter, sort, onSort }: {
               <Button className="flex-1" variant={sorted === "desc" ? "primary" : "secondary"} onClick={() => { onSort(`-field.${def.key}` as ItemSort); done(); }}>↓ {tv.sortDescShort}</Button>
             </div>
           )}
-          {kind && <FilterEditor def={def} kind={kind} value={value} onApply={apply} />}
+          {kind && <FilterEditor def={def} kind={kind} value={value} onApply={apply} onLive={onFilter} />}
         </div>,
         document.body,
       )}
@@ -139,11 +144,17 @@ export function ColumnMenu({ def, label, value, onFilter, sort, onSort }: {
   );
 }
 
-function FilterEditor({ def, kind, value, onApply }: {
+/** Typing pauses this long before the list reloads. */
+const LIVE_DELAY = 300;
+
+function FilterEditor({ def, kind, value, onApply, onLive }: {
   def: FieldDefinition;
   kind: NonNullable<ReturnType<typeof filterKind>>;
   value: string | undefined;
+  /** Apply and close the menu (Enter, the button). */
   onApply: (v: string) => void;
+  /** Apply while the menu stays open: the list follows what is typed. */
+  onLive: (v: string) => void;
 }) {
   const p = parseFilter(value);
   const [contains, setContains] = useState(p.contains);
@@ -151,6 +162,25 @@ function FilterEditor({ def, kind, value, onApply }: {
   const [to, setTo] = useState(p.to);
   const base = useId();
   const [picked, setPicked] = useState<string[]>(pickedChoices(value));
+  // Live filtering: the typed value reaches the list after a short pause.
+  // `sent` is what the list shows, so an unchanged value is not sent again
+  // and Enter right after typing does not apply twice.
+  const sent = useRef(value ?? "");
+  const timer = useRef<number | undefined>(undefined);
+  useEffect(() => () => { window.clearTimeout(timer.current); }, []);
+  const live = (v: string, delay = LIVE_DELAY) => {
+    window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => {
+      if (v === sent.current) return;
+      sent.current = v;
+      onLive(v);
+    }, delay);
+  };
+  const applyNow = (v: string) => {
+    window.clearTimeout(timer.current);
+    sent.current = v;
+    onApply(v);
+  };
   const clear = value ? <Button variant="ghost" onClick={() => { onApply(""); }}>{tv.clearColumnFilter}</Button> : null;
   // Every type: rows with no value, or with any value.
   const presence = (
@@ -168,7 +198,7 @@ function FilterEditor({ def, kind, value, onApply }: {
           className="space-y-2"
           onSubmit={(e) => {
             e.preventDefault();
-            onApply(choicesValue(picked));
+            applyNow(choicesValue(picked));
           }}
         >
           <fieldset>
@@ -181,7 +211,11 @@ function FilterEditor({ def, kind, value, onApply }: {
                       type="checkbox"
                       className="size-4 accent-brand-600"
                       checked={picked.includes(c.id)}
-                      onChange={(e) => { setPicked((p) => (e.target.checked ? [...p, c.id] : p.filter((x) => x !== c.id))); }}
+                      onChange={(e) => {
+                        const next = e.target.checked ? [...picked, c.id] : picked.filter((x) => x !== c.id);
+                        setPicked(next);
+                        live(choicesValue(next), 0);
+                      }}
                     />
                     {c.label}
                   </label>
@@ -223,23 +257,23 @@ function FilterEditor({ def, kind, value, onApply }: {
       className="space-y-2"
       onSubmit={(e) => {
         e.preventDefault();
-        onApply(kind === "contains" ? containsValue(contains) : rangeValue(from, to));
+        applyNow(kind === "contains" ? containsValue(contains) : rangeValue(from, to));
       }}
     >
       {kind === "contains" ? (
         <>
           <Label htmlFor={`${base}-c`}>{tv.containsLabel}</Label>
-          <Input id={`${base}-c`} autoFocus maxLength={100} value={contains} placeholder={tv.containsPlaceholder} onChange={(e) => { setContains(e.target.value); }} />
+          <Input id={`${base}-c`} autoFocus maxLength={100} value={contains} placeholder={tv.containsPlaceholder} onChange={(e) => { setContains(e.target.value); live(containsValue(e.target.value)); }} />
         </>
       ) : (
         <div className="grid grid-cols-2 gap-2">
           <div>
             <Label htmlFor={`${base}-f`}>{tv.rangeFrom}</Label>
-            <Input id={`${base}-f`} autoFocus type={kind === "date" ? "date" : "number"} step="any" value={from} onChange={(e) => { setFrom(e.target.value); }} />
+            <Input id={`${base}-f`} autoFocus type={kind === "date" ? "date" : "number"} step="any" value={from} onChange={(e) => { setFrom(e.target.value); live(rangeValue(e.target.value, to)); }} />
           </div>
           <div>
             <Label htmlFor={`${base}-t`}>{tv.rangeTo}</Label>
-            <Input id={`${base}-t`} type={kind === "date" ? "date" : "number"} step="any" value={to} onChange={(e) => { setTo(e.target.value); }} />
+            <Input id={`${base}-t`} type={kind === "date" ? "date" : "number"} step="any" value={to} onChange={(e) => { setTo(e.target.value); live(rangeValue(from, e.target.value)); }} />
           </div>
         </div>
       )}

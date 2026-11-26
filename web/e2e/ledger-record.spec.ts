@@ -201,7 +201,7 @@ test.describe("column filters and density", () => {
     await page.getByRole("dialog", { name: "Əlaqə nömrəsi: filtr və sıralama" }).getByRole("button", { name: "Boş olanlar" }).click();
     await expect(page.getByRole("list", { name: "Aktiv filtrlər" })).toContainText("Əlaqə nömrəsi: boşdur");
     await expect(page.getByRole("row").filter({ hasText: "Rəşad Quliyev" })).toHaveCount(0);
-    // No rows left: the table (and its header menus) gives way to the empty state; the chip removes the filter.
+    // No rows left: the table header stays (with a "no matching items" note); the chip removes the filter.
     await page.getByRole("button", { name: "Filtri götür: Əlaqə nömrəsi: boşdur" }).click();
     await page.getByRole("button", { name: /Əlaqə nömrəsi: filtr və sıralama/ }).click();
     await page.getByRole("dialog", { name: "Əlaqə nömrəsi: filtr və sıralama" }).getByRole("button", { name: "Dolu olanlar" }).click();
@@ -214,6 +214,28 @@ test.describe("column filters and density", () => {
     await page.getByRole("button", { name: /Əlaqə nömrəsi: filtr və sıralama/ }).click();
     await page.keyboard.press("Escape");
     await expect(page.getByRole("dialog", { name: "Əlaqə nömrəsi: filtr və sıralama" })).toHaveCount(0);
+  });
+
+  test("a text column filter follows what is typed, no button needed; the menu stays open", async ({ page }) => {
+    await page.goto(`${seed.url}?cols=key,title,field.balance,field.phone`);
+    await page.getByRole("button", { name: /Əlaqə nömrəsi: filtr və sıralama/ }).click();
+    const phone = page.getByRole("dialog", { name: "Əlaqə nömrəsi: filtr və sıralama" });
+    await phone.getByLabel("İçində").pressSequentially("5614");
+    await expect(page).toHaveURL(/field\.phone=(~|%7E)5614/);
+    await expect(page.getByRole("row").filter({ hasText: "Rəşad Quliyev" })).toHaveCount(1);
+    await expect(phone).toBeVisible();
+    // Nothing matches: the menu stays open over the empty table and the text can be fixed.
+    await phone.getByLabel("İçində").pressSequentially("zz");
+    await expect(page.getByRole("status").filter({ hasText: "Bu filtrlərə uyğun tapşırıq yoxdur." })).toBeVisible();
+    await expect(phone).toBeVisible();
+    await phone.getByLabel("İçində").press("Backspace");
+    await phone.getByLabel("İçində").press("Backspace");
+    await expect(page.getByRole("row").filter({ hasText: "Rəşad Quliyev" })).toHaveCount(1);
+    await expect(phone.getByLabel("İçində")).toHaveValue("5614");
+    // Enter closes the menu and keeps the filter.
+    await phone.getByLabel("İçində").press("Enter");
+    await expect(phone).toHaveCount(0);
+    await expect(page).toHaveURL(/field\.phone=(~|%7E)5614/);
   });
 
   test("drag or arrow-key a column wider; the width is remembered, Home resets it", async ({ page }) => {

@@ -9,6 +9,10 @@ test("pick paper, midnight, green and high contrast; back to system", async ({ p
   const picker = page.getByRole("combobox", { name: "Rəng rejimi" }).first();
   const root = page.locator("html");
 
+  // The default brand colour (teal), in whatever notation the browser reports.
+  const brandOf = () => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--color-brand-600"));
+  const teal = await brandOf();
+
   await picker.selectOption("paper");
   await expect(root).toHaveAttribute("data-theme", "paper");
   await expect(root).not.toHaveClass(/dark/);
@@ -26,8 +30,8 @@ test("pick paper, midnight, green and high contrast; back to system", async ({ p
   await page.getByRole("combobox", { name: "Rəng rejimi" }).first().selectOption("green");
   await expect(root).toHaveAttribute("data-theme", "green");
   await expect(root).not.toHaveClass(/dark/);
-  const brand = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--color-brand-600"));
-  expect(brand).toContain("165");
+  // Chromium may report oklch() as lab(): compare with the default instead of the text.
+  await expect.poll(brandOf).not.toBe(teal);
   await page.reload();
   await expect(root).toHaveAttribute("data-theme", "green");
 

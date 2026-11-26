@@ -537,7 +537,7 @@ export function ItemsPage() {
             <Spinner />
           ) : items.isError ? (
             <ErrorState error={items.error} onRetry={() => void items.refetch()} />
-          ) : all.length === 0 ? (
+          ) : all.length === 0 && Object.keys(state.fields).length === 0 ? (
             <EmptyState>
               {filterCount > 0 || state.q ? (
                 <>
@@ -549,28 +549,40 @@ export function ItemsPage() {
               )}
             </EmptyState>
           ) : (
-            <ItemTable
-              items={all}
-              columns={columns}
-              fields={fields}
-              members={memberById}
-              sums={sums.data}
-              hasMore={items.hasNextPage}
-              loadingMore={items.isFetchingNextPage}
-              loadMore={() => void items.fetchNextPage()}
-              onOpen={(n) => { setParam("item", String(n)); }}
-              widthScope={`${ws}/${project}`}
-              selection={tableSelection}
-              inline={inline}
-              filters={state.fields}
-              onFilter={(key, value) => {
-                const rest = Object.fromEntries(Object.entries(state.fields).filter(([k]) => k !== key));
-                applyState({ fields: value ? { ...rest, [key]: value } : rest });
-              }}
-              sort={state.sort}
-              onSort={(sort) => { applyState({ sort }); }}
-              density={density}
-            />
+            // Always the same tree, so a column filter that matches nothing keeps
+            // the header (and its open menu) instead of swapping to an empty page.
+            <div className="flex h-full flex-col">
+              <div className={cn("min-h-0", all.length > 0 && "flex-1")}>
+                <ItemTable
+                  items={all}
+                  columns={columns}
+                  fields={fields}
+                  members={memberById}
+                  sums={sums.data}
+                  hasMore={items.hasNextPage}
+                  loadingMore={items.isFetchingNextPage}
+                  loadMore={() => void items.fetchNextPage()}
+                  onOpen={(n) => { setParam("item", String(n)); }}
+                  widthScope={`${ws}/${project}`}
+                  selection={tableSelection}
+                  inline={inline}
+                  filters={state.fields}
+                  onFilter={(key, value) => {
+                    const rest = Object.fromEntries(Object.entries(state.fields).filter(([k]) => k !== key));
+                    applyState({ fields: value ? { ...rest, [key]: value } : rest });
+                  }}
+                  sort={state.sort}
+                  onSort={(sort) => { applyState({ sort }); }}
+                  density={density}
+                />
+              </div>
+              {all.length === 0 && (
+                <div role="status" className="flex flex-wrap items-center gap-3 p-6 text-sm text-zinc-600 dark:text-zinc-300">
+                  <p>{t.noItemsFiltered}</p>
+                  <Button onClick={() => { applyState({ ...clearFilters(), q: "" }); }}>{tlg.clearFilters}</Button>
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>

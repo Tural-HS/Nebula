@@ -145,6 +145,11 @@ export const useItems = (ws: string, project: string, filters: ItemFilters, enab
     queryFn: ({ pageParam }) =>
       api<ItemPage>("GET", path`/workspaces/${ws}/projects/${project}/items` + "?" + itemsQueryString(filters, pageParam)),
     getNextPageParam: (last) => last.next_cursor,
+    // A new filter keeps the current rows on screen until the answer comes
+    // (typing in a column filter must not flash a spinner and close the
+    // menu), but never another project's rows.
+    placeholderData: (prev, prevQuery) =>
+      prevQuery?.queryKey[1] === ws && prevQuery.queryKey[3] === project ? prev : undefined,
   });
 
 const COLUMN_PAGE = 50;
