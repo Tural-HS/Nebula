@@ -121,6 +121,71 @@
   --color-zinc-950: oklch(0.1 0 0);
 }
 
+/* Dark palettes (ADR-0058), built like midnight (same lightness steps, so
+   the same contrast: 400 on 950 about 8:1) with another hue: evergreen
+   (FinTez green; brand 600/700 as the green palette, white text 5.21:1), oled (black page, neutral greys), dusk
+   (violet) and mocha (warm brown). */
+:root[data-theme="evergreen"] {
+  --color-zinc-50: oklch(0.975 0.008 170);
+  --color-zinc-100: oklch(0.95 0.012 170);
+  --color-zinc-200: oklch(0.9 0.02 170);
+  --color-zinc-300: oklch(0.84 0.025 170);
+  --color-zinc-400: oklch(0.73 0.035 170);
+  --color-zinc-500: oklch(0.58 0.04 170);
+  --color-zinc-600: oklch(0.46 0.045 170);
+  --color-zinc-700: oklch(0.37 0.05 170);
+  --color-zinc-800: oklch(0.29 0.055 170);
+  --color-zinc-900: oklch(0.225 0.05 170);
+  --color-zinc-950: oklch(0.175 0.045 170);
+  --color-brand-300: oklch(0.82 0.12 161);
+  --color-brand-400: oklch(0.74 0.145 160);
+  --color-brand-500: oklch(0.62 0.13 162);
+  --color-brand-600: oklch(0.52 0.108 165);
+  --color-brand-700: oklch(0.44 0.08 175);
+  --color-brand-800: oklch(0.39 0.068 184);
+  --color-brand-900: oklch(0.32 0.054 186);
+  --color-brand-950: oklch(0.25 0.044 190);
+}
+:root[data-theme="oled"] {
+  --color-zinc-50: oklch(0.975 0 0);
+  --color-zinc-100: oklch(0.95 0 0);
+  --color-zinc-200: oklch(0.9 0 0);
+  --color-zinc-300: oklch(0.84 0 0);
+  --color-zinc-400: oklch(0.73 0 0);
+  --color-zinc-500: oklch(0.58 0 0);
+  --color-zinc-600: oklch(0.45 0 0);
+  --color-zinc-700: oklch(0.34 0 0);
+  --color-zinc-800: oklch(0.24 0 0);
+  --color-zinc-900: oklch(0.16 0 0);
+  --color-zinc-950: oklch(0.0 0 0);
+}
+:root[data-theme="dusk"] {
+  --color-zinc-50: oklch(0.975 0.008 295);
+  --color-zinc-100: oklch(0.95 0.012 295);
+  --color-zinc-200: oklch(0.9 0.02 295);
+  --color-zinc-300: oklch(0.84 0.025 295);
+  --color-zinc-400: oklch(0.73 0.035 295);
+  --color-zinc-500: oklch(0.58 0.04 295);
+  --color-zinc-600: oklch(0.46 0.045 295);
+  --color-zinc-700: oklch(0.37 0.05 295);
+  --color-zinc-800: oklch(0.29 0.055 295);
+  --color-zinc-900: oklch(0.225 0.05 295);
+  --color-zinc-950: oklch(0.175 0.045 295);
+}
+:root[data-theme="mocha"] {
+  --color-zinc-50: oklch(0.975 0.006 55);
+  --color-zinc-100: oklch(0.95 0.01 55);
+  --color-zinc-200: oklch(0.9 0.016 55);
+  --color-zinc-300: oklch(0.84 0.02 55);
+  --color-zinc-400: oklch(0.73 0.028 55);
+  --color-zinc-500: oklch(0.58 0.032 55);
+  --color-zinc-600: oklch(0.46 0.036 55);
+  --color-zinc-700: oklch(0.37 0.04 55);
+  --color-zinc-800: oklch(0.29 0.044 55);
+  --color-zinc-900: oklch(0.225 0.04 55);
+  --color-zinc-950: oklch(0.175 0.036 55);
+}
+
 @layer base {
   :root {
     /* Item panel width beside the table from lg (ADR-0035); the list reserves it. */

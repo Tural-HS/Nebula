@@ -42,3 +42,20 @@ test("pick paper, midnight, green and high contrast; back to system", async ({ p
   await page.getByRole("combobox", { name: "Rəng rejimi" }).first().selectOption("system");
   await expect(root).not.toHaveAttribute("data-theme", /.+/);
 });
+
+test("the extra dark palettes keep dark mode and survive a reload (ADR-0058)", async ({ page }) => {
+  await page.goto("/");
+  const root = page.locator("html");
+  for (const name of ["evergreen", "oled", "dusk", "mocha"]) {
+    await page.getByRole("combobox", { name: "Rəng rejimi" }).first().selectOption(name);
+    await expect(root).toHaveAttribute("data-theme", name);
+    await expect(root).toHaveClass(/dark/);
+  }
+  await page.reload();
+  await expect(root).toHaveAttribute("data-theme", "mocha");
+  await expect(root).toHaveClass(/dark/);
+  // OLED: a black page.
+  await page.getByRole("combobox", { name: "Rəng rejimi" }).first().selectOption("oled");
+  await expect.poll(() => page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toMatch(/^(rgb\(0, 0, 0\)|oklch\(0 0 0\)|lab\(0 0 0\))$/);
+  await page.getByRole("combobox", { name: "Rəng rejimi" }).first().selectOption("system");
+});

@@ -2,7 +2,7 @@ import { tth } from "../i18n-theme";
 import { cn } from "../lib/cn";
 import { isThemePref, setTheme, THEMES, useTheme, type ThemePref } from "../lib/theme";
 
-const ICONS: Record<ThemePref, string> = { system: "◐", light: "☀", dark: "☾", green: "🌿", paper: "📜", midnight: "✦", contrast: "◑" };
+const ICONS: Record<ThemePref, string> = { system: "◐", light: "☀", dark: "☾", green: "🌿", paper: "📜", midnight: "✦", evergreen: "🌲", oled: "●", dusk: "🌆", mocha: "☕", contrast: "◑" };
 
 /**
  * Colour theme picker (ADR-0035), beside the language picker. The header shows

@@ -179,3 +179,13 @@ describe("extra palettes", () => {
     expect(resolveTheme("contrast", true)).toBe("contrast");
   });
 });
+
+describe("dark palettes (ADR-0058)", () => {
+  it.each(["evergreen", "oled", "dusk", "mocha"] as const)("%s is dark and marked with data-theme", (name) => {
+    applyTheme(document, name);
+    expect(document.documentElement.classList.contains("dark")).toBe(true);
+    expect(document.documentElement.dataset.theme).toBe(name);
+    expect(document.documentElement.style.colorScheme).toBe("dark");
+    expect(parseTheme(name)).toBe(name);
+  });
+});

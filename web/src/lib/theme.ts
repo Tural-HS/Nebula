@@ -3,19 +3,21 @@ import { useSyncExternalStore } from "react";
 // ---------------------------------------------------------------------------
 // Colour theme per browser (ADR-0035, ADR-0049): the system setting, light,
 // dark, or one of four palettes on top of them — green (FinTez green, light),
-// paper (warm light, least glare), midnight (the logo's deep blue, dark) and high contrast (light).
+// paper (warm light, least glare), midnight (the logo's deep blue, dark), the
+// dark evergreen, oled, dusk and mocha (ADR-0058) and high contrast (light).
 // Stored like the language (ADR-0025) but applied live, without a reload.
 // public/theme-init.js applies the stored choice before the first paint; it
 // duplicates the few lines of resolveTheme/applyTheme because it must run
 // as a classic same-origin script (CSP script-src 'self', no inline code).
 // ---------------------------------------------------------------------------
 
-export const THEMES = ["system", "light", "dark", "green", "paper", "midnight", "contrast"] as const;
+export const THEMES = ["system", "light", "dark", "green", "paper", "midnight", "evergreen", "oled", "dusk", "mocha", "contrast"] as const;
 export type ThemePref = (typeof THEMES)[number];
 export type ResolvedTheme = Exclude<ThemePref, "system">;
 
 /** Palettes on a dark base get Tailwind's dark: variant too. */
-export const isDarkTheme = (t: ResolvedTheme): boolean => t === "dark" || t === "midnight";
+export const DARK_THEMES: readonly ResolvedTheme[] = ["dark", "midnight", "evergreen", "oled", "dusk", "mocha"];
+export const isDarkTheme = (t: ResolvedTheme): boolean => DARK_THEMES.includes(t);
 
 export const THEME_STORAGE_KEY = "nebula.theme";
 export const DARK_QUERY = "(prefers-color-scheme: dark)";
@@ -27,6 +29,10 @@ export const THEME_COLORS: Record<ResolvedTheme, string> = {
   green: "#00524d",
   paper: "#f4ecdd",
   midnight: "#0f1a33",
+  evergreen: "#0b1f1a",
+  oled: "#000000",
+  dusk: "#1a1430",
+  mocha: "#231a14",
   contrast: "#000000",
 };
 

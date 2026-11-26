@@ -3,8 +3,8 @@ import type { Messages } from "../../i18n/locale";
 
 export const tth = {
   theme: "Renk modu",
-  themeHint: "Açık, koyu, kâğıt (gözü az yorar), gece mavisi, yüksek kontrast veya sistemdeki gibi; hemen uygulanır.",
-  themes: { system: "Sistem", light: "Açık", dark: "Koyu", green: "Yeşil", paper: "Kâğıt", midnight: "Gece mavisi", contrast: "Yüksek kontrast" },
+  themeHint: "Açık, koyu, kâğıt (gözü az yorar), gece mavisi, koyu yeşil, siyah (OLED), alacakaranlık, mocha, yüksek kontrast veya sistemdeki gibi; hemen uygulanır.",
+  themes: { system: "Sistem", light: "Açık", dark: "Koyu", green: "Yeşil", paper: "Kâğıt", midnight: "Gece mavisi", evergreen: "Koyu yeşil", oled: "Siyah (OLED)", dusk: "Alacakaranlık", mocha: "Mocha", contrast: "Yüksek kontrast" },
   accent: "Vurgu rengi",
   accentHint: "Bu çalışma alanında düğmeler, bağlantılar ve seçili öğeler bu renkle görünür. Herkes için değişir.",
   accentSaved: "Vurgu rengi kaydedildi",
