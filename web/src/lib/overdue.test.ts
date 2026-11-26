@@ -7,13 +7,13 @@ describe("overdue bands", () => {
     expect(daysLate("2026-10-31", "2026-11-26")).toBe(26);
     expect(daysLate("2026-11-26", "2026-11-26")).toBe(0);
   });
-  it("grades 1–10 amber, 11–20 orange, 21+ red", () => {
+  it("grades 1–15 yellow, 16–30 orange, 31+ red", () => {
     expect(lateLevel(0)).toBe(0);
     expect(lateLevel(1)).toBe(1);
-    expect(lateLevel(10)).toBe(1);
-    expect(lateLevel(11)).toBe(2);
-    expect(lateLevel(20)).toBe(2);
-    expect(lateLevel(21)).toBe(3);
+    expect(lateLevel(15)).toBe(1);
+    expect(lateLevel(16)).toBe(2);
+    expect(lateLevel(30)).toBe(2);
+    expect(lateLevel(31)).toBe(3);
   });
   it("formats the local date", () => {
     expect(localToday(new Date(2026, 0, 5))).toBe("2026-01-05");
@@ -26,9 +26,9 @@ describe("lateDays", () => {
     const m = lateDays([it1], "2026-10-26", "2026-12-06", "2026-11-26");
     expect(m.has("2026-11-03")).toBe(false);
     expect(m.get("2026-11-04")?.[0]).toMatchObject({ days: 1, level: 1 });
-    expect(m.get("2026-11-14")?.[0]).toMatchObject({ days: 11, level: 2 });
-    expect(m.get("2026-11-24")?.[0]).toMatchObject({ days: 21, level: 3 });
-    expect(m.get("2026-11-26")?.[0]).toMatchObject({ days: 23, level: 3 });
+    expect(m.get("2026-11-18")?.[0]).toMatchObject({ days: 15, level: 1 });
+    expect(m.get("2026-11-19")?.[0]).toMatchObject({ days: 16, level: 2 });
+    expect(m.get("2026-11-26")?.[0]).toMatchObject({ days: 23, level: 2 });
     expect(m.has("2026-11-27")).toBe(false);
   });
   it("clips to the visible range and skips items that are not overdue", () => {

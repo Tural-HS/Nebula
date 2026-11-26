@@ -110,7 +110,7 @@ export function StatusBadge({ name, category }: { name: string; category: Status
 
 /**
  * A due date. When the item is overdue it shows the days late and takes the
- * band's colour (ADR-0057): yellow up to 10 days, orange up to 20, then red.
+ * band's colour (ADR-0057): yellow up to 15 days, orange up to 30, then red.
  */
 export function DueChip({ date, overdue, today = localToday() }: { date: string; overdue: boolean; today?: string }) {
   const label = formatDate(date);

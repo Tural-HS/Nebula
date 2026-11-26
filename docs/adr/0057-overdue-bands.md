@@ -13,7 +13,7 @@ tapşırıq yalnız bir rənglə (qırmızı) göstərilirdi. Təqvimdə isə ta
 
 | Qərar | Səbəb | Alternativ və niyə yox |
 |---|---|---|
-| Üç pillə: **1–10 gün sarı**, **11–20 narıncı**, **21+ qırmızı** | Müştərinin istədiyi hədlər | Hədləri ayarlanan etmək: hələ ehtiyac yoxdur, sonra əlavə etmək asandır |
+| Üç pillə: **1–15 gün sarı**, **16–30 narıncı**, **31+ qırmızı** | Müştərinin istədiyi hədlər | Hədləri ayarlanan etmək: hələ ehtiyac yoxdur, sonra əlavə etmək asandır |
 | Gecikib-gecikmədiyinə **server** qərar verir (`overdue`); veb yalnız pilləni hesablayır | Bir mənbə: filtrlər, sayğaclar, xülasə eyni qaydanı işlədir | Pilləni serverdə saxlamaq: hər gün yenidən yazmaq lazım olardı |
 | Gün sayı brauzerin yerli tarixi ilə hesablanır | Son tarix nişanı hər yerdə işlədilir və workspace-in saat qurşağını bilmir; FinTez üçün eyni qurşaqdır | Saat qurşağını hər komponentə ötürmək: çox dəyişiklik, az fayda |
 | Son tarix nişanı rənglənir, gün sayı yazılır ("· 15"); ekran oxuyucusu üçün "15 gün gecikir" | Rəng tək məna daşımır | Yalnız rəng: rəng korları üçün oxunmur |

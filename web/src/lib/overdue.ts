@@ -1,5 +1,5 @@
 // Overdue severity (ADR-0057): how long an open item has been past its due
-// date, in three bands. 1–10 days late is yellow, 11–20 orange, 21 or more
+// date, in three bands. 1–15 days late is yellow, 16–30 orange, 31 or more
 // red. The server decides whether an item is overdue (ADR-0009); this only
 // grades it, on plain YYYY-MM-DD dates so no time zone can shift a day.
 
@@ -15,8 +15,8 @@ export function daysLate(due: string, day: string): number {
 /** The band for a number of days late: 0 when not late. */
 export function lateLevel(days: number): LateLevel {
   if (days <= 0) return 0;
-  if (days <= 10) return 1;
-  if (days <= 20) return 2;
+  if (days <= 15) return 1;
+  if (days <= 30) return 2;
   return 3;
 }
 
