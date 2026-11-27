@@ -75,6 +75,9 @@ type Action struct {
 	Project string   `json:"project,omitempty"`
 	Match   string   `json:"match,omitempty"`
 	Fields  []string `json:"fields,omitempty"`
+	// From (set_field, ADR-0062): copy the item's own value of this field
+	// instead of a fixed Value, e.g. balance from monthly_payment.
+	From string `json:"from,omitempty"`
 	// Create (copy_fields): when no target item matches, create one in the
 	// target project with the source's title, match value and fields.
 	Create bool `json:"create,omitempty"`
@@ -204,6 +207,20 @@ func (s *Store) validateRule(ctx context.Context, q querier, wsID uuid.UUID, in 
 				}
 			}
 		case ActionSetField:
+			if a.From != "" {
+				if len(a.Value) > 0 {
+					return invalid(path, "set_field takes a value or from, not both")
+				}
+				var fromOK bool
+				if err := q.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM field_definitions WHERE workspace_id = $1 AND key = $2 AND archived_at IS NULL)`,
+					wsID, a.From).Scan(&fromOK); err != nil {
+					return err
+				}
+				if !fieldKeyRe.MatchString(a.From) || !fromOK || a.From == a.Key {
+					return invalid(path+".from", "unknown field")
+				}
+				a.Value = json.RawMessage("null") // the key check below still runs
+			}
 			if !fieldKeyRe.MatchString(a.Key) || len(a.Value) == 0 || len(a.Value) > maxConditionValue {
 				return invalid(path, "set_field needs a valid key and a value")
 			}

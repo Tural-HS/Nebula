@@ -120,6 +120,8 @@ export interface RuleAction {
   project?: string;
   match?: string;
   fields?: string[];
+  /** set_field: copy this field of the item instead of value (ADR-0062). */
+  from?: string;
   /** copy_fields: create the target item when none matches. */
   create?: boolean;
 }

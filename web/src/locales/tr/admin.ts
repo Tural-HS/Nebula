@@ -168,6 +168,9 @@ export const ta = {
   copyMatch: "Eşleştirme alanı",
   copyFields: "Kopyalanacak alanlar",
   copyCreate: "Hedefte yoksa oluştur (aynı başlık ve alanlarla)",
+  setFrom: "Değer kaynağı",
+  setFixed: "Sabit değer",
+  setFromField: (name: string) => `"${name}" alanından`,
   copyHint: "Seçilen alanların değerleri, hedef projede eşleştirme alanı aynı değere sahip işlere yazılır (en fazla 30 alan). Boş değer hedefteki değeri temizler.",
 
   auditApply: "Uygula",

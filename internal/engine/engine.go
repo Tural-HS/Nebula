@@ -545,7 +545,20 @@ func (e *Engine) applyMutations(ctx context.Context, wsID uuid.UUID, item store.
 			}
 			mutate = true
 		case store.ActionSetField:
-			fields[a.Key] = a.Value
+			if a.From != "" {
+				// The item's own value of another field (ADR-0062); missing clears.
+				raw := json.RawMessage("null")
+				if v, ok := item.Fields[a.From]; ok && v != nil {
+					b, err := json.Marshal(v)
+					if err != nil {
+						return item, err
+					}
+					raw = b
+				}
+				fields[a.Key] = raw
+			} else {
+				fields[a.Key] = a.Value
+			}
 			mutate = true
 		}
 	}

@@ -98,11 +98,13 @@ interface CondRow { field: string; op: ConditionOp; text: string }
 interface ActRow {
   type: RuleAction["type"]; status_id: string; user_id: string; key: string; text: string; to: string; subject: string; body: string;
   project: string; match: string; fields: string[]; create: boolean;
+  /** set_field: copy this field of the item instead of a fixed value (ADR-0062). */
+  from: string;
 }
 
 const emptyAction = (): ActRow => ({
   type: "set_assignee", status_id: "", user_id: "", key: "", text: "", to: "assignee", subject: "[{{item.key}}] {{item.title}}", body: "{{item.key}}: {{item.status}}",
-  project: "", match: "", fields: [], create: false,
+  project: "", match: "", fields: [], create: false, from: "",
 });
 
 function toRows(r: Rule | null): { conds: CondRow[]; acts: ActRow[] } {
@@ -123,6 +125,7 @@ function toRows(r: Rule | null): { conds: CondRow[]; acts: ActRow[] } {
       match: a.match ?? "",
       fields: a.fields ?? [],
       create: a.create ?? false,
+      from: a.from ?? "",
     })),
   };
 }
@@ -153,7 +156,7 @@ function RuleEditor({ ws, ctx, rule, onDone }: { ws: string; ctx: Ctx; rule: Rul
         case "set_assignee":
           return { type: "set_assignee", user_id: a.user_id || null };
         case "set_field":
-          return { type: "set_field", key: a.key, value: fieldValue(fieldByKey.get(a.key), a.text) };
+          return a.from ? { type: "set_field", key: a.key, from: a.from } : { type: "set_field", key: a.key, value: fieldValue(fieldByKey.get(a.key), a.text) };
         case "send_email":
           return { type: "send_email", to: recipients(a.to), subject: a.subject, body: a.body };
         case "copy_fields":
@@ -247,7 +250,11 @@ function RuleEditor({ ws, ctx, rule, onDone }: { ws: string; ctx: Ctx; rule: Rul
                     <option value="">—</option>
                     {ctx.fields.map((f) => <option key={f.key} value={f.key}>{f.name}</option>)}
                   </Select>
-                  <ValueInput field={"fields." + a.key} value={a.text} ctx={ctx} onChange={(v) => { setActs(update(acts, i, { text: v })); }} />
+                  <Select aria-label={ta.setFrom} value={a.from} className="w-48" onChange={(e) => { setActs(update(acts, i, { from: e.target.value })); }}>
+                    <option value="">{ta.setFixed}</option>
+                    {ctx.fields.filter((f) => f.key !== a.key).map((f) => <option key={f.key} value={f.key}>{ta.setFromField(f.name)}</option>)}
+                  </Select>
+                  {!a.from && <ValueInput field={"fields." + a.key} value={a.text} ctx={ctx} onChange={(v) => { setActs(update(acts, i, { text: v })); }} />}
                 </>
               )}
               {a.type === "copy_fields" && <CopyFieldsEditor row={a} ctx={ctx} onChange={(patch) => { setActs(update(acts, i, patch)); }} />}
