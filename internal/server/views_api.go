@@ -167,7 +167,14 @@ func (a *api) sumItems(w http.ResponseWriter, r *http.Request) {
 //	f1:<sort>:<value or empty>:<n> field sorts (ADR-0030): [-]field.<key>
 func encodeItemCursor(c store.ItemCursor) string {
 	var s string
-	if c.Sort != store.SortDue && c.Sort != store.SortNumber {
+	if c.Sort == store.SortTitle || c.Sort == store.SortTitleDesc {
+		// Titles may hold ":" and any text: base64 inside the cursor.
+		v := ""
+		if c.Value != nil {
+			v = base64.RawURLEncoding.EncodeToString([]byte(*c.Value))
+		}
+		s = "t1:" + c.Sort + ":" + v + ":" + strconv.FormatInt(c.Number, 10)
+	} else if c.Sort != store.SortDue && c.Sort != store.SortNumber {
 		v := ""
 		if c.Value != nil {
 			v = *c.Value
@@ -188,7 +195,7 @@ func encodeItemCursor(c store.ItemCursor) string {
 var errBadCursor = errors.New("invalid cursor")
 
 func decodeItemCursor(s string) (store.ItemCursor, error) {
-	if len(s) > 300 {
+	if len(s) > 2000 {
 		return store.ItemCursor{}, errBadCursor
 	}
 	b, err := base64.RawURLEncoding.DecodeString(s)
@@ -219,6 +226,17 @@ func decodeItemCursor(s string) (store.ItemCursor, error) {
 			c.Due = &d
 		}
 		return c, nil
+	case len(parts) == 4 && parts[0] == "t1":
+		n, ok := num(parts[3])
+		if !ok || (parts[1] != store.SortTitle && parts[1] != store.SortTitleDesc) {
+			break
+		}
+		raw, err := base64.RawURLEncoding.DecodeString(parts[2])
+		if err != nil {
+			break
+		}
+		v := string(raw)
+		return store.ItemCursor{Sort: parts[1], Number: n, Value: &v}, nil
 	case len(parts) == 4 && parts[0] == "f1":
 		n, ok := num(parts[3])
 		if !ok || parts[1] == store.SortNumber || parts[1] == store.SortDue || !store.ValidSort(parts[1]) {

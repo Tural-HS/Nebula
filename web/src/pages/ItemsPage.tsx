@@ -22,6 +22,7 @@ import { tc } from "../i18n-calendar";
 import { monthOf, parseMonth, todayIn } from "../lib/calendar";
 import { activeFilterCount, useCompact, useMediaQuery } from "../lib/responsive";
 import { flattenPages, typesInUse } from "../lib/board";
+import { SummaryBar } from "../components/SummaryBar";
 import { fieldSortOptions, isSortable, parseSort, sortFieldKey } from "../lib/formula";
 import { tf } from "../i18n-formulas";
 import { emptyState, filtersOf, hasState, readState, sameState, stateFromView, sumFields, visibleColumns, writeState, type PageState } from "../lib/views";
@@ -338,6 +339,8 @@ export function ItemsPage() {
     <Select aria-label={tv.sort} value={state.sort} onChange={(e) => { applyState({ sort: parseSort(e.target.value) }); }} className={className}>
       <option value="number">{tv.sortNumber}</option>
       <option value="due">{tv.sortDue}</option>
+      <option value="title">{tv.sortTitle}</option>
+      <option value="-title">{tv.sortTitleDesc}</option>
       {/* Number, date and formula columns (ADR-0030); a sort on a hidden column stays selectable. */}
       {sortFields.map((f) => (
         <optgroup key={f.key} label={f.name}>
@@ -563,6 +566,7 @@ export function ItemsPage() {
             // Always the same tree, so a column filter that matches nothing keeps
             // the header (and its open menu) instead of swapping to an empty page.
             <div className="flex h-full flex-col">
+              <SummaryBar ws={ws} project={project} filters={filters} items={rules.data?.summary ?? []} today={today} />
               <div className={cn("min-h-0", all.length > 0 && "flex-1")}>
                 <ItemTable
                   items={all}

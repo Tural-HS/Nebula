@@ -39,3 +39,23 @@ test("admins set the rules; overdue cells take the band colour", async ({ page }
   const row = page.getByRole("row").filter({ hasText: "Gecikən müştəri" });
   await expect(row.locator("[data-late='2']")).toHaveCount(3); // title, balance, due chip
 });
+
+test("the summary bar totals the listed items (ADR-0064)", async ({ page }) => {
+  const alice = await apiAs("alice");
+  expect((await alice.post(`workspaces/${seed.ws}/fields`, { data: { key: "monthly_e2e", name: "Aylıq", type: "number" } })).status()).toBe(201);
+  expect((await alice.put(`workspaces/${seed.ws}/item-types/task/fields/monthly_e2e`, { data: {} })).ok()).toBe(true);
+  for (const [title, monthly, bal] of [["Bir", 1000, 400], ["İki", 500, 0]] as const) {
+    expect((await alice.post(`workspaces/${seed.ws}/projects/QA/items`, { data: { title, fields: { monthly_e2e: monthly, bal_e2e: bal } } })).status()).toBe(201);
+  }
+  expect((await alice.put(`workspaces/${seed.ws}/projects/QA/rules`, { data: { complete_fields: [], late_fields: [], summary: [
+    { label: "Aylıq ödəniş cəmi", field: "monthly_e2e", unit: "₼" },
+    { label: "Ödənilib", field: "monthly_e2e", minus: "bal_e2e", unit: "₼" },
+  ] } })).ok()).toBe(true);
+  await alice.dispose();
+  await page.goto(seed.url);
+  const bar = page.getByTestId("summary-bar");
+  await expect(bar).toContainText("hesabatı");
+  await expect(bar).toContainText(/Aylıq ödəniş cəmi:\s*1\s500\s₼/);
+  // 1500 − (400 + 0 + the overdue item's 500).
+  await expect(bar).toContainText(/Ödənilib:\s*600\s₼/);
+});

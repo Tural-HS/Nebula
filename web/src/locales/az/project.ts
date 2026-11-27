@@ -2,6 +2,16 @@
 export const tp = {
   settings: "Layihə ayarları",
   rules: {
+    summary: "Xülasə zolağı",
+    summaryHint: "Cədvəlin üstündə ayın hesabatı: seçilmiş sahələrin cəmi (filtrlərə uyğun). «Çıxılan sahə» seçilsə, o sahənin cəmi çıxılır (məs. Ödənilib = Aylıq ödəniş − Qalıq).",
+    summaryLabel: "Ad",
+    summaryField: "Sahə",
+    summaryMinus: "Çıxılan sahə",
+    summaryNoMinus: "(çıxma yoxdur)",
+    summaryUnit: "Vahid",
+    summaryRemove: "Sətri sil",
+    summaryAdd: "Sətir əlavə et",
+    summaryMinusField: (name: string) => `− ${name}`,
     title: "Tamamlanma və gecikmə qaydaları",
     complete: "Tamamlanma sahələri",
     completeHint: "Hamısı işarəli olmadan tapşırığı Tamamlandı etmək olmur; hamısı işarəli ikən geri açmaq olmur (admin üçün də). Aylıq dövr və avtomatlaşdırma bundan təsirlənmir.",

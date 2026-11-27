@@ -17,7 +17,14 @@ import (
 const (
 	SortNumber = "number" // number DESC: newest first (default)
 	SortDue    = "due"    // due_date ASC NULLS LAST, number ASC: soonest first, undated last
+	// Title sorts (ADR-0063): alphabetical in the Azerbaijani collation
+	// (Ç after C, Ə after E, Ş after S), the number breaking ties.
+	SortTitle     = "title"
+	SortTitleDesc = "-title"
 )
+
+// titleExpr is the title in the Azerbaijani ICU collation (deterministic).
+const titleExpr = `i.title COLLATE "az-x-icu"`
 
 // Field sorts (ADR-0030): "field.<key>" ascending, "-field.<key>"
 // descending, for number, date and formula (number or date result) fields.
@@ -43,7 +50,7 @@ type ItemCursor struct {
 // ValidSort reports whether s is a known sort ("" means SortNumber). Field
 // sorts are checked against the field definitions when used.
 func ValidSort(s string) bool {
-	if s == "" || s == SortNumber || s == SortDue {
+	if s == "" || s == SortNumber || s == SortDue || s == SortTitle || s == SortTitleDesc {
 		return true
 	}
 	_, _, ok := parseFieldSort(s)
@@ -115,11 +122,15 @@ func cursorAfter(sort string, last Item) *ItemCursor {
 	if c.Sort == SortDue {
 		c.Due = last.DueDate
 	}
+	if c.Sort == SortTitle || c.Sort == SortTitleDesc {
+		t := last.Title
+		c.Value = &t
+	}
 	return c
 }
 
 // SortError is the message for an unknown sort.
-const SortError = "must be number, due, field.<key> or -field.<key>"
+const SortError = "must be number, due, title, -title, field.<key> or -field.<key>"
 
 // sortAndSeek returns the ORDER BY clause and adds the keyset condition for
 // p.Cursor. Values are bound as parameters. fs is the resolved field sort,
@@ -158,6 +169,19 @@ func sortAndSeek(p ListItemsParams, fs *fieldSort, where []string, args []any) (
 		return e + " " + dir + " NULLS LAST, i.number " + dir, where, args, nil
 	}
 	switch sort {
+	case SortTitle, SortTitleDesc:
+		cmp, dir := ">", "ASC"
+		if sort == SortTitleDesc {
+			cmp, dir = "<", "DESC"
+		}
+		if c != nil {
+			if c.Value == nil {
+				return "", nil, nil, invalid("cursor", "belongs to another sort")
+			}
+			v, n := param(*c.Value)+"::text COLLATE \"az-x-icu\"", param(c.Number)
+			where = append(where, "("+titleExpr+" "+cmp+" "+v+" OR ("+titleExpr+" = "+v+" AND i.number "+cmp+" "+n+"))")
+		}
+		return titleExpr + " " + dir + ", i.number " + dir, where, args, nil
 	case SortDue:
 		if c != nil {
 			if c.Due == nil {

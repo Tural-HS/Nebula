@@ -92,7 +92,7 @@ export const useFields = (ws: string) =>
 
 export type DueFilter = "" | "overdue" | "today" | "week" | "month" | "none";
 /** Built-in sorts, or a field sort (ADR-0030): "field.<key>" ascending, "-field.<key>" descending. */
-export type ItemSort = "number" | "due" | `field.${string}` | `-field.${string}`;
+export type ItemSort = "number" | "due" | "title" | "-title" | `field.${string}` | `-field.${string}`;
 
 export interface ItemFilters {
   q: string;
@@ -405,6 +405,16 @@ export function useCommentMutations(ws: string, project: string, n: number) {
 export interface ProjectRules {
   complete_fields: string[];
   late_fields: string[];
+  /** Summary bar above the table (ADR-0064). */
+  summary?: SummaryItem[];
+}
+
+/** One total of the summary bar: sum(field) − sum(minus), with a unit. */
+export interface SummaryItem {
+  label: string;
+  field: string;
+  minus?: string;
+  unit?: string;
 }
 
 export function useProjectRules(ws: string, project: string) {

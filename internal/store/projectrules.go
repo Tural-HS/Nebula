@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"errors"
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -12,7 +13,18 @@ import (
 const (
 	maxCompleteFields = 5
 	maxLateFields     = 10
+	maxSummaryItems   = 6
 )
+
+// SummaryItem is one total of the summary bar above a project's table
+// (ADR-0064): the sum of Field over the listed items, minus the sum of
+// Minus when set, shown as "Label: value Unit".
+type SummaryItem struct {
+	Label string `json:"label"`
+	Field string `json:"field"`
+	Minus string `json:"minus,omitempty"`
+	Unit  string `json:"unit,omitempty"`
+}
 
 // ProjectRules are a project's item rules (ADR-0061).
 //
@@ -20,15 +32,16 @@ const (
 // item to a done status, and that keep a closed item closed while all are
 // true. LateFields: fields whose table cells take the overdue band colour.
 type ProjectRules struct {
-	CompleteFields []string `json:"complete_fields"`
-	LateFields     []string `json:"late_fields"`
+	CompleteFields []string      `json:"complete_fields"`
+	LateFields     []string      `json:"late_fields"`
+	Summary        []SummaryItem `json:"summary"`
 }
 
 // GetProjectRules returns the project's rules (empty lists when none).
 func (s *Store) GetProjectRules(ctx context.Context, wsID, projectID uuid.UUID) (ProjectRules, error) {
-	out := ProjectRules{CompleteFields: []string{}, LateFields: []string{}}
-	err := s.pool.QueryRow(ctx, `SELECT complete_fields, late_fields FROM project_rules WHERE workspace_id = $1 AND project_id = $2`,
-		wsID, projectID).Scan(&out.CompleteFields, &out.LateFields)
+	out := ProjectRules{CompleteFields: []string{}, LateFields: []string{}, Summary: []SummaryItem{}}
+	err := s.pool.QueryRow(ctx, `SELECT complete_fields, late_fields, summary FROM project_rules WHERE workspace_id = $1 AND project_id = $2`,
+		wsID, projectID).Scan(&out.CompleteFields, &out.LateFields, &out.Summary)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return out, nil
 	}
@@ -44,6 +57,12 @@ func (s *Store) SaveProjectRules(ctx context.Context, wsID, projectID, actorID u
 	if in.LateFields == nil {
 		in.LateFields = []string{}
 	}
+	if in.Summary == nil {
+		in.Summary = []SummaryItem{}
+	}
+	if err := s.checkSummary(ctx, wsID, in.Summary); err != nil {
+		return ProjectRules{}, err
+	}
 	if err := s.checkRuleFields(ctx, wsID, "complete_fields", in.CompleteFields, maxCompleteFields, FieldBoolean); err != nil {
 		return ProjectRules{}, err
 	}
@@ -51,15 +70,15 @@ func (s *Store) SaveProjectRules(ctx context.Context, wsID, projectID, actorID u
 		return ProjectRules{}, err
 	}
 	err := s.inTx(ctx, func(tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx, `INSERT INTO project_rules (project_id, workspace_id, complete_fields, late_fields, updated_by)
-			VALUES ($1, $2, $3, $4, $5)
+		if _, err := tx.Exec(ctx, `INSERT INTO project_rules (project_id, workspace_id, complete_fields, late_fields, summary, updated_by)
+			VALUES ($1, $2, $3, $4, $5, $6)
 			ON CONFLICT (project_id) DO UPDATE SET complete_fields = EXCLUDED.complete_fields,
-				late_fields = EXCLUDED.late_fields, updated_by = EXCLUDED.updated_by`,
-			projectID, wsID, in.CompleteFields, in.LateFields, nullUUID(actorID)); err != nil {
+				late_fields = EXCLUDED.late_fields, summary = EXCLUDED.summary, updated_by = EXCLUDED.updated_by`,
+			projectID, wsID, in.CompleteFields, in.LateFields, in.Summary, nullUUID(actorID)); err != nil {
 			return err
 		}
 		return appendEvent(ctx, tx, wsID, actorID, "project", projectID, "project_rules.updated",
-			map[string]any{"complete_fields": in.CompleteFields, "late_fields": in.LateFields})
+			map[string]any{"complete_fields": in.CompleteFields, "late_fields": in.LateFields, "summary": in.Summary})
 	})
 	if err != nil {
 		return ProjectRules{}, err
@@ -89,6 +108,42 @@ func (s *Store) checkRuleFields(ctx context.Context, wsID uuid.UUID, path string
 		}
 		if err != nil {
 			return err
+		}
+	}
+	return nil
+}
+
+// checkSummary validates the summary bar: labels of 1-60 characters, number,
+// money or number-formula fields, units of up to 8 characters.
+func (s *Store) checkSummary(ctx context.Context, wsID uuid.UUID, items []SummaryItem) error {
+	if len(items) > maxSummaryItems {
+		return invalid("summary", "at most %d entries", maxSummaryItems)
+	}
+	for i := range items {
+		it := &items[i]
+		path := "summary[" + strconv.Itoa(i) + "]"
+		label, err := text(path+".label", it.Label, 1, 60)
+		if err != nil {
+			return err
+		}
+		it.Label = label
+		if it.Unit, err = text(path+".unit", it.Unit, 0, 8); err != nil {
+			return err
+		}
+		keys := []string{it.Field}
+		if it.Minus != "" {
+			keys = append(keys, it.Minus)
+		}
+		types, err := fieldTypesByKey(ctx, s.pool, wsID, keys)
+		if err != nil {
+			return err
+		}
+		for _, k := range keys {
+			switch types[k] {
+			case FieldNumber, FieldMoney, "formula:number":
+			default:
+				return invalid(path, "%q must be a number, money or number formula field", k)
+			}
 		}
 	}
 	return nil

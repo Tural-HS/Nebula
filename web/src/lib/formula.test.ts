@@ -64,7 +64,9 @@ describe("field sorts in the page state", () => {
     expect(parseSort("due")).toBe("due");
     expect(parseSort("field.remaining")).toBe("field.remaining");
     expect(parseSort("-field.remaining")).toBe("-field.remaining");
-    for (const bad of ["", null, undefined, "field.", "field.Bad", "--field.x", "title", "-due", "field.a b"]) expect(parseSort(bad)).toBe("number");
+    expect(parseSort("title")).toBe("title"); // ADR-0063
+    expect(parseSort("-title")).toBe("-title");
+    for (const bad of ["", null, undefined, "field.", "field.Bad", "--field.x", "Title", "--title", "-due", "field.a b"]) expect(parseSort(bad)).toBe("number");
     expect(sortFieldKey("-field.remaining")).toBe("remaining");
     expect(sortFieldKey("due")).toBe("");
   });

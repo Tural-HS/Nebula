@@ -29,3 +29,13 @@ test("the Status column menu filters by status", async ({ page }) => {
   await expect(page.getByRole("row").filter({ hasText: "Açıq müştəri" })).toHaveCount(1);
   await expect(page.getByRole("button", { name: /Status: filtr və sıralama, filtr var/ })).toBeVisible();
 });
+
+test("sorts by title in the Azerbaijani alphabet (ADR-0063)", async ({ page }) => {
+  await page.goto(`${seed.url}?cols=key,title,status`);
+  await page.getByLabel("Sıralama").first().selectOption("-title");
+  await expect(page).toHaveURL(/sort=-title/);
+  const rows = page.getByRole("row").filter({ hasText: "müştəri" });
+  await expect(rows.first()).toContainText("Bağlı müştəri");
+  await page.getByLabel("Sıralama").first().selectOption("title");
+  await expect(rows.first()).toContainText("Açıq müştəri");
+});

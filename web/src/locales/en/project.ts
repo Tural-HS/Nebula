@@ -4,6 +4,16 @@ import type { Messages } from "../../i18n/locale";
 export const tp = {
   settings: "Project settings",
   rules: {
+    summary: "Summary bar",
+    summaryHint: "This month's report above the table: totals of the chosen fields (following the filters). With a minus field, its total is subtracted (e.g. Paid = Monthly payment − Balance).",
+    summaryLabel: "Label",
+    summaryField: "Field",
+    summaryMinus: "Minus field",
+    summaryNoMinus: "(no minus)",
+    summaryUnit: "Unit",
+    summaryRemove: "Remove row",
+    summaryAdd: "Add row",
+    summaryMinusField: (name: string) => `− ${name}`,
     title: "Completion and overdue rules",
     complete: "Completion fields",
     completeHint: "An item cannot be completed until all are ticked, nor reopened while all are ticked (admins included). The monthly cycle and automations are not affected.",

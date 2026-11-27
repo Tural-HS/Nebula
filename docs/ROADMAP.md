@@ -100,6 +100,8 @@ Hər mərhələ yalnız testlər, miqrasiyalar (up və down) və CI yaşıl oldu
 - [x] Bağlanmışı yalnız admin geri açır, "Bu ay" son tarix filtri, yeni müştərinin ilk ödənişi gələn ay (ADR-0060).
 - [x] Cədvəlin Status sütununda filtr; layihə qaydaları: tamamlanma sahələri və gecikmə rəngi olan xanalar (ADR-0061).
 - [x] "Sahəni doldur" dəyəri başqa sahədən götürə bilir (ADR-0062).
+- [x] Ada görə sıralama, Azərbaycan əlifbası ilə (ADR-0063).
+- [x] Cədvəlin üstündə xülasə zolağı: ayın hesabatı, seçilmiş cəmlər və fərqlər (ADR-0064).
 - [x] Təhlükəsizlik baxışının düzəlişləri: layihə siyahılı API tokeni son layihəsi silinəndə workspace-ə genişlənmir (`project_restricted`, silinmədə ləğv, miqrasiya 00036, ADR-0043); tarixçədə əlaqə etiketləri görünməyən layihələrin tapşırıq adlarını göstərmir (gizli layihələr, token siyahısı); 00032 Down gözləyən əvəzli qərarlarda dayanır; workspace silinəndə token prinsipalları deaktiv olur; xlsx ixracı mətni apostrofsuz, olduğu kimi yazır (ADR-0040)
 
 ## Phase 2: Şablonlar və görünüşlər

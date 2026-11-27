@@ -208,7 +208,7 @@ export interface ViewConfig {
     fields?: Record<string, string>;
   };
   columns: string[];
-  /** "number", "due", or a field sort: "field.<key>" / "-field.<key>" (ADR-0030). */
+  /** "number", "due", "title"/"-title" (ADR-0063) or a field sort: "field.<key>" / "-field.<key>" (ADR-0030). */
   sort: string;
   group_by: "status" | "category";
 }

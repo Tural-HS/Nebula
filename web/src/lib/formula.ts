@@ -35,6 +35,7 @@ const FIELD_SORT = /^-?field\.[a-z][a-z0-9_]{0,62}$/;
 
 export function parseSort(s: string | null | undefined): ItemSort {
   if (s === "due") return "due";
+  if (s === "title" || s === "-title") return s;
   if (s && FIELD_SORT.test(s)) return s as ItemSort;
   return "number";
 }

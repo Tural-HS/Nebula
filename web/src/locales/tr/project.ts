@@ -4,6 +4,16 @@ import type { Messages } from "../../i18n/locale";
 export const tp = {
   settings: "Proje ayarları",
   rules: {
+    summary: "Özet çubuğu",
+    summaryHint: "Tablonun üstünde ayın raporu: seçilen alanların toplamı (filtrelere göre). Çıkarılacak alan seçilirse toplamı çıkarılır (örn. Ödenen = Aylık ödeme − Kalan).",
+    summaryLabel: "Ad",
+    summaryField: "Alan",
+    summaryMinus: "Çıkarılan alan",
+    summaryNoMinus: "(çıkarma yok)",
+    summaryUnit: "Birim",
+    summaryRemove: "Satırı sil",
+    summaryAdd: "Satır ekle",
+    summaryMinusField: (name: string) => `− ${name}`,
     title: "Tamamlama ve gecikme kuralları",
     complete: "Tamamlama alanları",
     completeHint: "Hepsi işaretlenmeden görev tamamlanamaz, hepsi işaretliyken yeniden açılamaz (yönetici dahil). Aylık döngü ve otomasyonlar etkilenmez.",

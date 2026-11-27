@@ -81,6 +81,29 @@ func TestProjectRules(t *testing.T) {
 		e.must(200, "carol", "PATCH", path, map[string]any{"version": it["version"], "status_id": canceled})
 	}
 
+	// Summary bar (ADR-0064).
+	e.must(201, "alice", "POST", fieldsPath, map[string]any{"key": "monthly", "name": "Monthly", "type": "number"})
+	for _, bad := range []map[string]any{
+		{"summary": []any{map[string]any{"label": "", "field": "balance"}}},
+		{"summary": []any{map[string]any{"label": "X", "field": "paid"}}},
+		{"summary": []any{map[string]any{"label": "X", "field": "balance", "minus": "nope"}}},
+		{"summary": []any{map[string]any{"label": "X", "field": "balance", "unit": "too long unit"}}},
+	} {
+		if r := e.call("alice", "PUT", rules, bad); r.Status != 422 {
+			t.Errorf("summary %v: %d %s", bad, r.Status, r.Raw)
+		}
+	}
+	sum := e.must(200, "alice", "PUT", rules, map[string]any{"complete_fields": []string{"paid", "portal", "poa"}, "summary": []any{
+		map[string]any{"label": "Aylıq ödəniş cəmi", "field": "monthly", "unit": "₼"},
+		map[string]any{"label": "Ödənilib", "field": "monthly", "minus": "balance", "unit": "₼"},
+	}}).Body["summary"].([]any)
+	if len(sum) != 2 || sum[1].(map[string]any)["minus"] != "balance" {
+		t.Fatalf("summary: %v", sum)
+	}
+	if got := e.must(200, "carol", "GET", rules, nil).Body["summary"].([]any); len(got) != 2 {
+		t.Fatalf("member summary read: %v", got)
+	}
+
 	// Off: no rules.
 	e.must(200, "alice", "PUT", rules, map[string]any{"complete_fields": []string{}, "late_fields": []string{}})
 	if r := e.must(200, "carol", "GET", rules, nil).Body; len(r["complete_fields"].([]any)) != 0 {
