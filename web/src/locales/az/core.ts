@@ -19,7 +19,7 @@ export const t = {
   account: "Hesab",
   errorGeneric: "Əməliyyat alınmadı. Bağlantını yoxlayıb yenidən cəhd edin.",
   /** Server error codes shown in the user's language instead of the API message. */
-  errorCodes: { reopen_admin_only: "Bağlanmış tapşırığı yalnız admin geri aça bilər." } as Record<string, string>,
+  errorCodes: { reopen_admin_only: "Bağlanmış tapşırığı yalnız admin geri aça bilər.", close_lock: "Bu tapşırıq bağlı saxlanılır: işarəli sahələrdən (məs. Ödədi, Portal, Etibarnamə) birini götürün, sonra statusu dəyişin.", complete_requires: "Tamamlamaq üçün tələb olunan sahələrin hamısını (məs. Ödədi, Portal, Etibarnamə) işarələyin." } as Record<string, string>,
   newVersion: "Nebula-nın yeni versiyası var",
   newVersionHint: "Səhifəni yeniləyin: açıq qalmış köhnə versiya yeni hissələri yükləyə bilmir.",
   unexpectedErrorHint: "Gözlənilməz xəta. Səhifəni yeniləyin; təkrarlanarsa adminə bildirin.",

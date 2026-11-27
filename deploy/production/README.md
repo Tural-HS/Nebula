@@ -413,6 +413,7 @@ Sxemi də geri qaytarmaq lazımdırsa `--migrate-down-to N` Down hissələrini *
 | 00042 workspace digest minute | var | `workspaces.overdue_digest_minute` silinir — yalnız xülasənin dəqiqəsi itir, xülasə tam saata qayıdır. Köhnə image sütunu oxumur, Down-suz rollback təhlükəsizdir. **Kilidlər:** `workspaces`-də millisaniyəlik `ACCESS EXCLUSIVE` (sabit default, yenidən yazılma yoxdur; CHECK kiçik cədvəli bir dəfə skan edir) |
 | 00043 workflow reopen admin only | var | `workflows.reopen_admin_only` silinir — hamı yenidən bağlanmış tapşırığı aça bilər. Köhnə image sütunu oxumur. **Kilidlər:** `workflows`-də millisaniyəlik `ACCESS EXCLUSIVE` (sabit default) |
 | 00044 cycle due start field | var | `period_cycles.due_start_field` silinir — yazılmış son tarixlər qalır. Köhnə image sütunu oxumur. **Kilidlər:** `period_cycles`-də millisaniyəlik `ACCESS EXCLUSIVE` (default yoxdur; CHECK bir neçə sətri skan edir) |
+| 00045 project rules | var | `project_rules` silinir — yalnız tamamlanma və gecikmə rəngi ayarları itir. Köhnə image cədvəli oxumur. **Kilidlər:** yeni cədvəl |
 
 **Audit sübut ixracı (ADR-0029) miqrasiyasızdır** (00022 nömrəsi istifadə edilmədi): rollback yalnız image-dir. Köhnə image `NEBULA_EVIDENCE_SIGNING_KEY_FILE`-ı nəzərə almır, `evidence.exported` hadisələri audit log-da qalır; artıq verilmiş paketlər bu və sonrakı release-lərin `nebula evidence verify` əmri ilə yoxlanmağa davam edir.
 

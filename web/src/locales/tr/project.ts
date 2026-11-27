@@ -3,6 +3,16 @@ import type { Messages } from "../../i18n/locale";
 
 export const tp = {
   settings: "Proje ayarları",
+  rules: {
+    title: "Tamamlama ve gecikme kuralları",
+    complete: "Tamamlama alanları",
+    completeHint: "Hepsi işaretlenmeden görev tamamlanamaz, hepsi işaretliyken yeniden açılamaz (yönetici dahil). Aylık döngü ve otomasyonlar etkilenmez.",
+    late: "Gecikme renkli alanlar",
+    lateHint: "Geciken görevin bu hücreleri (ve başlığı) gecikme gününe göre renklenir.",
+    noFields: "Uygun alan yok.",
+    saved: "Kurallar kaydedildi",
+    saveLabel: "Kaydet",
+  },
   reminder: {
     title: "Doğum günü hatırlatması",
     hint: "Seçilen tarih alanının günü ve ayı bugüne denk geldiğinde (ör. müşterinin doğum günü) projeyi gören herkes uygulama içi bildirim alır. Günde bir kez, özet saatinde (özet kapalıysa 09:00).",

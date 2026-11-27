@@ -35,6 +35,18 @@ export const LATE_CHIP: Record<Exclude<LateLevel, 0>, string> = {
   3: "bg-red-100 font-medium text-red-800 ring-1 ring-red-400 dark:bg-red-600/35 dark:text-red-100 dark:ring-red-500/80",
 };
 
+/** Table cell fill per band (ADR-0061): background and text, no ring. */
+export const LATE_CELL: Record<Exclude<LateLevel, 0>, string> = {
+  1: "bg-yellow-100 text-yellow-950 dark:bg-yellow-400/25 dark:text-yellow-50",
+  2: "bg-orange-100 text-orange-950 dark:bg-orange-500/30 dark:text-orange-50",
+  3: "bg-red-100 text-red-900 dark:bg-red-600/35 dark:text-red-50",
+};
+
+/** The band of an overdue item today (0 when not overdue). */
+export function itemLateLevel(it: { overdue: boolean; due_date: string | null }, today: string = localToday()): LateLevel {
+  return it.overdue && it.due_date ? lateLevel(Math.max(1, daysLate(it.due_date, today))) : 0;
+}
+
 /** A left edge in the band's colour, for cards. */
 export const LATE_EDGE: Record<Exclude<LateLevel, 0>, string> = {
   1: "border-l-4 border-l-yellow-400",

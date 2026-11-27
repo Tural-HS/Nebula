@@ -400,3 +400,17 @@ export function useCommentMutations(ws: string, project: string, n: number) {
     }),
   };
 }
+
+/** A project's item rules (ADR-0061): complete fields and late (overdue-coloured) fields. */
+export interface ProjectRules {
+  complete_fields: string[];
+  late_fields: string[];
+}
+
+export function useProjectRules(ws: string, project: string) {
+  return useQuery({
+    queryKey: ["ws", ws, "p", project, "rules"],
+    queryFn: () => api<ProjectRules>("GET", path`/workspaces/${ws}/projects/${project}/rules`),
+    staleTime: 60_000,
+  });
+}

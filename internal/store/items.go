@@ -729,6 +729,9 @@ func updateItemTx(ctx context.Context, tx pgx.Tx, p UpdateItemParams, in checked
 			newFields = next
 			maps.Copy(changes, fieldChanges)
 		}
+		if err := checkCompleteFields(ctx, tx, p.WorkspaceID, p.ProjectID, curStatus, newStatus, p.ActorID, newFields); err != nil {
+			return err
+		}
 		if pending != nil && !applying && lockedChange(changes) {
 			return errApprovalPending()
 		}

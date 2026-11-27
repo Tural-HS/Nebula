@@ -3,6 +3,16 @@ import type { Messages } from "../../i18n/locale";
 
 export const tp = {
   settings: "Project settings",
+  rules: {
+    title: "Completion and overdue rules",
+    complete: "Completion fields",
+    completeHint: "An item cannot be completed until all are ticked, nor reopened while all are ticked (admins included). The monthly cycle and automations are not affected.",
+    late: "Overdue-coloured fields",
+    lateHint: "These cells (and the title) of an overdue item take the colour of its days late in the table.",
+    noFields: "No suitable fields.",
+    saved: "Rules saved",
+    saveLabel: "Save",
+  },
   reminder: {
     title: "Birthday reminder",
     hint: "When the day and month of the chosen date field fall on today (e.g. a customer's birthday), everyone who can see the project gets an in-app notification. Once a day, at the digest hour (09:00 when the digest is off).",

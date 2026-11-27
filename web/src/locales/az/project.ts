@@ -1,6 +1,16 @@
 // Azerbaijani strings for project settings and privacy (ADR-0013).
 export const tp = {
   settings: "Layihə ayarları",
+  rules: {
+    title: "Tamamlanma və gecikmə qaydaları",
+    complete: "Tamamlanma sahələri",
+    completeHint: "Hamısı işarəli olmadan tapşırığı Tamamlandı etmək olmur; hamısı işarəli ikən geri açmaq olmur (admin üçün də). Aylıq dövr və avtomatlaşdırma bundan təsirlənmir.",
+    late: "Gecikmə rəngi olan sahələr",
+    lateHint: "Gecikən tapşırığın cədvəldə bu xanaları (və adı) gecikmə gününə görə rənglənir.",
+    noFields: "Uyğun sahə yoxdur.",
+    saved: "Qaydalar yadda saxlanıldı",
+    saveLabel: "Yadda saxla",
+  },
   reminder: {
     title: "Ad günü xatırlatması",
     hint: "Seçilmiş tarix sahəsinin günü və ayı bu günə düşəndə (məs. müştərinin ad günü) layihəni görən hər kəs tətbiqdə bildiriş alır. Hər gün bir dəfə, səhər xülasəsinin saatında (söndürülübsə 09:00).",

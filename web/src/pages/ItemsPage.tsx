@@ -3,7 +3,7 @@ import { Link, useParams, useSearchParams } from "react-router";
 
 import { MAX_BULK, useOptimisticUpdate } from "../api/bulk";
 import { ApiError } from "../api/client";
-import { useAssignable, useFields, useItemCounts, useItems, useItemTotals, useItemTypes, useMembers, useProjects, useQueueCounts, useSetDefaultView, useWorkspace, type DueFilter, type ItemFilters } from "../api/hooks";
+import { useAssignable, useFields, useItemCounts, useItems, useProjectRules, useItemTotals, useItemTypes, useMembers, useProjects, useQueueCounts, useSetDefaultView, useWorkspace, type DueFilter, type ItemFilters } from "../api/hooks";
 import { roleAtLeast, type Item, type SavedView, type Status } from "../api/types";
 import { useViews } from "../api/views";
 import { Layout } from "../components/Layout";
@@ -121,6 +121,8 @@ export function ItemsPage() {
     for (const it of used) for (const st of it.statuses) if (!seen.has(st.id)) seen.set(st.id, st);
     return [...seen.values()];
   }, [types.data, projectCounts.data]);
+  const rules = useProjectRules(ws, project);
+  const lateFields = useMemo(() => new Set(rules.data?.late_fields ?? []), [rules.data]);
   const active = views.data?.find((v) => v.id === savedId);
   const dirty = active !== undefined && !sameState(state, stateFromView(active));
 
@@ -581,6 +583,7 @@ export function ItemsPage() {
                     const rest = Object.fromEntries(Object.entries(state.fields).filter(([k]) => k !== key));
                     applyState({ fields: value ? { ...rest, [key]: value } : rest });
                   }}
+                  lateFields={lateFields}
                   statuses={tableStatuses}
                   statusFilter={state.status}
                   onStatusFilter={(status) => { applyState({ status }); }}

@@ -26,6 +26,7 @@ import { tm } from "../i18n-money";
 import { tf } from "../i18n-formulas";
 import { tlg } from "../i18n-ledger";
 import { ROW_STRIPE, rowSignal } from "../lib/queues";
+import { itemLateLevel, LATE_CELL } from "../lib/overdue";
 
 // ---------------------------------------------------------------------------
 // Table: virtualized, so only visible rows are in the DOM (100k rows stay
@@ -112,7 +113,7 @@ export interface TableSelection {
   toggleAll: () => void;
 }
 
-export function ItemTable({ items, columns: chosen, fields, members, sums, count, hasMore, loadingMore, loadMore, onOpen, selection, inline, filters, onFilter, statuses, statusFilter, onStatusFilter, sort, onSort, density = "normal", widthScope }: {
+export function ItemTable({ items, columns: chosen, fields, members, sums, count, hasMore, loadingMore, loadMore, onOpen, selection, inline, filters, onFilter, statuses, statusFilter, onStatusFilter, lateFields, sort, onSort, density = "normal", widthScope }: {
   items: Item[];
   columns: string[];
   fields: ReadonlyMap<string, FieldDefinition>;
@@ -137,6 +138,8 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, count
   statuses?: readonly Status[] | undefined;
   statusFilter?: readonly string[] | undefined;
   onStatusFilter?: ((ids: string[]) => void) | undefined;
+  /** Field keys whose cells, like the title, take an overdue item's band colour (ADR-0061). */
+  lateFields?: ReadonlySet<string> | undefined;
   sort?: ItemSort | undefined;
   onSort?: ((s: ItemSort) => void) | undefined;
   /** Row height and text size, chosen per browser (lib/density). */
@@ -351,6 +354,15 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, count
     requestAnimationFrame(() => { focus(5); });
   };
 
+  // Overdue rows: the title and the project's late fields fill with the band
+  // colour (ADR-0061); the due column already shows a coloured chip.
+  const lateCell = (it: Item, c: string, node: ReactNode): ReactNode => {
+    if (c !== "title" && !(isFieldColumn(c) && lateFields?.has(fieldKey(c)))) return node;
+    const level = itemLateLevel(it);
+    if (!level) return node;
+    return <span data-late={level} className={cn("-mx-1 flex min-w-0 flex-1 items-center self-stretch rounded px-1", LATE_CELL[level])}>{node}</span>;
+  };
+
   // The Status column filters like a choice field: one choice per status.
   const statusDef: FieldDefinition | undefined = statuses && statuses.length > 0
     ? { id: "status", key: "__status", name: t.status, type: "select", archived: false, options: { choices: statuses.map((s) => ({ id: s.id, label: s.name })) } }
@@ -439,12 +451,12 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, count
                       {c === "title" ? (
                         <span className="flex min-w-0 flex-col gap-0.5">
                           <button type="button" data-row={row.index} className="flex min-w-0 max-w-full text-left" onClick={() => { onOpen(it.number); }}>
-                            {cell(it, c)}
+                            {lateCell(it, c, cell(it, c))}
                           </button>
                           {factCols.length > 0 && facts(it)}
                         </span>
                       ) : (
-                        cell(it, c)
+                        lateCell(it, c, cell(it, c))
                       )}
                     </span>
                   ))}
@@ -481,14 +493,14 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, count
                         )}
                         {c === "title" ? (
                           <button type="button" data-row={row.index} className="flex w-full min-w-0 flex-1 text-left hover:underline" onClick={() => { onOpen(it.number); }}>
-                            {cell(it, c)}
+                            {lateCell(it, c, cell(it, c))}
                           </button>
                         ) : kind && edit ? (
                           <InlineCell item={it} col={c} kind={kind} label={header(c)} edit={edit} fields={fields}>
-                            {cell(it, c)}
+                            {lateCell(it, c, cell(it, c))}
                           </InlineCell>
                         ) : (
-                          cell(it, c)
+                          lateCell(it, c, cell(it, c))
                         )}
                       </span>
                     );

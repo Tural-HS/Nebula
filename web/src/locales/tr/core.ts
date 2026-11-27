@@ -19,7 +19,7 @@ export const t = {
   account: "Hesap",
   errorGeneric: "İşlem başarısız oldu. Bağlantınızı kontrol edip tekrar deneyin.",
   /** Server error codes shown in the user's language instead of the API message. */
-  errorCodes: { reopen_admin_only: "Kapalı bir görevi yalnızca yönetici yeniden açabilir." } as Record<string, string>,
+  errorCodes: { reopen_admin_only: "Kapalı bir görevi yalnızca yönetici yeniden açabilir.", close_lock: "Bu görev kapalı tutuluyor: işaretli alanlardan birini (örn. Ödendi, Portal, Vekâlet) kaldırın, sonra durumu değiştirin.", complete_requires: "Tamamlamadan önce gerekli tüm alanları (örn. Ödendi, Portal, Vekâlet) işaretleyin." } as Record<string, string>,
   newVersion: "Nebula'nın yeni sürümü var",
   newVersionHint: "Sayfayı yenileyin: açık kalan eski sürüm yeni bölümleri yükleyemiyor.",
   unexpectedErrorHint: "Beklenmeyen hata. Sayfayı yenileyin; tekrarlanırsa yöneticinize bildirin.",

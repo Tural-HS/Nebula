@@ -20,7 +20,7 @@ export const t = {
   account: "Account",
   errorGeneric: "The action failed. Check your connection and try again.",
   /** Server error codes shown in the user's language instead of the API message. */
-  errorCodes: { reopen_admin_only: "Only an admin can reopen a closed item." } as Record<string, string>,
+  errorCodes: { reopen_admin_only: "Only an admin can reopen a closed item.", close_lock: "This item is kept closed: clear one of its ticked fields (e.g. Paid, Portal, Power of attorney), then change the status.", complete_requires: "Tick every required field (e.g. Paid, Portal, Power of attorney) before completing." } as Record<string, string>,
   newVersion: "A new version of Nebula is available",
   newVersionHint: "Reload the page: the old version still open cannot load new parts of the app.",
   unexpectedErrorHint: "Unexpected error. Reload the page; if it keeps happening, tell your admin.",

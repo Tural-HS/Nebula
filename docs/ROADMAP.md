@@ -98,6 +98,7 @@ Hər mərhələ yalnız testlər, miqrasiyalar (up və down) və CI yaşıl oldu
 - [x] Əlavə tünd temalar (ADR-0058): Tünd yaşıl, Qara (OLED), Bənövşəyi gecə.
 - [x] Çat kanalına yalnız status dəyişiklikləri (`item.status_changed`, ödəniş ✅) və xülasə vaxtı dəqiqə ilə, məs. 09:30 (ADR-0059).
 - [x] Bağlanmışı yalnız admin geri açır, "Bu ay" son tarix filtri, yeni müştərinin ilk ödənişi gələn ay (ADR-0060).
+- [x] Cədvəlin Status sütununda filtr; layihə qaydaları: tamamlanma sahələri və gecikmə rəngi olan xanalar (ADR-0061).
 - [x] Təhlükəsizlik baxışının düzəlişləri: layihə siyahılı API tokeni son layihəsi silinəndə workspace-ə genişlənmir (`project_restricted`, silinmədə ləğv, miqrasiya 00036, ADR-0043); tarixçədə əlaqə etiketləri görünməyən layihələrin tapşırıq adlarını göstərmir (gizli layihələr, token siyahısı); 00032 Down gözləyən əvəzli qərarlarda dayanır; workspace silinəndə token prinsipalları deaktiv olur; xlsx ixracı mətni apostrofsuz, olduğu kimi yazır (ADR-0040)
 
 ## Phase 2: Şablonlar və görünüşlər

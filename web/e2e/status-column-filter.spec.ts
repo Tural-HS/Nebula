@@ -8,7 +8,7 @@ test.beforeAll(async () => {
   seed = await seedWorkspace();
   const alice = await apiAs("alice");
   const wf = ((await (await alice.get(`workspaces/${seed.ws}/workflows`)).json()) as { workflows: { statuses: { id: string; category: string }[] }[] }).workflows[0];
-  const done = wf?.statuses.find((s) => s.category === "done")?.id;
+  const done = wf.statuses.find((s) => s.category === "done")?.id;
   for (const title of ["Açıq müştəri", "Bağlı müştəri"]) {
     const it = (await (await alice.post(`workspaces/${seed.ws}/projects/QA/items`, { data: { title } })).json()) as { number: number; version: number };
     if (title === "Bağlı müştəri") {
