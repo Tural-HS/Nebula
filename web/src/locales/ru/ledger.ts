@@ -3,7 +3,7 @@ import type { Messages } from "../../i18n/locale";
 
 export const tlg = {
   queues: "Быстрые фильтры",
-  queue: { all: "Все", mine: "Назначены мне", overdue: "Просрочены", approval: "Ждут согласования", blocked: "Заблокированы", week: "Срок на этой неделе", sla_breached: "SLA нарушен", sla_at_risk: "Риск SLA" },
+  queue: { todo: "К выполнению", done: "Выполнены", month: "Срок в этом месяце", all: "Все", mine: "Назначены мне", overdue: "Просрочены", approval: "Ждут согласования", blocked: "Заблокированы", week: "Срок на этой неделе", sla_breached: "SLA нарушен", sla_at_risk: "Риск SLA" },
   queueCount: (label: string, n: number) => `${label}: ${String(n)}`,
   signals: "Сигналы",
   signalsHint: "Согласование, блокировки, подзадачи и просроченный срок",

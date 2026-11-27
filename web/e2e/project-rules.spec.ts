@@ -59,3 +59,46 @@ test("the summary bar totals the listed items (ADR-0064)", async ({ page }) => {
   // 1500 − (400 + 0 + the overdue item's 500).
   await expect(bar).toContainText(/Ödənilib:\s*600\s₼/);
 });
+
+test("a project chooses its counters; 'due this month' counts open items (ADR-0065)", async ({ page }) => {
+  const alice = await apiAs("alice");
+  expect((await alice.put(`workspaces/${seed.ws}/projects/QA/rules`, { data: { complete_fields: [], late_fields: [], summary: [], queues: ["all", "overdue", "done", "month"] } })).ok()).toBe(true);
+  await alice.dispose();
+  await page.goto(seed.url);
+  await expect(page.getByRole("button", { name: /Tamamlanmış/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Bu ay bitir/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Mənə təyin/ })).toHaveCount(0);
+  await page.getByRole("button", { name: /Bu ay bitir/ }).click();
+  await expect(page).toHaveURL(/due=month/);
+  await expect(page).toHaveURL(/category=todo/);
+});
+
+test("the report panel shows plan, paid, lateness and the longest debt (ADR-0066)", async ({ page }) => {
+  const alice = await apiAs("alice");
+  expect((await alice.put(`workspaces/${seed.ws}/projects/QA/rules`, { data: {
+    complete_fields: [], late_fields: ["bal_e2e"], summary: [], queues: [],
+    report: { plan_field: "monthly_e2e", remaining_field: "bal_e2e" },
+  } })).ok()).toBe(true);
+  await alice.dispose();
+  await page.goto(seed.url);
+  const panel = page.getByTestId("report-panel");
+  await expect(panel.getByRole("img", { name: "40%" })).toBeVisible();
+  await expect(panel).toContainText(/Aylıq plan\s*1\s500\s₼/);
+  await expect(panel).toContainText(/Ödənilib\s*600\s₼/);
+  await expect(panel).toContainText(/Yığılası qalıq\s*900\s₼/);
+  await expect(panel).toContainText("1 · 16–30 gün");
+  await expect(panel).toContainText("20 gün");
+  await page.screenshot({ path: process.env.REPORT_SHOT ?? "test-results/report-panel.png", clip: { x: 0, y: 0, width: 1280, height: 420 } });
+  // Collapse to one line; the choice survives a reload.
+  await panel.getByRole("button", { name: "Paneli yığ" }).click();
+  await expect(panel).toContainText(/Plan\s*1\s500\s₼/);
+  await expect(panel).toContainText("1 gecikir");
+  await page.reload();
+  await expect(page.getByTestId("report-panel").getByRole("button", { name: "Paneli aç" })).toBeVisible();
+  await expect(page.getByTestId("report-panel")).toContainText(/Plan\s*1\s500/);
+  await page.screenshot({ path: (process.env.REPORT_SHOT ?? "test-results/report-panel.png").replace(".png", "-collapsed.png"), clip: { x: 0, y: 0, width: 1280, height: 260 } });
+  await page.getByTestId("report-panel").getByRole("button", { name: "Paneli aç" }).click();
+  await page.emulateMedia({ colorScheme: "dark" });
+  await expect(page.getByTestId("report-panel")).toContainText(/Ödənilib\s*600/);
+  await page.screenshot({ path: (process.env.REPORT_SHOT ?? "test-results/report-panel.png").replace(".png", "-dark.png"), clip: { x: 0, y: 0, width: 1280, height: 420 } });
+});

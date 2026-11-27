@@ -5,6 +5,8 @@ import { api, path } from "../api/client";
 import { useFields, useProjectRules, type ProjectRules, type SummaryItem } from "../api/hooks";
 import type { FieldDefinition } from "../api/types";
 import { tp } from "../i18n-project";
+import { tlg } from "../i18n-ledger";
+import { DEFAULT_QUEUES, QUEUES } from "../lib/queues";
 import { useToast } from "./toast-context";
 import { Button, ErrorState, FieldError, Input, Select, Spinner } from "./ui";
 
@@ -73,6 +75,9 @@ function RulesForm({ ws, project, current, fields }: { ws: string; project: stri
   const [complete, setComplete] = useState<string[]>(current.complete_fields);
   const [late, setLate] = useState<string[]>(current.late_fields);
   const [summary, setSummary] = useState<SummaryItem[]>(current.summary ?? []);
+  // Empty = the default set; shown ticked so the choice starts from what the list shows.
+  const [queues, setQueues] = useState<string[]>(current.queues?.length ? current.queues : [...DEFAULT_QUEUES]);
+  const queuesChanged = JSON.stringify(queues) !== JSON.stringify(current.queues?.length ? current.queues : [...DEFAULT_QUEUES]);
   const numbers = fields.filter(summable);
   const setRow = (i: number, patch: Partial<SummaryItem>) => { setSummary(summary.map((r, j) => (j === i ? { ...r, ...patch } : r))); };
   const save = useMutation({
@@ -90,6 +95,7 @@ function RulesForm({ ws, project, current, fields }: { ws: string; project: stri
         e.preventDefault();
         save.mutate({
           complete_fields: complete, late_fields: late,
+          queues: JSON.stringify(queues) === JSON.stringify([...DEFAULT_QUEUES]) ? [] : queues,
           summary: summary.filter((r) => r.label.trim() && r.field).map((r) => ({ label: r.label.trim(), field: r.field, ...(r.minus ? { minus: r.minus } : {}), ...(r.unit ? { unit: r.unit } : {}) })),
         });
       }}
@@ -97,6 +103,23 @@ function RulesForm({ ws, project, current, fields }: { ws: string; project: stri
       <Picker legend={tp.rules.complete} hint={tp.rules.completeHint} options={fields.filter((f) => f.type === "boolean")}
         picked={complete} max={MAX_COMPLETE} onChange={setComplete} />
       <Picker legend={tp.rules.late} hint={tp.rules.lateHint} options={fields} picked={late} max={MAX_LATE} onChange={setLate} />
+      <fieldset>
+        <legend className="text-sm font-medium">{tp.rules.queues}</legend>
+        <p className="mb-1 text-xs text-zinc-500 dark:text-zinc-400">{tp.rules.queuesHint}</p>
+        <div className="flex flex-wrap gap-x-4 gap-y-1">
+          {QUEUES.map((q) => (
+            <label key={q} className="flex items-center gap-1.5 text-sm">
+              <input
+                type="checkbox"
+                className="accent-brand-600"
+                checked={queues.includes(q)}
+                onChange={(e) => { setQueues(QUEUES.filter((x) => (x === q ? e.target.checked : queues.includes(x)))); }}
+              />
+              {tlg.queue[q]}
+            </label>
+          ))}
+        </div>
+      </fieldset>
       <fieldset className="space-y-2">
         <legend className="text-sm font-medium">{tp.rules.summary} ({summary.length}/{MAX_SUMMARY})</legend>
         <p className="text-xs text-zinc-500 dark:text-zinc-400">{tp.rules.summaryHint}</p>
@@ -120,7 +143,7 @@ function RulesForm({ ws, project, current, fields }: { ws: string; project: stri
         )}
       </fieldset>
       <FieldError error={save.error} />
-      <Button type="submit" variant="primary" disabled={save.isPending || (same(complete, current.complete_fields) && same(late, current.late_fields) && JSON.stringify(summary) === JSON.stringify(current.summary ?? []))}>
+      <Button type="submit" variant="primary" disabled={save.isPending || (same(complete, current.complete_fields) && same(late, current.late_fields) && JSON.stringify(summary) === JSON.stringify(current.summary ?? []) && !queuesChanged)}>
         {tp.rules.saveLabel}
       </Button>
     </form>

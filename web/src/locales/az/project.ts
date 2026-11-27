@@ -2,6 +2,8 @@
 export const tp = {
   settings: "Layihə ayarları",
   rules: {
+    queues: "Sayğaclar",
+    queuesHint: "Cədvəlin üstündəki sayğaclardan hansıları göstərmək. \"Bu ay bitir\" yalnız son tarixi bu ay olan və hələ görülməmiş tapşırıqları sayır.",
     summary: "Xülasə zolağı",
     summaryHint: "Cədvəlin üstündə ayın hesabatı: seçilmiş sahələrin cəmi (filtrlərə uyğun). «Çıxılan sahə» seçilsə, o sahənin cəmi çıxılır (məs. Ödənilib = Aylıq ödəniş − Qalıq).",
     summaryLabel: "Ad",

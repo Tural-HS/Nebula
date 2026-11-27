@@ -1,7 +1,7 @@
 import type { QueueCounts } from "../api/hooks";
 import { tlg } from "../i18n-ledger";
 import { cn } from "../lib/cn";
-import { activeQueue, QUEUES, queueState, queueVisible, type Queue } from "../lib/queues";
+import { DEFAULT_QUEUES, type Queue, activeQueue, queueState, queueVisible } from "../lib/queues";
 import type { FilterChip } from "../lib/filterChips";
 import type { PageState } from "../lib/views";
 
@@ -15,10 +15,13 @@ const TONE: Partial<Record<Queue, string>> = {
   approval: "text-amber-700 dark:text-amber-400",
   sla_breached: "text-red-700 dark:text-red-400",
   sla_at_risk: "text-amber-700 dark:text-amber-400",
+  done: "text-emerald-700 dark:text-emerald-400",
 };
 
-export function QueueStrip({ state, counts, onPick }: {
+export function QueueStrip({ state, counts, onPick, queues = DEFAULT_QUEUES }: {
   state: PageState;
+  /** The counters to show, in order (ADR-0065). */
+  queues?: readonly Queue[];
   counts: QueueCounts | undefined;
   onPick: (patch: Partial<PageState>) => void;
 }) {
@@ -29,7 +32,7 @@ export function QueueStrip({ state, counts, onPick }: {
       aria-label={tlg.queues}
       className="flex shrink-0 overflow-x-auto overscroll-x-contain border-b border-zinc-200 bg-white px-2 [scrollbar-width:thin] md:px-3 dark:border-zinc-800 dark:bg-zinc-900"
     >
-      {QUEUES.map((q) => {
+      {queues.map((q) => {
         const n = counts?.[q];
         const on = active === q;
         if (!queueVisible(q, n, on)) return null;

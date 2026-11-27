@@ -204,6 +204,7 @@ export interface ViewConfig {
     q?: string;
     assignee?: string;
     due?: "" | "overdue" | "today" | "week" | "month" | "none";
+    category?: StatusCategory;
     status?: string[];
     fields?: Record<string, string>;
   };

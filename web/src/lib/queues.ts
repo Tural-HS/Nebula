@@ -7,12 +7,15 @@ import type { PageState } from "./views";
 // (GET …/items/queue-counts).
 // ---------------------------------------------------------------------------
 
-export const QUEUES = ["all", "mine", "overdue", "approval", "blocked", "week", "sla_breached", "sla_at_risk"] as const;
+export const QUEUES = ["all", "mine", "overdue", "approval", "blocked", "week", "sla_breached", "sla_at_risk", "todo", "done", "month"] as const;
+
+/** The counters a project shows when it has not chosen (ADR-0065). */
+export const DEFAULT_QUEUES: readonly Queue[] = ["all", "mine", "overdue", "approval", "blocked", "week", "sla_breached", "sla_at_risk"];
 export type Queue = (typeof QUEUES)[number];
 
-type QueueDims = Pick<PageState, "assignee" | "due" | "approval" | "blocked"> & { sla?: PageState["sla"] };
+type QueueDims = Pick<PageState, "assignee" | "due" | "approval" | "blocked"> & { sla?: PageState["sla"]; category?: PageState["category"] };
 
-const NONE: QueueDims = { assignee: "", due: "", approval: "", blocked: false, sla: "" };
+const NONE: QueueDims = { assignee: "", due: "", approval: "", blocked: false, sla: "", category: "" };
 
 export function queueState(q: Queue): QueueDims {
   switch (q) {
@@ -32,6 +35,13 @@ export function queueState(q: Queue): QueueDims {
       return { ...NONE, sla: "breached" };
     case "sla_at_risk":
       return { ...NONE, sla: "at_risk" };
+    case "todo":
+      return { ...NONE, category: "todo" };
+    case "done":
+      return { ...NONE, category: "done" };
+    case "month":
+      // Still to do and due by the end of this month.
+      return { ...NONE, due: "month", category: "todo" };
   }
 }
 
@@ -39,7 +49,7 @@ export function queueState(q: Queue): QueueDims {
 export function activeQueue(s: QueueDims): Queue | null {
   return QUEUES.find((q) => {
     const p = queueState(q);
-    return p.assignee === s.assignee && p.due === s.due && p.approval === s.approval && p.blocked === s.blocked && p.sla === (s.sla ?? "");
+    return p.assignee === s.assignee && p.due === s.due && p.approval === s.approval && p.blocked === s.blocked && p.sla === (s.sla ?? "") && p.category === (s.category ?? "");
   }) ?? null;
 }
 

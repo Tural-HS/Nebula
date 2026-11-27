@@ -1,7 +1,7 @@
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api, path } from "./client";
-import type { ActivityPage, Comment, CommentPage, FieldDefinition, FieldSums, FieldValue, Item, ItemPage, ItemType, Me, Member, Project, ProjectMember, TransitionTarget, Workspace } from "./types";
+import type { ActivityPage, Comment, CommentPage, FieldDefinition, FieldSums, FieldValue, Item, ItemPage, ItemType, Me, Member, Project, ProjectMember, StatusCategory, TransitionTarget, Workspace } from "./types";
 import type { CreateWorkspaceBody } from "../lib/workspaceKinds";
 
 export const keys = {
@@ -95,6 +95,8 @@ export type DueFilter = "" | "overdue" | "today" | "week" | "month" | "none";
 export type ItemSort = "number" | "due" | "title" | "-title" | `field.${string}` | `-field.${string}`;
 
 export interface ItemFilters {
+  /** Status category (ADR-0065). */
+  category?: StatusCategory;
   q: string;
   /** "", "me", "none" or a user id. */
   assignee: string;
@@ -124,6 +126,7 @@ export function itemsQueryString(f: ItemFilters, cursor: string | null): string 
   if (f.q.trim()) p.set("q", f.q.trim());
   if (f.assignee) p.set("assignee", f.assignee);
   if (f.due) p.set("due", f.due);
+  if (f.category) p.set("category", f.category);
   if (f.status && f.status.length > 0) p.set("status", f.status.join(","));
   for (const [k, v] of Object.entries(f.fields ?? {}).sort(([a], [b]) => a.localeCompare(b))) p.set("field." + k, v);
   if (f.sort && f.sort !== "number") p.set("sort", f.sort);
@@ -192,6 +195,10 @@ export interface QueueCounts {
   week: number;
   sla_breached: number;
   sla_at_risk: number;
+  /** ADR-0065 */
+  todo?: number;
+  done?: number;
+  month?: number;
 }
 
 /**
@@ -407,6 +414,17 @@ export interface ProjectRules {
   late_fields: string[];
   /** Summary bar above the table (ADR-0064). */
   summary?: SummaryItem[];
+  /** Quick-filter counters shown, in order; empty = default (ADR-0065). */
+  queues?: string[];
+  /** Monthly report panel (ADR-0066); null = none. */
+  report?: ReportConfig | null;
+}
+
+/** Fields of the report panel. */
+export interface ReportConfig {
+  plan_field: string;
+  remaining_field: string;
+  breakdown_field?: string;
 }
 
 /** One total of the summary bar: sum(field) − sum(minus), with a unit. */

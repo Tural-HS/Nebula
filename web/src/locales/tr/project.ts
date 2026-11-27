@@ -4,6 +4,8 @@ import type { Messages } from "../../i18n/locale";
 export const tp = {
   settings: "Proje ayarları",
   rules: {
+    queues: "Sayaçlar",
+    queuesHint: "Listenin üstünde hangi sayaçların gösterileceği. \"Bu ay biten\" yalnızca bu ay süresi dolan ve hâlâ yapılacak görevleri sayar.",
     summary: "Özet çubuğu",
     summaryHint: "Tablonun üstünde ayın raporu: seçilen alanların toplamı (filtrelere göre). Çıkarılacak alan seçilirse toplamı çıkarılır (örn. Ödenen = Aylık ödeme − Kalan).",
     summaryLabel: "Ad",

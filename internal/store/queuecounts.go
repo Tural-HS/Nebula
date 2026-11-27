@@ -20,6 +20,10 @@ type QueueCounts struct {
 	// SLA queues (ADR-0045); always 0 in projects without a policy.
 	SLABreached int64 `json:"sla_breached"`
 	SLAAtRisk   int64 `json:"sla_at_risk"`
+	// ADR-0065: status categories, and this month's due dates still to do.
+	Todo  int64 `json:"todo"`
+	Done  int64 `json:"done"`
+	Month int64 `json:"month"`
 }
 
 // CountQueues counts the presets in one round trip (a pgx batch). The other
@@ -31,7 +35,7 @@ func (s *Store) CountQueues(ctx context.Context, base ListItemsParams) (QueueCou
 	if base.Viewer == nil {
 		return QueueCounts{}, errors.New("queue counts need a viewer")
 	}
-	base.AssigneeID, base.Unassigned, base.Due, base.Approval, base.Blocked, base.SLA = nil, false, "", "", false, ""
+	base.AssigneeID, base.Unassigned, base.Due, base.Approval, base.Blocked, base.SLA, base.Category = nil, false, "", "", false, "", ""
 	base.Cursor = nil
 	me := base.Viewer.UserID
 	presets := []func(p *ListItemsParams){
@@ -43,6 +47,10 @@ func (s *Store) CountQueues(ctx context.Context, base ListItemsParams) (QueueCou
 		func(p *ListItemsParams) { p.Due = "week" },
 		func(p *ListItemsParams) { p.SLA = SLABreached },
 		func(p *ListItemsParams) { p.SLA = SLAAtRisk },
+		func(p *ListItemsParams) { p.Category = "todo" },
+		func(p *ListItemsParams) { p.Category = "done" },
+		// "Due this month" counts what is still to do (ADR-0065): not done, not late-and-in-progress.
+		func(p *ListItemsParams) { p.Due, p.Category = "month", "todo" },
 	}
 	batch := &pgx.Batch{}
 	for _, set := range presets {
@@ -55,7 +63,7 @@ func (s *Store) CountQueues(ctx context.Context, base ListItemsParams) (QueueCou
 		batch.Queue("SELECT count(*) FROM items i WHERE "+strings.Join(where, " AND "), args...)
 	}
 	var out QueueCounts
-	dst := []*int64{&out.All, &out.Mine, &out.Overdue, &out.Approval, &out.Blocked, &out.Week, &out.SLABreached, &out.SLAAtRisk}
+	dst := []*int64{&out.All, &out.Mine, &out.Overdue, &out.Approval, &out.Blocked, &out.Week, &out.SLABreached, &out.SLAAtRisk, &out.Todo, &out.Done, &out.Month}
 	res := s.pool.SendBatch(ctx, batch)
 	for _, d := range dst {
 		if err := res.QueryRow().Scan(d); err != nil {

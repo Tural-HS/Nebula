@@ -4,6 +4,8 @@ import type { Messages } from "../../i18n/locale";
 export const tp = {
   settings: "Project settings",
   rules: {
+    queues: "Counters",
+    queuesHint: "Which counters to show above the list. \"Due this month\" counts only items due this month that are still to do.",
     summary: "Summary bar",
     summaryHint: "This month's report above the table: totals of the chosen fields (following the filters). With a minus field, its total is subtracted (e.g. Paid = Monthly payment − Balance).",
     summaryLabel: "Label",

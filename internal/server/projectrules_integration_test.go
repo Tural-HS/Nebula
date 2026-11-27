@@ -104,6 +104,22 @@ func TestProjectRules(t *testing.T) {
 		t.Fatalf("member summary read: %v", got)
 	}
 
+	// Report panel (ADR-0066).
+	e.must(201, "alice", "POST", fieldsPath, map[string]any{"key": "method", "name": "Method", "type": "select",
+		"options": map[string]any{"choices": []any{map[string]any{"label": "Cash"}, map[string]any{"label": "Bank"}}}})
+	for _, bad := range []map[string]any{
+		{"report": map[string]any{"plan_field": "paid", "remaining_field": "balance"}},
+		{"report": map[string]any{"plan_field": "monthly", "remaining_field": "balance", "breakdown_field": "monthly"}},
+	} {
+		if r := e.call("alice", "PUT", rules, bad); r.Status != 422 {
+			t.Errorf("report %v: %d %s", bad, r.Status, r.Raw)
+		}
+	}
+	rep := e.must(200, "alice", "PUT", rules, map[string]any{"report": map[string]any{"plan_field": "monthly", "remaining_field": "balance", "breakdown_field": "method"}}).Body["report"].(map[string]any)
+	if rep["breakdown_field"] != "method" {
+		t.Fatalf("report: %v", rep)
+	}
+
 	// Off: no rules.
 	e.must(200, "alice", "PUT", rules, map[string]any{"complete_fields": []string{}, "late_fields": []string{}})
 	if r := e.must(200, "carol", "GET", rules, nil).Body; len(r["complete_fields"].([]any)) != 0 {

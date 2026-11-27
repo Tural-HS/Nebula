@@ -23,6 +23,8 @@ import { monthOf, parseMonth, todayIn } from "../lib/calendar";
 import { activeFilterCount, useCompact, useMediaQuery } from "../lib/responsive";
 import { flattenPages, typesInUse } from "../lib/board";
 import { SummaryBar } from "../components/SummaryBar";
+import { ReportPanel } from "../components/ReportPanel";
+import { DEFAULT_QUEUES, QUEUES, type Queue } from "../lib/queues";
 import { fieldSortOptions, isSortable, parseSort, sortFieldKey } from "../lib/formula";
 import { tf } from "../i18n-formulas";
 import { emptyState, filtersOf, hasState, readState, sameState, stateFromView, sumFields, visibleColumns, writeState, type PageState } from "../lib/views";
@@ -124,6 +126,11 @@ export function ItemsPage() {
   }, [types.data, projectCounts.data]);
   const rules = useProjectRules(ws, project);
   const lateFields = useMemo(() => new Set(rules.data?.late_fields ?? []), [rules.data]);
+  // The project's chosen counters, else the default set (ADR-0065).
+  const projectQueues = useMemo(() => {
+    const chosen = (rules.data?.queues ?? []).filter((q): q is Queue => (QUEUES as readonly string[]).includes(q));
+    return chosen.length > 0 ? chosen : DEFAULT_QUEUES;
+  }, [rules.data]);
   const active = views.data?.find((v) => v.id === savedId);
   const dirty = active !== undefined && !sameState(state, stateFromView(active));
 
@@ -438,7 +445,7 @@ export function ItemsPage() {
       }
     >
       <div className="flex h-full flex-col">
-        <QueueStrip state={state} counts={queueCounts.data} onPick={(patch) => { applyState(patch); }} />
+        <QueueStrip state={state} counts={queueCounts.data} queues={projectQueues} onPick={(patch) => { applyState(patch); }} />
         {compact ? (
           <div className="flex items-center gap-2 border-b border-zinc-200 bg-white px-3 py-2 dark:border-zinc-800 dark:bg-zinc-900">
             {searchBox("min-w-0 flex-1")}
@@ -566,7 +573,12 @@ export function ItemsPage() {
             // Always the same tree, so a column filter that matches nothing keeps
             // the header (and its open menu) instead of swapping to an empty page.
             <div className="flex h-full flex-col">
-              <SummaryBar ws={ws} project={project} filters={filters} items={rules.data?.summary ?? []} today={today} />
+              {rules.data?.report ? (
+                <ReportPanel ws={ws} project={project} filters={filters} config={rules.data.report} statuses={statuses} fields={fields}
+                  today={today} onOpen={(n) => { setParam("item", String(n)); }} />
+              ) : (
+                <SummaryBar ws={ws} project={project} filters={filters} items={rules.data?.summary ?? []} today={today} />
+              )}
               <div className={cn("min-h-0", all.length > 0 && "flex-1")}>
                 <ItemTable
                   items={all}

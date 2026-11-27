@@ -623,7 +623,8 @@ func parseItemFilters(w http.ResponseWriter, r *http.Request) (store.ListItemsPa
 		writeError(w, http.StatusBadRequest, "bad_request", "blocked must be true or false")
 		return store.ListItemsParams{}, false
 	}
-	p.SLA = q.Get("sla") // validated by the store
+	p.SLA = q.Get("sla")           // validated by the store
+	p.Category = q.Get("category") // validated by the store (ADR-0065)
 	switch v := q.Get("assignee"); v {
 	case "":
 	case "me":

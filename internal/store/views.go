@@ -43,7 +43,8 @@ type ViewFilters struct {
 	Assignee string            `json:"assignee,omitempty"` // "", "me" (the viewer), "none" or a user id
 	Due      string            `json:"due,omitempty"`
 	Status   []uuid.UUID       `json:"status,omitempty"`
-	Fields   map[string]string `json:"fields,omitempty"` // field key -> exact value, like ?field.<key>=
+	Fields   map[string]string `json:"fields,omitempty"`   // field key -> exact value, like ?field.<key>=
+	Category string            `json:"category,omitempty"` // status category (ADR-0065)
 }
 
 // ViewConfig is what a view applies.
@@ -301,7 +302,7 @@ func viewChanges(a, b View) []string {
 }
 
 func equalConfig(a, b ViewConfig) bool {
-	return a.Filters.Q == b.Filters.Q && a.Filters.Assignee == b.Filters.Assignee && a.Filters.Due == b.Filters.Due &&
+	return a.Filters.Q == b.Filters.Q && a.Filters.Assignee == b.Filters.Assignee && a.Filters.Due == b.Filters.Due && a.Filters.Category == b.Filters.Category &&
 		slices.Equal(a.Filters.Status, b.Filters.Status) && mapsEqual(a.Filters.Fields, b.Filters.Fields) &&
 		slices.Equal(a.Columns, b.Columns) && a.Sort == b.Sort && a.GroupBy == b.GroupBy
 }
@@ -354,6 +355,11 @@ func validateView(ctx context.Context, q querier, v ViewCaller, view *View) erro
 	case "", "overdue", "today", "week", "month", "none":
 	default:
 		return invalid("config.filters.due", "must be overdue, today, week or none")
+	}
+	switch f.Category {
+	case "", "todo", "in_progress", "done", "canceled":
+	default:
+		return invalid("config.filters.category", "must be todo, in_progress, done or canceled")
 	}
 	switch f.Assignee {
 	case "", "me", "none":

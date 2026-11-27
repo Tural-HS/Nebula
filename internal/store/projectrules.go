@@ -35,13 +35,31 @@ type ProjectRules struct {
 	CompleteFields []string      `json:"complete_fields"`
 	LateFields     []string      `json:"late_fields"`
 	Summary        []SummaryItem `json:"summary"`
+	// Queues: the quick-filter counters the list shows, in order; empty =
+	// the default set (ADR-0065).
+	Queues []string `json:"queues"`
+	// Report: the monthly report panel above the table (ADR-0066); nil = none.
+	Report *ReportConfig `json:"report"`
 }
+
+// ReportConfig names the fields of the report panel: the plan (e.g. monthly
+// payment), what is still to collect (balance) and an optional select
+// field to split the plan by (payment method).
+type ReportConfig struct {
+	PlanField      string `json:"plan_field"`
+	RemainingField string `json:"remaining_field"`
+	BreakdownField string `json:"breakdown_field,omitempty"`
+}
+
+// queueKeys are the counters a project can show (web/src/lib/queues.ts).
+var queueKeys = map[string]bool{"all": true, "mine": true, "overdue": true, "approval": true, "blocked": true, "week": true,
+	"sla_breached": true, "sla_at_risk": true, "todo": true, "done": true, "month": true}
 
 // GetProjectRules returns the project's rules (empty lists when none).
 func (s *Store) GetProjectRules(ctx context.Context, wsID, projectID uuid.UUID) (ProjectRules, error) {
-	out := ProjectRules{CompleteFields: []string{}, LateFields: []string{}, Summary: []SummaryItem{}}
-	err := s.pool.QueryRow(ctx, `SELECT complete_fields, late_fields, summary FROM project_rules WHERE workspace_id = $1 AND project_id = $2`,
-		wsID, projectID).Scan(&out.CompleteFields, &out.LateFields, &out.Summary)
+	out := ProjectRules{CompleteFields: []string{}, LateFields: []string{}, Summary: []SummaryItem{}, Queues: []string{}}
+	err := s.pool.QueryRow(ctx, `SELECT complete_fields, late_fields, summary, queues, report FROM project_rules WHERE workspace_id = $1 AND project_id = $2`,
+		wsID, projectID).Scan(&out.CompleteFields, &out.LateFields, &out.Summary, &out.Queues, &out.Report)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return out, nil
 	}
@@ -63,6 +81,36 @@ func (s *Store) SaveProjectRules(ctx context.Context, wsID, projectID, actorID u
 	if err := s.checkSummary(ctx, wsID, in.Summary); err != nil {
 		return ProjectRules{}, err
 	}
+	if in.Queues == nil {
+		in.Queues = []string{}
+	}
+	if len(in.Queues) > len(queueKeys) {
+		return ProjectRules{}, invalid("queues", "too many counters")
+	}
+	if in.Report != nil {
+		keys := []string{in.Report.PlanField, in.Report.RemainingField}
+		types, err := fieldTypesByKey(ctx, s.pool, wsID, append(keys, in.Report.BreakdownField))
+		if err != nil {
+			return ProjectRules{}, err
+		}
+		for _, k := range keys {
+			switch types[k] {
+			case FieldNumber, FieldMoney, "formula:number":
+			default:
+				return ProjectRules{}, invalid("report", "%q must be a number, money or number formula field", k)
+			}
+		}
+		if b := in.Report.BreakdownField; b != "" && types[b] != FieldSelect {
+			return ProjectRules{}, invalid("report.breakdown_field", "must be a select field")
+		}
+	}
+	seenQ := map[string]bool{}
+	for i, q := range in.Queues {
+		if !queueKeys[q] || seenQ[q] {
+			return ProjectRules{}, invalid("queues", "queues[%d] is unknown or listed twice", i)
+		}
+		seenQ[q] = true
+	}
 	if err := s.checkRuleFields(ctx, wsID, "complete_fields", in.CompleteFields, maxCompleteFields, FieldBoolean); err != nil {
 		return ProjectRules{}, err
 	}
@@ -70,15 +118,16 @@ func (s *Store) SaveProjectRules(ctx context.Context, wsID, projectID, actorID u
 		return ProjectRules{}, err
 	}
 	err := s.inTx(ctx, func(tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx, `INSERT INTO project_rules (project_id, workspace_id, complete_fields, late_fields, summary, updated_by)
-			VALUES ($1, $2, $3, $4, $5, $6)
+		if _, err := tx.Exec(ctx, `INSERT INTO project_rules (project_id, workspace_id, complete_fields, late_fields, summary, queues, report, updated_by)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 			ON CONFLICT (project_id) DO UPDATE SET complete_fields = EXCLUDED.complete_fields,
-				late_fields = EXCLUDED.late_fields, summary = EXCLUDED.summary, updated_by = EXCLUDED.updated_by`,
-			projectID, wsID, in.CompleteFields, in.LateFields, in.Summary, nullUUID(actorID)); err != nil {
+				late_fields = EXCLUDED.late_fields, summary = EXCLUDED.summary, queues = EXCLUDED.queues,
+				report = EXCLUDED.report, updated_by = EXCLUDED.updated_by`,
+			projectID, wsID, in.CompleteFields, in.LateFields, in.Summary, in.Queues, in.Report, nullUUID(actorID)); err != nil {
 			return err
 		}
 		return appendEvent(ctx, tx, wsID, actorID, "project", projectID, "project_rules.updated",
-			map[string]any{"complete_fields": in.CompleteFields, "late_fields": in.LateFields, "summary": in.Summary})
+			map[string]any{"complete_fields": in.CompleteFields, "late_fields": in.LateFields, "summary": in.Summary, "queues": in.Queues, "report": in.Report})
 	})
 	if err != nil {
 		return ProjectRules{}, err

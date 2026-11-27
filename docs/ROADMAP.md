@@ -102,6 +102,7 @@ Hər mərhələ yalnız testlər, miqrasiyalar (up və down) və CI yaşıl oldu
 - [x] "Sahəni doldur" dəyəri başqa sahədən götürə bilir (ADR-0062).
 - [x] Ada görə sıralama, Azərbaycan əlifbası ilə (ADR-0063).
 - [x] Cədvəlin üstündə xülasə zolağı: ayın hesabatı, seçilmiş cəmlər və fərqlər (ADR-0064).
+- [x] Layihə üzrə sayğaclar ("Bu ay bitir", "Tamamlanmış"), status kateqoriyası filtri (ADR-0065); aylıq hesabat paneli (ADR-0066).
 - [x] Təhlükəsizlik baxışının düzəlişləri: layihə siyahılı API tokeni son layihəsi silinəndə workspace-ə genişlənmir (`project_restricted`, silinmədə ləğv, miqrasiya 00036, ADR-0043); tarixçədə əlaqə etiketləri görünməyən layihələrin tapşırıq adlarını göstərmir (gizli layihələr, token siyahısı); 00032 Down gözləyən əvəzli qərarlarda dayanır; workspace silinəndə token prinsipalları deaktiv olur; xlsx ixracı mətni apostrofsuz, olduğu kimi yazır (ADR-0040)
 
 ## Phase 2: Şablonlar və görünüşlər

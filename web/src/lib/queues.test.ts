@@ -45,3 +45,12 @@ describe("SLA queues", () => {
     expect(readState(new URLSearchParams("sla=late")).sla).toBe("");
   });
 });
+
+describe("category and month queues (ADR-0065)", () => {
+  it("month means due by month end and still to do", () => {
+    expect(queueState("month")).toMatchObject({ due: "month", category: "todo" });
+    expect(activeQueue({ assignee: "", due: "month", approval: "", blocked: false, sla: "", category: "todo" })).toBe("month");
+    expect(activeQueue({ assignee: "", due: "month", approval: "", blocked: false, sla: "", category: "" })).toBeNull();
+    expect(activeQueue({ assignee: "", due: "", approval: "", blocked: false, sla: "", category: "done" })).toBe("done");
+  });
+});

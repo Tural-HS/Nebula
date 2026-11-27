@@ -284,8 +284,11 @@ type ListItemsParams struct {
 	Viewer  *Viewer
 	Blocked bool   // only items with an open, visible blocker
 	SLA     string // "", "breached" or "at_risk" (ADR-0045)
-	Limit   int
-	Cursor  *ItemCursor // continue after this position (nil = from the start)
+	// Category: only items whose status has this category ("todo",
+	// "in_progress", "done", "canceled"; ADR-0065).
+	Category string
+	Limit    int
+	Cursor   *ItemCursor // continue after this position (nil = from the start)
 }
 
 // ListItems returns one page of items in the requested order using keyset
@@ -485,6 +488,13 @@ func (s *Store) itemFilter(ctx context.Context, p ListItemsParams, withStatus bo
 	}
 	if q := strings.TrimSpace(p.Query); q != "" {
 		add("i.search @@ websearch_to_tsquery('simple', ?)", q)
+	}
+	switch p.Category {
+	case "":
+	case "todo", "in_progress", "done", "canceled":
+		add("i.status_id IN (SELECT id FROM statuses WHERE workspace_id = $1 AND category = ?)", p.Category)
+	default:
+		return nil, nil, invalid("category", "must be todo, in_progress, done or canceled")
 	}
 	// "Today" is the workspace's local date ($1 is the workspace id).
 	const today = "(now() AT TIME ZONE (SELECT timezone FROM workspaces WHERE id = $1))::date"
