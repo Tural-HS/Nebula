@@ -3,7 +3,7 @@ import { Link, useParams, useSearchParams } from "react-router";
 
 import { MAX_BULK, useOptimisticUpdate } from "../api/bulk";
 import { ApiError } from "../api/client";
-import { useAssignable, useFields, useItems, useItemTotals, useItemTypes, useMembers, useProjects, useQueueCounts, useSetDefaultView, useWorkspace, type DueFilter } from "../api/hooks";
+import { useAssignable, useFields, useItemCounts, useItems, useItemTotals, useItemTypes, useMembers, useProjects, useQueueCounts, useSetDefaultView, useWorkspace, type DueFilter, type ItemFilters } from "../api/hooks";
 import { roleAtLeast, type Item, type SavedView, type Status } from "../api/types";
 import { useViews } from "../api/views";
 import { Layout } from "../components/Layout";
@@ -21,7 +21,7 @@ import { tm } from "../i18n-mobile";
 import { tc } from "../i18n-calendar";
 import { monthOf, parseMonth, todayIn } from "../lib/calendar";
 import { activeFilterCount, useCompact, useMediaQuery } from "../lib/responsive";
-import { flattenPages } from "../lib/board";
+import { flattenPages, typesInUse } from "../lib/board";
 import { fieldSortOptions, isSortable, parseSort, sortFieldKey } from "../lib/formula";
 import { tf } from "../i18n-formulas";
 import { emptyState, filtersOf, hasState, readState, sameState, stateFromView, sumFields, visibleColumns, writeState, type PageState } from "../lib/views";
@@ -113,6 +113,14 @@ export function ItemsPage() {
     for (const it of types.data ?? []) for (const st of it.statuses) if (!seen.has(st.id)) seen.set(st.id, st);
     return [...seen.values()];
   }, [types.data]);
+  // Status column filter: the statuses of the item types this project uses.
+  const projectCounts = useItemCounts(ws, project, ALL_ITEMS);
+  const tableStatuses = useMemo(() => {
+    const used = typesInUse(types.data ?? [], projectCounts.data?.by_status);
+    const seen = new Map<string, Status>();
+    for (const it of used) for (const st of it.statuses) if (!seen.has(st.id)) seen.set(st.id, st);
+    return [...seen.values()];
+  }, [types.data, projectCounts.data]);
   const active = views.data?.find((v) => v.id === savedId);
   const dirty = active !== undefined && !sameState(state, stateFromView(active));
 
@@ -573,6 +581,9 @@ export function ItemsPage() {
                     const rest = Object.fromEntries(Object.entries(state.fields).filter(([k]) => k !== key));
                     applyState({ fields: value ? { ...rest, [key]: value } : rest });
                   }}
+                  statuses={tableStatuses}
+                  statusFilter={state.status}
+                  onStatusFilter={(status) => { applyState({ status }); }}
                   sort={state.sort}
                   onSort={(sort) => { applyState({ sort }); }}
                   density={density}
@@ -604,6 +615,9 @@ export function ItemsPage() {
     </Layout>
   );
 }
+
+// No filter: which item types the project uses at all.
+const ALL_ITEMS: ItemFilters = { q: "", assignee: "" };
 
 const DUE_FILTERS: readonly DueFilter[] = ["overdue", "today", "week", "month", "none"];
 const EMPTY: ReadonlySet<number> = new Set();

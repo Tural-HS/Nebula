@@ -1,7 +1,7 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useEffect, useMemo, useRef, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
 
-import type { FieldDefinition, FieldSums, Item, Member } from "../api/types";
+import type { FieldDefinition, FieldSums, Item, Member, Status } from "../api/types";
 import { SignalCell, StatusText } from "../components/Signals";
 import { hasSignal } from "../lib/signals";
 import { isPhoneField, phoneText, telHref } from "../lib/phone";
@@ -16,7 +16,7 @@ import { formatDateTime, formatRelative } from "../lib/format";
 import { displayColumns, FINE_POINTER, useCompact, useMediaQuery } from "../lib/responsive";
 import { amountText, columnHeader, fieldKey, formatFieldValue, isFieldColumn, withUnit } from "../lib/views";
 import { isAmount, isFormula, isSortable, valueType } from "../lib/formula";
-import { filterKind } from "../lib/columnFilter";
+import { choicesValue, filterKind, pickedChoices } from "../lib/columnFilter";
 import { clampWidth, MAX_WIDTH, MIN_WIDTH, useColumnWidths } from "../lib/columnWidths";
 import type { Density } from "../lib/density";
 import { ColumnMenu } from "../components/ColumnMenu";
@@ -112,7 +112,7 @@ export interface TableSelection {
   toggleAll: () => void;
 }
 
-export function ItemTable({ items, columns: chosen, fields, members, sums, count, hasMore, loadingMore, loadMore, onOpen, selection, inline, filters, onFilter, sort, onSort, density = "normal", widthScope }: {
+export function ItemTable({ items, columns: chosen, fields, members, sums, count, hasMore, loadingMore, loadMore, onOpen, selection, inline, filters, onFilter, statuses, statusFilter, onStatusFilter, sort, onSort, density = "normal", widthScope }: {
   items: Item[];
   columns: string[];
   fields: ReadonlyMap<string, FieldDefinition>;
@@ -133,6 +133,10 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, count
   /** Field filters of the list (?field.<key>=) and their setter: column header menus (ADR-0048). */
   filters?: Readonly<Record<string, string>> | undefined;
   onFilter?: ((key: string, value: string) => void) | undefined;
+  /** The Status column's header filter: the statuses to offer, the chosen ones and their setter. */
+  statuses?: readonly Status[] | undefined;
+  statusFilter?: readonly string[] | undefined;
+  onStatusFilter?: ((ids: string[]) => void) | undefined;
   sort?: ItemSort | undefined;
   onSort?: ((s: ItemSort) => void) | undefined;
   /** Row height and text size, chosen per browser (lib/density). */
@@ -347,6 +351,11 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, count
     requestAnimationFrame(() => { focus(5); });
   };
 
+  // The Status column filters like a choice field: one choice per status.
+  const statusDef: FieldDefinition | undefined = statuses && statuses.length > 0
+    ? { id: "status", key: "__status", name: t.status, type: "select", archived: false, options: { choices: statuses.map((s) => ({ id: s.id, label: s.name })) } }
+    : undefined;
+
   return (
     <div ref={scrollRef} className="h-full scroll-pt-10 scroll-pb-10 overflow-auto" role="table" aria-rowcount={items.length} onKeyDown={moveFocus}>
       <div role="row" style={grid} className={cn(ROW, "sticky top-0 z-[2] h-10 border-b border-zinc-400 bg-brand-50 text-2xs font-semibold text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300")}>
@@ -367,7 +376,17 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, count
               />
             )}
             {formulaDef(c) && <span className="mr-1 font-serif italic" title={`${tf.readOnly}\n${tf.title(formulaDef(c)?.options.formula?.expression ?? "")}`}>ƒ</span>}
-            {menu && onFilter ? (
+            {c === "status" && statusDef && onStatusFilter ? (
+              <>
+                <span className={cn("min-w-0 flex-1", clamp)}>{header(c)}</span>
+                <ColumnMenu
+                  def={statusDef}
+                  label={header(c)}
+                  value={choicesValue(statusFilter ?? [])}
+                  onFilter={(v) => { onStatusFilter(pickedChoices(v)); }}
+                />
+              </>
+            ) : menu && onFilter ? (
               <>
                 <span className={cn("min-w-0 flex-1", clamp)}>{header(c)}</span>
                 <ColumnMenu
