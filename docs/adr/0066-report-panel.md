@@ -17,7 +17,7 @@ müştərilərin vəziyyəti və gecikmə pillələri, bu gün ödəməli olanla
 | Hesablama vebdə, mövcud API-lərlə: cəmlər (`/items/sums`), status sayları (`/items/counts`), gecikənlər və bu gün (`?due=overdue|today`), bölgü (seçim üzrə cəm) | Yeni server məntiqi yoxdur | Ayrıca hesabat endpoint-i: təkrar məntiq |
 | Ödənilib = plan − qalıq; faiz = ödənilib / plan; **proqnoz = plan − gecikənlərin qalığı** | Ödəniş qrafiki son tarixlə bilinir: vaxtı gəlməyənlər gözlənilir, gecikənlər risk sayılır | Xətti temp: ödənişlər ay ərzində bərabər deyil |
 | Keçən ayla müqayisə hələ yoxdur | İlk ay bağlanışı (snapshot) 1 dekabrdadır | — |
-| Panel **sabitdir**: layihənin bütün canlı işləri; cədvəlin filtrləri, sayğacları və axtarışı onu dəyişmir (2026-11-27 düzəlişi) | Ümumi aylıq hesabatdır; filtrlə rəqəmlərin "atlaması" çaşdırır | Filtrə uyğun: əvvəlki davranış, istifadəçi rədd etdi |
+| Panel **sabitdir**: layihənin bu aylıq siyahısı (son tarixi ayın sonuna qədər, keçmiş aylardan gecikənlər daxil, gələn ayınkılar yox — `due=month`, ADR-0060); cədvəlin filtrləri, sayğacları və axtarışı onu dəyişmir (2026-11-27 düzəlişi) | Ümumi aylıq hesabatdır; filtrlə rəqəmlərin "atlaması" çaşdırır | Filtrə uyğun: əvvəlki davranış, istifadəçi rədd etdi |
 | Panel varsa xülasə zolağının yerini tutur | Bir hesabat bloku | — |
 | Yığcam dizayn: faiz halqası (açıq qövs proqnoz), üç məbləğ bir sətirdə, alt sətirdə çiplər və qısa faktlar; bir sətrə **yığılır**, seçim brauzerdə qalır | Cədvələ yer qalır; gündəlik baxış üçün kifayətdir | Böyük rəngli kartlar: çox yer tutur, solğun görünür |
 

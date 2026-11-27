@@ -3,6 +3,8 @@ import { apiAs, authFile, expect, seedWorkspace, test, type Seed } from "./fixtu
 // ADR-0061: completion fields and overdue-coloured fields.
 test.use({ storageState: authFile("alice") });
 
+const ymd = (d: Date) => `${String(d.getFullYear())}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
 let seed: Seed;
 test.beforeAll(async () => {
   seed = await seedWorkspace();
@@ -45,7 +47,7 @@ test("the summary bar totals the listed items (ADR-0064)", async ({ page }) => {
   expect((await alice.post(`workspaces/${seed.ws}/fields`, { data: { key: "monthly_e2e", name: "Aylıq", type: "number" } })).status()).toBe(201);
   expect((await alice.put(`workspaces/${seed.ws}/item-types/task/fields/monthly_e2e`, { data: {} })).ok()).toBe(true);
   for (const [title, monthly, bal] of [["Bir", 1000, 400], ["İki", 500, 0]] as const) {
-    expect((await alice.post(`workspaces/${seed.ws}/projects/QA/items`, { data: { title, fields: { monthly_e2e: monthly, bal_e2e: bal } } })).status()).toBe(201);
+    expect((await alice.post(`workspaces/${seed.ws}/projects/QA/items`, { data: { title, due_date: ymd(new Date()), fields: { monthly_e2e: monthly, bal_e2e: bal } } })).status()).toBe(201);
   }
   expect((await alice.put(`workspaces/${seed.ws}/projects/QA/rules`, { data: { complete_fields: [], late_fields: [], summary: [
     { label: "Aylıq ödəniş cəmi", field: "monthly_e2e", unit: "₼" },
@@ -79,6 +81,11 @@ test("the report panel shows plan, paid, lateness and the longest debt (ADR-0066
     complete_fields: [], late_fields: ["bal_e2e"], summary: [], queues: [],
     report: { plan_field: "monthly_e2e", remaining_field: "bal_e2e" },
   } })).ok()).toBe(true);
+  // Next month's item is not in this month's plan.
+  const next = new Date();
+  next.setDate(1);
+  next.setMonth(next.getMonth() + 1);
+  expect((await alice.post(`workspaces/${seed.ws}/projects/QA/items`, { data: { title: "Gələn ay", due_date: ymd(next), fields: { monthly_e2e: 9000, bal_e2e: 9000 } } })).status()).toBe(201);
   await alice.dispose();
   await page.goto(seed.url);
   const panel = page.getByTestId("report-panel");
