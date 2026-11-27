@@ -83,15 +83,15 @@ test("the report panel shows plan, paid, lateness and the longest debt (ADR-0066
   await page.goto(seed.url);
   const panel = page.getByTestId("report-panel");
   await expect(panel.getByRole("img", { name: "40%" })).toBeVisible();
-  await expect(panel).toContainText(/Aylıq plan\s*1\s500\s₼/);
-  await expect(panel).toContainText(/Ödənilib\s*600\s₼/);
-  await expect(panel).toContainText(/Yığılası qalıq\s*900\s₼/);
+  await expect(panel).toContainText(/Aylıq plan\s*1\s500(?!\s*₼)/);
+  await expect(panel).toContainText(/Ödənilib\s*600/);
+  await expect(panel).toContainText(/Qalıq\s*900/);
   await expect(panel).toContainText("1 · 16–30 gün");
   await expect(panel).toContainText("20 gün");
   await page.screenshot({ path: process.env.REPORT_SHOT ?? "test-results/report-panel.png", clip: { x: 0, y: 0, width: 1280, height: 420 } });
   // Collapse to one line; the choice survives a reload.
   await panel.getByRole("button", { name: "Paneli yığ" }).click();
-  await expect(panel).toContainText(/Plan\s*1\s500\s₼/);
+  await expect(panel).toContainText(/Plan\s*1\s500/);
   await expect(panel).toContainText("1 gecikir");
   await page.reload();
   await expect(page.getByTestId("report-panel").getByRole("button", { name: "Paneli aç" })).toBeVisible();
@@ -101,4 +101,7 @@ test("the report panel shows plan, paid, lateness and the longest debt (ADR-0066
   await page.emulateMedia({ colorScheme: "dark" });
   await expect(page.getByTestId("report-panel")).toContainText(/Ödənilib\s*600/);
   await page.screenshot({ path: (process.env.REPORT_SHOT ?? "test-results/report-panel.png").replace(".png", "-dark.png"), clip: { x: 0, y: 0, width: 1280, height: 420 } });
+  // A fixed project report: a search that leaves one row changes nothing.
+  await page.goto(seed.url + "?q=Gecikən");
+  await expect(page.getByTestId("report-panel")).toContainText(/Aylıq plan\s*1\s500/);
 });

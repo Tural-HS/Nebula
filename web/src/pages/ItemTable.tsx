@@ -26,7 +26,7 @@ import { tm } from "../i18n-money";
 import { tf } from "../i18n-formulas";
 import { tlg } from "../i18n-ledger";
 import { ROW_STRIPE, rowSignal } from "../lib/queues";
-import { itemLateLevel, LATE_CELL } from "../lib/overdue";
+import { DUE_TODAY_CELL, isDueToday, itemLateLevel, LATE_CELL } from "../lib/overdue";
 
 // ---------------------------------------------------------------------------
 // Table: virtualized, so only visible rows are in the DOM (100k rows stay
@@ -355,12 +355,16 @@ export function ItemTable({ items, columns: chosen, fields, members, sums, count
   };
 
   // Overdue rows: the title and the project's late fields fill with the band
-  // colour (ADR-0061); the due column already shows a coloured chip.
+  // colour (ADR-0061); the due column already shows a coloured chip. Items
+  // due today glow green in the same cells and in the due column (ADR-0067).
   const lateCell = (it: Item, c: string, node: ReactNode): ReactNode => {
-    if (c !== "title" && !(isFieldColumn(c) && lateFields?.has(fieldKey(c)))) return node;
-    const level = itemLateLevel(it);
+    const marked = c === "title" || (isFieldColumn(c) && lateFields?.has(fieldKey(c)) === true);
+    if (!marked && c !== "due") return node;
+    const wrap = "-mx-1 flex min-w-0 flex-1 items-center self-stretch rounded px-1";
+    if (isDueToday(it)) return <span data-due-today className={cn(wrap, DUE_TODAY_CELL)}>{node}</span>;
+    const level = marked ? itemLateLevel(it) : 0;
     if (!level) return node;
-    return <span data-late={level} className={cn("-mx-1 flex min-w-0 flex-1 items-center self-stretch rounded px-1", LATE_CELL[level])}>{node}</span>;
+    return <span data-late={level} className={cn(wrap, LATE_CELL[level])}>{node}</span>;
   };
 
   // The Status column filters like a choice field: one choice per status.

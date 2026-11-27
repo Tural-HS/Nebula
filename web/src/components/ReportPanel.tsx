@@ -8,10 +8,12 @@ import type { FieldDefinition, FieldSums, Status, StatusCategory } from "../api/
 import { monthOf, monthTitle } from "../lib/calendar";
 import { LATE_CHIP } from "../lib/overdue";
 import { categoryCounts, overdueBreakdown, reportNumbers } from "../lib/report";
-import { formatDecimal } from "../lib/views";
+import { emptyState, filtersOf, formatDecimal } from "../lib/views";
 import { tv } from "../i18n-views";
 
-const money = (v: number) => `${formatDecimal(Math.round(v))}\u00a0₼`;
+const money = (v: number) => formatDecimal(Math.round(v));
+// Every live item of the project, whatever the table shows (no queue, search or column filter).
+const REPORT_FILTERS: ItemFilters = filtersOf(emptyState(), "");
 const DAYS_LEFT = (today: string) => {
   const [y = 1970, m = 1, d = 1] = today.split("-").map(Number);
   return new Date(Date.UTC(y, m, 0)).getUTCDate() - d;
@@ -19,11 +21,13 @@ const DAYS_LEFT = (today: string) => {
 
 /** The monthly report panel above the table (ADR-0066): plan, collected and
  * remaining, customers by state and lateness, today's payments, the biggest
- * debt and the plan's split. Follows the table's filters. */
-export function ReportPanel({ ws, project, filters, config, statuses, fields, today, onOpen }: {
-  ws: string; project: string; filters: ItemFilters; config: ReportConfig; statuses: readonly Status[];
+ * debt and the plan's split. A fixed project-wide report: the table's filters
+ * and queues do not change it. */
+export function ReportPanel({ ws, project, config, statuses, fields, today, onOpen }: {
+  ws: string; project: string; config: ReportConfig; statuses: readonly Status[];
   fields: ReadonlyMap<string, FieldDefinition>; today: string; onOpen: (n: number) => void;
 }) {
+  const filters = REPORT_FILTERS;
   const { plan_field: plan, remaining_field: rest, breakdown_field: split } = config;
   const totals = useItemTotals(ws, project, filters, [plan, rest]);
   const counts = useItemCounts(ws, project, filters);

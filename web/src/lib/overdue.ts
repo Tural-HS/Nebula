@@ -47,6 +47,21 @@ export function itemLateLevel(it: { overdue: boolean; due_date: string | null },
   return it.overdue && it.due_date ? lateLevel(Math.max(1, daysLate(it.due_date, today))) : 0;
 }
 
+/**
+ * An open item due today: not overdue yet, not done or canceled. Its table
+ * cells glow green (ADR-0067) so today's payments stand out.
+ */
+export function isDueToday(
+  it: { overdue: boolean; due_date: string | null; status: { category: string } },
+  today: string = localToday(),
+): boolean {
+  return !it.overdue && it.due_date === today && it.status.category !== "done" && it.status.category !== "canceled";
+}
+
+/** Table cell style for an item due today; the glow lives in index.css. */
+export const DUE_TODAY_CELL =
+  "due-today bg-emerald-50 font-semibold text-emerald-800 dark:bg-emerald-400/15 dark:text-emerald-200";
+
 /** A left edge in the band's colour, for cards. */
 export const LATE_EDGE: Record<Exclude<LateLevel, 0>, string> = {
   1: "border-l-4 border-l-yellow-400",

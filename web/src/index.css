@@ -255,3 +255,20 @@
     @apply bg-zinc-50 font-semibold dark:bg-zinc-800/60;
   }
 }
+
+/* Items due today (ADR-0067): the cell's text glows green and pulses softly.
+   Text colour stays emerald 800 / 200 so contrast holds (AA) at the dimmest
+   point; only the shadow pulses. With reduced motion the glow stays still. */
+@keyframes due-today-pulse {
+  from { text-shadow: 0 0 2px oklch(0.77 0.2 155 / 0.35); }
+  to { text-shadow: 0 0 6px oklch(0.8 0.22 155 / 0.95), 0 0 12px oklch(0.8 0.22 155 / 0.6); }
+}
+.due-today {
+  animation: due-today-pulse 1.2s ease-in-out infinite alternate;
+}
+@media (prefers-reduced-motion: reduce) {
+  .due-today {
+    animation: none;
+    text-shadow: 0 0 6px oklch(0.8 0.22 155 / 0.7);
+  }
+}

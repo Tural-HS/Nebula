@@ -574,7 +574,7 @@ export function ItemsPage() {
             // the header (and its open menu) instead of swapping to an empty page.
             <div className="flex h-full flex-col">
               {rules.data?.report ? (
-                <ReportPanel ws={ws} project={project} filters={filters} config={rules.data.report} statuses={statuses} fields={fields}
+                <ReportPanel ws={ws} project={project} config={rules.data.report} statuses={statuses} fields={fields}
                   today={today} onOpen={(n) => { setParam("item", String(n)); }} />
               ) : (
                 <SummaryBar ws={ws} project={project} filters={filters} items={rules.data?.summary ?? []} today={today} />

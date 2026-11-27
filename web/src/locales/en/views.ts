@@ -40,7 +40,7 @@ export const tv = {
   reportCollected: "Collected",
   reportPlan: "Monthly plan",
   reportPaid: "Paid",
-  reportRemaining: "Still to collect",
+  reportRemaining: "Remaining",
   reportPaidCount: (n: number) => `${String(n)} paid`,
   reportWaiting: (n: number) => `${String(n)} waiting`,
   reportBand: (n: number, level: number) => `${String(n)} · ${["1–15", "16–30", "30+"][level - 1] ?? ""} days`,

@@ -37,7 +37,7 @@ export const tv = {
   reportCollected: "Yığım",
   reportPlan: "Aylıq plan",
   reportPaid: "Ödənilib",
-  reportRemaining: "Yığılası qalıq",
+  reportRemaining: "Qalıq",
   reportPaidCount: (n: number) => `${String(n)} ödəyib`,
   reportWaiting: (n: number) => `${String(n)} gözləyir`,
   reportBand: (n: number, level: number) => `${String(n)} · ${["1–15", "16–30", "30+"][level - 1] ?? ""} gün`,

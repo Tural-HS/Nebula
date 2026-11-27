@@ -42,7 +42,7 @@ export const tv = {
   reportCollected: "Собрано",
   reportPlan: "План месяца",
   reportPaid: "Оплачено",
-  reportRemaining: "Осталось собрать",
+  reportRemaining: "Остаток",
   reportPaidCount: (n: number) => `${String(n)} оплатили`,
   reportWaiting: (n: number) => `${String(n)} ожидают`,
   reportBand: (n: number, level: number) => `${String(n)} · ${["1–15", "16–30", "30+"][level - 1] ?? ""} дн.`,

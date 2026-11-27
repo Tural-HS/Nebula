@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { daysLate, lateDays, lateLevel, localToday } from "./overdue";
+import { daysLate, isDueToday, lateDays, lateLevel, localToday } from "./overdue";
 
 describe("overdue bands", () => {
   it("counts whole days across months", () => {
@@ -35,5 +35,19 @@ describe("lateDays", () => {
     const m = lateDays([it1, { id: "b", due_date: "2026-11-01", overdue: false }], "2026-11-20", "2026-11-22", "2026-11-26");
     expect([...m.keys()]).toEqual(["2026-11-20", "2026-11-21", "2026-11-22"]);
     expect(m.get("2026-11-20")).toHaveLength(1);
+  });
+});
+
+describe("isDueToday", () => {
+  const item = (due: string | null, category = "todo", overdue = false) => ({ due_date: due, overdue, status: { category } });
+  it("marks open items due today", () => {
+    expect(isDueToday(item("2026-11-27"), "2026-11-27")).toBe(true);
+  });
+  it("skips other days, overdue, done and canceled items", () => {
+    expect(isDueToday(item("2026-11-28"), "2026-11-27")).toBe(false);
+    expect(isDueToday(item(null), "2026-11-27")).toBe(false);
+    expect(isDueToday(item("2026-11-27", "todo", true), "2026-11-27")).toBe(false);
+    expect(isDueToday(item("2026-11-27", "done"), "2026-11-27")).toBe(false);
+    expect(isDueToday(item("2026-11-27", "canceled"), "2026-11-27")).toBe(false);
   });
 });
